@@ -2,6 +2,8 @@ import { ReqoreMultiSelect } from '@qoretechnologies/reqore';
 import { TReqoreMultiSelectItem } from '@qoretechnologies/reqore/dist/components/MultiSelect';
 import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit';
 import { memo, useMemo } from 'react';
+import { allowedValueName, allowedValueOf } from '../../../../helpers/allowedValues';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -31,6 +33,8 @@ export interface IMultiSelectFormFieldProps {
  */
 export const MultiSelectFormField = memo(
   ({ value = [], items, onChange, disabled, size, canCreateItems }: IMultiSelectFormFieldProps) => {
+    // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+    const unavailableOpacity = useReadableOpacity(0.55);
     const selectedValues = useMemo<string[]>(
       () => (value as unknown[]).map(String),
       [JSON.stringify(value)]
@@ -55,7 +59,7 @@ export const MultiSelectFormField = memo(
                   messages: item.messages,
                 })
             )
-            .map((item) => String(item.value?.value ?? ''))
+            .map((item) => String(allowedValueOf(item) ?? ''))
         ),
       [JSON.stringify(items)]
     );
@@ -74,27 +78,27 @@ export const MultiSelectFormField = memo(
             messages: item.messages,
           });
 
-          return {
-            value: item.value?.value as string,
-            label: item.display_name ?? String(item.value?.value ?? ''),
-            description:
-              unavailable ?
-                [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
-              : description,
-            tooltip: unavailable ? unavailable.content : undefined,
-            icon: unavailable ? ('LockLine' as const) : undefined,
-            className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
-            effect: unavailable ? { opacity: 0.55 } : undefined,
-            readOnly: !!unavailable,
-            wrap: true,
-            /* IDE parity: when `*` is selected, every other item is disabled.
+        return {
+          // its value and its name however the entry is written: an envelope, a bare value or a name
+          value: allowedValueOf(item) as string,
+          label: allowedValueName(item),
+          description:
+            unavailable ?
+              [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
+            : description,
+          tooltip: unavailable ? unavailable.content : undefined,
+          icon: unavailable ? ('LockLine' as const) : undefined,
+          className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
+          effect: unavailable ? { opacity: unavailableOpacity } : undefined,
+          readOnly: !!unavailable,
+          wrap: true,
+          /* IDE parity: when `*` is selected, every other item is disabled.
                That one stays reqore's `disabled` — the wildcard is a state of
                the SELECTION rather than a refusal of the value, and it has no
                reason of its own to protect. */
-            disabled: selectedValues.includes('*') && item.value?.value !== '*',
-          };
-        }
-      );
+          disabled: selectedValues.includes('*') && allowedValueOf(item) !== '*',
+        };
+      });
 
       // IDE parity: selected values that aren't in the allowed list still
       // render as (removable) items.

@@ -5,6 +5,10 @@ import { useState } from 'react';
 import { StoryMeta } from '../../../../types';
 import { BooleanFormField } from './Boolean';
 
+/** The switch as a user clicks it: since reqore 0.78 it is a native input under its drawn track. */
+const switchTrack = (input: HTMLElement): HTMLElement =>
+  (input.closest('.reqore-checkbox') as HTMLElement | null) ?? input.parentElement!;
+
 const meta = {
   component: BooleanFormField,
   title: 'Components/Form/Boolean',
@@ -48,7 +52,7 @@ export const Checked: Story = {
     await expect(canvas.getByText('Yes')).toBeInTheDocument();
     await expect(canvas.getByText('No')).toBeInTheDocument();
 
-    await userEvent.click(canvas.getByLabelText('Boolean'));
+    await userEvent.click(switchTrack(canvas.getByLabelText('Boolean')));
     await expect(args.onChange).toHaveBeenLastCalledWith(false);
   },
 };
@@ -70,7 +74,7 @@ export const Unchecked: Story = {
 
     await expect(canvas.getByText('No')).toBeInTheDocument();
 
-    await userEvent.click(canvas.getByLabelText('Boolean'));
+    await userEvent.click(switchTrack(canvas.getByLabelText('Boolean')));
     await expect(args.onChange).toHaveBeenLastCalledWith(true);
   },
 };
@@ -107,7 +111,7 @@ export const UnsetSelectsYes: Story = {
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
 
-    await userEvent.click(canvas.getByLabelText('Boolean'));
+    await userEvent.click(switchTrack(canvas.getByLabelText('Boolean')));
     await expect(args.onChange).toHaveBeenLastCalledWith(true);
   },
 };

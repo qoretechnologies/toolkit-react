@@ -2,12 +2,16 @@ import {
   ReqoreControlGroup,
   ReqoreDescriptionList,
   ReqoreSpan,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Effect';
 import { SIZE_TO_PX } from '@qoretechnologies/reqore/dist/constants/sizes';
-import { ReactNode } from 'react';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { ReactNode, useMemo } from 'react';
 import styled from 'styled-components';
+import { getReadableFaded, getThemeSurfaces } from '../../helpers/readableColors';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 
 /*
  * The header every ticket surface puts above its tabs: the subject, the ticket's
@@ -47,11 +51,23 @@ export const TICKET_RAIL_ROW_HEIGHT = SIZE_TO_PX[RAIL_SIZE] + ROW_PADDING * 2;
 /** The ticket number, set in mono so it reads as an identifier, not a heading. Exported
  *  so the staff drawer (which puts the number in the drawer's own title, not the rail)
  *  renders it identically rather than re-declaring the same span. */
-export const TicketMonoId = styled.span`
+const StyledMonoId = styled.span<{ $color: string }>`
   font-family: ui-monospace, 'SF Mono', 'Menlo', monospace;
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: ${({ $color }) => $color};
 `;
+
+/* Softer than the title: the theme's text, faded only as far as it still reads (a fixed white at 45% was 4.5:1 at
+   best on a dark theme and unreadable on a light one; qorus#646). */
+export const TicketMonoId = ({ children }: { children: ReactNode }) => {
+  const theme = useReqoreTheme();
+  const color = useMemo(
+    () => getReadableFaded(getReadableColor(theme), getThemeSurfaces(theme), 0.45),
+    [theme]
+  );
+
+  return <StyledMonoId $color={color}>{children}</StyledMonoId>;
+};
 
 /**
  * A person: initials disc, then the name, on one baseline.
@@ -240,8 +256,17 @@ export const TicketHeaderText = ({
   /** for an absent value ("Unassigned", "None") */
   muted?: boolean;
   tooltip?: string;
-}) => (
-  <ReqoreSpan size={RAIL_SIZE} tooltip={tooltip} effect={muted ? { opacity: 0.5 } : undefined}>
-    {children}
-  </ReqoreSpan>
-);
+}) => {
+  // an absent value is faded, as far as it still reads (qorus#646)
+  const mutedOpacity = useReadableOpacity(0.5);
+
+  return (
+    <ReqoreSpan
+      size={RAIL_SIZE}
+      tooltip={tooltip}
+      effect={muted ? { opacity: mutedOpacity } : undefined}
+    >
+      {children}
+    </ReqoreSpan>
+  );
+};

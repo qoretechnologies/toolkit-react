@@ -499,6 +499,44 @@ export const LoadFailed: Story = {
   },
 };
 
+/**
+ * The user may not list this kind. The pane says why, in words, as one muted item with a lock: not a
+ * failure, and nothing to retry - a refused permission is an answer, not a fetch to try again.
+ */
+export const KindUnavailable: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a kind the user may not list (a refused permission): the pane shows one muted item with a lock and the reason as its words, with no retry and no danger color, instead of a failure.',
+      },
+    },
+  },
+  decorators: [darkTheme],
+  render: () => (
+    <ReferencePicker
+      kinds={KINDS}
+      kind='connection'
+      onKindChange={fn()}
+      items={[]}
+      unavailable='Listing connections needs the CONNECTION-READ permission'
+      onAdd={fn()}
+    />
+  ),
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const reason = await canvas.findByRole('button', {
+      name: 'Listing connections needs the CONNECTION-READ permission',
+    });
+    // the reason is the item's own words, not a tooltip
+    await expect(reason).toHaveTextContent(
+      'Listing connections needs the CONNECTION-READ permission'
+    );
+    await expect(canvas.queryByText(/Couldn't load/)).not.toBeInTheDocument();
+    await expect(canvas.queryByText(/No connections/)).not.toBeInTheDocument();
+  },
+};
+
 /** In place: above the composer, toggled by the composer's own action, with the picked
  *  references shown as chips over the input. */
 export const AboveTheComposer: Story = {

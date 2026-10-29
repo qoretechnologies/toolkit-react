@@ -121,13 +121,13 @@ describe('numbersLine', () => {
   });
 });
 
-describe('bars, verdict colour and status tag', () => {
+describe('bars, verdict color and status tag', () => {
   it('scales each bar to the best conversion, 0 without numbers', () => {
     expect(barValues(versionRows(entry(), ['a', 'b']))).toEqual([74, 100]);
     expect(barValues(versionRows(undefined, ['a', 'b']))).toEqual([0, 0]);
   });
 
-  it('colours the verdict and names the status with its phase', () => {
+  it('colors the verdict and names the status with its phase', () => {
     expect(verdictIntent(entry({}, { verdict: 'likely-winner' }))).toBe('success');
     expect(verdictIntent(entry({}, { verdict: 'likely-loser' }))).toBe('warning');
     expect(verdictIntent(undefined)).toBe('muted');

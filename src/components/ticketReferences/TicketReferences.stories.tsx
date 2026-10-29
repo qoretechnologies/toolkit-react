@@ -1,12 +1,10 @@
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
+import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
 import { IInterfaceReference } from '../supportTicket/meta';
 import { ITicketReferenceAttachment, TicketReferences } from './TicketReferences';
-
-const NOW = Date.parse('2026-06-30T12:00:00Z');
-const ago = (mins: number) => new Date(NOW - mins * 60_000).toISOString();
 
 // The stories stand in for the authed blob-download endpoint by handing back an
 // inline SVG data-URI per image id, so thumbnails + the lightbox render offline.

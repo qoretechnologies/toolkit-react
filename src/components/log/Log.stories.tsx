@@ -1,8 +1,10 @@
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fireEvent, fn } from 'storybook/test';
+import { expect, fireEvent, fn, waitFor } from 'storybook/test';
 import { Server } from 'mock-socket';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
 import { storySocketUrl } from '../../stories/storyNetwork';
+import { withTouchScreen } from '../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../stories/tracking';
 import { StoryMeta } from '../../types';
 import { ReqraftLog } from './Log';
 
@@ -124,6 +126,56 @@ export const Filterable: Story = {
     await Basic.play(args);
     await fireEvent.change(document.querySelector('.reqore-input'), { target: { value: 'error' } });
     await expect(document.querySelectorAll('.reqraft-log-message')).toHaveLength(1);
+  },
+};
+
+/** Where a control sits in the title bar: present, drawn, and not cut off by the bar's edge. */
+const expectInTitleBar = (bar: Element, control: Element | null) => {
+  expect(control).toBeTruthy();
+  const box = control!.getBoundingClientRect();
+  const edge = bar.getBoundingClientRect();
+  expect(box.width).toBeGreaterThan(0);
+  expect(box.left).toBeGreaterThanOrEqual(edge.left);
+  expect(box.right).toBeLessThanOrEqual(edge.right);
+};
+
+export const FilterableOnAPhone: Story = {
+  ...Filterable,
+  tags: ['touch'],
+  // drawn at the phone's width from the start, as on a phone, not narrowed after it was laid out
+  globals: { viewport: { value: 'phone' } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: {
+          name: 'Phone',
+          styles: { width: `${PHONE_VIEWPORT.width}px`, height: `${PHONE_VIEWPORT.height}px` },
+        },
+      },
+    },
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with the filter on a phone (390 px, touch). The filter, Pause and Clear stay in the title bar, none of them folded into a menu. A finger taps the filter, and typing "error" leaves the single ERROR message.',
+      },
+    },
+  },
+  play: async (context) => {
+    await Basic.play(context);
+    await withTouchScreen(async (touch) => {
+      const bar = context.canvasElement.querySelector('.reqore-panel-title')!;
+      const filter = bar.querySelector<HTMLInputElement>('input[placeholder="Filter messages"]');
+      expectInTitleBar(bar, filter);
+      expectInTitleBar(bar, bar.querySelector('.reqraft-log-pause-resume'));
+      expectInTitleBar(bar, bar.querySelector('.reqraft-log-clear'));
+
+      await touch.tap(filter!);
+      await fireEvent.change(filter!, { target: { value: 'error' } });
+      await waitFor(() =>
+        expect(context.canvasElement.querySelectorAll('.reqraft-log-message')).toHaveLength(1)
+      );
+    });
   },
 };
 
@@ -270,7 +322,7 @@ export const FormattedMessages: Story = {
     docs: {
       description: {
         story:
-          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines colour warning, ERROR lines danger and ALL-CAPS lines info.',
+          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines color warning, ERROR lines danger and ALL-CAPS lines info.',
       },
     },
   },

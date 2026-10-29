@@ -7,10 +7,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { storyApiUrl } from '../../../stories/storyNetwork';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
+import { dpqlMockConditionWords } from './dpqlMockLanguage';
 import { dpqlMockParseCalls } from './dpqlMockLsp';
+import { withCoarsePointer } from '../../../stories/coarsePointer';
+import { _testsWithViewport } from '../../../stories/Tests/utils';
+import { PHONE_VIEWPORT } from '../../../stories/tracking';
+import { atTheCaptureSize, middleOf, mouseOffThePage, restMouseOn } from '../../../stories/mouse';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
+import { seenCompletionLabels, typeAsAPerson } from '../../../stories/templatePicker';
 
 /** The IDE's AI-assist button, as it renders on every expression card there
  *  (qorus-ide `src/components/AiButton` + `src/constants/effects.ts`
@@ -43,6 +49,9 @@ const meta = {
   component: ExpressionField,
   title: 'Components/Form/Expressions/ExpressionField',
   parameters: {
+    /* an expression of a Qog state's options, as Qorus completes it (its catalogue fixture): in a loop, with
+       variables, configuration items and the data of the states before it */
+    templateCatalogue: 'qog-loops',
     mockData: [
       {
         url: storyApiUrl('system?action=expressions&context=ui'),
@@ -87,16 +96,32 @@ const waitForLspIdle = (canvasElement: HTMLElement) =>
     { timeout: 10000 }
   );
 
+/** What the Text view says under its text, each message as it reads. */
+const saidUnderTheText = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('.expression-field [data-severity]')).map(
+    (message) => message.textContent?.trim() ?? ''
+  );
+
+/** The rows of the completion list open at the editor's caret, or what it says in their place. */
+const completionListed = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '.reqore-popover-content .completion-menu .reqore-menu-item'
+    )
+  ).map((row) => row.textContent?.trim() ?? '');
+
 /** The shell with a populated expression — the Visual/Text mode toggle. */
 export const Default: Story = {
   args: {
     value: SAMPLE,
+    // the Visual builder, which this story shows: an expression opens in Text
+    defaultMode: 'visual',
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders ExpressionField holding a "$local:name == John" expression — the Visual builder shows the Logical Equals operator with its two operands and the Visual/Text mode toggle.',
+          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle, as wide as its two buttons.',
       },
     },
   },
@@ -109,6 +134,44 @@ export const Default: Story = {
       timeout: 6000,
     });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    // the toggle is as wide as what its two buttons say, not across the field
+    const field = canvasElement.querySelector('.expression-field') as HTMLElement;
+    const toggle = canvasElement.querySelector('.expression-mode-toggle') as HTMLElement;
+    await expect(toggle.getBoundingClientRect().width).toBeLessThan(
+      field.getBoundingClientRect().width / 2
+    );
+  },
+};
+
+/** The toggle's words are the host's: a host that translates its screens gives them (`modeLabels`). */
+export const ModeToggleInTheHostsWords: Story = {
+  args: {
+    value: SAMPLE,
+    defaultMode: 'visual',
+    modeLabels: { text: 'Texte', visual: 'Visuel' },
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField opened in its Visual view, with its Text / Visual toggle in the words a host gave it (`modeLabels`): "Texte" and "Visuel".',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const toggle = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('.expression-mode-toggle');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await expect(
+      Array.from(toggle.querySelectorAll('.reqore-button')).map((button) =>
+        button.textContent?.trim()
+      )
+    ).toEqual(['Texte', 'Visuel']);
   },
 };
 
@@ -157,6 +220,8 @@ export const Empty: Story = {
  */
 export const NestedOperandKeepsInjectedActions: Story = {
   args: {
+    // the Visual builder's cards, which this story counts: an expression opens in Text
+    defaultMode: 'visual',
     value: {
       is_expression: true,
       value: {
@@ -226,7 +291,7 @@ export const ViaFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell with the Visual builder and the Visual/Text toggle.',
+          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell on its Text view, the first of the Text · Visual toggle and the view an expression opens in (qorus#646, David). Choosing Visual shows the builder.',
       },
     },
   },
@@ -256,14 +321,19 @@ export const ViaFormEngine: Story = {
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    // The ported builder rendered inside the engine-driven form.
+    // The ExpressionField shell opens on its Text view: the written expression, no builder yet.
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    expect(canvasElement.querySelector('.expression')).toBeNull();
+    await expect(canvas.getByText('Text')).toBeInTheDocument();
+    // Visual shows the ported builder inside the engine-driven form.
+    await userEvent.click(await canvas.findByText('Visual'));
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
-    // The ExpressionField shell wraps it: the Visual/Text toggle is present.
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
-    await expect(canvas.getByText('Text')).toBeInTheDocument();
     // A valid expression is validated as an expression, not as the base
     // `bool` type — no "must be True or False" error.
     await expect(canvas.queryByText(/True or False/)).not.toBeInTheDocument();
@@ -276,12 +346,83 @@ export const ViaFormEngine: Story = {
  * stored AST (`dpql/serialize` over the mock LSP) and the "Preview" box
  * renders the same AST.
  */
+export const RemovedInVisualStaysInVisual: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine condition that is always an expression (its host puts back an empty one when it is removed, as a Qorus row rule does), opens Visual and removes the expression: the editor stays on Visual, on "Select operation", where the author was. It opens on Text only the first time.',
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({
+      condition: { type: 'bool', value: SAMPLE.value, is_expression: true },
+    });
+    return (
+      <FormEngine
+        name='exprAlways'
+        options={
+          {
+            condition: {
+              type: 'bool',
+              ui_type: 'bool',
+              display_name: 'Condition',
+              preselected: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as any
+        }
+        value={value}
+        onChange={(_n, v: any) =>
+          setValue(
+            v?.condition?.value === undefined || v?.condition?.value === null
+              ? { ...v, condition: { type: 'bool', is_expression: true, value: { args: [] } } }
+              : v
+          )
+        }
+      />
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    await userEvent.click(await canvas.findByText('Visual'));
+    const top = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('.expression');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 6000 }
+    );
+    await userEvent.hover(top);
+    const remove = await waitFor(() => {
+      const el =
+        document.querySelector<HTMLElement>('.reqore-panel-floating-actions .expression-group-remove') ??
+        top.querySelector<HTMLElement>('.expression-group-remove');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(remove);
+    // still the Visual view: an operation to choose, not the Text view
+    await waitFor(() => expect(canvas.getByText('Select operation')).toBeInTheDocument(), { timeout: 6000 });
+    await settle(canvasElement);
+    expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeNull();
+    expect(canvas.getByText('Select operation')).toBeInTheDocument();
+  },
+};
+
 export const ViaFormEngineTextMode: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
+          'Renders the FormEngine expression field, which opens on its Text view — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
       },
     },
   },
@@ -289,14 +430,9 @@ export const ViaFormEngineTextMode: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    // Visual (the builder) renders first.
-    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
-      timeout: 6000,
-    });
-
-    // Switch to Text — the DPQL editor mounts and seeds from the AST
-    // (`dpql/serialize` over the mock LSP).
-    await userEvent.click(await canvas.findByText('Text'));
+    // It opens on Text (qorus#646, David) — the DPQL editor mounts and seeds from the AST
+    // (`dpql/serialize` over the mock LSP); the builder is not drawn.
+    await expect(await canvas.findByText('Text')).toBeInTheDocument();
     const editable = (await waitFor(
       () => {
         const el = canvasElement.querySelector('[contenteditable="true"]');
@@ -314,14 +450,14 @@ export const ViaFormEngineTextMode: Story = {
       },
       { timeout: 10000 }
     );
-    // …and highlighted: the server colours its own copy of the text, which it
+    // …and highlighted: the server colors its own copy of the text, which it
     // only holds if a value SET after mount reaches it as well as typing does.
     await waitFor(
       () => {
         const literal = Array.from(editable.querySelectorAll<HTMLElement>('span[style]')).find(
           (span) => span.textContent === '"John"' && !!span.style.color
         );
-        expect(literal, 'the seeded text is coloured by the server').toBeTruthy();
+        expect(literal, 'the seeded text is colored by the server').toBeTruthy();
       },
       { timeout: 10000 }
     );
@@ -439,7 +575,9 @@ const typedExpressionStory = (
   fieldType: string,
   text: string,
   description: string,
-  expectation: (canvasElement: HTMLElement) => Promise<void>
+  expectation: (canvasElement: HTMLElement) => Promise<void>,
+  /** more of the field's schema (a condition's `metadata`) */
+  schema: Record<string, unknown> = {}
 ): Story => ({
   parameters: {
     docs: { description: { story: description } },
@@ -460,6 +598,7 @@ const typedExpressionStory = (
               preselected: true,
               supports_expressions: true,
               expressions: mockExpressions,
+              ...schema,
             },
           } as any
         }
@@ -491,8 +630,23 @@ const typedExpressionStory = (
        same race. */
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, text);
-    await expectation(canvasElement);
+    // typed as a person types it, key by key (the click opens the template picker; typing puts it away)
+    /* What the text and the page's caret were after each key, said if the expectation fails: CI once typed
+       `"a" + 1` as `a" + 1""` - the caret back at the start after the first key - and passes everywhere else; the
+       next time it happens, this says after which key and where the caret went. */
+    const afterEachKey: string[] = [];
+    for (const char of text) {
+      await typeAsAPerson(userEvent, char);
+      const page = editable.ownerDocument.getSelection();
+      afterEachKey.push(
+        `${JSON.stringify(char)}→${JSON.stringify(editable.textContent?.replace(/\uFEFF/g, ''))}@${page?.anchorOffset}`
+      );
+    }
+    try {
+      await expectation(canvasElement);
+    } catch (error) {
+      throw new Error(`${(error as Error).message}\nafter each key: ${afterEachKey.join(' ')}`);
+    }
     await waitForLspIdle(canvasElement);
   },
 });
@@ -573,6 +727,139 @@ export const TextModeTypeFits: Story = typedExpressionStory(
   }
 );
 
+/* A condition, written as text (qorus#646): a field its host marks as one (`metadata.condition`) - a Qog if
+   state's value, a while or for block's condition. The server reads a condition as true unless its value is
+   zero or empty, so the field asks it how it reads the text (`condition: true`) instead of whether it fits
+   bool, and says what it answers: a number is accepted with a warning, text is refused. A value of type bool
+   that is not a condition keeps its type check. */
+
+/** The mark a host sets on a field that is a condition. */
+const CONDITION_SCHEMA = { metadata: { condition: true } };
+
+/** The record of an order, as the stand-in server knows it (`DPQL_MOCK_PROVIDERS`). */
+const ORDERS_PROVIDER = 'orders-db/orders';
+
+/** Settled when the server has read this text as a condition. */
+const readAsCondition = async (canvasElement: HTMLElement, text: string) => {
+  await waitFor(
+    () =>
+      expect(
+        dpqlMockParseCalls.some((call) => call.text === text && call.condition && !call.target),
+        `parses=${JSON.stringify(dpqlMockParseCalls)}`
+      ).toBe(true),
+    { timeout: 10000 }
+  );
+  await waitForLspIdle(canvasElement);
+};
+
+/** What is said of a condition that gives a number, in the server's words. */
+const CONDITION_BY_TRUTHINESS =
+  'The condition evaluates to a whole number; Qorus treats it as true unless it is 0.';
+/** What is said of a condition that gives text, in the server's words. */
+const NOT_A_CONDITION_TEXT = 'The condition evaluates to text, but it must evaluate to true or false.';
+
+export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
+  'bool',
+  '1 + 2',
+  "Types `1 + 2` into the Text view of a condition on the orders record (whose fields an @ offers there). The result is a number, which Qorus reads as true unless it is 0: the field says so in the server's words, and how to make that explicit (compare it, for example @count > 0).",
+  async (canvasElement) => {
+    await readAsCondition(canvasElement, '1 + 2');
+    await waitFor(() => expect(canvasElement.textContent).toContain(CONDITION_BY_TRUTHINESS), {
+      timeout: 10000,
+    });
+    expect(canvasElement.textContent).not.toContain('This does not fit');
+    expect(canvasElement.textContent).not.toContain('This may not fit');
+  },
+  // a condition on the orders record, which the server names for the option
+  { ...CONDITION_SCHEMA, dpql_provider: ORDERS_PROVIDER }
+);
+
+export const TextModeConditionThatGivesText: Story = typedExpressionStory(
+  'bool',
+  '"a" + 1',
+  "Types `\"a\" + 1` into the Text view of a condition. The result is text, which is not true or false: the field refuses it in the server's words, and says to compare the value instead, for example @status == \"open\".",
+  async (canvasElement) => {
+    await readAsCondition(canvasElement, '"a" + 1');
+    await waitFor(
+      () => expect(canvasElement.textContent).toContain(NOT_A_CONDITION_TEXT),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.textContent).toContain('Compare the value instead, for example @status == "open".');
+    expect(canvasElement.textContent).not.toContain('This may not fit');
+    expect(canvasElement.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+  },
+  CONDITION_SCHEMA
+);
+
+export const TextModeConditionThatGivesTrueOrFalse: Story = typedExpressionStory(
+  'bool',
+  '1 < 2',
+  'Types `1 < 2` into the Text view of a condition. The result is true or false, so nothing is said.',
+  async (canvasElement) => {
+    await readAsCondition(canvasElement, '1 < 2');
+    expect(canvasElement.textContent).not.toContain(CONDITION_BY_TRUTHINESS);
+    expect(canvasElement.textContent).not.toContain('it must evaluate to true or false');
+    expect(canvasElement.textContent).not.toContain('This does not fit');
+  },
+  CONDITION_SCHEMA
+);
+TextModeConditionThatGivesTrueOrFalse.parameters = {
+  ...TextModeConditionThatGivesTrueOrFalse.parameters,
+  // Interaction-only: the play assertions are the guard, and the end state
+  // is already pictured by `TextModeTypeFits`.
+  qlip: { skip: true },
+};
+
+export const TextModeBoolValueThatGivesANumber: Story = typedExpressionStory(
+  'bool',
+  '1 + 2',
+  'Types `1 + 2` into the Text view of a value of type bool that is not a condition. The server checks a bool value as a bool, and a number does not fit it: the field says "This does not fit", and nothing about a condition.',
+  async (canvasElement) => {
+    await waitFor(() => expect(canvasElement.textContent).toContain('This does not fit'), {
+      timeout: 10000,
+    });
+    expect(
+      dpqlMockParseCalls.some(
+        (call) => call.text === '1 + 2' && call.target === 'bool' && !call.condition
+      ),
+      `parses=${JSON.stringify(dpqlMockParseCalls)}`
+    ).toBe(true);
+    expect(canvasElement.textContent).not.toContain(CONDITION_BY_TRUTHINESS);
+  }
+);
+
+/** The number condition on a phone, with a finger: the warning stays inside the field. */
+export const TextModeConditionThatGivesANumberOnAPhone: Story = {
+  ...TextModeConditionThatGivesANumber,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The condition that gives a number, on a phone (390 px, touch): the warning under the text wraps inside the field, and the Details button beside the text is its icon alone (Foxhoundn, qlip #383).',
+      },
+    },
+  },
+  play: async (context) => {
+    await TextModeConditionThatGivesANumber.play!(context);
+    const verdict = context.canvasElement.querySelector('.expression-condition-verdict');
+    expect(verdict).toBeTruthy();
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() =>
+          expect(verdict!.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+        );
+        // in a row a phone's width or narrower, Details is its icon alone, still named
+        const details = context.canvasElement.querySelector<HTMLElement>('.smart-editor-details');
+        expect(details, 'the Details button').toBeTruthy();
+        await waitFor(() => expect(details!.textContent?.trim()).toBe(''));
+        await expect(details).toHaveAccessibleName('Show what the word at the cursor is');
+      }
+    });
+  },
+};
+
 /**
  * An `auto` field accepts anything, so there is nothing to check the
  * expression's return type against and no target is sent at all.
@@ -617,6 +904,12 @@ export const TextModeAutoAsksNothing: Story = typedExpressionStory(
     expect(canvasElement.textContent).not.toContain('This may not fit');
   }
 );
+TextModeAutoAsksNothing.parameters = {
+  ...TextModeAutoAsksNothing.parameters,
+  // Interaction-only: the play assertions are the guard, and the end state
+  // is already pictured by `TextModeTypeFits`.
+  qlip: { skip: true },
+};
 
 /**
  * Text (DPQL) mode, backed by a mock-socket LSP. Typing DPQL parses to the
@@ -659,6 +952,287 @@ export const TextMode: Story = {
   },
 };
 
+export const TextModeHoverSaysWhatAnOperatorIs: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      value: {
+        exp: '+',
+        args: [
+          { type: 'int', value: 1 },
+          { type: 'int', value: 2 },
+        ],
+      },
+    },
+    defaultMode: 'text',
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeSeedsWhenAstArrivesLate`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text (DPQL) mode with 1 + 2, over the stories\' stand-in server, and rests the mouse on +: the hover says what the server says of it - "addition (+)", what it does - as the live Qorus /lsp answers. Every story that draws the DPQL editor over the shared stand-in gets the server\'s hovers (qorus#646).',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitForLspIdle(canvasElement);
+    const editable = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    await waitFor(() => expect(editable.textContent).toContain('1 + 2'));
+    try {
+      await restMouseOn(editable, middleOf(editable, '+'));
+      await waitFor(
+        () =>
+          expect(
+            Array.from(document.querySelectorAll('.reqore-popover-content')).map((popover) =>
+              (popover.textContent ?? '').replace(/\s+/g, ' ')
+            )
+          ).toEqual([expect.stringContaining('addition (+)')]),
+        { timeout: 10000 }
+      );
+    } finally {
+      await mouseOffThePage();
+    }
+  },
+};
+
+export const TextModeReferenceTypedOutIsAChip: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeSeedsWhenAstArrivesLate`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text (DPQL) mode and types "@status + 2" without picking from the list. When the space after it is typed, @status is drawn as its chip, as one picked from the list is; the rest is typed after it.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 6000 }
+    )) as HTMLElement;
+
+    await userEvent.click(editable);
+    await userEvent.type(editable, '@status + 2');
+
+    await waitFor(() => {
+      const chips = [...editable.querySelectorAll('.reqore-tag')].map((chip) => chip.textContent);
+      expect(chips).toEqual([expect.stringContaining('status')]);
+    });
+    // what was typed after it is in the text, in the order it was typed
+    expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/status\s*\+ 2$/);
+    await waitForLspIdle(canvasElement);
+  },
+};
+
+/** A comparison built in the Visual view and left unfinished, seen in the Text view. */
+export const TextModeOfAnUnfinishedExpression: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      // ">" with its first operand switched to "Use Expression", nothing chosen, and its second empty
+      value: { exp: '>', args: [{ value: { args: [null] }, is_expression: true }, {}] },
+    },
+    defaultMode: 'text',
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeConditionThatGivesANumber`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does, and under it what to do with them, once: "Fill in each … (the parts not chosen yet)." - not the server\'s "Unexpected character \'…\'" for each, of text the author did not write (David\'s decision).',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        expect(el?.textContent).toBe('… > …');
+      },
+      { timeout: 6000 }
+    );
+    expect(canvasElement.textContent).not.toContain('[object Object]');
+    await waitForLspIdle(canvasElement);
+    // what is said of the placeholders: what to do with them, once
+    await waitFor(() =>
+      expect(saidUnderTheText(canvasElement)).toEqual([
+        'Fill in each … (the parts not chosen yet).',
+      ])
+    );
+  },
+};
+
+export const AnUnfinishedExpressionSaysTheSameInBothViews: Story = {
+  args: TextModeOfAnUnfinishedExpression.args,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The comparison left unfinished ("… > …"), opened on its Text view, then on Visual: the Visual view says of the part whose operation is not chosen what it lacks - "Choose what this part does." - as the Text view says "Fill in each …". It said "This expression gives nothing, which this field does not take", of a part that gives nothing yet (David\'s review: the views did not agree).',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(
+      () =>
+        expect(saidUnderTheText(canvasElement)).toEqual([
+          'Fill in each … (the parts not chosen yet).',
+        ]),
+      { timeout: 6000 }
+    );
+    await userEvent.click(
+      Array.from(canvasElement.querySelectorAll<HTMLElement>('button')).find(
+        (button) => button.textContent?.trim() === 'Visual'
+      ) as HTMLElement
+    );
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.expression-no-operation-yet')?.textContent).toContain(
+        'Choose what this part does.'
+      )
+    );
+    expect(canvasElement.textContent).not.toContain('gives nothing');
+  },
+};
+
+/** A condition field (its host marks it one) that takes expressions and holds nothing yet, in a FormEngine. */
+const ConditionToggleForm = () => {
+  const [value, setValue] = useState<any>({});
+  return (
+    <FormEngine
+      name='conditionToggle'
+      options={
+        {
+          rule: {
+            type: 'bool',
+            ui_type: 'bool',
+            display_name: 'Rule',
+            preselected: true,
+            supports_expressions: true,
+            expressions: mockExpressions,
+            metadata: { condition: true },
+            // the record the condition is on, named by the server for an option on a connection
+            dpql_provider: ORDERS_PROVIDER,
+          },
+        } as any
+      }
+      value={value}
+      onChange={(_n, v) => setValue(v)}
+    />
+  );
+};
+
+/**
+ * The fields the Text view offers after an `@`: the record's, which the server names for the option
+ * (`dpql_provider`), not a list of its own.
+ */
+const expectRecordFieldsOffered = async (canvasElement: HTMLElement) => {
+  const editable = canvasElement.querySelector<HTMLElement>(
+    '.expression-field [data-slate-editor]'
+  )!;
+  await userEvent.click(editable);
+  await userEvent.keyboard('@');
+  await waitFor(
+    () => {
+      for (const field of ['@order_id', '@customer', '@total', '@shipped']) {
+        expect(document.body.textContent, `the record's field ${field}`).toContain(field);
+      }
+    },
+    { timeout: 6000 }
+  );
+};
+
+/** Open the field's More menu, and the item that turns it into an expression. */
+const openMoreMenu = async (canvasElement: HTMLElement) => {
+  const more = await waitFor(
+    () => {
+      const el = canvasElement.querySelector<HTMLElement>('.template-more');
+      expect(el, 'the More menu').toBeTruthy();
+      return el as HTMLElement;
+    },
+    { timeout: 6000 }
+  );
+  await userEvent.click(more);
+  return waitFor(() => {
+    const item = document.querySelector<HTMLElement>('.function-selector');
+    expect(item, 'the expression item').toBeTruthy();
+    return item as HTMLElement;
+  });
+};
+
+export const WriteAConditionInFormEngine: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeOffersTemplateCompletions`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet: a search condition on the orders record, which takes no templates (as the Qorus app\'s exec-search condition takes none), and whose record the server names. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use Expression"; clicking it opens the condition on its Text view, where an @ offers the record\'s fields: @order_id, @customer, @total and @shipped.',
+      },
+    },
+  },
+  render: () => <ConditionToggleForm />,
+  play: async ({ canvasElement }) => {
+    const item = await openMoreMenu(canvasElement);
+    expect(item).toHaveTextContent('Write a condition');
+    expect(document.body.textContent).not.toContain('Use Expression');
+    expect(document.body.textContent).not.toContain('Run a function on this value');
+    await userEvent.click(item);
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    await expectRecordFieldsOffered(canvasElement);
+  },
+};
+
+export const WriteAConditionInFormEngineOnAPhone: Story = {
+  ...WriteAConditionInFormEngine,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same condition field on a phone (390 px, touch): its More menu offers "Write a condition", inside the screen, and a tap on it opens the condition, where an @ offers the order record\'s fields.',
+      },
+    },
+  },
+  play: async (context) => {
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      const item = await openMoreMenu(context.canvasElement);
+      expect(item).toHaveTextContent('Write a condition');
+      if (narrowed) {
+        expect(item.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+      }
+      await userEvent.click(item);
+      await waitFor(
+        () =>
+          expect(
+            context.canvasElement.querySelector('.expression-field [data-slate-editor]')
+          ).toBeInTheDocument(),
+        { timeout: 6000 }
+      );
+      await expectRecordFieldsOffered(context.canvasElement);
+    });
+  },
+};
+
 /**
  * A plain `bool` field with `supports_expressions` and no value — starts as
  * the normal field; the "Use Expression" toggle (More menu) switches it.
@@ -666,10 +1240,13 @@ export const TextMode: Story = {
  */
 export const ToggleInFormEngine: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `RemovedInVisualStaysInVisual`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell with the Visual builder mounts in place of the checkbox.',
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view (qorus#646, David); Visual shows the builder.',
       },
     },
   },
@@ -714,16 +1291,19 @@ export const ToggleInFormEngine: Story = {
     // mode.
     await userEvent.click(await canvas.findByText('Use Expression'));
 
-    // The ExpressionField shell mounts: its `.expression-field` wrapper, the
-    // ported builder (`.expression`), and the Visual/Text toggle.
+    // The ExpressionField shell mounts: its `.expression-field` wrapper, on the Text view.
     await waitFor(
       () => {
         expect(canvasElement.querySelector('.expression-field')).toBeInTheDocument();
-        expect(canvasElement.querySelector('.expression')).toBeInTheDocument();
+        expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument();
       },
       { timeout: 6000 }
     );
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
+    // Visual shows the ported builder (`.expression`).
+    await userEvent.click(await canvas.findByText('Visual'));
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
   },
 };
 
@@ -757,10 +1337,10 @@ const settle = (root: HTMLElement, quietMs = 400): Promise<void> =>
   });
 
 /** Open a compact row — a read-first row shows its label, not its editor. */
-const openCompactRow = async (canvasElement: HTMLElement): Promise<void> => {
+const openCompactRow = async (canvasElement: HTMLElement, rowLabel = 'Value'): Promise<void> => {
   const label = (await waitFor(
     () => {
-      const el = within(canvasElement).queryByText('Value');
+      const el = within(canvasElement).queryByText(rowLabel);
       if (!el) throw new Error('row not rendered');
       return el as HTMLElement;
     },
@@ -898,6 +1478,9 @@ export const OfferAcceptedOpensTextMode: Story = {
  */
 export const OfferSurvivesARederivedSchema: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `OfferAcceptedOpensTextMode`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1012,7 +1595,7 @@ export const TextViewSurvivesALateHostChange: Story = {
     docs: {
       description: {
         story:
-          "Accepts the offer in a compact row, then has the host re-type the field a moment later (as qorus-ide does when its reference catalogue answers) — the Text view must not be swapped out from under the author.",
+          "Accepts the offer in a compact row, then has the host re-type the field a moment later (as qorus-ide does when its reference catalog answers) — the Text view must not be swapped out from under the author.",
       },
     },
   },
@@ -1108,7 +1691,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
     docs: {
       description: {
         story:
-          "Accepts the offer on a compact row whose field also has templates. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the shell's toolbar row, level with Undo, not part-way down the editor.",
+          "Types 1 + 2 on a compact row whose field also has templates: the field enters its value on tabs (Value · Expression · Visual), and the expression is offered; used as one, it moves the field to Expression. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the tabs' row, not part-way down the editor.",
       },
     },
   },
@@ -1128,7 +1711,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
             expected: {
               type: 'string',
               ui_type: 'string',
-              display_name: 'Value',
+              display_name: 'Expected',
               preselected: true,
               supports_expressions: true,
               supports_templates: true,
@@ -1150,8 +1733,35 @@ export const FieldMenuStaysInTheToolbar: Story = {
     );
   },
   async play({ canvasElement }) {
-    await openCompactRow(canvasElement);
-    await acceptTypedExpression(canvasElement);
+    await openCompactRow(canvasElement, 'Expected');
+    const input = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('.value-tab-text [contenteditable="true"]');
+        if (!el) throw new Error('field not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    )) as HTMLElement;
+    await userEvent.click(input);
+    await userEvent.type(input, '1 + 2');
+    // offered, never switched to without asking (David's review); used as one, the field moves to Expression
+    await userEvent.click(
+      await waitFor(
+        () => {
+          const button = canvasElement.querySelector<HTMLElement>('.dpql-detected-offer');
+          expect(button, 'the offer of an expression').toBeTruthy();
+          return button as HTMLElement;
+        },
+        { timeout: 10000 }
+      )
+    );
+    await waitFor(
+      () =>
+        expect(
+          canvasElement.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
+        ).toBe('expression'),
+      { timeout: 10000 }
+    );
 
     // One menu per control: the row's ⋮, not a second one drawn by the field.
     expect(canvasElement.querySelector('.template-more')).toBeNull();
@@ -1159,9 +1769,9 @@ export const FieldMenuStaysInTheToolbar: Story = {
     expect(menus).toHaveLength(1);
     const menu = menus[0] as HTMLElement;
 
-    // The toolbar row is the shell's first line — the Visual/Text toggle.
-    const toggle = within(canvasElement).getByText('Text').closest('button') as HTMLElement;
-    const toolbar = toggle.getBoundingClientRect();
+    // The toolbar row is the field's first line — its tabs.
+    const tabs = canvasElement.querySelector('.value-tabs') as HTMLElement;
+    const toolbar = tabs.getBoundingClientRect();
     const control = menu.getBoundingClientRect();
 
     /* Reported as numbers: "the menu is in the wrong place" is not something a
@@ -1259,16 +1869,30 @@ export const TextModeSeedsWhenAstArrivesLate: Story = {
  * what the server offers. Which contexts the live Qorus server offers is its
  * own question, and this cannot answer it.
  */
+/** The templates a field offers: its catalogue, as a form gives it. */
+const FIELD_TEMPLATES = {
+  items: [
+    {
+      label: 'Fields of the row',
+      items: [
+        { label: 'pos', value: '$record:{pos}', badge: 'int' },
+        { label: 'bezeichnung', value: '$record:{bezeichnung}', badge: 'string' },
+      ],
+    },
+  ],
+};
+
 export const TextModeOffersTemplateCompletions: Story = {
   args: {
     value: { is_expression: true, value: { args: [] } },
     defaultMode: 'text',
+    localTemplates: FIELD_TEMPLATES as never,
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Types `$` into the shell\'s Text view — the DPQL editor asks the language server in position and the template namespaces ($data:, $config:, …) open in the completion dropdown.',
+          "Types `$` into the Text view of an expression whose field offers the row's fields: after the `$` the completion list offers what can follow it, the template contexts Qorus offers a DPQL expression ($config:, $data:, $local:, $timestamp: and the rest - no workflow-only $static: or $dynamic:, and no $transient:, as no transient variable is defined), as the language server offers them - not the row's fields pos and bezeichnung, which follow an `@` (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
       },
     },
   },
@@ -1286,19 +1910,111 @@ export const TextModeOffersTemplateCompletions: Story = {
     // typed before the socket is up asks nothing at all.
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, '$');
+    await typeAsAPerson(userEvent, '$');
 
-    // The dropdown is portalled, so it is looked for in the document rather
-    // than in the canvas.
+    /* After a `$`, what can follow it: the server's template contexts, as the language server offers them - not
+       the row's fields, which are written with an `@` (qorus#646, David: "after '$', fields are shown first,
+       although only templates are possible"). */
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
-        expect(dropdown).not.toBeNull();
-        expect(dropdown!.textContent).toContain('$data:');
-        expect(dropdown!.textContent).toContain('$config:');
+        // the contexts Qorus offers a DPQL expression (a Qog's record expression) - no workflow-only ones
+        // every row of the list, those scrolled out of sight too (in the catalogue's order, `sort_priority`)
+        const listed = Array.from(
+          document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
+        ).map((row) => row.getAttribute('data-label'));
+        expect(listed).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
+        // the Qog declares a global variable: its context is offered (qorus#646 round 4, Qorus's catalogue)
+        expect(listed).toEqual(expect.arrayContaining(['$local:', '$timestamp:', '$transient:']));
+        // no workflow runs the Qog: no order data
+        expect(listed).not.toContain('$static:');
+        expect(listed).not.toContain('$dynamic:');
+        expect(listed).not.toContain('pos');
       },
       { timeout: 20000 }
     );
+    // nothing is said of the `$` while its list is open
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    // the list put away, the server's words are said
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(saidUnderTheText(canvasElement)).toEqual([
+        'A `$` starts a template: pick one from the list, or remove the `$`.',
+      ])
+    );
+    // and held again while a click after the `$` has the list open
+    await userEvent.click(editable);
+    await waitFor(() => expect(seenCompletionLabels()).toContain('$data:'));
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    // the row's fields follow an `@`
+    await userEvent.keyboard('{Escape}{Backspace}');
+    await typeAsAPerson(userEvent, '@');
+    await waitFor(
+      () => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['pos', 'bezeichnung'])),
+      { timeout: 20000 }
+    );
+  },
+};
+
+export const AnAtWithNoRecordSaysThereIsNone: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `1 + @` into the Text view of an expression that names no record: the completion list says "No record fields here" instead of opening empty or not at all (David\'s decision), with Browse all templates for the templates it can use, and nothing is said of the `@` while it is open. Escape puts the list away, and the server\'s words for an `@` alone are said; a click after the `@` opens the list again, saying it again.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const editable = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.type(editable, '1 + @');
+    // the templates a field can use everywhere are still there to browse
+    await waitFor(() =>
+      expect(completionListed()).toEqual(['No record fields here', 'Browse all templates'])
+    );
+    // said above the row to browse the templates, as a note
+    const message = document.querySelector<HTMLElement>(
+      '.completion-menu .completion-empty-message, .completion-menu .completion-note'
+    );
+    expect(message, 'said, not a row to pick').toBeTruthy();
+    // read, not dimmed as a row that cannot be picked is
+    expect(getComputedStyle(message as HTMLElement).opacity).toBe('1');
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(completionListed()).toEqual([]));
+    await waitFor(() =>
+      expect(saidUnderTheText(canvasElement)).toEqual([
+        'An `@` names a field: pick one from the list, or remove the `@`.',
+      ])
+    );
+    // a click after the `@` asks again, and the list says it again
+    await userEvent.click(editable);
+    // the templates a field can use everywhere are still there to browse
+    await waitFor(() =>
+      expect(completionListed()).toEqual(['No record fields here', 'Browse all templates'])
+    );
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+  },
+};
+
+export const AnAtWithNoRecordSaysThereIsNoneOnAPhone: Story = {
+  ...AnAtWithNoRecordSaysThereIsNone,
+  parameters: {
+    ...AnAtWithNoRecordSaysThereIsNone.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
   },
 };
 
@@ -1324,7 +2040,7 @@ export const Live: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField against a live Qorus instance — the picker fetches the real ~121-function catalogue rather than the mock, and the seeded "contains" expression exercises the schema-driven operators and operands.',
+          'Renders ExpressionField against a live Qorus instance — the picker fetches the real ~121-function catalog rather than the mock, and the seeded "contains" expression exercises the schema-driven operators and operands.',
       },
     },
   },
@@ -1391,5 +2107,506 @@ export const LiveExplain: Story = {
       },
     },
     defaultMode: 'text',
+  },
+};
+
+/* Operands the operator cannot combine (qorus#646): a hash plus a number keeps Qore's run-time result, but the
+   server's parser refuses it (DPQL-E050), and the editor says so as an error - in the Text view, where the
+   server publishes it, and in the Visual view, which asks the server about the expression it builds. */
+
+/** The record of these stories: `create` is a hash. */
+const HASH_FIELD = { create: { type: 'hash' } };
+
+/** The server's words for `@create + 1` (DPQL-E050), as professor's language server says them. */
+const CANNOT_COMBINE = "Operator '+' cannot be applied to '@create' (a hash) and a number";
+
+/** What the field shows of the expression as an error: the server's messages at the danger intent. */
+const errorsShown = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll('[data-severity="danger"]')).map((el) => el.textContent ?? '');
+
+export const TextModeOperandsTheOperatorCannotCombine: Story = typedExpressionStory(
+  'auto',
+  '@create + 1',
+  'Types `@create + 1` into the Text view, where `create` is a hash. The server cannot combine a hash and a number with `+` (DPQL-E050), and the field shows its words as an error, under the text and as a red underline.',
+  async (canvasElement) => {
+    await waitFor(
+      () => expect(errorsShown(canvasElement).join('\n')).toContain(CANNOT_COMBINE),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.querySelector('[data-testid="diagnostic-underline"]')).not.toBeNull();
+    expect(canvasElement.querySelector('[data-severity="warning"]')).toBeNull();
+  },
+  { dpql_fields: HASH_FIELD }
+);
+
+const HASH_PLUS_ONE: IExpression = {
+  is_expression: true,
+  value: {
+    exp: '+',
+    args: [
+      { type: 'hash', value: '$record:{create}' },
+      { type: 'int', value: 1 },
+    ],
+  },
+} as IExpression;
+
+export const VisualOperandsTheOperatorCannotCombine: Story = {
+  args: {
+    value: HASH_PLUS_ONE,
+    fields: HASH_FIELD,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders `create + 1` built in the Visual view, where `create` is a hash. The field asks the server about the expression it builds, and shows the server\'s refusal (DPQL-E050: `+` cannot combine a hash and a number) as an error under it.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () =>
+        expect(
+          (canvasElement.querySelector('.expression-server-errors')?.textContent ?? '')
+        ).toContain(CANNOT_COMBINE),
+      { timeout: 10000 }
+    );
+    expect(errorsShown(canvasElement).join('\n')).toContain(CANNOT_COMBINE);
+  },
+};
+
+export const VisualOperandsThatCombine: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      value: {
+        exp: '+',
+        args: [
+          { type: 'int', value: '$record:{quantity}' },
+          { type: 'int', value: 1 },
+        ],
+      },
+    } as IExpression,
+    fields: { ...HASH_FIELD, quantity: { type: 'int' } },
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders `quantity + 1` built in the Visual view, where `quantity` is a whole number. The server combines them, so nothing is said under the expression.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // asked and answered: the server wrote the expression and read it back
+    await waitFor(
+      () =>
+        expect(dpqlMockParseCalls.some((call) => call.text === '@quantity + 1')).toBe(true),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.querySelector('.expression-server-errors')).toBeNull();
+    expect(errorsShown(canvasElement)).toEqual([]);
+  },
+};
+
+/* Each part of an AND, an OR or a NOT in a condition is read as true or false by its value (qorus#646), as the
+   whole condition is: the server judges each part by the same rule (`dpql/parse` with `condition: true` answers
+   `parts`), and the Visual view says what it says of each part on that part's own card. No part is checked as a
+   bool here: a number part is accepted, as the server accepts it, with the warning the server gives it. */
+
+/** A record with a whole number and a text field. */
+const CONDITION_FIELDS = { n: { type: 'int' }, name: { type: 'string' } };
+
+const fieldOperand = (name: string, type: string): IExpression => ({
+  type,
+  value: `$record:{${name}}`,
+});
+
+/** An operation on two operands, as the Visual view builds it. */
+const operation = (exp: string, left: IExpression, right: IExpression): IExpression => ({
+  is_expression: true,
+  value: { exp, args: [left, right] },
+});
+
+const one: IExpression = { type: 'int', value: 1 };
+
+/** A condition built in the Visual view as `left <exp> right`: an AND or an OR group of two operations. */
+const conditionOf = (exp: '&&' | '||', left: IExpression, right: IExpression): IExpression =>
+  operation(exp, left, right);
+
+/** `n + 1`: a whole number, which a condition reads as true unless it is zero. */
+const N_PLUS_ONE = operation('+', fieldOperand('n', 'int'), one);
+/** `n >= 1`: true or false. */
+const N_AT_LEAST_ONE = operation('>=', fieldOperand('n', 'int'), one);
+/** `name + 1`: text, which does not say plainly whether it is true. */
+const NAME_PLUS_ONE = operation('+', fieldOperand('name', 'string'), one);
+
+/** The verdict each card of the condition shows, by the card's text. */
+const partVerdicts = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('.expression-condition-part-verdict')).map(
+    (tag) => tag.dataset.verdict
+  );
+
+/** Settled when the server has read the built condition, as its text. */
+const readBuiltCondition = (text: string) =>
+  waitFor(
+    () =>
+      expect(
+        dpqlMockParseCalls.some((call) => call.text === text && call.condition),
+        `parses=${JSON.stringify(dpqlMockParseCalls)}`
+      ).toBe(true),
+    { timeout: 10000 }
+  );
+
+/** Words the server says a condition's verdict in, that are not the editor's own: a server answering in German. */
+const SERVER_TRUTHINESS = 'Wahr, solange der Wert nicht 0 ist. Vergleichen Sie ihn, zum Beispiel @count > 0.';
+const SERVER_NOT_A_CONDITION = 'Text ist nicht wahr oder falsch. Vergleichen Sie den Wert, zum Beispiel @status == "open".';
+
+/** The mock server answers the story's condition in its own words, and its usual words again after it. */
+const serverWordsForConditions = () => {
+  dpqlMockConditionWords.truthiness = () => SERVER_TRUTHINESS;
+  dpqlMockConditionWords.notACondition = () => SERVER_NOT_A_CONDITION;
+  return () => {
+    delete dpqlMockConditionWords.truthiness;
+    delete dpqlMockConditionWords.notACondition;
+  };
+};
+
+/** The verdict under the whole condition built in the Visual view. */
+const wholeConditionVerdict = (canvasElement: HTMLElement) =>
+  canvasElement.querySelector<HTMLElement>('.expression-condition-verdict');
+
+export const VisualConditionSaysTheServersWords: Story = {
+  args: {
+    value: N_PLUS_ONE,
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  beforeEach: serverWordsForConditions,
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `VisualConditionWithANumberPart`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the condition `n + 1` built in the Visual view, where `n` is a whole number, with a server that answers in German. The warning under the condition is the server's own words for it, as the Text view shows them, not the editor's English fallback.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('@n + 1');
+    await waitFor(() => expect(wholeConditionVerdict(canvasElement)).toHaveTextContent(SERVER_TRUTHINESS), {
+      timeout: 10000,
+    });
+    expect(canvasElement.textContent).not.toContain('Qorus treats it as true');
+  },
+};
+
+export const VisualTextConditionSaysTheServersWords: Story = {
+  args: {
+    value: NAME_PLUS_ONE,
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  beforeEach: serverWordsForConditions,
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `VisualConditionWithATextPart`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the condition `name + 1` built in the Visual view, where `name` is text, with a server that answers in German. The error under the condition is the server's own words for it, not the editor's English fallback.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('@name + 1');
+    await waitFor(
+      () => expect(wholeConditionVerdict(canvasElement)).toHaveTextContent(SERVER_NOT_A_CONDITION),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.textContent).not.toContain('it must evaluate to true or false');
+  },
+};
+
+export const VisualConditionSaysTheServersWordsOnAPhone: Story = {
+  ...VisualConditionSaysTheServersWords,
+  decorators: [withCoarsePointer],
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `VisualConditionWithANumberPartOnAPhone`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "The condition `n + 1` built in the Visual view on a phone (390 px, touch): the server's own words under it wrap inside the field.",
+      },
+    },
+  },
+  play: async (context) => {
+    await VisualConditionSaysTheServersWords.play!(context);
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() => {
+          const verdict = wholeConditionVerdict(context.canvasElement)!.getBoundingClientRect();
+          expect(verdict.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
+        });
+      }
+    });
+  },
+};
+
+export const VisualConditionWithANumberPart: Story = {
+  args: {
+    value: conditionOf('&&', N_PLUS_ONE, N_AT_LEAST_ONE),
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the condition `n + 1 && n >= 1` built in the Visual view, where `n` is a whole number. The server reads each part of an AND by its value, as it reads a whole condition: `n + 1` is true unless it is zero, which it says with a warning on that part's card. `n >= 1` is true or false, so its card says nothing, and nothing is refused.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('@n + 1 && @n >= 1');
+    await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['warning']), {
+      timeout: 10000,
+    });
+    const tag = canvasElement.querySelector<HTMLElement>('.expression-condition-part-verdict');
+    expect(tag?.textContent).toContain(CONDITION_BY_TRUTHINESS);
+    // on the part's own card: the first operand of the group
+    const cards = canvasElement.querySelectorAll('.reqore-panel .reqore-panel');
+    expect(tag?.closest('.reqore-panel')).toBe(cards[0]);
+    // a number part is no type mismatch: nothing is refused
+    expect(errorsShown(canvasElement)).toEqual([]);
+    expect(canvasElement.textContent).not.toContain('but this field takes');
+  },
+};
+
+export const VisualConditionWithATextPart: Story = {
+  args: {
+    value: conditionOf('||', NAME_PLUS_ONE, N_AT_LEAST_ONE),
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the condition `name + 1 || n >= 1` built in the Visual view, where `name` is text. Text does not say plainly whether it is true, so the server refuses that part, and its card says so as an error, with how to make it a condition.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('@name + 1 || @n >= 1');
+    await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['error']), { timeout: 10000 });
+    expect(
+      canvasElement.querySelector('.expression-condition-part-verdict')?.textContent
+    ).toContain(NOT_A_CONDITION_TEXT);
+  },
+};
+
+export const VisualConditionWithPartsThatAreTrueOrFalse: Story = {
+  args: {
+    value: conditionOf(
+      '&&',
+      N_AT_LEAST_ONE,
+      operation('<', fieldOperand('n', 'int'), { type: 'int', value: 10 })
+    ),
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the condition `n >= 1 && n < 10` built in the Visual view. Both parts are true or false, so no card says anything.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('@n >= 1 && @n < 10');
+    expect(partVerdicts(canvasElement)).toEqual([]);
+    expect(errorsShown(canvasElement)).toEqual([]);
+  },
+};
+
+export const VisualConditionWithANumberPartOnAPhone: Story = {
+  ...VisualConditionWithANumberPart,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The condition with a number part on a phone (390 px, touch): the warning wraps inside the card of the part it is about.',
+      },
+    },
+  },
+  play: async (context) => {
+    await VisualConditionWithANumberPart.play!(context);
+    const tag = context.canvasElement.querySelector<HTMLElement>(
+      '.expression-condition-part-verdict'
+    );
+    const card = tag?.closest('.reqore-panel') as HTMLElement | null;
+    expect(card).toBeTruthy();
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() =>
+          expect(tag!.getBoundingClientRect().right).toBeLessThanOrEqual(
+            card!.getBoundingClientRect().right + 1
+          )
+        );
+      }
+    });
+  },
+};
+
+export const VisualOperandsTheOperatorCannotCombineOnAPhone: Story = {
+  ...VisualOperandsTheOperatorCannotCombine,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same refused expression on a phone (390 px, touch): the server\'s error under the Visual view wraps inside the field.',
+      },
+    },
+  },
+  play: async (context) => {
+    await VisualOperandsTheOperatorCannotCombine.play!(context);
+    const shown = context.canvasElement.querySelector('.expression-server-errors') as HTMLElement;
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() =>
+          expect(shown.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+        );
+      }
+    });
+  },
+};
+
+/**
+ * A template context picked in the Text view is written as text and goes on to what is in it, never an unfinished
+ * template (qorus#646, David: "selecting them resulted in an invalid template being added and an error generated").
+ * Where nothing is listed in it, the list says what to write, and nothing is said of the text while it is open.
+ */
+export const AContextPickedGoesOnToWhatIsInIt: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+    localTemplates: FIELD_TEMPLATES as never,
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AnAtWithNoRecordSaysThereIsNone`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `$lo` key by key and takes $local: with Tab: it is written as text, no chip, and the list ' +
+          'lists what is in it - the whole of it, $local:*, and the keys Qorus knows - nothing is said of ' +
+          'the text while it is open. Then `@po` and Tab: the chip for the row\'s field pos.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '$lo');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['$local:', 'Browse all templates']), {
+      timeout: 20000,
+    });
+    await userEvent.keyboard('{Tab}');
+    // written as text and what is in it listed: the whole of it, and the local context's keys Qorus knows
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'Interface ID', 'Interface name']))
+    );
+    expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(0);
+    expect(editable.textContent).toContain('$local:');
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await typeAsAPerson(userEvent, '@po');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('pos'), { timeout: 20000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(1));
+  },
+};
+
+/**
+ * The Text view's template picker offers what typing offers: the row's fields and the language server's template
+ * contexts, on an empty text and after it is cleared (qorus#646, David: "users should be supported with all
+ * available completions in the template picker").
+ */
+export const TheTextViewPickerOffersEveryCompletion: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+    localTemplates: FIELD_TEMPLATES as never,
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AnAtWithNoRecordSaysThereIsNone`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Clicks the empty Text view: the picker lists the row's fields and the template contexts the server " +
+          'offers. `$lo` typed and cleared with Ctrl+A and Backspace, a click lists them again.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+    const pickerGroups = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row')).map((row) =>
+        row.getAttribute('data-label')
+      );
+    const openEmpty = async () => {
+      await userEvent.click(canvasElement.ownerDocument.body);
+      await userEvent.click(editable);
+      await waitFor(
+        // the row's fields kept whole under their group's name beside the server's groups
+        () => expect(pickerGroups()).toEqual(['Fields of the row', 'Template contexts']),
+        { timeout: 20000 }
+      );
+      await userEvent.keyboard('{Escape}');
+    };
+    await openEmpty();
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '$lo');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('$local:'), { timeout: 20000 });
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await openEmpty();
   },
 };

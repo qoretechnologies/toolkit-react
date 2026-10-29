@@ -1,6 +1,14 @@
 import { ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { ChangeEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ChangeEvent,
+  CSSProperties,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useDebounce } from 'react-use';
 import {
   flattenToSingleLine,
@@ -8,6 +16,7 @@ import {
   isSingleLineStringType,
 } from '../../../../helpers/singleLineString';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 
 export interface ILongStringFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange'> {
   value?: string;
@@ -54,11 +63,21 @@ export const LongStringFormField = ({
     [onChange, emitted]
   );
 
+  /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
+     inside it. See `usePendingEdit`. */
+  const pending = usePendingEdit<string>((next) => {
+    if (next !== lastEmittedRef.current) {
+      emit(next);
+    }
+  });
+
   useEffect(() => {
     const incoming = value ?? '';
     if (emitted.isEcho(incoming)) {
       return;
     }
+    // the parent has a value of its own: what was typed before it is no edit to send any more
+    pending.release();
     if (incoming !== localValue) {
       setLocalValue(incoming);
     }
@@ -68,6 +87,7 @@ export const LongStringFormField = ({
 
   useDebounce(
     () => {
+      pending.release();
       if (localValue !== lastEmittedRef.current) {
         emit(localValue);
       }
@@ -84,9 +104,11 @@ export const LongStringFormField = ({
       // Flatten here rather than only blocking the Enter key: a line break also
       // arrives by paste, by drag-and-drop, from autofill and from an IME, and
       // a keydown guard catches none of those.
-      setLocalValue(singleLine && hasLineBreak(raw) ? flattenToSingleLine(raw) : raw);
+      const next = singleLine && hasLineBreak(raw) ? flattenToSingleLine(raw) : raw;
+      setLocalValue(next);
+      pending.hold(next);
     },
-    [singleLine]
+    [singleLine, pending]
   );
 
   // Stop Enter before it inserts anything, so the caret does not jump to a
@@ -107,21 +129,28 @@ export const LongStringFormField = ({
     setLocalValue('');
     // Reported at once, and recorded like any emit, so the debounce does not
     // report it a second time and its echo is not mistaken for a change.
+    pending.release();
     emit('');
     onClearClick?.();
-  }, [emit, onClearClick]);
+  }, [emit, onClearClick, pending]);
+
+  const style = (rest as { style?: CSSProperties }).style;
 
   return (
     <ReqoreTextarea
-      // A one-line field must not grow, and must not offer a resize grip that
-      // implies it can hold more than it will keep.
-      scaleWithContent={!singleLine}
+      /* A one-line field holds no line break, but a long one wraps: it grows with its text, so the whole value
+         is read in the row's editor (an editable row shows three lines of it, and the rest is here). It offers
+         no resize grip: its height is its text's, and in its one-line height the clear button covered the
+         corner the grip is drawn in - the grip showed and could not be dragged (David on FormEngine · A Row
+         Stacks On A Narrow Form Even With Short Labels, qorus#646). A multi-line field grows and keeps its grip. */
+      scaleWithContent
       rows={singleLine ? 1 : undefined}
       fluid
       value={localValue}
       onChange={handleChange}
       onClearClick={handleClearClick}
       {...rest}
+      style={singleLine ? { ...style, resize: 'none' } : style}
       onKeyDown={handleKeyDown}
     />
   );

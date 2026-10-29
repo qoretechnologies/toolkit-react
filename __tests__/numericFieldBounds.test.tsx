@@ -74,7 +74,7 @@ describe('a declared numeric bound', () => {
       'Value must be 100 or less'
     );
     expect(validateFieldWithResult('int', 'abc', { min_value: 1 } as never).reason).toBe(
-      'Value must be an integer'
+      'Value must be a whole number'
     );
   });
 

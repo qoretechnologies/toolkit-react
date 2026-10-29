@@ -7,7 +7,6 @@ import {
   ReqoreMessage,
   ReqoreP,
   ReqoreTag,
-  ReqoreTagGroup,
   ReqoreVerticalSpacer,
   useReqoreProperty,
   useReqoreTheme,
@@ -17,7 +16,17 @@ import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/compon
 import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TFieldWithOwnTemplates } from './rendererTypes';
+import { getReadFirstInks } from './readFirstColors';
+import { operatorSummary } from './operatorSummary';
+import { resolveInheritProps } from './inheritProps';
+import {
+  getReadableShade,
+  getReadableTextOpacity,
+  getThemeSurfaces,
+  READABLE_ICON,
+} from '../../../helpers/readableColors';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { TReqoreHexColor } from '@qoretechnologies/reqore/dist/components/Effect';
 import {
   changeDarkness,
   getMainBackgroundColor,
@@ -38,25 +47,20 @@ import {
   TQorusFormOperatorValue,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
-import { shouldMarkAsExpression } from '../expressions/argumentPresence';
+import { restoredFieldChange, shouldMarkAsExpression } from '../expressions/argumentPresence';
 import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { revealRow } from './revealRow';
 import { useEmittedValues } from '../fields/emittedValues';
-import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, uniq } from 'lodash';
+import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, omit, uniq } from 'lodash';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled, { css } from 'styled-components';
-import {
-  fixOperatorValue,
-  getDefaultValue,
-  insertAtIndex,
-  richtextToString,
-} from '../../../helpers/common';
+import { fixOperatorValue, getDefaultValue, insertAtIndex } from '../../../helpers/common';
 import {
   getRequiredOptionMessage,
   resolveDegenerateRequiredGroups,
@@ -68,6 +72,7 @@ import {
   validateField,
   validateFieldWithResult,
 } from '../../../helpers/validations';
+import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { isQueryCancelled } from '../../../utils/fetch';
@@ -82,13 +87,15 @@ import {
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
-import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer } from './compactRowContext';
+import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
+  COMPACT_LABEL_COL,
   GROUP_INDENT,
-  LABEL_AFFORDANCE_WIDTH,
+  isCompactNarrow,
   LABEL_COL_MAX,
-  LABEL_COL_MIN,
+  LABEL_COLUMN_MIN,
   LABEL_COL_VAR,
+  labelAffordanceWidth,
   StyledCompactPanel,
   StyledGroupBody,
   StyledGroupHeader,
@@ -103,8 +110,10 @@ import {
   ICompactToolbarContext,
   TCompactSort,
 } from './compactToolbarContext';
+import { HiddenFieldsNote, IHiddenFieldWithValue } from './HiddenFieldsNote';
 import {
   OptionFieldMessages,
+  describeDependencies,
   getAllowedValueAvailability,
   getShownSchemaMessages,
 } from './OptionFieldMessages';
@@ -114,6 +123,14 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import { TypeSentenceFormProvider, useTypeName } from '../typeSentenceForm';
+import {
+  ITemplateReferenceNames,
+  TemplateReferenceNamesProvider,
+} from '../fields/template/referenceNames';
+import { optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
+import { allowedValueOf } from '../../../helpers/allowedValues';
+import { isTypingControl } from './rowFocus';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
@@ -124,9 +141,11 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
+  describeBlockedSave,
   isFixedCompactAllowedValueOption,
   shouldAutoCollapseCompactOption,
   isUnsetSchemaHash,
+  formatOptionValue,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -197,47 +216,6 @@ export interface IFormValidityData {
   invalidFields: IFormFieldValidityData[];
 }
 
-/**
- * Resolve a field's `inherit_props` map against the current available
- * options (plus any values inherited from an outer FormEngine scope),
- * producing a `{ propName: siblingValue }` hash suitable for spreading
- * onto the field's renderer.
- *
- * For each entry `<prop-name-on-renderer> -> <sibling-field-name>`, the
- * sibling's current value is forwarded under the receiving prop name.
- * Lookup order:
- *   1. `availableOptions[siblingName]?.value` — the field's local scope.
- *   2. `inheritedFromParent[siblingName]` — the bag threaded in by an
- *      outer FormEngine (see the `inheritedFromParent` prop). Used when
- *      a composite field's `arg_schema` sub-form needs to reach a value
- *      on an ancestor scope — e.g. a service-method row's `body` picking
- *      up `language` from the parent service form.
- * Missing siblings emit `undefined`, which the renderer's prop type can
- * treat as "no hint".
- *
- * Designed to be JSON-pure: no closures, no transformations. Renderers
- * decide how to use the forwarded value (e.g. the consumer-injected
- * `code-editor` renderer maps a `language: "qore"` prop to its
- * highlighter mode).
- *
- * Mirrored in qorus-ide `src/components/Field/systemOptions.tsx`; keep
- * the two in sync (see qorus-ide's `.claude/CLAUDE.md`).
- */
-const resolveInheritProps = (
-  inheritProps: Record<string, string> | undefined,
-  availableOptions: TQorusForm | undefined,
-  inheritedFromParent?: Record<string, unknown>
-): Record<string, unknown> => {
-  if (!inheritProps) return {};
-  const out: Record<string, unknown> = {};
-  for (const propName in inheritProps) {
-    const siblingName = inheritProps[propName];
-    const localValue = (availableOptions?.[siblingName] as IQorusFormField | undefined)?.value;
-    out[propName] = localValue !== undefined ? localValue : inheritedFromParent?.[siblingName];
-  }
-  return out;
-};
-
 /** One shared "nothing came down from above" bag. See `inheritedScopeFor`. */
 const NO_INHERITED_SCOPE: Record<string, unknown> = Object.freeze({});
 
@@ -297,7 +275,7 @@ const PositiveColorEffect: any = {
 };
 
 // Compact (read-first) layout: flat label | value | action rows in collapsible
-// group panels; colours come in as props so the layout follows the Reqore theme.
+// group panels; colors come in as props so the layout follows the Reqore theme.
 
 const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
   display: flex;
@@ -638,6 +616,42 @@ const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefin
   );
 
 /**
+ * The value as a host can hand it back: each field as its value, and the fields that hold nothing left out.
+ *
+ * A report of the form's is recognised by what it says, not by how the host writes it back. A host that
+ * stores only the fields holding a value (the Qorus IDE's editors) hands a report back without its empty
+ * fields; one that stores a field under its own type (the IDE stores what an `int` field reported as a
+ * `string`) hands it back with that type. Compared field for field, type and all, the report never came
+ * back as itself:
+ * - the form took it for the host's own change and went back to it, losing what had been typed since, and
+ *   the two chased each other's reports on every echo;
+ * - an edit back to a value reported before (A, then B, then A again), made as the echo of B arrived, was
+ *   held back as made before the host's change, and the field went back to B (qorus#646: a template
+ *   field's text, deleted back to its reference, kept the text in the IDE).
+ *
+ * For recognising a value only. Whether a rebuild adds anything is still read with the empty fields in
+ * (`isMirrorOfValue`): a new schema's empty required field is a row the form has to add.
+ */
+const reportedValues = (fields: TQorusForm | TQorusFlatForm | undefined): Record<string, unknown> =>
+  reduce(
+    (fields as Record<string, unknown>) || {},
+    (acc, field, name) => {
+      const fieldValue = comparableField(field);
+      if (fieldValue !== undefined) {
+        acc[name] = fieldValue;
+      }
+      return acc;
+    },
+    {} as Record<string, unknown>
+  );
+
+/** The same value, as a report coming back from a host is recognised. */
+const sameReportedValue = (
+  a: TQorusForm | TQorusFlatForm | undefined,
+  b: TQorusForm | TQorusFlatForm | undefined
+): boolean => isEqual(reportedValues(a), reportedValues(b));
+
+/**
  * Does this rebuild say anything the parent does not already hold?
  *
  * `false` means the rebuild is a MIRROR: `fixOptions` found no default to
@@ -670,6 +684,129 @@ export const agreementFromRebuild = (
   value: TQorusForm | TQorusFlatForm | undefined
 ): TQorusForm | TQorusFlatForm | undefined =>
   isMirrorOfValue(fixedValue, value) ? fixedValue : undefined;
+
+/**
+ * A field as the form compares one host value with another: an empty field ('' or none, whatever its type) is
+ * the same as no field, and a field is its value, however it is written (`{ type, value }` or the bare value).
+ */
+const comparableField = (field: unknown): unknown => {
+  const fieldValue =
+    field !== null && typeof field === 'object' && !Array.isArray(field) && 'value' in field ?
+      (field as IQorusFormField).value
+    : field !== null && typeof field === 'object' && !Array.isArray(field) && 'type' in field ?
+      undefined
+    : field;
+  return fieldValue === '' ? undefined : fieldValue;
+};
+
+const sameField = (a: unknown, b: unknown): boolean =>
+  isEqual(comparableField(a), comparableField(b));
+
+/** A field written as `{ type, value }`, not a bare value. */
+const isTypedField = (field: unknown): field is IQorusFormField =>
+  field !== null &&
+  typeof field === 'object' &&
+  !Array.isArray(field) &&
+  typeof (field as IQorusFormField).type === 'string';
+
+/**
+ * The form's copy of a field, with everything the host changed beside its value since `base`: its type, whether
+ * it is an expression, its operator, or anything else it says. `own` itself where the host changed nothing.
+ *
+ * A report of the form's is recognised by its values, and a field's value is merged by its value (see
+ * `reportedValues`, `mergeOwnEdits`), so a change the host made to a field's type alone said nothing: the form
+ * kept its own type. The Qorus IDE makes an added field's whole number true or false, holding the same field
+ * `pos`; the form kept the `int` and drew `pos` as text on the Value tab, where a true or false field shows it on
+ * its Expression tab (qorus#646).
+ *
+ * Every key but `value` is compared, not a list of the ones known today: whatever a host writes into a field
+ * beside its value, a change of it is the host's. A key the host writes as it always has is not a change, so a
+ * host that stores a field under its own type does not change the form's (that is why the value alone is what
+ * recognises a report).
+ */
+const withHostsAttributes = (own: unknown, host: unknown, base: unknown): unknown => {
+  if (!isTypedField(own) || !isTypedField(host)) {
+    return own;
+  }
+  const hostField = host as unknown as Record<string, unknown>;
+  const baseField = isTypedField(base) ? (base as unknown as Record<string, unknown>) : {};
+  const ownField = own as unknown as Record<string, unknown>;
+  let taken: Record<string, unknown> | undefined;
+  new Set([...Object.keys(hostField), ...Object.keys(baseField)]).forEach((key) => {
+    const hosts = hostField[key];
+    if (key === 'value' || isEqual(hosts, baseField[key]) || isEqual(ownField[key], hosts)) {
+      return;
+    }
+    taken = taken ?? { ...ownField };
+    if (hosts === undefined) {
+      delete taken[key];
+    } else {
+      taken[key] = hosts;
+    }
+  });
+  return taken ?? own;
+};
+
+/**
+ * The form's copy with what the host changed beside each field's value since `base` taken (see
+ * `withHostsAttributes`). Returns `ours` itself when there is nothing the form's copy does not have already.
+ */
+export const takeHostsAttributes = (
+  theirs: TQorusForm | TQorusFlatForm | undefined,
+  ours: TQorusForm | TQorusFlatForm | undefined,
+  base: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm | TQorusFlatForm | undefined => {
+  let typed: Record<string, unknown> | undefined;
+  forEach((theirs as Record<string, unknown>) || {}, (host, name) => {
+    const own = (ours as Record<string, unknown> | undefined)?.[name];
+    const taken = withHostsAttributes(
+      own,
+      host,
+      (base as Record<string, unknown> | undefined)?.[name]
+    );
+    if (taken !== own) {
+      typed = typed ?? { ...(ours || {}) };
+      typed[name] = taken;
+    }
+  });
+  return (typed as TQorusForm | undefined) ?? ours;
+};
+
+/**
+ * The host's change, with the form's own edits kept: a three-way merge of `theirs` (the `value` the host
+ * hands down now) and `ours` (the form's copy) against `base` (the `value` the form last saw).
+ *
+ * A field the form changed and the host did not keeps the form's value; every other field takes the host's,
+ * a field both changed included. The host and the form can change the value in the same commit - a host
+ * renaming something as the user's edit reaches the form - and taking either side whole lost the other's
+ * change; sending the form's copy over the host's change made the two trade places forever (qorus#646).
+ *
+ * Returns `theirs` itself when the form has nothing of its own to keep.
+ */
+export const mergeOwnEdits = (
+  theirs: TQorusForm | TQorusFlatForm | undefined,
+  ours: TQorusForm | TQorusFlatForm | undefined,
+  base: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm | TQorusFlatForm | undefined => {
+  let merged: Record<string, unknown> | undefined;
+  const names = new Set([...Object.keys(ours || {}), ...Object.keys(base || {})]);
+  names.forEach((name) => {
+    const own = (ours as Record<string, unknown> | undefined)?.[name];
+    const before = (base as Record<string, unknown> | undefined)?.[name];
+    const host = (theirs as Record<string, unknown> | undefined)?.[name];
+    if (sameField(own, before) || !sameField(host, before) || sameField(host, own)) {
+      return;
+    }
+    merged = merged ?? { ...(theirs || {}) };
+    if (own === undefined) {
+      delete merged[name];
+    } else {
+      // the form's value, with what the host changed beside it (its type, say)
+      merged[name] = withHostsAttributes(own, host, before);
+    }
+  });
+  return (merged as TQorusForm | undefined) ?? theirs;
+};
 
 /** The state the emit decision is made against. */
 export interface IEmitDecision {
@@ -837,6 +974,12 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   /** Opt-in: fetch global templates from `system/getContextData` for this context. */
   interfaceContext?: string;
   templateFieldProps?: Partial<ITemplateFieldProps>;
+  /**
+   * SEAM (reqraft): what the host knows of the references its values mention beyond the catalogue: a name for
+   * one it knows but does not list, and what a chip of one nothing names says on hover (the IDE: "Not a value this
+   * case captures"). Such a chip is drawn as a warning (qorus#646).
+   */
+  templateReferences?: ITemplateReferenceNames;
   /**
    * Force single-value selectors to use inline dropdowns even when their
    * allowed values carry descriptions.
@@ -1074,6 +1217,23 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   codePreviewRenderer?: TCodePreviewRenderer;
   /**
+   * A collapsed row's summary drawn by the host, by `ui_type`: for an editor that reports a status of its own,
+   * shown where the generic summary would be ("2 items"). Display only; the value and the form's validity are
+   * untouched.
+   */
+  readSummaries?: Record<string, TReadSummary>;
+  /**
+   * The `ui_type`s of the host's own editors (`componentOverrides`) that are too tall or nested to edit in a row:
+   * a row of one of them opens its editor in the card below it, as a hash or a schema does, not in the row's value
+   * column (which is about 240px). The form's own complex types (`hash`, `list`, `schema-definition`,
+   * `processor-mappings`, ...) open in the card whatever this says.
+   *
+   * In a read-only form, a row of one of them, and a row the host summarizes (`readSummaries`), opens its card with
+   * the editor read-only, and its fullscreen view: its summary is one line, and the form draws no preview of its
+   * own under it, so this is where what it holds is read.
+   */
+  cardEditorTypes?: string[];
+  /**
    * Draws every markdown description this form shows -- the inline row
    * description, the focused-editing header, and the field help dialog.
    *
@@ -1134,12 +1294,15 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * group. Disabled, readonly, read-only-form, and dependency-locked fields are
    * skipped. In compact (read-first) mode the target row is expanded through
    * the engine's own `expandedOptions` state, so its editor gains focus with no
-   * DOM scraping or synthetic clicks. Strictly one-shot: it fires the first
-   * time the form has focusable content (so an async-loaded schema is covered)
-   * and then never again — a later value edit, server-driven field update, or
-   * in-place schema reload will not re-focus; only a remount re-arms it. It also
-   * never steals focus from a control the user has already moved into. No-op in
-   * classic (non-compact) mode. Default: off.
+   * DOM scraping or synthetic clicks. It opens one row, for the life of the
+   * instance: the first field that needs an answer when that field first
+   * appears in the form - with the schema, or in a piece of it that arrives
+   * later - until it has opened one or the user has made their first move
+   * (opened or closed a row, pointed into the form, come into it from the
+   * keyboard). A field already in the form that comes to need an answer (a
+   * value edited, a server-driven update) does not re-open or re-focus; only a
+   * remount re-arms it. It also never steals focus from a control the user has
+   * already moved into. No-op in classic (non-compact) mode. Default: off.
    */
   autoFocusFirstRequired?: boolean;
 
@@ -1158,9 +1321,10 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * Opening a row takes nothing from the user, so this half needs no guard. Use
    * it where the mount is already the answer to a deliberate action; use
    * `autoFocusFirstRequired` where the form is the destination and the caret
-   * should land in it. Setting both keeps the focusing behaviour. Same one-shot
-   * contract: it fires on the first render with focusable content and then never
-   * again for the life of the instance. No-op in classic mode. Default: off.
+   * should land in it. Setting both keeps the focusing behaviour. Same contract:
+   * one row, for the life of the instance, the first field that needs an answer
+   * when it first appears, until it has opened one or the user has made their
+   * first move. No-op in classic mode. Default: off.
    */
   expandFirstRequired?: boolean;
 
@@ -1191,6 +1355,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   initialExpandedOptions?: string[];
 
   /**
+   * Which record or object `value` belongs to. When it changes, the form takes the new `value` as it is: an
+   * edit made to the previous record and still on its way is not carried into the new one.
+   *
+   * Without it, a `value` that changes while the form holds an edit of its own is taken as the host changing
+   * the same record, and the two are merged (the form keeps what it edited and the host did not). A host
+   * that switches the form to a different record therefore passes its id here - or remounts the form with a
+   * React `key`, which also resets which rows are open (see design/IDE_INTEGRATION.md).
+   */
+  valueKey?: string | number;
+
+  /**
    * Cap how many rows a status box shows before the rest fold behind a
    * "N more fields" control. Applies to every box — Needs attention, Set and
    * Optional alike — so a long form stays scannable instead of making the
@@ -1211,6 +1386,8 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
 const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
+/** How faded reqore draws a panel's title icon. */
+const PANEL_TITLE_ICON_ALPHA = 0.7;
 
 const FormEngineImpl = ({
   name,
@@ -1261,6 +1438,8 @@ const FormEngineImpl = ({
   optionActionsCollapse = 'auto',
   componentOverrides,
   codePreviewRenderer,
+  readSummaries,
+  cardEditorTypes,
   // consumed by the wrapper below, which publishes it to every description this
   // form draws; destructured here only so it cannot reach `rest` and be spread
   // onto a DOM node
@@ -1272,7 +1451,12 @@ const FormEngineImpl = ({
   autoFocusFirstRequired,
   expandFirstRequired,
   initialExpandedOptions,
+  valueKey,
   maxFieldsShown,
+  // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
+  options: optionsSchema,
+  stringTemplates,
+  skeletonReason,
   ...rest
 }: IFormEngineProps) => {
   // Built-ins + whatever the consumer declared for its own injected editors.
@@ -1304,11 +1488,24 @@ const FormEngineImpl = ({
      the read-first summary cannot disagree about it: every one of them reads
      `options`, and none of them has to know the rule. */
   const [servedOptions, setOptions] = useState<IQorusFormSchema | undefined>(
-    rest?.options || undefined
+    optionsSchema || undefined
   );
   const options = useMemo(() => resolveDegenerateRequiredGroups(servedOptions), [servedOptions]);
+  /* Whether the schema the form holds is the one in force: its host is not waiting behind the skeleton, and a
+     schema the host hands down has been taken in (`servedOptions` follows the `options` prop a render later).
+     Until then the value is neither pruned against the schema nor emitted. A host loading the schema hands an
+     empty or an earlier one meanwhile; read against that, every stored field was "not on this instance" and
+     was removed, so a Qog state opened before its options had loaded showed them empty and, once emitted,
+     lost them (qorus#646). */
+  const hostSchemaPending =
+    !optionsLoader &&
+    !url &&
+    !customUrl &&
+    optionsSchema !== servedOptions &&
+    JSON.stringify(optionsSchema || undefined) !== JSON.stringify(servedOptions);
+  const schemaInForce = !rest.skeleton && !hostSchemaPending;
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
-  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
+  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !optionsSchema);
   const [optionsError, setOptionsError] = useState<string | undefined>();
   // Operators: prop-provided (compact) or fetched via operatorsUrl (dpql,
   // ported from IDE Options) — the fetch overrides the seeded prop value.
@@ -1402,7 +1599,13 @@ const FormEngineImpl = ({
      measurement below takes it as a dependency, and a dependency array is
      evaluated during render — a `const` declared further down would still be
      in its temporal dead zone. */
-  const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
+  /* The label column the rows are laid out with: measured from the labels (see below), the
+     default until it is. A form stacks its rows where its value column would be too narrow
+     beside it (`isCompactNarrow`), not at one form width whatever its labels are. */
+  const [compactLabelColumn, setCompactLabelColumn] = useState<number>(COMPACT_LABEL_COL);
+  // the label column holds a finger's help button where the pointer is a finger (`labelAffordanceWidth`)
+  const coarsePointer = useCoarsePointer();
+  const compactNarrow = !!compactWrapWidth && isCompactNarrow(compactWrapWidth, compactLabelColumn);
 
   /* How much pinned chrome sits above a status-box header.
   
@@ -1425,9 +1628,7 @@ const FormEngineImpl = ({
       setCompactToolbarHeight(0);
       return undefined;
     }
-    const header = wrap.querySelector<HTMLElement>(
-      ':scope > .reqore-panel > .reqore-panel-title'
-    );
+    const header = wrap.querySelector<HTMLElement>(':scope > .reqore-panel > .reqore-panel-title');
     if (!header) {
       setCompactToolbarHeight(0);
       return undefined;
@@ -1497,9 +1698,12 @@ const FormEngineImpl = ({
     // survives at every label length. MAX still bounds how much room the NAME may
     // take, which is what it is for; the asterisk and the `?` are chrome that has
     // to fit beside it either way.
-    const text = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest)));
-    wrap.style.setProperty(LABEL_COL_VAR, `${text + LABEL_AFFORDANCE_WIDTH}px`);
-  }, [compact, options, theme, compactWrapNode]);
+    const text = Math.min(LABEL_COL_MAX, Math.round(widest));
+    // a finger's help button is wider than a mouse's (`labelAffordanceWidth`); a short name's column is the floor
+    const column = Math.max(LABEL_COLUMN_MIN, text + labelAffordanceWidth(coarsePointer));
+    wrap.style.setProperty(LABEL_COL_VAR, `${column}px`);
+    setCompactLabelColumn(column);
+  }, [compact, options, theme, compactWrapNode, coarsePointer]);
   // Editing rows pin min-height to the measured read row they replace, so the
   // toggle never shifts neighbours (height varies with chrome — measure it).
   const readRowHeights = useRef<Record<string, number>>({});
@@ -1617,9 +1821,21 @@ const FormEngineImpl = ({
    * reset the form to it: the field under the cursor went back a step and the keys typed since were lost
    * ("I have value" came out as "I he value" in a story under load).
    */
-  const inFlight = useEmittedValues<TQorusForm | TQorusFlatForm | undefined>((a, b) =>
-    isEqual(normalizeEmptyFieldValues(a), normalizeEmptyFieldValues(b))
-  );
+  const inFlight = useEmittedValues<TQorusForm | TQorusFlatForm | undefined>(sameReportedValue);
+  /**
+   * The `value` (and `valueKey`) as of the last commit: what a new `value` is a change from. The sync-down
+   * merges the host's change against it, and the emit effect tells by it that the host changed the value in
+   * the very commit it runs in. Updated by the last effect of each commit (below the sync-down).
+   */
+  const seenValue = useRef<TQorusForm | TQorusFlatForm | undefined>(value);
+  const seenValueKey = useRef<string | number | undefined>(valueKey);
+  /** Whether `value` is the host's own change, made since the last commit: neither seen before nor a report of
+   *  this form's coming back. */
+  const isHostsOwnChange = (): boolean =>
+    valueKey !== seenValueKey.current ||
+    (!sameReportedValue(value, seenValue.current) &&
+      !inFlight.includes(value) &&
+      !sameReportedValue(value, lastEmittedValue.current));
 
   if (originalValue.current === undefined && size(value)) {
     originalValue.current = localValue.fields;
@@ -1627,9 +1843,32 @@ const FormEngineImpl = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
-  const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
+  // an option's type in words, while the form shows field types (qorus#646: it said the type's code, `<string>`)
+  const typeName = useTypeName();
+  const templates = useTemplates(allowTemplates, stringTemplates, interfaceContext);
 
   useEffect(() => {
+    /* Nothing is emitted until the schema is in force (`schemaInForce`): read against the empty or earlier
+       schema a host hands down while it loads its own, the value is no answer, and emitted it wiped a Qog
+       state's stored options the moment the state was opened (qorus#646).
+
+       When it comes into force this check runs (it is a dependency). A host also shows the skeleton for other
+       waits: qorus-ide shows it while the templates load, with the schema already there. The form completes the
+       value meanwhile (a required field's default, e.g. the server's `created_by_user`), and nothing read it
+       again when the skeleton cleared: the default was shown and never emitted, so never saved. A value that
+       adds nothing still emits nothing. */
+    if (!schemaInForce) {
+      return;
+    }
+    /* The host changed the value in this same commit (effects run in order, and this one runs before the
+       sync-down that takes the change in). The form's copy was made before that change: sent, it overwrote
+       the host's change, the sync-down then took the host's value in, and the next commit sent that back -
+       the form and the host traded places on every commit, forever (qorus#646: the Qorus IDE's OPC UA node
+       editor, its namespace flipping between the old and the renamed one). The sync-down below merges the
+       change with the form's own edits, and the next commit reports the result. */
+    if (isHostsOwnChange()) {
+      return;
+    }
     if (
       !shouldEmitLocalValue({
         localValue: localValue.fields,
@@ -1647,7 +1886,7 @@ const FormEngineImpl = ({
     // Batched mode still emits every staged change (consumers may want to
     // live-validate), but flags it as a draft — persistence waits for Save.
     onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
-  }, [JSON.stringify(localValue)]);
+  }, [JSON.stringify(localValue), schemaInForce]);
 
   useUpdateEffect(() => {
     // When a loader owns the schema, ignore controlled `options` syncs so a
@@ -1655,8 +1894,8 @@ const FormEngineImpl = ({
     if (optionsLoader) {
       return;
     }
-    setOptions(rest.options);
-  }, [JSON.stringify(rest.options)]);
+    setOptions(optionsSchema);
+  }, [JSON.stringify(optionsSchema)]);
 
   // Fetch the schema on mount and on loader identity change.
   useEffect(() => {
@@ -1828,16 +2067,31 @@ const FormEngineImpl = ({
     // change and re-fixes forever (e.g. byte-size / expression / ruled string fields).
     // Note: compare fixedValue against value, not localValue.fields — localValue may have been
     // updated by nested FormEngine emissions, so comparing against it would never skip.
-    const normalizedValue = normalizeEmptyFieldValues(value);
     /* What this rebuild lets us agree with the parent on — `undefined` when it
        contributed something the parent has yet to learn. */
     const agreed = agreementFromRebuild(fixedValue, value);
+    // a different record: nothing of the previous one is carried into it (see `valueKey`)
+    const sameRecord = valueKey === seenValueKey.current;
     // the echo of an emit still in flight - the last or an older one - is not the parent's change
     const echo = inFlight.isEcho(value);
-    if (
-      (echo || isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current))) &&
-      agreed !== undefined
-    ) {
+    if (sameRecord && (echo || sameReportedValue(value, lastEmittedValue.current))) {
+      /* The form's own report coming back. Whatever the rebuild adds - a schema that changed in the same
+         commit, a field the host does not store - is added to the form's copy, never by going back to the
+         report: the report may be older than edits made since (an echo of "a" arriving after "ab" was
+         reported lost the "b"). Nothing changes when the form's copy has it all already. */
+      const rebuild = (fields: TQorusForm | TQorusFlatForm) =>
+        fixOptions(fields, options || {}, undefined, isRendererOnly);
+      if (!isEqual(rebuild(localValue.fields), localValue.fields)) {
+        // the parent has to learn what the rebuild added
+        mirroredValue.current = undefined;
+      }
+      /* What the host changed beside a field's value is taken (its type, say): the report is recognised by its
+         values (see `takeHostsAttributes`). */
+      const base = seenValue.current;
+      setLocalValue((current) => {
+        const rebuilt = rebuild(takeHostsAttributes(value, current.fields, base) as TQorusForm);
+        return isEqual(rebuilt, current.fields) ? current : { fields: rebuilt, meta: current.meta };
+      });
       return;
     }
 
@@ -1853,8 +2107,29 @@ const FormEngineImpl = ({
       lastEmittedValue.current = agreed;
     }
 
-    setLocalValue?.({ fields: fixedValue, meta: undefined });
-  }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly]);
+    if (!sameRecord) {
+      setLocalValue({ fields: fixedValue, meta: undefined });
+      return;
+    }
+    // The host's change, with the form's own edits it did not touch kept (see `mergeOwnEdits`).
+    const base = seenValue.current;
+    setLocalValue((current) => {
+      const merged = mergeOwnEdits(value, current.fields, base);
+      return {
+        fields:
+          merged === value ? fixedValue : (
+            fixOptions(merged, options || {}, undefined, isRendererOnly)
+          ),
+        meta: undefined,
+      };
+    });
+  }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly, valueKey]);
+
+  // Last of the value effects: what the next commit's `value` is a change from.
+  useEffect(() => {
+    seenValue.current = value;
+    seenValueKey.current = valueKey;
+  });
 
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
@@ -2143,11 +2418,13 @@ const FormEngineImpl = ({
       .reduce((newValue: TQorusForm, optionName) => {
         const option = fixedValue[optionName];
         if (!options?.[optionName]) {
-          unavailableOptionsCount.current += 1;
-          removeSelectedOption(optionName);
+          // not on this instance - unless the schema is not yet the one in force (see `schemaInForce`)
+          if (schemaInForce) {
+            unavailableOptionsCount.current += 1;
+            removeSelectedOption(optionName);
+          }
           return newValue;
         }
-
 
         const rendererType = getType(
           (options[optionName].ui_type || options[optionName].type) as TQorusType,
@@ -2186,6 +2463,7 @@ const FormEngineImpl = ({
     unavailableOptionsCount.current,
     JSON.stringify(operators),
     showInvalidOptionsOnly,
+    schemaInForce,
   ]);
 
   // Per required-group: its member options, and which member (if any) already
@@ -2270,7 +2548,7 @@ const FormEngineImpl = ({
     forEach(options || {}, (optionSchema, name) => {
       forEach(optionSchema?.allowed_values || [], (allowedValue) => {
         if (!getAllowedValueAvailability(allowedValue, availableOptions, options || {}).available) {
-          locked.push(`${name}\u0000${JSON.stringify(allowedValue?.value?.value)}`);
+          locked.push(`${name}\u0000${JSON.stringify(allowedValueOf(allowedValue))}`);
         }
       });
     });
@@ -2339,14 +2617,15 @@ const FormEngineImpl = ({
 
   const isOptionValid = useCallback(
     (optionName: string, type: TQorusType, optionValue: any) => {
-      const isEmpty = optionValue === undefined || optionValue === '';
-      // An empty field locked by an unmet `depends_on` does not apply, so it is
-      // not missing — the same rule the read-first status follows.
-      if (
-        isEmpty &&
-        ((!options?.[optionName]?.required && !options?.[optionName]?.required_groups) ||
-          dependencyLockedNames.includes(optionName))
-      ) {
+      // the same "not set" the row's status reads: an empty list is no value
+      const isEmpty = isOptionValueEmpty(optionValue);
+      // A field whose `depends_on` does not hold does not apply: it is hidden, and nothing in it can make the
+      // form invalid - a value it holds is kept, and said in the form's note, valid or not (qorus#646).
+      if (dependencyLockedNames.includes(optionName)) {
+        return true;
+      }
+      // An empty field that is not required is not missing.
+      if (isEmpty && !options?.[optionName]?.required && !options?.[optionName]?.required_groups) {
         return true;
       }
 
@@ -2389,32 +2668,45 @@ const FormEngineImpl = ({
 
         const isRequired = options?.[optionName]?.required;
         const hasRequiredGroups = !!options?.[optionName]?.required_groups;
-        const isEmpty = optionValue === undefined || optionValue === '';
+        // the same "not set" the row's status reads: an empty list is no value
+        const isEmpty = isOptionValueEmpty(optionValue);
 
         let validation: IValidationResult;
+        /* A field whose host gives its own reason (`invalid_reason`) is invalid while it does, whatever the
+           field makes of its value: the host knows something the field cannot - that a field it names
+           is not in the record, that text around a field is not a whole number - and says it in the field,
+           in place of the field's own message (`getOptionFieldMessages`). */
+        const hostReason = (options?.[optionName] as { invalid_reason?: string } | undefined)
+          ?.invalid_reason;
 
-        /* A required field locked by an unmet `depends_on` does not apply
+        if (hostReason) {
+          validation = { isValid: false, reason: hostReason, reasons: [hostReason] };
+        } else {
+          /* A required field locked by an unmet `depends_on` does not apply
            while it is locked: it is not in "Needs attention", and an empty one
            does not make the form incomplete either. Otherwise a check whose
            kind is Equals could never be saved, because Minimum — required for
            Between alone — is empty; and a form whose only gaps are fields
            nobody can fill in would say Incomplete with nothing to act on. A
            locked field that still HOLDS a value is validated as before. */
-        if (
-          isEmpty &&
-          ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
-        ) {
-          validation = { isValid: true, reasons: [] };
-        } else {
-          validation = validateFieldWithResult(getType(type), optionValue, {
-            has_to_have_value: true,
-            optionSchema: options,
-            options: availableOptions,
-            ...options?.[optionName],
-            // The expression flag lives on the field value, not the schema.
-            isFunction: (option as { is_expression?: boolean }).is_expression,
-            hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
-          } as any);
+          if (
+            dependencyLockedNames.includes(optionName) ||
+            (isEmpty && !isRequired && !hasRequiredGroups)
+          ) {
+            /* A field whose `depends_on` does not hold is hidden and does not apply: nothing in it makes the
+               form invalid, empty or holding a value (kept, and said in the form's note - qorus#646). */
+            validation = { isValid: true, reasons: [] };
+          } else {
+            validation = validateFieldWithResult(getType(type), optionValue, {
+              has_to_have_value: true,
+              optionSchema: options,
+              options: availableOptions,
+              ...options?.[optionName],
+              // The expression flag lives on the field value, not the schema.
+              isFunction: (option as { is_expression?: boolean }).is_expression,
+              hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
+            } as any);
+          }
         }
 
         result.push({
@@ -2452,10 +2744,17 @@ const FormEngineImpl = ({
     onValidityChange?.(optionsAreValid, validityData);
   }, [JSON.stringify(validityData)]);
 
+  /* A field whose `depends_on` does not hold is not shown (qorus#646, David): it is not of use until it applies,
+     so it is left out of the form - not shown waiting, locked - and appears once its dependency holds (and
+     flashes - see `dependencyLockedNames`). Its value is kept; one it holds meanwhile is said in the form's
+     note (`hiddenFieldsWithValues`). */
   const shownOptions = useMemo((): TQorusForm => {
     return reduce(
       availableOptions,
       (newValue, option, optionName) => {
+        if (dependencyLockedNames.includes(optionName)) {
+          return newValue;
+        }
         if (
           showInvalidOptionsOnly &&
           isOptionValid(
@@ -2479,6 +2778,7 @@ const FormEngineImpl = ({
       {}
     );
   }, [
+    dependencyLockedNames,
     showInvalidOptionsOnly,
     isRendererOnly,
     JSON.stringify(availableOptions),
@@ -2493,7 +2793,7 @@ const FormEngineImpl = ({
   const schemaMsgIntent = useCallback(
     (name: string): 'danger' | 'warning' | undefined => {
       // Filtered, not raw: a message hidden by its own `when`/`unless` must not
-      // colour the row or push the field into "Needs attention" — the whole point
+      // color the row or push the field into "Needs attention" — the whole point
       // of a conditional warning is that it is absent while it does not apply.
       const msgs = getShownSchemaMessages(
         (options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)?.messages,
@@ -2579,9 +2879,11 @@ const FormEngineImpl = ({
   // How many fields are in the "Needs attention" box — drives the header link.
   const readFirstAttentionCount = useMemo(
     () =>
-      Object.keys(availableOptions || {}).filter((name) => getOptionBucket(name) === 'attention')
-        .length,
-    [JSON.stringify(availableOptions), getOptionBucket]
+      Object.keys(availableOptions || {}).filter(
+        // a hidden field (its `depends_on` does not hold) is not in the form, nor in its counts
+        (name) => !dependencyLockedNames.includes(name) && getOptionBucket(name) === 'attention'
+      ).length,
+    [JSON.stringify(availableOptions), getOptionBucket, dependencyLockedNames]
   );
 
   const getIntent = useCallback(
@@ -2649,10 +2951,26 @@ const FormEngineImpl = ({
     setShowHelpForOption(optionName);
   }, []);
 
-  const toggleExpandedOption = useCallback(
+  /** Whether the first-required scan below has opened its row, or is spent by the user's first move (see it). Only a
+   *  remount arms it again. */
+  const hasAutoFocusedRef = useRef(false);
+  /** The fields the first-required scan has looked at: it opens a field that needs an answer when the field first
+   *  appears in the form, not when one already there comes to need one. */
+  const scannedFieldsRef = useRef<Set<string>>(new Set());
+
+  /* A row is opened or closed by what the user did to the row as it was drawn, never by flipping whatever the
+     state is by the time React applies the update. A toggle read the direction from the latest state: the
+     first-required scan opens its row with an update of its own, and a click on that row, drawn closed, landed on
+     top of it and closed the row the user had just opened (qorus#646: the Qorus IDE's Schema "Draft Is Saved").
+     Each of these does nothing to a row already in its state.
+
+     A row the user opens or closes is where they have chosen to work: the first-required scan, if it is still
+     waiting for the focus to be free, does not run after either (qorus#646). */
+  const expandOption = useCallback(
     (optionName: string) => {
+      hasAutoFocusedRef.current = true;
       setExpandedOptions((prev) =>
-        prev.includes(optionName) ? prev.filter((name) => name !== optionName)
+        prev.includes(optionName) ? prev
           // single (default): opening a row collapses any other open one.
         : expandMode === 'single' ? [optionName]
         : [...prev, optionName]
@@ -2660,6 +2978,12 @@ const FormEngineImpl = ({
     },
     [expandMode]
   );
+  const collapseOption = useCallback((optionName: string) => {
+    hasAutoFocusedRef.current = true;
+    setExpandedOptions((prev) =>
+      prev.includes(optionName) ? prev.filter((name) => name !== optionName) : prev
+    );
+  }, []);
 
   // --- Caller-named starting rows (opt-in) ----------------------------------
   // `initialExpandedOptions` lets a consumer name the rows that must already
@@ -2693,6 +3017,42 @@ const FormEngineImpl = ({
   }, [initialExpandedOptions, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
+  /** The first row (of `names`, in order: every row by default) that needs an answer and can take one, if any: what
+   *  the first-required scan opens. */
+  const firstAttentionRow = (names: string[] = Object.keys(availableOptions)): string | undefined =>
+    getFirstAttentionOptionName(names, (fieldName) => {
+      const schema = options?.[fieldName];
+      if (!schema) {
+        return undefined;
+      }
+      return {
+        focusable:
+          !readOnly &&
+          !schema.disabled &&
+          !(schema as { readonly?: boolean }).readonly &&
+          !dependencyLockedNames.includes(fieldName),
+        // Single source of truth: the same bucket the read-first status boxes
+        // show, so a filled-but-invalid required row is a target too.
+        needsAttention: getOptionBucket(fieldName) === 'attention',
+      };
+    });
+
+  const openFirstAttentionRow = (target: string | undefined) => {
+    if (target) {
+      setExpandedOptions((prev) =>
+        prev.includes(target) ? prev
+        : expandMode === 'multi' ? [...prev, target]
+          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
+          // row closes the one the reader last opened. It is not a licence to
+          // close a row the HOST named through `initialExpandedOptions`. That
+          // is an address — a statement about what the page is FOR, made before
+          // the reader did anything — and this scan is a convenience layered on
+          // top of it. Keep the named rows; replace only what a click could.
+        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
+      );
+    }
+  };
+
   // With `autoFocusFirstRequired`, drop the user straight into the first field
   // they must fix. We reuse the engine's own ordering (`availableOptions`), the
   // very same `getOptionBucket` the status boxes use to decide "needs attention"
@@ -2702,13 +3062,17 @@ const FormEngineImpl = ({
   // `expandedOptions` — the row's editor-focus effect does the rest. No DOM
   // scraping, no synthetic clicks, no polling.
   //
-  // Strictly one-shot: it fires the first time the form has focusable content
-  // (so an async-loaded schema is still covered — the empty first pass doesn't
-  // count), then never again for the life of this instance. A server-driven
-  // field update or an in-place schema reload will NOT re-grab focus; only a
-  // genuine remount (a fresh instance) auto-focuses again, which is the intended
-  // on-mount behaviour.
-  const hasAutoFocusedRef = useRef(false);
+  // It opens one row for the life of this instance, keyed on a field's arrival: the first field that needs an
+  // answer when it first appears in the form. A schema that arrives after the mount, or in pieces, is covered: the
+  // fields of a later piece are looked at when they arrive, as long as the scan has opened nothing yet. A field
+  // already in the form that comes to need an answer (a value edited, a server-driven update) is not a reason to
+  // open it, nor to re-grab focus; only a genuine remount (a fresh instance) arms the scan again.
+  //
+  // It waits only for the user's first move. A form opened from a button mounts while that button holds the
+  // focus, and the scan waits for it to be free - but the user does not wait: they open a row (which spends
+  // the scan, `expandOption`) or come into the form from the keyboard (which runs it, below). Waiting
+  // past that, the scan ran the first time the focus rested on nothing, which is the Done that closes the
+  // user's row, and opened the next row that needed an answer by itself in the middle of their work.
   useEffect(() => {
     // Two decisions, one scan. Both open the row that needs attention;
     // `autoFocusFirstRequired` additionally promises the caret lands in it, and
@@ -2717,7 +3081,8 @@ const FormEngineImpl = ({
     // CompactRow's tap-to-edit rule, and it declines just as firmly to take one
     // that is already somewhere outside the row.
     const wantsFocus = !!autoFocusFirstRequired;
-    if ((!wantsFocus && !expandFirstRequired) || !compact || !options) {
+    // the schema the form holds is the one in force: not one a skeleton stands for, nor one the host has replaced
+    if ((!wantsFocus && !expandFirstRequired) || !compact || !options || !schemaInForce) {
       return;
     }
     if (hasAutoFocusedRef.current) {
@@ -2725,7 +3090,17 @@ const FormEngineImpl = ({
     }
 
     const orderedNames = Object.keys(availableOptions);
-    if (!orderedNames.length) {
+    // the fields that have appeared since the scan last looked: only they can be what it opens
+    const arrived = orderedNames.filter((name) => !scannedFieldsRef.current.has(name));
+    if (!arrived.length) {
+      return;
+    }
+    /* Read on the form the schema makes: a required field the schema brings is added to the form's value by the
+       sync-down, an effect, so the render after the schema arrives. Read before that, the form had no row for it:
+       the scan found nothing to open and was spent, and the field's row stayed closed (qorus#646: the Qorus IDE's
+       pipeline processor, whose required field mappings arrive with its schema). */
+    const formTheSchemaMakes = fixOptions(fixedValue, options, undefined, isRendererOnly);
+    if (Object.keys(formTheSchemaMakes || {}).some((name) => !(name in fixedValue))) {
       return;
     }
 
@@ -2746,47 +3121,23 @@ const FormEngineImpl = ({
       return;
     }
 
-    const target = getFirstAttentionOptionName(orderedNames, (fieldName) => {
-      const schema = options[fieldName];
-      if (!schema) {
-        return undefined;
-      }
-      return {
-        focusable:
-          !readOnly &&
-          !schema.disabled &&
-          !(schema as { readonly?: boolean }).readonly &&
-          !dependencyLockedNames.includes(fieldName),
-        // Single source of truth: the same bucket the read-first status boxes
-        // show, so a filled-but-invalid required row is a target too.
-        needsAttention: getOptionBucket(fieldName) === 'attention',
-      };
-    });
-
-    // Mark done even when nothing needs attention, so later value edits or an
-    // in-place schema reload never re-scan or re-focus. Only a remount arms it
-    // again.
-    hasAutoFocusedRef.current = true;
-
-    if (target) {
-      setExpandedOptions((prev) =>
-        prev.includes(target) ? prev
-        : expandMode === 'multi' ? [...prev, target]
-          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
-          // row closes the one the reader last opened. It is not a licence to
-          // close a row the HOST named through `initialExpandedOptions`. That
-          // is an address — a statement about what the page is FOR, made before
-          // the reader did anything — and this scan is a convenience layered on
-          // top of it. Keep the named rows; replace only what a click could.
-        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
-      );
+    // Looked at: a field here now is not looked at again, whatever it comes to hold.
+    orderedNames.forEach((name) => scannedFieldsRef.current.add(name));
+    const target = firstAttentionRow(arrived);
+    if (!target) {
+      // nothing that arrived needs an answer: the scan waits for the fields still to come
+      return;
     }
+    hasAutoFocusedRef.current = true;
+    openFirstAttentionRow(target);
   }, [
     autoFocusFirstRequired,
     expandFirstRequired,
     compact,
     options,
+    schemaInForce,
     availableOptions,
+    isRendererOnly,
     readOnly,
     dependencyLockedNames,
     getOptionBucket,
@@ -2794,15 +3145,109 @@ const FormEngineImpl = ({
     initialExpandedOptions,
   ]);
 
+  /* The two first moves a user makes in a form opened from a button, while the scan above waits for the
+     focus to be free:
+     - pointing into the form (a click on a row, a field, the toolbar) is choosing where to work, and spends
+       the scan, as opening a row does (`expandOption`);
+     - coming into it from the keyboard (Tab from the button) chooses nothing, and runs the scan now: the user
+       is put in the first row that needs an answer, once. Coming straight into a control they can type in
+       (a field already open, the search box) is theirs, and spends the scan without moving them.
+     Only while the scan still waits; it never runs twice. */
+  const keyboardEntry = useRef<(event: FocusEvent) => void>();
+  keyboardEntry.current = (event: FocusEvent) => {
+    if (hasAutoFocusedRef.current || !options || !Object.keys(availableOptions).length) {
+      return;
+    }
+    const from = event.relatedTarget as Node | null;
+    if (from && compactWrapNode?.contains(from)) {
+      return;
+    }
+    hasAutoFocusedRef.current = true;
+    const entered = event.target as HTMLElement;
+    if (isTypingControl(entered)) {
+      return;
+    }
+    const target = firstAttentionRow();
+    if (!target) {
+      return;
+    }
+    // A row takes the caret only from nothing - never from an element the reader is on (see CompactRow) - so
+    // the element the Tab landed on lets it go: the scan is what the reader came in for.
+    entered.blur();
+    openFirstAttentionRow(target);
+  };
+  useEffect(() => {
+    if (!autoFocusFirstRequired || !compact || !compactWrapNode) {
+      return undefined;
+    }
+    const onPointerDown = () => {
+      hasAutoFocusedRef.current = true;
+    };
+    const onFocusIn = (event: FocusEvent) => keyboardEntry.current?.(event);
+    // capture: the pointer is the user's choice before anything in the form answers it
+    compactWrapNode.addEventListener('pointerdown', onPointerDown, true);
+    compactWrapNode.addEventListener('focusin', onFocusIn);
+    return () => {
+      compactWrapNode.removeEventListener('pointerdown', onPointerDown, true);
+      compactWrapNode.removeEventListener('focusin', onFocusIn);
+    };
+  }, [autoFocusFirstRequired, compact, compactWrapNode]);
+
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
   const readFirstCompletion = useMemo(
     () =>
       getReadFirstCompletion(
-        availableOptions as Record<string, IQorusFormField | undefined>,
+        // a hidden field (its `depends_on` does not hold) is not in the form, nor in its meter
+        omit(availableOptions, dependencyLockedNames) as Record<string, IQorusFormField | undefined>,
         (name) => getOptionBucket(name) === 'attention'
       ),
-    [JSON.stringify(availableOptions), getOptionBucket]
+    [JSON.stringify(availableOptions), getOptionBucket, dependencyLockedNames]
+  );
+
+  /* The hidden fields (their `depends_on` does not hold) that hold a value: kept, not dropped silently, so the form
+     says so in a note - and whether the value is valid, as no field shows it (qorus#646, David). */
+  const hiddenFieldsWithValues = useMemo(
+    (): IHiddenFieldWithValue[] =>
+      dependencyLockedNames
+        .filter((name) => !isOptionValueEmpty((availableOptions as TQorusForm)?.[name]?.value))
+        .map((name) => {
+          const field = (availableOptions as TQorusForm)[name] as IQorusFormField;
+          const schema = options?.[name];
+          const type = getOptionFieldStorageType(
+            name,
+            field.type,
+            options,
+            operators,
+            field.op,
+            isRendererOnly,
+            optionHoldsExpression(field)
+          );
+          const validation = validateFieldWithResult(getType(type), field.value, {
+            has_to_have_value: true,
+            optionSchema: options,
+            options: availableOptions,
+            ...schema,
+            isFunction: (field as { is_expression?: boolean }).is_expression,
+            hasOwnEditor: isRendererOnly(schema?.ui_type as TQorusType),
+          } as any);
+          return {
+            name,
+            label: (schema?.display_name as string) || name,
+            conditions: describeDependencies(
+              (schema?.depends_on || []) as (string | string[])[],
+              options || {}
+            ),
+            invalidReason: validation.isValid ? undefined : validation.reason,
+          };
+        }),
+    [
+      dependencyLockedNames,
+      JSON.stringify(availableOptions),
+      JSON.stringify(options),
+      JSON.stringify(operators),
+      isRendererOnly,
+    ]
   );
 
   const optionalFields = useMemo(
@@ -3103,6 +3548,9 @@ const FormEngineImpl = ({
             // reqraft: form-level expression fields get the Visual/Text shell
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
+            // a form's options enter their value on tabs: Value · Expression · Visual, or Value · Template
+            // where only templates are taken (qorus#646); opt out per-form via `templateFieldProps`
+            valueTabs
             // A fixed allowed-value field still needs its selector even when
             // arbitrary custom values are forbidden. TemplateField uses this
             // flag to decide whether to mount AutoFormField at all; treating
@@ -3195,22 +3643,18 @@ const FormEngineImpl = ({
           {operators && size(operators) && size(other.op) ?
             <>
               <ReqoreVerticalSpacer height={5} />
-              <ReqoreMessage size='small'>
-                <ReqoreTagGroup>
-                  <ReqoreTag size='small' labelKey='WHERE' label={optionName} />
-                  <ReqoreTag size='small' labelKey='IS' label={operatorParts.join(' ')} />
-                  <ReqoreTag
-                    size='small'
-                    intent='info'
-                    label={
-                      other.value ?
-                        resolvedType === 'richtext' ?
-                          richtextToString(other.value)
-                        : JSON.stringify(other.value)
-                      : ''
-                    }
-                  />
-                </ReqoreTagGroup>
+              {/* in names: the option, its operators and the value as the row reads it */}
+              <ReqoreMessage size='small' className='options-operator-summary'>
+                {operatorSummary({
+                  label: optionSchema?.display_name || optionName,
+                  operatorKeys: operatorParts,
+                  operators: operators as Record<string, { name?: string; display_name?: string }>,
+                  value: other.value,
+                  shown: formatOptionValue(
+                    { type: resolvedType, ...other } as IQorusFormField,
+                    optionSchema
+                  ),
+                })}
               </ReqoreMessage>
             </>
           : null}
@@ -3232,7 +3676,7 @@ const FormEngineImpl = ({
       fixedValue,
       // Depend on the specific `rest` values used, not the whole `rest` object
       // (which is a fresh `{...rest}` every render and would defeat the memo).
-      rest?.options,
+      optionsSchema,
       rest?.size,
       handleValueChange,
       handleOperatorChange,
@@ -3246,11 +3690,11 @@ const FormEngineImpl = ({
   );
 
   // Compact (read-first) rendering.
-  // Theme-derived colours so the flat-row layout adapts to light/dark/custom themes.
+  // Theme-derived colors so the flat-row layout adapts to light/dark/custom themes.
   const cText = theme?.text?.color || '#f1f0ee';
-  // Text emphasis tiers via reqore's readable-colour helper (key = full readable
+  // Text emphasis tiers via reqore's readable-color helper (key = full readable
   // text, muted = its dimmed variant, faint = the dimmed variant softened
-  // further) instead of hand-rolled hex-alpha suffixes on the raw text colour.
+  // further) instead of hand-rolled hex-alpha suffixes on the raw text color.
   const cKey = getReadableColor(theme);
   const cMuted = getReadableColor(theme, undefined, undefined, true);
   const cFaint = `${cMuted}99`;
@@ -3260,6 +3704,22 @@ const FormEngineImpl = ({
   const cWarning = theme?.intents?.warning || '#ffdf34';
   const cInfo = theme?.intents?.info || '#3b8eea';
   const cSuccess = theme?.intents?.success || '#36b37e';
+  // the rows' own words and marks, in colors that read on every surface a row is drawn on
+  const rowInks = useMemo(() => getReadFirstInks(theme), [theme]);
+  // an option panel's short description, faint: as faint as it still reads in the theme
+  const optionDescOpacity = useMemo(() => getReadableTextOpacity(theme, 0.3), [theme]);
+  /* an invalid option's mark in its panel's title: the danger, in the shade of it that stands out as reqore draws a
+     title icon, at 70% (danger:lighten:5 was 2.9:1) */
+  const invalidOptionIconColor = useMemo(
+    () =>
+      getReadableShade(
+        cDanger,
+        getThemeSurfaces(theme),
+        READABLE_ICON,
+        PANEL_TITLE_ICON_ALPHA
+      ) as TReqoreHexColor,
+    [theme, cDanger]
+  );
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
   const cRowBg = changeDarkness(getMainBackgroundColor(theme), 0.01);
   const cGroupLine = `${cText}1f`;
@@ -3282,6 +3742,9 @@ const FormEngineImpl = ({
       focusedEditing,
       showFieldTypes,
       codePreviewRenderer,
+      codeEditor: componentOverrides?.['code-editor'],
+      readSummaries,
+      cardEditorTypes,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,
@@ -3296,7 +3759,8 @@ const FormEngineImpl = ({
       requiredGroupsInfo,
       handleValueChange,
       handleAddOptionalFieldChange,
-      toggleExpandedOption,
+      expandOption,
+      collapseOption,
       flashOption,
       hasOptionChanged,
       handleOptionLabelClick,
@@ -3319,6 +3783,7 @@ const FormEngineImpl = ({
       cWarning,
       cInfo,
       cBg,
+      rowInks,
     }),
     [
       templates.value,
@@ -3330,6 +3795,9 @@ const FormEngineImpl = ({
       focusedEditing,
       showFieldTypes,
       codePreviewRenderer,
+      componentOverrides,
+      readSummaries,
+      cardEditorTypes,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,
@@ -3344,7 +3812,8 @@ const FormEngineImpl = ({
       requiredGroupsInfo,
       handleValueChange,
       handleAddOptionalFieldChange,
-      toggleExpandedOption,
+      expandOption,
+      collapseOption,
       flashOption,
       hasOptionChanged,
       handleOptionLabelClick,
@@ -3367,6 +3836,7 @@ const FormEngineImpl = ({
       cWarning,
       cInfo,
       cBg,
+      rowInks,
     ]
   );
 
@@ -3792,8 +4262,9 @@ const FormEngineImpl = ({
             $border={`${cWarning}33`}
             $tint={`${cWarning}0d`}
           >
-            <StyledRequiredClusterHeader $color={cWarning}>
-              <ReqoreIcon icon='LinkM' size='11px' style={{ color: cWarning }} />
+            {/* the words and the mark in a shade of the warning that reads on the cluster's tint */}
+            <StyledRequiredClusterHeader $color={rowInks.warning}>
+              <ReqoreIcon icon='LinkM' size='11px' style={{ color: rowInks.warning }} />
               One of the below is required
             </StyledRequiredClusterHeader>
             {railed}
@@ -3951,6 +4422,8 @@ const FormEngineImpl = ({
                     ...compactPanelProps?.contentStyle,
                   }}
                 >
+                  {/* the hidden fields that hold a value: kept, and said (qorus#646) */}
+                  <HiddenFieldsNote fields={hiddenFieldsWithValues} />
                   {size(groupKeys) === 0 || (readOnly && !bucketCount('set')) ?
                     <ReqoreMessage flat opaque={false} size='small'>
                       {readOnly && !query ?
@@ -3961,7 +4434,7 @@ const FormEngineImpl = ({
 
                   {/* A read-only form is one flat list of what is set: no
                       "Set" heading with a count over it (there is nothing else
-                      it could be), no green tint (a colour that means "done"
+                      it could be), no green tint (a color that means "done"
                       on a form nobody is doing), nothing to collapse — and no
                       `maxFieldsShown` fold: "12 more fields" behind a click is
                       the reader's record withheld, and a page scrolls. */}
@@ -4203,6 +4676,19 @@ const FormEngineImpl = ({
                         icon='EditLine'
                         label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
                       />
+                      {/* Why Save refuses, as text: a disabled button fires no hover, and a phone has none. */}
+                      {validityData.isValid ? null : (
+                        <ReqoreTag
+                          size='tiny'
+                          minimal
+                          flat
+                          wrap
+                          intent='danger'
+                          icon='ErrorWarningLine'
+                          className='options-readfirst-commit-blocked'
+                          label={describeBlockedSave(validityData.invalidFields, options as any)}
+                        />
+                      )}
                       <ReqoreButton
                         size='small'
                         intent='success'
@@ -4245,7 +4731,10 @@ const FormEngineImpl = ({
      tested. Rendered as `data-wait` on the placeholder so a page can be asked
      what it is waiting FOR instead of only that it is waiting. */
   const waitReason =
-    rest.skeleton ? (rest.skeletonReason ? `host:${rest.skeletonReason}` : 'host')
+    rest.skeleton ?
+      skeletonReason ?
+        `host:${skeletonReason}`
+      : 'host'
     : templates.loading ? 'templates'
     : typesLoading ? 'types'
     : optionsLoading ? 'options'
@@ -4335,11 +4824,13 @@ const FormEngineImpl = ({
               {unavailableOptionsCount.current ?
                 <>
                   <ReqoreMessage intent='warning' opaque={false} size='small' margin='bottom'>
-                    {`${unavailableOptionsCount.current} fields(s) hidden because they are not supported on the current instance`}
+                    {`${unavailableOptionsCount.current} ${unavailableOptionsCount.current === 1 ? 'field' : 'fields'} hidden because they are not supported on the current instance`}
                   </ReqoreMessage>
                   <ReqoreVerticalSpacer height={10} />
                 </>
               : null}
+              {/* the hidden fields that hold a value: kept, and said (qorus#646) */}
+              <HiddenFieldsNote fields={hiddenFieldsWithValues} />
               {children}
               {size(filteredOptions) >= 1 && !readOnly ?
                 <>
@@ -4393,11 +4884,13 @@ const FormEngineImpl = ({
               },
               description:
                 showFieldTypes ?
-                  `<${options[optionName].ui_type || options[optionName].type}${options[optionName]?.ui_element_type ? `[${options[optionName].ui_element_type}]` : ''}> ${options[optionName].short_desc || ''}`
+                  [optionTypeWords(options[optionName], typeName), options[optionName].short_desc]
+                    .filter(Boolean)
+                    .join(' · ')
                 : options[optionName].short_desc || '',
               descriptionEffect: {
                 textSize: '11px',
-                opacity: 0.3,
+                opacity: optionDescOpacity,
                 underline: options[optionName]?.desc ? 'underline dotted #878787' : undefined,
               },
               customTheme: {
@@ -4409,7 +4902,7 @@ const FormEngineImpl = ({
                 : undefined,
               iconColor:
                 !isOptionValid(optionName, type as TQorusType, (other as any).value) ?
-                  'danger:lighten:5'
+                  invalidOptionIconColor
                 : undefined,
               transparent: false,
               intent: getIntent(
@@ -4458,8 +4951,7 @@ const FormEngineImpl = ({
                       onClick: () => {
                         handleValueChange(
                           optionName,
-                          originalValue.current?.[optionName]?.value,
-                          originalValue.current?.[optionName]?.type
+                          ...restoredFieldChange(originalValue.current?.[optionName])
                         );
                       },
                     },
@@ -4560,10 +5052,24 @@ const FormEngineImpl = ({
  * a child of the row it belongs to. Threading a renderer to each of them by
  * hand is how one of them gets missed.
  */
-export const FormEngine = (props: IFormEngineProps) => (
-  <MarkdownRendererContext.Provider value={props.markdownRenderer}>
-    <FormEngineImpl {...props} />
-  </MarkdownRendererContext.Provider>
-);
+export const FormEngine = (props: IFormEngineProps) => {
+  // what the host knows of references beyond the catalogue, for every chip the form draws (qorus#646)
+  const referenceNames = useMemo(
+    () => props.templateReferences ?? NO_REFERENCE_NAMES,
+    [props.templateReferences]
+  );
+  return (
+    <MarkdownRendererContext.Provider value={props.markdownRenderer}>
+      {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
+      <TypeSentenceFormProvider>
+        <TemplateReferenceNamesProvider value={referenceNames}>
+          <FormEngineImpl {...props} />
+        </TemplateReferenceNamesProvider>
+      </TypeSentenceFormProvider>
+    </MarkdownRendererContext.Provider>
+  );
+};
+
+const NO_REFERENCE_NAMES: ITemplateReferenceNames = {};
 
 export default FormEngine;

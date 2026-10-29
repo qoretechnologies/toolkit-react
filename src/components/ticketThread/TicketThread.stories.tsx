@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import styled from 'styled-components';
 
 import { thinScrollbar } from '../../helpers/scrollbar';
+import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
 import type { IInterfaceReference, TTicketMessageAuthor } from '../supportTicket/meta';
 import { ITicketThreadMessage, TicketThread } from './TicketThread';
@@ -56,9 +57,6 @@ const inDrawer = (Story: () => JSX.Element) => (
     />
   </div>
 );
-
-const NOW = Date.parse('2026-06-30T12:00:00Z');
-const ago = (mins: number) => new Date(NOW - mins * 60_000).toISOString();
 
 /* A stand-in screenshot the mock `fetchAttachmentUrl` serves — an inline SVG data URL,
  * so the story needs no network and no fixture file. */
@@ -186,6 +184,10 @@ export const CustomerView: Story = {
     await expect(canvas.getByText('Qorus Support')).toBeInTheDocument();
     // internal notes are filtered out for the customer
     await expect(canvas.queryByText('Internal note')).not.toBeInTheDocument();
+    // its times are read against the story's clock (STORY_NOW), not the day the build ran: the opening message,
+    // three hours before it, reads "3 hours ago" in every build, so the frame never changes by itself (Foxhoundn,
+    // qlip #400: "Are these timestamp changes always now going to show up?")
+    await expect(canvas.getByText('3 hours ago')).toBeInTheDocument();
 
     await userEvent.click(canvas.getAllByText('deploy-trace.log')[0]);
     await waitFor(() =>
@@ -336,7 +338,7 @@ export const Loading: Story = {
     docs: {
       description: {
         story:
-          "The FIRST load — loading with nothing to show yet — renders a conversation-shaped skeleton: aria-busy, labelled 'Loading conversation', carrying no message content, rather than a spinner. `messages` is empty deliberately; that is what makes this a first load rather than a refetch (see RefetchKeepsTheConversation).",
+          "The FIRST load — loading with nothing to show yet — renders a conversation-shaped skeleton: aria-busy, labeled 'Loading conversation', carrying no message content, rather than a spinner. `messages` is empty deliberately; that is what makes this a first load rather than a refetch (see RefetchKeepsTheConversation).",
       },
     },
   },
@@ -559,7 +561,7 @@ export const SystemEvents: Story = {
     docs: {
       description: {
         story:
-          'Renders the full range of system messages — opened, assigned, priority, status, reopened, resolved — each as a centred muted line rather than a card.',
+          'Renders the full range of system messages — opened, assigned, priority, status, reopened, resolved — each as a centered muted line rather than a card.',
       },
     },
   },

@@ -9,11 +9,97 @@ import {
   IMockLspServer,
   MOCK_LSP_URL,
 } from '../smartEditor/__fixtures__/mockLspServer';
-import { mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
+import { mockPublishedDiagnostics, mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
+import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
-import { TDpqlFsmContext } from './types';
+import { IDpqlEditorProps, TDpqlFsmContext } from './types';
+import { expectChipFits } from '../../stories/chips';
+import { withCoarsePointer } from '../../stories/coarsePointer';
+import {
+  atTheCaptureSize,
+  middleOf,
+  middleOfElement,
+  mouseOffThePage,
+  restMouseOn,
+} from '../../stories/mouse';
+import { withTouchScreen } from '../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../stories/tracking';
+import {
+  chipsOf,
+  completionLabels,
+  completionRow,
+  completionRows,
+  expectRowsFit,
+  highlightedCompletionLabel,
+  saidOfTheText,
+  seenCompletionLabels,
+  typeAsAPerson,
+  pickerFocused,
+  pickerLabels,
+  pickerRow,
+  pickerSearch,
+  plainTextOf,
+} from '../../stories/templatePicker';
+import { ITemplatesPayload } from '../../helpers/templates';
+import {
+  catalogueCompletions,
+  storyDpqlCatalogue,
+  TStoryRecordFields,
+  TStoryStateData,
+  TTemplateCatalogueFixture,
+  undeclaredVariableDiagnostics,
+} from '../../stories/templateCatalogueMock';
+import { dpqlMockTypeName } from '../form/expressions/dpqlMockLsp';
+import {
+  QOG_FIELD_TEMPLATES,
+  QOG_STATE_DATA_PAYLOAD,
+  RECORD_FIELDS,
+} from '../form/fields/template/__fixtures__/qogTemplatePayloads';
 
 let lsp: IMockLspServer;
+
+/**
+ * The data the bound Qog's states give, as the server computes it when a Qog is bound (`dpql/setFsmContext`,
+ * `FsmsRestClassV8::doComputeStateData`) and serves it at `fsms?action=getStateData`.
+ */
+const QOG_STATE_DATA: ITemplatesPayload = QOG_STATE_DATA_PAYLOAD;
+
+/** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
+const STORY_RECORD_FIELDS = RECORD_FIELDS;
+
+/** A customer record, as a server describes it: its contact a record of its own (`@contact.email`). */
+const CUSTOMER_RECORD_FIELDS = {
+  name: { display_name: 'Name', short_desc: "The customer's name", type: { name: 'string' } },
+  contact: {
+    display_name: 'Contact',
+    short_desc: 'How to reach the customer',
+    type: {
+      name: 'hash',
+      fields: {
+        email: { display_name: 'Email', short_desc: 'Their email address', type: { name: 'string' } },
+        phone: { display_name: 'Phone', short_desc: 'Their phone number', type: { name: 'string' } },
+      },
+    },
+  },
+};
+
+/** The fields the server offers after `@` and a record field's `.`: those at that path, each written whole. */
+const fieldItemsAt = (fields: Record<string, unknown>, token: string) => {
+  const path = token.slice(1).split('.');
+  const typed = path.pop() ?? '';
+  let level = fields as Record<string, { type?: { name?: string; fields?: Record<string, unknown> } }>;
+  for (const step of path) {
+    level = (level[step]?.type?.fields ?? {}) as typeof level;
+  }
+  return Object.entries(level)
+    .filter(([name]) => name.startsWith(typed))
+    .map(([name, field]) => ({
+      label: `@${[...path, name].join('.')}`,
+      insertText: `@${[...path, name].join('.')}`,
+      kind: 5,
+      detail: field.type?.name === 'hash' ? 'Key-value pairs (hash)' : 'Text',
+    }));
+};
 
 interface IDpqlEditorStoryArgs {
   value?: string;
@@ -24,6 +110,10 @@ interface IDpqlEditorStoryArgs {
   useServerParse?: boolean;
   alertPayloadContext?: boolean;
   fsmContext?: TDpqlFsmContext;
+  templates?: IDpqlEditorProps['templates'];
+  wordWrap?: 'on' | 'off';
+  maxHeight?: string;
+  lineNumbers?: boolean;
 }
 
 const DpqlEditorWithState = (props: IDpqlEditorStoryArgs) => {
@@ -48,6 +138,10 @@ const meta = {
     onChange: fn(),
   },
   async beforeEach(context) {
+    /* Every story starts with the mouse off the page: the hover stories leave theirs resting where their hover is
+       open, so that the capture shows the hover they are about (qorus#646, Foxhoundn: "If a story is about hover,
+       the hover needs to be seen"), and a mouse left there opened a hover in the story after. */
+    await mouseOffThePage();
     // Live stories (those with `parameters: { live: true }`) skip
     // the mock-socket server so the editor's WebSocket reaches the
     // real Qorus `/lsp` endpoint at `wss://hq.qoretechnologies.com:8092/lsp`.
@@ -55,10 +149,26 @@ const meta = {
     if (context.parameters?.live) {
       return undefined;
     }
-    // Captured from the most recent `dpql/setFsmContext`; surfaced inside
-    // a `$data:` template, mirroring the real server where `$data:{…}`
-    // resolves against the bound FSM state.
-    let fsmStateDataKeys: string[] = [];
+    // The bound Qog's state data, from the most recent `dpql/setFsmContext`: what `$data:` completes, as the real
+    // server completes it from the state data it computed when the Qog was bound.
+    let fsmStateData: ITemplatesPayload = {};
+    // the record the document is bound to, by its provider: a customer record has a record of its own in it
+    let boundFields: Record<string, unknown> = STORY_RECORD_FIELDS;
+    /* The document's template catalogue, as Qorus resolves it (`dpql/templateCatalogue`): the story's field's
+       (`templateCatalogue`: one of Qorus's fixtures), with the bound Qog's state data as `$data:` and the bound
+       record as `$record:`; a document with neither is a record expression with no context. */
+    /* What the server finds in the text: its errors, and in a Qog, each variable a template uses that the Qog does
+       not declare (`qog_variable_undeclared`, Qorus `getDpqlUndeclaredVariableDiagnostics()`). */
+    const storyDiagnostics = (text: string) => [
+      ...mockPublishedDiagnostics(text),
+      ...(Object.keys(fsmStateData).length ? undeclaredVariableDiagnostics(storyCatalogue(), text) : []),
+    ];
+    const storyCatalogue = () =>
+      storyDpqlCatalogue({
+        catalogue: context.parameters?.templateCatalogue as TTemplateCatalogueFixture | undefined,
+        stateData: Object.keys(fsmStateData).length ? (fsmStateData as TStoryStateData) : undefined,
+        fields: boundFields as TStoryRecordFields,
+      });
     lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {
         ...DEFAULT_LSP_CAPABILITIES,
@@ -66,8 +176,16 @@ const meta = {
         signatureHelpProvider: {
           triggerCharacters: ['(', ',', ' ', '-', '='],
         },
+        // the real server answers hovers: functions, operators, fields, accessors, templates (qorus#646)
+        hoverProvider: true,
       },
       handlers: {
+        'textDocument/hover': (msg, server) =>
+          mockHoverDpql(
+            server.textOf(msg.params?.textDocument?.uri),
+            msg.params?.position ?? { line: 0, character: 0 },
+            STORY_RECORD_FIELDS
+          ),
         'textDocument/semanticTokens/full': (msg, server) => ({
           data: mockTokenizeDpql(server.textOf(msg.params?.textDocument?.uri)),
         }),
@@ -82,17 +200,13 @@ const meta = {
           const sigilMatch = chead.match(/[@$][\w:.{}]*$/);
           const sigilToken = sigilMatch ? sigilMatch[0] : '';
           const sigil = sigilToken ? sigilToken[0] : '';
-          // `$data:` with a bound FSM context resolves against the FSM
-          // state — surface its data keys.
-          const inFsmDataTemplate =
-            sigilToken.startsWith('$data:') && fsmStateDataKeys.length > 0;
 
           const FIELD_ITEMS = [
             {
               label: '@name',
               insertText: '@name',
               kind: 5,
-              detail: 'string',
+              detail: 'Text',
               documentation: {
                 kind: 'markdown',
                 value:
@@ -105,7 +219,7 @@ const meta = {
               label: '@status',
               insertText: '@status',
               kind: 5,
-              detail: 'string',
+              detail: 'Text',
               documentation: {
                 kind: 'markdown',
                 value:
@@ -117,7 +231,7 @@ const meta = {
               label: '@age',
               insertText: '@age',
               kind: 5,
-              detail: 'int',
+              detail: 'Whole number',
               documentation: {
                 kind: 'plaintext',
                 value: 'Age in years, computed from birth_date.',
@@ -125,118 +239,84 @@ const meta = {
             },
           ];
 
-          // Template namespaces — the real server's `$`-context
-          // completions (QorusExpressionMap).
-          const TEMPLATE_ITEMS = [
-            {
-              label: '$data:',
-              insertText: '$data:',
-              kind: 1,
-              detail: 'template',
-              documentation: { kind: 'plaintext', value: 'FSM state data.' },
-            },
-            {
-              label: '$config:',
-              insertText: '$config:',
-              kind: 1,
-              detail: 'template',
-              documentation: {
-                kind: 'plaintext',
-                value: 'Interface configuration item.',
-              },
-            },
-            {
-              label: '$static:',
-              insertText: '$static:',
-              kind: 1,
-              detail: 'template',
-              documentation: {
-                kind: 'plaintext',
-                value: 'Static workflow data.',
-              },
-            },
-            {
-              label: '$timestamp:',
-              insertText: '$timestamp:',
-              kind: 1,
-              detail: 'template',
-              documentation: {
-                kind: 'plaintext',
-                value: 'Timestamp value (e.g. `now`).',
-              },
-            },
+          /* A template being written, answered as Qorus answers a DPQL document from its catalogue
+             (`catalogueCompletions`): the contexts it can use; after a context's `:`, `*` where it is used whole,
+             then its keys; after a key's `.`, the key's keys. */
+          const TEMPLATE_ITEMS =
+            sigil === '$' ? catalogueCompletions(storyCatalogue(), sigilToken, dpqlMockTypeName) : [];
+
+          /* The functions a bare word completes, as the real server lists them (`getFunctionCompletions`): those
+             whose name starts with the word, each written with its bracket, what it gives its detail. */
+          const wordTyped = (/[A-Za-z_]\w*$/.exec(chead)?.[0] ?? '').toLowerCase();
+          const FUNCTIONS: Array<[string, string, string]> = [
+            ['coalesce', 'gives any value', 'First non-null value.'],
+            ['round', 'gives a number', 'Round a number.'],
+            ['size', 'gives a whole number', 'The number of elements of a list or hash, or characters of text.'],
+            ['substr', 'gives text', 'Extract a substring.'],
           ];
+          const FUNCTION_ITEMS = FUNCTIONS.filter(([name]) => name.startsWith(wordTyped)).map(
+            ([name, detail, value]) => ({
+              label: name,
+              insertText: `${name}(`,
+              kind: 3,
+              detail,
+              documentation: { kind: 'markdown', value },
+            })
+          );
 
-          // No sigil → functions/keywords (what autosuggest surfaces).
-          const FUNCTION_ITEMS = [
-            {
-              label: 'substr',
-              insertText: 'substr',
-              kind: 3,
-              detail: '(string, start, length) → string',
-              documentation: {
-                kind: 'markdown',
-                value: 'Extract a substring.',
-              },
-            },
-            {
-              label: 'coalesce',
-              insertText: 'coalesce',
-              kind: 3,
-              detail: '(value, …) → auto',
-              documentation: {
-                kind: 'markdown',
-                value: 'First non-null value.',
-              },
-            },
-            {
-              label: 'round',
-              insertText: 'round',
-              kind: 3,
-              detail: '(number, precision) → auto',
-              documentation: {
-                kind: 'markdown',
-                value: 'Round a number.',
-              },
-            },
+          /* Where a value can be written and nothing is typed of it - an empty text, after an operator, a comma
+             or a bracket - what can start one, as Qorus answers there (Qore DpqlCompletionProvider, a value
+             position): the record's fields, the literal values, the functions, the template contexts and `!`. */
+          const atAValue = !wordTyped && (!chead.trim() || /[-+*/%<>=!&|,([]\s*$/.test(chead));
+          const VALUE_POSITION_ITEMS = [
+            ...(boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, '@')),
+            ...['true', 'false', 'null'].map((label) => ({ label, kind: 12, insertText: label })),
+            ...FUNCTION_ITEMS,
+            ...catalogueCompletions(storyCatalogue(), '$', dpqlMockTypeName),
+            { label: '!', kind: 24, insertText: '!', documentation: 'Logical NOT' },
           ];
-
-          // FSM state-data keys from `dpql/setFsmContext`, surfaced inside
-          // `$data:` when a context is bound.
-          const FSM_DATA_KEY_ITEMS = fsmStateDataKeys.map((key) => ({
-            label: key,
-            insertText: key,
-            kind: 5, // Field
-            detail: 'FSM state data',
-            documentation: {
-              kind: 'plaintext',
-              value: `\`${key}\` — resolved from the bound FSM state.`,
-            },
-          }));
-
-          const items = inFsmDataTemplate
-            ? FSM_DATA_KEY_ITEMS
-            : sigil === '$'
+          /* After a whole value - a template written whole, braced (`$data:{receive_order.event_type}`, as a chip
+             writes it) - what can follow one, as Qorus answers there: the operators. */
+          if (/^\$[\w-]+:\{[^{}]*\}$/.test(sigilToken)) {
+            return {
+              items: ['==', '!=', '<', '>', '+', '&&', '||'].map((label) => ({ label, kind: 24, insertText: label })),
+            };
+          }
+          const items = sigil === '$'
               ? TEMPLATE_ITEMS
               : sigil === '@'
-                ? FIELD_ITEMS
-                : // no sigil → functions/keywords
-                  FUNCTION_ITEMS;
+                ? boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, sigilToken)
+                : atAValue
+                  ? VALUE_POSITION_ITEMS
+                  : // no sigil → functions/keywords
+                    FUNCTION_ITEMS;
 
           return { items };
         },
 
         // `WithDelayedContext` slows this via `lsp.delays['dpql/setContext']`
         // to show the `isContextReady` overlay.
-        'dpql/setContext': (msg) => ({
-          provider: msg.params?.provider ?? null,
-          recordType: msg.params?.recordType ?? 'record',
-          fields: {
-            name: { display_name: 'Name', type: { name: 'string' } },
-            status: { display_name: 'Status', type: { name: 'string' } },
-            age: { display_name: 'Age', type: { name: 'int' } },
-          },
-        }),
+        'dpql/setContext': (msg) => {
+          boundFields = msg.params?.provider === 'crm/customers' ? CUSTOMER_RECORD_FIELDS : STORY_RECORD_FIELDS;
+          return {
+            provider: msg.params?.provider ?? null,
+            recordType: msg.params?.recordType ?? 'record',
+            fields: boundFields,
+          };
+        },
+
+        /* The server publishes what it finds in the text on every open and change, as Qorus does (`dpql-parse`):
+           `$data:receive_order:ev` is refused - "':' can't be used here" (DPQL-E001, the server's own words). */
+        'textDocument/didOpen': (msg, server) =>
+          server.notify('textDocument/publishDiagnostics', {
+            uri: msg.params?.textDocument?.uri,
+            diagnostics: storyDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
+          }),
+        'textDocument/didChange': (msg, server) =>
+          server.notify('textDocument/publishDiagnostics', {
+            uri: msg.params?.textDocument?.uri,
+            diagnostics: storyDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
+          }),
 
         'dpql/validate': () => ({ diagnostics: [] }),
 
@@ -263,9 +343,12 @@ const meta = {
           },
         }),
 
+        // the document's catalogue (Qorus `handleDpqlTemplateCatalogue`)
+        'dpql/templateCatalogue': () => storyCatalogue(),
+
         // Echoes a synthetic state_data_keys list; mirrors the real
         // response shape (QorusLspWebSocketHandler.qc:8509).
-        'dpql/setFsmContext': (msg) => {
+        'dpql/setFsmContext': (msg, server) => {
           const sourceType = msg.params?.fsm
             ? 'inline'
             : msg.params?.draft_id
@@ -273,14 +356,21 @@ const meta = {
               : msg.params?.fsmid
                 ? 'published'
                 : 'cleared';
-          const stateDataKeys = ['order_id', 'user_name', 'event_type'];
-          // Keep the keys while bound so completions can surface them in
-          // `$data:`; a cleared binding drops them.
-          fsmStateDataKeys = sourceType === 'cleared' ? [] : stateDataKeys;
+          // the state data of the bound Qog while it is bound; a cleared binding has none
+          fsmStateData = sourceType === 'cleared' ? {} : QOG_STATE_DATA;
+          // the document's diagnostics again, with the Qog bound or cleared, as the server republishes them
+          const boundUri = msg.params?.uri as string | undefined;
+          if (boundUri) {
+            server.notify('textDocument/publishDiagnostics', {
+              uri: boundUri,
+              diagnostics: storyDiagnostics(server.textOf(boundUri)),
+            });
+          }
           return {
             source_type: sourceType,
             current_state: msg.params?.current_state ?? null,
-            state_data_keys: stateDataKeys,
+            // the states that give data, as the real server answers
+            state_data_keys: Object.keys(fsmStateData),
           };
         },
 
@@ -315,8 +405,14 @@ const meta = {
           };
         },
 
-        // Empty edit list — the editor treats this as "no change".
-        'textDocument/formatting': () => [],
+        /* The text as the real server formats it, for the story that formats `1+2`: its operators spaced; any other
+           text is left as it is (no edit). */
+        'textDocument/formatting': (msg, server) => {
+          const text = server.textOf(msg.params?.textDocument?.uri);
+          return text === '1+2' ?
+              [{ range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } }, newText: '1 + 2' }]
+            : [];
+        },
 
         // Synthetic `substr(...)` signature; the real server returns the
         // active call's signature via `dpql-get-signature-help`.
@@ -431,6 +527,9 @@ export const WithFieldReference: Story = {
     value: '@name == "Alice"',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -445,6 +544,9 @@ export const WithTemplateVariable: Story = {
     value: 'contains("$local:input", "es")',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -461,12 +563,467 @@ export const WithMixedContent: Story = {
     value: '@name == $data:{1.name} && @age > $config:min_age',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
           'Renders the DpqlEditor with mixed content — two @field references, two $data / $config templates and the DPQL "&&" logical operator between them, each rendered as its own chip or token.',
       },
     },
+  },
+};
+
+/** The labels of the chips the editor draws, in order. */
+const chipLabels = (editable: HTMLElement) =>
+  [...editable.querySelectorAll('.reqore-tag')].map((chip) =>
+    (chip.textContent ?? '').replace(/\uFEFF/g, '').trim()
+  );
+
+/**
+ * The fields the server writes quoted (qorus#646): `dpql/serialize` writes a record field whose name DPQL does
+ * not read bare as `@"…"` - a path with `[*]` or an index, a dashed key - which is how `$record:{create.items[*].id}`
+ * comes back after a tab switch. Each is its chip, as `@name` is, labeled with the name it stands for; a template
+ * with an escaped brace is one chip; and a field in a string is the string.
+ */
+export const WithQuotedFieldReferences: Story = {
+  args: {
+    value: '@"create.Unit\\.Price" == $record:{create.a\\{b\\}} && @"create.order-id" != "@name"',
+    onChange: fn(),
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with the quoted fields the server writes for record fields that are not bare names - @"create.Unit\\.Price", where the key Unit.Price holds a dot (qore#5480), and @"create.order-id" - a $record template whose value holds escaped braces, and the string "@name". Each field and the template is one chip, labeled as the record template it is (record: create.order-id); the string stays text; the text is written back as it was.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual([
+        'record: create.Unit\\\\.Price',
+        'record: create.a\\{b\\}',
+        'record: create.order-id',
+      ])
+    );
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain('!= "@name"');
+    // drawn, not rewritten
+    await expect(args.onChange).not.toHaveBeenCalled();
+    // read as the server reads it: no error under it (qlip #421: the stand-in server refused the escaped braces)
+    await waitFor(() => expect(saidOfTheText(canvasElement)).toEqual([]));
+  },
+};
+
+export const QuotedFieldTypedOutIsAChip: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types @"create.order-id" == 1 without picking from the list. When the space after the closing quote is typed, the quoted field is drawn as its chip, labeled record: create.order-id, and the rest is typed after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '@"create.order-id" == 1');
+
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['record: create.order-id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@"create.order-id" == 1'));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/create\.order-id\s*== 1$/);
+  },
+};
+
+/**
+ * A field with accessors (David, qorus#646): the server writes a reference with a selector back as
+ * `@create.items[*].id`, a key after an index as `.id`, and a key that needs quoting in braces. Each is one chip,
+ * labeled with the whole path, and written back as it was.
+ */
+export const WithAccessorChains: Story = {
+  args: {
+    value:
+      'size(@create.items[*].id) > size(@prices{*}) && @items[0].id != @headers{"content-type"}',
+    onChange: fn(),
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with fields that carry accessors, as the server writes them: @create.items[*].id, @prices{*}, @items[0].id and @headers{"content-type"}. Each is one chip labeled with its whole path as the record template it is - record: create.items[*].id, record: prices{*}, record: items[0].id, record: headers.content-type - not a chip for the field and plain text for the accessors; the text is written back as it was.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual([
+        'record: create.items[*].id',
+        'record: prices{*}',
+        'record: items[0].id',
+        'record: headers.content-type',
+      ])
+    );
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+/** A chip's look: its colors and its icon. */
+const chipLook = (chip: HTMLElement) => {
+  const style = getComputedStyle(chip);
+  return {
+    background: style.backgroundColor,
+    color: getComputedStyle(chip.querySelector('.reqore-tag-content') ?? chip).color,
+    icon:
+      chip.querySelector('.reqore-icon')?.getAttribute('data-icon') ??
+      chip.querySelector('svg')?.innerHTML,
+  };
+};
+
+export const ARecordFieldIsOneChip: Story = {
+  args: { value: '@orders[*].id == $record:{orders[*].id}', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with one record field written both ways - @orders[*].id, as the server writes DPQL, and $record:{orders[*].id}, as a value holds it. They are the same field and the same chip: both labeled record: orders[*].id, in the color and with the icon of every template chip (qorus#646, David: one chip for one record field). Before, the field was a light blue chip with black text, labeled orders[*].id.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual(['record: orders[*].id', 'record: orders[*].id'])
+    );
+    const [field, template] = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag'));
+    await expect(chipLook(field)).toEqual(chipLook(template));
+    // drawn, not rewritten
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+/** The hovers the editor shows, as their text. */
+const shownHovers = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content'))
+    .map((popover) => (popover.textContent ?? '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+/**
+ * The hover's card is a surface: an opaque background under its words, as a chip's hover is drawn. Drawn as glass it
+ * was its words over an empty page (Foxhoundn, qlip #392: "It looks like the background is transparent?").
+ */
+const expectHoverOnACard = () => {
+  const card = document.querySelector<HTMLElement>('.reqore-popover-content .reqore-popover-text');
+  expect(card, "the hover's card").toBeTruthy();
+  const background = getComputedStyle(card!).backgroundColor;
+  const alpha = /rgba\([^)]*,\s*([\d.]+)\)/.exec(background)?.[1];
+  expect(alpha === undefined ? 1 : Number(alpha), `the card's background (${background})`).toBe(1);
+};
+
+/** The editor, once its server is connected and the record described: a hover asked for from now on is answered. */
+const readyEditor = async (canvasElement: HTMLElement) => {
+  await waitFor(
+    () =>
+      expect(canvasElement.textContent).not.toMatch(/Connecting to language server|Loading schema/),
+    { timeout: 10000 }
+  );
+  return within(canvasElement).getByRole('textbox');
+};
+
+/** The chip the editor draws for `label`. */
+/** A chip's label: what a click on the chip lands on. */
+const labelOf = (chip: HTMLElement) => chip.querySelector<HTMLElement>('.reqore-tag-content')!;
+
+/** The editor's list (of completions, or of what may replace a chip), or null when it is not shown. */
+const chipList = (editable: HTMLElement) =>
+  document.getElementById(editable.getAttribute('aria-controls') ?? '');
+
+/** A chip's list is under the chip, from its left edge. */
+const expectListUnder = (label: HTMLElement, list: HTMLElement | null) => {
+  const chip = (label.closest('.reqore-tag') as HTMLElement).getBoundingClientRect();
+  const card = (list?.closest('.reqore-popover-content') as HTMLElement | null)?.getBoundingClientRect();
+  expect(card, "the chip's list").toBeTruthy();
+  expect(Math.abs(card!.left - chip.left), "the list from the chip's left edge").toBeLessThanOrEqual(2);
+  expect(card!.top, 'the list under the chip').toBeGreaterThanOrEqual(chip.bottom - 1);
+};
+
+const chipFor = (editable: HTMLElement, label: string) =>
+  waitFor(() => {
+    const chip = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag')).find(
+      (each) => (each.textContent ?? '').replace(/\uFEFF/g, '').trim() === label
+    );
+    expect(chip, `the chip ${label}`).toBeTruthy();
+    return chip!;
+  });
+
+export const HoverSaysWhatAFunctionIs: Story = {
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with size(@create.items[*].id) > size(@prices{*}) && … and rests the mouse on size: the hover says what the server says of it - "function size", "Get Size", what it returns and its argument - as the live Qorus /lsp answers (qorus#646, David: "there are no mouseover / hovers on the functions").',
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(parameters);
+    const editable = await readyEditor(canvasElement);
+    // the mouse stays on size: the capture shows the hover (the next story starts with the mouse off the page)
+    await restMouseOn(editable, middleOf(editable, 'size'));
+    await waitFor(() => expect(shownHovers()).toEqual([expect.stringContaining('Get Size')]), {
+      timeout: 10000,
+    });
+    await expect(shownHovers()[0]).toContain('Returns the size of the operand');
+    expectHoverOnACard();
+  },
+};
+
+export const HoverOverAChipSaysWhatItsPathIs: Story = {
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with the field path @create.items[*].id drawn as one chip, and rests the mouse on the chip: the hover says what the server says of each part of it - the field @create.items, the list wildcard [*], and the field id after it - as its text would, in one card (qorus#646, David: "there are no mouseover / hovers on the chips").',
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(parameters);
+    const editable = await readyEditor(canvasElement);
+    const chip = await chipFor(editable, 'record: create.items[*].id');
+    // the mouse stays on the chip: the capture shows the hover
+    await restMouseOn(chip, middleOfElement(chip));
+    await waitFor(
+      () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
+      { timeout: 10000 }
+    );
+    const [hover] = shownHovers();
+    await expect(hover).toContain('@create.items');
+    await expect(hover).toMatch(/field\s*id/);
+    expectHoverOnACard();
+  },
+};
+
+export const DetailsOnAChipOnATouchScreen: Story = {
+  tags: ['touch'],
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the same text on a phone (390 px, touch) and taps the chip create.items[*].id, which opens its list of what may replace it, then Details, its icon alone at this width: a finger cannot hover, and Details shows what the server says of the chip - the field @create.items, the list wildcard [*] and the field id - in a card under the text, all three lines of it. The tap on Details puts the list of the chip away, and the chips wrap inside the field.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await withTouchScreen(async (touch) => {
+      const editable = await readyEditor(canvasElement);
+      const chip = await chipFor(editable, 'record: create.items[*].id');
+      await touch.tap(chip);
+      // the tap opens the chip's list, as a click does
+      await waitFor(() => expect(chipList(editable)).not.toBeNull());
+      const details = await waitFor(
+        () => {
+          const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
+          expect(button, 'the Details button').toBeTruthy();
+          return button!;
+        },
+        { timeout: 10000 }
+      );
+      if (touch.narrowed) {
+        // in a row a phone's width, Details is its icon alone, still named (Foxhoundn, qlip #383)
+        await waitFor(() => expect(details.textContent?.trim()).toBe(''));
+        await expect(details).toHaveAccessibleName('Show what the word at the cursor is');
+      }
+      await touch.tap(details);
+      // Details is a tap outside the chip's list: the list is put away, however soon it comes, and the card is
+      // the one thing over the text (the list stayed open behind it when Details came within 300 ms)
+      await expect(chipList(editable)).toBeNull();
+      await waitFor(
+        () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
+        { timeout: 10000 }
+      );
+      await expect(shownHovers()[0]).toContain('@create.items');
+      // under the text, all of it: the editor is three lines tall here, taller than the button
+      const card = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
+      await expect(card.top).toBeGreaterThanOrEqual(editable.getBoundingClientRect().bottom - 1);
+    });
+  },
+};
+
+export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
+  args: { value: '@name == @customer.name', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders @name == @customer.name and clicks the chip record: name: its list of what may replace it opens under it. A second click on the chip closes the list; a click on the other chip opens the list there; a click outside the list closes it. The capture shows the list open under record: customer.name.',
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the list is drawn under its chip as captured
+    await atTheCaptureSize(parameters);
+    const editable = await readyEditor(canvasElement);
+    // a click on a chip is on its label, where the mouse is: the label takes the chip's click
+    const name = labelOf(await chipFor(editable, 'record: name'));
+    const customer = labelOf(await chipFor(editable, 'record: customer.name'));
+
+    await userEvent.click(name);
+    await waitFor(() => expect(chipList(editable)).not.toBeNull());
+
+    // the chip the list is at: the list is put away (it was put away by the click outside it, and opened
+    // again by the same click on the chip)
+    await userEvent.click(name);
+    await waitFor(() => expect(chipList(editable)).toBeNull());
+
+    await userEvent.click(name);
+    await waitFor(() => expect(chipList(editable)).not.toBeNull());
+
+    // another chip: the list is at that chip, where it is drawn - past the first one on a wide line, below it on
+    // the next line where the line wraps (a phone) - under it from its left edge, not at the caret the click left
+    // after it (Foxhoundn, qlip #392), nor still at the first chip (the popover the list was in says it closed
+    // after the list opened there)
+    await userEvent.click(customer);
+    await waitFor(() => expectListUnder(customer, chipList(editable)));
+
+    // outside the list: it is put away
+    await userEvent.click(canvasElement);
+    await waitFor(() => expect(chipList(editable)).toBeNull());
+
+    await userEvent.click(customer);
+    await waitFor(() => expect(chipList(editable)).not.toBeNull());
+    // the list the capture shows: under record: customer.name, as the description says
+    await waitFor(() => expectListUnder(customer, chipList(editable)));
+  },
+};
+
+export const AChipLongerThanItsLineWrapsInsideIt: Story = {
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  // an editor in a narrow card: narrower than its longest chips
+  decorators: [
+    (Story) => (
+      <div style={{ width: 240 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the accessor chains in an editor 240 px wide, narrower than the chips record: create.items[*].id and record: headers.content-type. Each wraps its label inside its line, with its icon and its remove button, rather than running past the line and losing both ends (Foxhoundn, qlip #383: "The template tag is overflowing, you need to wrap it"). A chip that fits stays on one line, the height it always had.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const long = await chipFor(editable, 'record: create.items[*].id');
+    const short = await chipFor(editable, 'record: prices{*}');
+    const line = editable.getBoundingClientRect();
+    const chips = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag'));
+    await expect(chips.length).toBe(4);
+    for (const chip of chips) {
+      // small or bigger, and nothing in it running out of it
+      expectChipFits(chip);
+      const name = (chip.textContent ?? '').replace(/\uFEFF/g, '').trim();
+      const box = chip.getBoundingClientRect();
+      // inside its line
+      await expect(box.left, `${name} starts in the line`).toBeGreaterThanOrEqual(line.left);
+      await expect(box.right, `${name} ends in the line`).toBeLessThanOrEqual(line.right);
+      // and its label is all drawn: none of it runs past the chip, which would clip it
+      const label = chip.querySelector<HTMLElement>('.reqore-tag-content')!.getBoundingClientRect();
+      await expect(label.left, `${name}: its label starts in it`).toBeGreaterThanOrEqual(
+        box.left - 0.5
+      );
+      await expect(label.right, `${name}: its label ends in it`).toBeLessThanOrEqual(
+        box.right + 0.5
+      );
+    }
+    // the long chip wraps; the short one stays on one line
+    await expect(long.getBoundingClientRect().height).toBeGreaterThan(
+      short.getBoundingClientRect().height * 1.5
+    );
+  },
+};
+
+export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
+  args: { value: '@name == "Alice"', provider: 'orders-db', recordType: 'record', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `HoverOverAChipSaysWhatItsPathIs`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders @name == "Alice" with the record described, and rests the mouse on the chip record: name: the chip shows its own description - "The customer\'s full name, as they gave it" - and the server\'s hover is not drawn over it as well. One hover over a chip, not two.',
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(parameters);
+    const editable = await readyEditor(canvasElement);
+    const chip = await chipFor(editable, 'record: name');
+    // the mouse stays on the chip: the capture shows its description, the one hover
+    await restMouseOn(chip, middleOfElement(chip));
+    await waitFor(
+      () => expect(shownHovers()).toEqual([expect.stringContaining("The customer's full name")]),
+      { timeout: 10000 }
+    );
+    await expect(shownHovers().join(' ')).not.toContain('Type: string');
+  },
+};
+
+export const AccessorChainTypedOutIsAChip: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types @orders[*].id == 1 without picking from the list. When the space after it is typed, the field and its accessors are drawn as one chip, record: orders[*].id, and the rest is typed after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '@orders[*].id == 1');
+
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['record: orders[*].id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@orders[*].id == 1'));
   },
 };
 
@@ -490,6 +1047,9 @@ export const WithServerParse: Story = {
     useServerParse: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -527,6 +1087,9 @@ export const WithDelayedContext: Story = {
     lsp.delays['dpql/setContext'] = 1500;
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -576,6 +1139,9 @@ export const WithAlertPayloadContext: Story = {
     alertPayloadContext: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -625,47 +1191,479 @@ export const WithFsmContext: Story = {
     provider: 'datasource:omq/table/orders',
     recordType: 'record',
     fsmContext: { fsmId: 42, currentState: 'process_order' },
+    // what a Qog host gives the field, as a Qog state's other fields have it (getContextData, getStateData)
+    templates: QOG_FIELD_TEMPLATES,
   },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TypingNarrowsToWhatItReaches`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders a DPQL field in a Qog state: the record's fields (`@`), the bound Qog's state data and the " +
+          "field's context data, with the template button beside the text. Typing `$data:receive_order.` lists " +
+          "that state's data only - Customer, Event type, Order ID and User name - each said to be in Receive " +
+          'order, as State data, with its type; and the row that opens every template.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.');
+    await waitFor(
+      () =>
+        expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    // a user reads Qog, never FSM
+    expect(completionListed().join(' | ')).not.toMatch(/FSM/);
+    expect(canvasElement.querySelector('.smart-editor-template-button'), 'the template button').toBeTruthy();
+  },
+};
+
+/** The rows of the completion list open at the editor's caret. */
+const completionListed = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
+  ).map((row) => row.textContent?.trim() ?? '');
+
+/**
+ * Puts the caret `offset` characters into the editor's text that is not a chip, or after its last chip when the
+ * text is only chips (`offset` -1), and has the editor take it: a character typed and taken back there, which the
+ * editor reads its selection at (navigation keys are not typed into a page by the test's keyboard).
+ */
+const caretAt = async (editable: HTMLElement, offset: number) => {
+  const spots = Array.from(editable.querySelectorAll<HTMLElement>('[data-slate-string], [data-slate-zero-width]'));
+  let at: { node: Text; offset: number } | undefined;
+  if (offset < 0) {
+    const last = spots[spots.length - 1];
+    const node = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    at = { node, offset: node.length };
+  } else {
+    let left = offset;
+    for (const spot of spots.filter((each) => each.hasAttribute('data-slate-string'))) {
+      const node = document.createTreeWalker(spot, NodeFilter.SHOW_TEXT).nextNode() as Text;
+      if (left <= node.length) {
+        at = { node, offset: left };
+        break;
+      }
+      left -= node.length;
+    }
+  }
+  await userEvent.click(at!.node.parentElement!);
+  editable.focus();
+  window.getSelection()?.collapse(at!.node, at!.offset);
+  await userEvent.keyboard('x{Backspace}');
+};
+
+/**
+ * A Qog state's data picked from the list after `$data:receive_order.` is written as its chip, the whole reference:
+ * it was written as its bare key (`order_id`), plain text the server cannot read (qorus#646, David's review).
+ */
+export const AStateDataPickIsWrittenAsItsChip: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders a DPQL field in a Qog state, types `$data:receive_order.` and picks Order ID from the list, ' +
+          "which offers that state's data only: the text is the one chip for the whole reference " +
+          '($data:{receive_order.order_id}), named Receive order › Order ID, and no plain text is left.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.');
+    await userEvent.click(await completionRow('Order ID'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.order_id\}?\s*$/)
+      )
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Order ID']));
+    expect(plainTextOf(editable)).toBe('');
+  },
+};
+
+/**
+ * A state picked from the list after `$data:` opens the picker at its data, and the data picked there is the one
+ * chip of the whole reference (qorus#646, David's review of With Fsm Context: picking a state wrote its chip, a `.`
+ * typed after it was lost when Event type was picked, and the text read `$data:receive_order$data:{…}`).
+ */
+export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `$data:` and picks the state Receive order: its reference is written as text, ' +
+          '$data:receive_order., and its data is listed - Customer, Event type, Order ID, User name. Picking ' +
+          'Event type writes one chip, Receive order › Event type, for $data:{receive_order.event_type}, and ' +
+          'nothing else.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:');
+    /* a state taken is gone on into: its reference is written as text, and its data is listed next (qorus#646,
+       David: "accepting an intermediate level continues to the next level") */
+    await userEvent.click(await completionRow('Receive order'));
+    await waitFor(() => expect(plainTextOf(editable)).toBe('$data:receive_order.'));
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates'])
+    );
+    await userEvent.click(await completionRow('Event type'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
+      )
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+    expect(plainTextOf(editable)).toBe('');
+  },
+};
+
+/**
+ * A `.` typed after a state's chip goes on from it: a pick of the state's data takes the chip's place as well as
+ * the `.` - one reference, one chip (qorus#646, David's review).
+ */
+export const AStateChipAndADotGoOnToOneChip: Story = {
+  args: { ...WithFsmContext.args, value: '$data:receive_order', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Starts with the chip of the state Receive order, types `.` after it and picks Event type from the ' +
+          "list of the state's data: the text is the one chip Receive order › Event type " +
+          '($data:{receive_order.event_type}), not the state chip and a second chip after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    await caretAt(editable, -1);
+    await userEvent.keyboard('{Escape}.');
+    await userEvent.click(await completionRow('Event type'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
+      )
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+    expect(plainTextOf(editable)).toBe('');
+  },
+};
+
+/**
+ * What typing a reference offers is only what it reaches (qorus#646, David's review: `$data` showed what the empty
+ * field did, `$data:` added the state, and every template was listed under whatever was typed): `$d`, `$data` and
+ * `$data:` offer the states; `$data:receive_order.` that state's data. The row that opens every template is last.
+ */
+export const TypingNarrowsToWhatItReaches: Story = {
+  args: { ...WithFsmContext.args },
   parameters: {
     docs: {
       description: {
         story:
-          'Composes provider context (`@field` completions) with FSM ' +
-          'context. Typing a `$data:` template surfaces the bound FSM ' +
-          "state's data keys (`order_id`, `user_name`, `event_type`) — " +
-          'the distinctive payload of `fsmContext`. The mock answers ' +
-          '`dpql/setFsmContext` with `source_type: "published"` and that ' +
-          'key list, then returns the keys as completions inside `$data:`.',
+          'Types key by key, and the list goes level by level: `$d` offers the template context it starts in a ' +
+          'Qog, $data:; `$data` the one; `$data:` the states, Look up customer and Receive order; ' +
+          "`$data:rec` Receive order; `$data:receive_order.` the state's data, Customer, Event type, Order ID and " +
+          'User name. Every row fits the list: its name whole, its badges and its description inside it.',
       },
     },
   },
-  // Open the `$data:` template so the snapshot shows the FSM-driven
-  // state-data keys — this is what makes the story self-explanatory in
-  // Chromatic and answers "which template is the FSM context": `$data:`.
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const editable = canvas.getByRole('textbox');
-    await waitFor(
-      () => {
-        expect(document.body.textContent).not.toContain('Connecting to language server');
-        expect(document.body.textContent).not.toContain('Loading schema');
-      },
-      { timeout: 30000 }
-    );
+    const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, '$data:');
+    await userEvent.keyboard('{Escape}');
+    /* level by level, each filtered by what is typed of it (qorus#646, David): `$d` the contexts it starts, the
+       server's among them; `$data` the one; `$data:` its states; `$data:rec` the one */
+    // a Qog's field: no workflow-only $dynamic: (Qorus `listTemplateContexts`, a DPQL document is a Qog's)
+    await typeAsAPerson(userEvent, '$d');
+    await waitFor(() => expect(completionLabels()).toEqual(['$data:', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    await typeAsAPerson(userEvent, 'ata');
+    await waitFor(() => expect(completionLabels()).toEqual(['$data:', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    await typeAsAPerson(userEvent, ':');
+    // the whole of it first, `$data:*` (UserApi reads `*` as the whole of it), then the states
     await waitFor(
-      () => {
-        const dropdown = document.querySelector('.reqore-menu');
-        expect(dropdown).not.toBeNull();
-        // FSM state-data keys (from the bound fsmContext), NOT the generic
-        // template namespaces — proves the FSM binding drives these completions.
-        expect(dropdown!.textContent).toContain('order_id');
-        expect(dropdown!.textContent).toContain('user_name');
-        expect(dropdown!.textContent).toContain('event_type');
-      },
+      () =>
+        expect(completionLabels()).toEqual(['$data:*', 'Look up customer', 'Receive order', 'Browse all templates']),
       { timeout: 30000 }
     );
+    await typeAsAPerson(userEvent, 'rec');
+    await waitFor(() => expect(completionLabels()).toEqual(['Receive order', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    await typeAsAPerson(userEvent, 'eive_order.');
+    await waitFor(
+      () =>
+        expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    /* every row fits its list: its name whole, its type label not cut mid-word, its description inside it
+       (qorus#646, David's review: Customer read as "t", its description over the row's edge) */
+    expectRowsFit(completionRows());
+  },
+};
+
+/**
+ * A row says where it is apart from what it is (qorus#646, David's review: each state's data said "Receive order"
+ * under its name, and was called a Variable): "in Receive order" on its line, State data and its type as its
+ * badges, what it is in its documentation.
+ */
+export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
+  args: { ...WithFsmContext.args },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Types `$data:receive_order.e`: the row Event type says it is in Receive order, is State data (green, " +
+          "the color of the data of the event that starts the Qog) of type Text, and, under its name, what it " +
+          'is: what happened to the order. No row is called a Variable. `v` typed, Tab takes Event type: the chip ' +
+          'Receive order › Event type.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.e');
+    const row = await completionRow('Event type');
+    expect(row.textContent).toContain('in Receive order');
+    expect(row.textContent).toContain('State data');
+    expect(row.textContent).toContain('Text');
+    expect(completionListed().join(' | ')).not.toContain('Variable');
+    // what it is, in the row under its name - no hover over the row's edge (qorus#646, David's review)
+    expect(row.textContent).toContain('What happened to the order');
+    // typed on, key by key, the row stays; Tab takes it (qorus#646, David: Tab took the text as it was)
+    await typeAsAPerson(userEvent, 'v');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('Event type'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+  },
+};
+
+/**
+ * A click in the empty field opens the template picker at the top of what the field can refer to: its context
+ * data, each Qog state, and the record's fields as a group of their own (qorus#646, David's review: the fields `@`
+ * offers were not among the templates an empty field showed).
+ */
+export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty DPQL field: the template picker opens at the top - Context Data, Look up customer, ' +
+          'Receive order and Record fields. Record fields opens into name, status and age, each described by its ' +
+          'display name; status picked is written as its chip, @status.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await waitFor(
+      () =>
+        expect(pickerLabels()).toEqual([
+          'Context Data',
+          'Look up customer',
+          'Receive order',
+          'Record fields',
+          // every completion the field has (qorus#646): its contexts, each taken whole or gone into, the
+          // functions and the values
+          'Template contexts',
+          'Functions',
+          'Values and keywords',
+        ]),
+      { timeout: 30000 }
+    );
+    await userEvent.click(await pickerRow('Record fields'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['name', 'status', 'age']));
+    await userEvent.click(await pickerRow('status'));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^@status\s*$/)));
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+  },
+};
+
+/** The keyboard browses the picker an empty field opens: the arrows, Enter to open and pick, ← to go back. */
+export const TheKeyboardBrowsesThePicker: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty field and uses only the keyboard: ↓ ↓ and Enter open Receive order, ← goes back to ' +
+          'the top, Enter opens it again, ↓ and Enter pick Event type (the second row), written as its chip.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await waitFor(() => expect(pickerLabels()).toContain('Receive order'), { timeout: 30000 });
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    await waitFor(() => expect(pickerLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name']));
+    await userEvent.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(pickerLabels()).toContain('Receive order'));
+    await waitFor(() =>
+      expect(pickerFocused()).toBe('Context Data')
+    );
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}{ArrowDown}{Enter}');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
+      )
+    );
+  },
+};
+
+/**
+ * The template button puts the template at the caret, not at the end of the text (qorus#646): its search finds a
+ * template at any depth by its name, and says where it is.
+ */
+export const TheTemplateButtonInsertsAtTheCaret: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSignatureHelp`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `concat(` - closed as it is typed, the caret between the brackets - and opens the template button: ' +
+          'searching "city" finds City, in Receive order › Customer › Address. Picked, it is written at the caret - ' +
+          'concat($data:{receive_order.customer.address.city}) - and its chip says the start and the end of its ' +
+          'path: Receive order › … › Address › City.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, 'concat(');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat()'));
+    await userEvent.keyboard('{Escape}');
+    // a value can be written after `concat(`: the button can be pressed
+    const button = canvasElement.querySelector<HTMLButtonElement>('.smart-editor-template-button')!;
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+    const search = await pickerSearch();
+    await userEvent.click(search);
+    await userEvent.type(search, 'city');
+    const city = await pickerRow('City');
+    expect(city.textContent).toContain('in Receive order › Customer › Address');
+    await userEvent.click(city);
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('concat($data:{receive_order.customer.address.city})')
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › … › Address › City']));
+  },
+};
+
+/**
+ * A click on a chip opens the picker at the chip's group, its row the keyboard's, and the pick takes its place
+ * (qorus#646).
+ */
+export const AChipIsReplacedFromItsGroup: Story = {
+  args: { ...WithFsmContext.args, value: '$data:{receive_order.order_id} > 10', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Clicks the chip Receive order › Order ID: the picker opens at Receive order with Order ID chosen. ' +
+          'User name picked there takes its place: $data:{receive_order.user_name} > 10.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    const chip = await waitFor(() => {
+      const found = editable.querySelector<HTMLElement>('.reqore-tag');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    // a click on a chip is on its label, where the mouse is: the label takes the chip's click
+    await userEvent.click(labelOf(chip));
+    await waitFor(() =>
+      expect(pickerFocused()).toBe('Order ID')
+    );
+    await userEvent.click(await pickerRow('User name'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.user_name} > 10')
+    );
+  },
+};
+
+/** The picker on a phone: as wide as the screen less its margins, nothing wider than the screen. */
+export const ThePickerOnAPhone: Story = {
+  args: { ...WithFsmContext.args },
+  tags: ['touch'],
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'On a phone, taps the empty field: the template picker fits the screen with a margin on each side, its ' +
+          'rows wrap, and nothing scrolls sideways.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await withTouchScreen(async (touch) => {
+      await touch.tap(editable);
+      await waitFor(() => expect(document.querySelector('.template-picker')).toBeTruthy());
+      if (touch.narrowed) {
+        await waitFor(() => {
+          const { left, right } = document.querySelector<HTMLElement>('.template-picker')!.getBoundingClientRect();
+          expect(left).toBeGreaterThanOrEqual(0);
+          expect(right).toBeLessThanOrEqual(window.innerWidth);
+          expect(right - left).toBeLessThanOrEqual(window.innerWidth - 32 + 1);
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+        });
+      }
+      // a finger's row: as tall as a finger needs
+      expect((await pickerRow('Receive order')).getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    });
   },
 };
 
@@ -867,7 +1865,7 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
     const editable = canvas.getByRole('textbox');
     await sleep(3000); // let the live LSP session connect before typing (real WS handshake)
     await userEvent.click(editable);
-    await userEvent.type(editable, '@');
+    await typeAsAPerson(userEvent, '@');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -881,7 +1879,7 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
 
 /**
  * Demonstrates LSP-driven syntax highlighting (design doc §7) across a
- * representative DPQL expression touching every coloured token type:
+ * representative DPQL expression touching every colored token type:
  * field references, templates, operators, string / number / boolean /
  * null literals, regex, range, keywords, parens.
  *
@@ -901,7 +1899,7 @@ export const WithSemanticTokens: Story = {
     docs: {
       description: {
         story:
-          'Every coloured DPQL token category. Variables (`@status`, ' +
+          'Every colored DPQL token category. Variables (`@status`, ' +
           '`@age`, …) in red, operators (`==`, `&&`, `=~`, `between`) ' +
           'in cyan, strings in green, numbers in orange, keywords ' +
           '(`in`, `between`, `and`, `not`, `true`) in purple, regex ' +
@@ -910,16 +1908,16 @@ export const WithSemanticTokens: Story = {
     },
   },
   // CI guard for the semantic-token pipeline (server tokens → decode →
-  // decorate → coloured leaf). Assert the editor rendered spans carrying
-  // the palette colours: keyword purple (#c678dd → rgb(198,120,221)) and
+  // decorate → colored leaf). Assert the editor rendered spans carrying
+  // the palette colors: keyword purple (#c678dd → rgb(198,120,221)) and
   // string green (#98c379 → rgb(152,195,121)). If the decoration breaks,
-  // the tokens render uncoloured and these are absent.
+  // the tokens render uncolored and these are absent.
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
-    // Poll until the semantic-token pipeline has coloured the leaves
+    // Poll until the semantic-token pipeline has colored the leaves
     // (server tokens → decode → decorate). Before the round-trip lands
-    // the spans are uncoloured and these assertions fail.
+    // the spans are uncolored and these assertions fail.
     await waitFor(
       () => {
         const colors = Array.from(editable.querySelectorAll('span'))
@@ -930,6 +1928,16 @@ export const WithSemanticTokens: Story = {
       },
       { timeout: 30000 }
     );
+    // the regular expression is one value: its `@example` is the pattern's, no chip, and nothing is refused
+    // (qlip #418: the chip record: example, and errors the server never gives)
+    expect(chipsOf(editable)).toEqual([
+      'record: status',
+      'record: age',
+      'record: email',
+      'record: balance',
+      'record: deleted',
+    ]);
+    expect(saidOfTheText(canvasElement)).toEqual([]);
   },
 };
 
@@ -949,59 +1957,110 @@ export const ReadOnly: Story = {
 };
 
 /**
- * Templates via the `$` trigger — the server's design (mirrored in the
- * mock): typing `$` opens template-namespace completions
- * (`$data:`, `$config:`, `$static:`, `$timestamp:`), the same on-typing
- * dropdown that `@` uses for fields. There is no separate "Templates"
- * button — `dpql-get-completions` is position-aware and returns
- * templates after `$`, fields after `@`.
+ * Templates via the `$` trigger: the templates the editor is given, as whole values. The server answers `$` with
+ * its template contexts (`$data:`, `$config:`, …), each of which needs a name typed after it, so a pick of one left
+ * the text invalid (qorus#646, David: "clicking a variable immediately results in errors"); they are not listed,
+ * and a context can still be typed by hand. `@` lists the record's fields.
  */
 export const WithTemplates: Story = {
   args: {
     value: '',
     onChange: fn(),
+    templates: {
+      items: [
+        {
+          label: 'Order data',
+          items: [
+            { label: 'order id', value: '$local:{order_id}', badge: 'int' },
+            { label: 'customer', value: '$local:{customer}', badge: 'string' },
+          ],
+        },
+      ],
+    } as never,
   },
   parameters: {
+    // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
+    templateCatalogue: 'qog-loops',
     docs: {
       description: {
         story:
-          'Type `$` to open the template namespaces (`$data:`, ' +
-          '`$config:`, …). Templates and fields share one on-typing ' +
-          'completion dropdown — `$`→templates, `@`→fields. No ' +
-          'separate Templates button.',
+          'Type `$` to list the template contexts Qorus offers a Qog\'s field ($autovar:, $config:, $data:, ...). ' +
+          '`loc` and Tab write $local: and list the templates given in it, order id and customer. `@` lists the ' +
+          'fields (@name, @status, @age).',
       },
     },
   },
-  // CI guard: `$` opens templates, `@` opens fields — proves the
-  // position-aware routing.
+  // CI guard: `$` lists whole templates and no bare context, `@` lists fields
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
 
-    // `$` → templates
-    await userEvent.type(editable, '$');
+    // `$` → the contexts Qorus offers a Qog's field, and no field
+    await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
-        expect(dropdown).not.toBeNull();
-        expect(dropdown!.textContent).toContain('$data:');
-        expect(dropdown!.textContent).toContain('$config:');
-        // Field refs must NOT appear in the `$` dropdown.
-        expect(dropdown!.textContent).not.toContain('@name');
+        // every row of the list, those scrolled out of sight too (in the catalogue's order, `sort_priority`)
+        const listed = Array.from(
+          document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
+        ).map((row) => row.getAttribute('data-label'));
+        expect(listed).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
+        expect(listed).not.toContain('@name');
       },
       { timeout: 30000 }
     );
+    // `$local:` (taken with Tab) → the templates given in it, order id and customer
+    await typeAsAPerson(userEvent, 'loc');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$local:'));
+    await userEvent.keyboard('{Tab}');
+    // the whole of it, the templates given in it and the local context's keys the server lists
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'Interface ID']))
+    );
 
     // Clear and switch to `@` → fields.
-    await userEvent.clear(editable);
-    await userEvent.type(editable, '@');
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await typeAsAPerson(userEvent, '@');
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
+        const dropdown = document.querySelector('.completion-menu');
         expect(dropdown).not.toBeNull();
         expect(dropdown!.textContent).toContain('@name');
         expect(dropdown!.textContent).not.toContain('$data:');
+      },
+      { timeout: 30000 }
+    );
+  },
+};
+
+/**
+ * `$` in an editor given no templates: the list says there are none. It listed the server's template contexts, and
+ * a pick of one left the text invalid (qorus#646).
+ */
+export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
+    templateCatalogue: 'qog-loops',
+    docs: {
+      description: {
+        story:
+          'Type `$` in an editor given no templates: the list offers the server\'s template contexts ($config:, ' +
+          '$data:, ...), each of which a pick writes and goes on from, listing what is in it (qorus#646, David: ' +
+          'typing should offer the language server\'s completions).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '$');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.completion-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('$data:');
+        expect(dropdown!.textContent).toContain('$config:');
       },
       { timeout: 30000 }
     );
@@ -1040,7 +2099,7 @@ export const WithAutosuggest: Story = {
     await userEvent.click(editable);
     // Bare identifier — no trigger char. Autosuggest should open the
     // dropdown and narrow to `substr`.
-    await userEvent.type(editable, 'sub');
+    await typeAsAPerson(userEvent, 'sub');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -1064,6 +2123,9 @@ export const CanTypeText: Story = {
     onChange: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithPlainText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1076,10 +2138,94 @@ export const CanTypeText: Story = {
 
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, 'hello');
+    await typeAsAPerson(userEvent, 'hello');
 
     await expect(args.onChange).toHaveBeenCalled();
   },
+};
+
+/**
+ * A reference that is the whole expression: the chip starts AND ends the line.
+ * A click (or tap) at the end of the line puts the caret at the line's last
+ * caret position, and what is typed there is written after the reference
+ * (qorus#646, "can't type" in the Text view). Slate requires a text node on
+ * each side of a chip; when the loaded document had none, the last caret
+ * position was inside the chip, where Slate drops every keystroke, so the
+ * editor looked focused and ignored typing.
+ */
+const typeAtTheEndOfTheLine =
+  (reference: string, tap: 'mouse' | 'touch'): Story['play'] =>
+  async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    const line = await waitFor(() => {
+      const paragraph = editable.querySelector<HTMLElement>('.reqore-tag')?.closest('p');
+      if (!paragraph) throw new Error('the reference is not drawn as a chip yet');
+      return paragraph;
+    });
+    // where the browser puts the caret for a click past the line's end: its
+    // last caret position, the last text the line holds
+    const caretSpots = line.querySelectorAll('[data-slate-string], [data-slate-zero-width]');
+    const last = caretSpots[caretSpots.length - 1] as HTMLElement;
+    if (tap === 'touch') {
+      await userEvent.pointer([{ keys: '[TouchA]', target: last }]);
+    } else {
+      await userEvent.click(last);
+    }
+    editable.focus();
+    const spot = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    window.getSelection()?.collapse(spot, spot.length);
+    await userEvent.keyboard(' + 1');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(`${reference} + 1`));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain(' + 1');
+  };
+
+export const TypesAfterAReferenceThatIsTheWholeLine: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The expression is one reference. A click at the end of the line puts the caret after the chip, and " + 1" typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'mouse'),
+};
+
+export const TypesAfterAReferenceThatIsTheWholeLineOnTouch: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The same on a touch screen: a tap at the end of the line puts the caret after the only chip, and what is typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'touch'),
+};
+
+export const TypesAfterAServerDrawnReference: Story = {
+  args: { value: '$record:{pos}', useServerParse: true, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The server draws the chips (`useServerParse`) and sends a line that is one reference. A click at the end of the line and typing writes after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('$record:{pos}', 'mouse'),
 };
 
 /**
@@ -1094,6 +2240,9 @@ export const LspCompletionRoundtrip: Story = {
     onChange: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1106,7 +2255,7 @@ export const LspCompletionRoundtrip: Story = {
 
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, '@');
+    await typeAsAPerson(userEvent, '@');
 
     // Poll until the server received the completion request (the
     // autocomplete debounce is 150ms; the round-trip + re-render follow).
@@ -1148,6 +2297,9 @@ export const LspCompletionRoundtrip: Story = {
  */
 export const TwoEditorsOneConnection: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithPlainText`.
+    qlip: { skip: true },
     chromatic: { disable: true },
     docs: {
       description: {
@@ -1179,5 +2331,1060 @@ export const TwoEditorsOneConnection: Story = {
       { timeout: 10000 }
     );
     await waitFor(() => expect(lsp.getOpenConnectionCount()).toBe(1), { timeout: 10000 });
+  },
+};
+
+/**
+ * A bracket typed is closed, a closing one typed before it steps over it, Backspace between an empty pair takes
+ * both - as the Monaco editor the DPQL field had did (qorus#646, David: the editor that replaces it loses nothing).
+ */
+export const BracketsAndQuotesAreClosed: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SpaceLeavesAHalfReferenceAsAnError`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `concat(`: the bracket is closed, `concat()`, the caret inside it. `"a` adds a closed string, ' +
+          '`concat("a")`; `"` and `)` typed before the same ones step over them. `(` then Backspace takes the empty ' +
+          'pair back whole.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, 'concat(');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat()'));
+    await userEvent.keyboard('"a');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a")'));
+    await userEvent.keyboard('")');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a")'));
+    await userEvent.keyboard(' + (');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a") + ()'));
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a") + '));
+  },
+};
+
+/** The bracket matching the one at the caret is marked, past a chip and on another line. */
+export const TheMatchingBracketIsMarked: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `f((1), 2`: each bracket is closed as it is typed, and with the caret before the last `)`, it and ' +
+          'the `(` it closes are marked - not the brackets of (1).',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, 'f((1), 2');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('f((1), 2)'));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      const marked = Array.from(editable.querySelectorAll('.smart-editor-bracket-match'));
+      expect(marked.map((each) => each.textContent)).toEqual(['(', ')']);
+    });
+  },
+};
+
+/** The search (Ctrl+F) finds every place a text is written, and its replace replaces one or all. */
+export const FindAndReplace: Story = {
+  args: { value: 'concat("old", " and ", "old")', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSignatureHelp`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Ctrl+F opens the search over the text: "old" is found twice, "1 of 2", both marked. Its replace, with ' +
+          '"new", replaces all: concat("new", " and ", "new"). Escape closes it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}{Control>}f{/Control}');
+    const find = await waitFor(() => {
+      const input = canvasElement.querySelector<HTMLInputElement>('.smart-editor-find input');
+      expect(input).toBeTruthy();
+      return input!;
+    });
+    await userEvent.type(find, 'old');
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.smart-editor-find-count')?.textContent).toContain('1 of 2')
+    );
+    expect(editable.querySelectorAll('.smart-editor-find-match, .smart-editor-find-current')).toHaveLength(2);
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-find-toggle-replace')!);
+    const replace = canvasElement.querySelector<HTMLInputElement>('.smart-editor-replace input')!;
+    await userEvent.type(replace, 'new');
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-replace-all')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("new", " and ", "new")'));
+    await userEvent.type(find, '{Escape}');
+    await waitFor(() => expect(canvasElement.querySelector('.smart-editor-find')).toBeNull());
+  },
+};
+
+/** Alt+↓ moves a line down, Shift+Alt+↓ copies it; Shift+Alt+F formats the text as the server does. */
+export const LinesMovedAndCopied: Story = {
+  args: { value: '', onChange: fn(), lineNumbers: true },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SpaceLeavesAHalfReferenceAsAnError`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types two lines, `1 > 0` and `2 > 0`, each numbered. On the second, Alt+↑ moves it above the first; ' +
+          'Shift+Alt+↓ copies it below itself.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '1 > 0');
+    await userEvent.keyboard('{Escape}{Enter}');
+    await typeAsAPerson(userEvent, '2 > 0');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 > 0\n2 > 0'));
+    await userEvent.keyboard('{Escape}{Alt>}{ArrowUp}{/Alt}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('2 > 0\n1 > 0'));
+    await userEvent.keyboard('{Shift>}{Alt>}{ArrowDown}{/Alt}{/Shift}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('2 > 0\n2 > 0\n1 > 0'));
+  },
+};
+
+/** Shift+Alt+F formats the text as the language server formats it. */
+export const FormattedByTheServer: Story = {
+  args: { value: '1+2', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story: 'Shift+Alt+F in "1+2" formats it as the server does (textDocument/formatting): "1 + 2".',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}{Shift>}{Alt>}f{/Alt}{/Shift}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 + 2'));
+  },
+};
+
+/** Lines that do not wrap scroll inside the box; a box with a height scrolls its text within it. */
+export const LongLinesDoNotWrap: Story = {
+  args: {
+    value:
+      '@name == "a very long value that runs well past the width of the field, on and on, past any screen it is ' +
+      'drawn on, a desktop one included" || @status == "another long value, as long as the first one, or longer"\n' +
+      Array.from({ length: 12 }, (_, index) => `|| @age == ${index}`).join('\n'),
+    wordWrap: 'off',
+    maxHeight: '160px',
+    lineNumbers: true,
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Word wrap off, a 160px box and line numbers: the long first line scrolls sideways inside the box, the 13 ' +
+          'lines scroll up and down within it, each numbered; nothing is wider than the box.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await waitFor(() => {
+      expect(editable.scrollWidth).toBeGreaterThan(editable.clientWidth);
+      expect(editable.getBoundingClientRect().height).toBeLessThanOrEqual(161);
+      expect(editable.scrollHeight).toBeGreaterThan(editable.clientHeight);
+    });
+    const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
+    expect(editable.getBoundingClientRect().right).toBeLessThanOrEqual(box.getBoundingClientRect().right + 1);
+  },
+};
+
+/**
+ * A Qog state's data and a record are taken whole as well as opened (qorus#646, David: "if a user wants to choose
+ * the entire Receive order or record hash, is this possible? If not, it should be."): the row's Use.
+ */
+export const AStateOrARecordIsTakenWhole: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$data:`: the state Receive order has Use beside it, which writes the state\'s whole data as one ' +
+          'chip, Receive order ($data:{receive_order}); a click on the row instead opens its data. Then ' +
+          '`$data:receive_order.`: the record Customer has Use too ($data:{receive_order.customer}), set apart ' +
+          'from its row by a divider; hovered, it says "Use the whole record: all of Customer as one value".',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:');
+    const state = await completionRow('Receive order');
+    await userEvent.click(state.parentElement!.querySelector<HTMLElement>('.completion-use')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$data:\{receive_order\}\s*$/)));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order']));
+    expect(plainTextOf(editable)).toBe('');
+    await typeAsAPerson(userEvent, ' == $data:receive_order.');
+    const customer = await completionRow('Customer');
+    const use = customer.parentElement!.querySelector<HTMLElement>('.completion-use');
+    expect(use, 'Use beside Customer').toBeTruthy();
+    // set apart from the row's ">" by a divider, and saying what it does on hover (qorus#646, David's review)
+    expect(getComputedStyle(use!).borderLeftStyle).toBe('solid');
+    await userEvent.hover(use!);
+    await waitFor(() =>
+      expect(document.body.textContent).toContain('Use the whole record: all of Customer as one value')
+    );
+  },
+};
+
+/**
+ * A template's color means one thing everywhere, and its hover says what (qorus#646, David: "what is the
+ * significance of the colors?"): green is the data of the event that starts the Qog, purple a value Qorus gives,
+ * blue any other data.
+ */
+export const AChipSaysWhatItsColorMeans: Story = {
+  args: { ...WithFsmContext.args, value: '$data:{receive_order.event_type} == $timestamp:now' },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Event type, data of the event that starts the Qog, is a green chip; Current Timestamp, a value Qorus ' +
+          'gives, a purple one. Hovered, each says what it is and what its color means: "From the event that ' +
+          'starts the Qog." and "A value Qorus gives."',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const eventType = await chipFor(editable, 'Receive order › Event type');
+    await userEvent.hover(labelOf(eventType));
+    await waitFor(() => expect(document.body.textContent).toContain('From the event that starts the Qog.'));
+    await userEvent.unhover(labelOf(eventType));
+    const now = await chipFor(editable, 'Current Timestamp');
+    await userEvent.hover(labelOf(now));
+    await waitFor(() => expect(document.body.textContent).toContain('A value Qorus gives.'));
+  },
+};
+
+/**
+ * What is typed is completed by the language server as well as from the field's templates, in the same list,
+ * ranked by how well it fits (qorus#646, David: "typing '$dat' or '@nam' does not result in any LSP completion
+ * support, but it should"): a template context, a function, a record field.
+ */
+export const TypingOffersTheServersCompletionsToo: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `$dat`: with the states, the server\'s template context $data:, which picked is written and lists ' +
+          'the states. `siz` lists the function size first, saying it gives a whole number; `@nam` the record\'s ' +
+          'field name.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dat');
+    await userEvent.click(await completionRow('$data:'));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$data:'));
+    // written as text, and the list goes on from it: the states
+    await waitFor(() => expect(completionLabels()).toEqual(expect.arrayContaining(['Receive order'])), {
+      timeout: 30000,
+    });
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await typeAsAPerson(userEvent, 'siz');
+    await waitFor(() => expect(completionLabels()[0]).toBe('size'), { timeout: 30000 });
+    expect((await completionRow('size')).textContent).toContain('gives a whole number');
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await typeAsAPerson(userEvent, '@nam');
+    await completionRow('@name');
+  },
+};
+
+/**
+ * Tab takes the completion the keyboard is on, as a code editor's Tab does, and the text keeps the focus (qorus#646,
+ * David: "if I type $data:receive_order.ev and hit <tab> ... it accepts the value as it is"). Typed one key at a
+ * time, as a person types.
+ */
+export const TabTakesTheHighlightedCompletion: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `$data:receive_order.ev` key by key: the list shows Event type, highlighted. Tab takes it: the ' +
+          'chip Receive order › Event type, the value $data:{receive_order.event_type}, and the caret stays in ' +
+          'the text.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.ev');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['Event type', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    expect(highlightedCompletionLabel()).toBe('Event type');
+    // nothing is said of the reference while it is being written and its list is open
+    expect(saidOfTheText(canvasElement)).toEqual([]);
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{receive_order\.event_type\}\s*$/)
+      )
+    );
+    expect(plainTextOf(editable)).toBe('');
+    expect(editable.contains(document.activeElement) || document.activeElement === editable).toBe(true);
+  },
+};
+
+/**
+ * Space after a half-typed reference puts the list away and types a space; the reference is left as the text it
+ * was typed as, and the editor says it names nothing - never taken as a reference (qorus#646, David's review).
+ */
+export const SpaceLeavesAHalfReferenceAsAnError: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$data:receive_order.ev` key by key, then a space: the list goes away and the space is typed. ' +
+          '$data:receive_order.ev stays text - no chip - and the editor says "No template here is called ' +
+          '`$data:receive_order.ev`: pick one from the list, or remove it." It stays so when the editor is left.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.ev');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('Event type'), { timeout: 30000 });
+    await typeAsAPerson(userEvent, ' ');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual([]));
+    const NAMES_NOTHING =
+      'No template here is called `$data:receive_order.ev`: pick one from the list, or remove it.';
+    await waitFor(() => expect(saidOfTheText(canvasElement)).toContain(NAMES_NOTHING), { timeout: 30000 });
+    expect(chipsOf(editable)).toEqual([]);
+    expect(plainTextOf(editable).trim()).toBe('$data:receive_order.ev');
+    // left: still the text it was typed as, still said to name nothing
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(chipsOf(editable)).toEqual([]));
+    expect(saidOfTheText(canvasElement)).toContain(NAMES_NOTHING);
+  },
+};
+
+/**
+ * A `:` between a reference's parts (`$data:receive_order:ev`) is refused as the server refuses it: "':' can't be
+ * used here" (DPQL-E001) - not taken as written (qorus#646, David's review).
+ */
+export const AColonBetweenAReferencesPartsIsRefused: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SpaceLeavesAHalfReferenceAsAnError`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Types `$data:receive_order:ev` key by key: the editor says what the server says of it, \"':' can't " +
+          'be used here: remove it, or put it in quotes to make it text." The parts of a reference are ' +
+          'separated by a dot: $data:receive_order.event_type.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order:ev');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(
+      () =>
+        expect(saidOfTheText(canvasElement)).toContain(
+          "':' can't be used here: remove it, or put it in quotes to make it text."
+        ),
+      { timeout: 30000 }
+    );
+  },
+};
+
+
+/**
+ * A reference typed key by key is completed at every level, by the language server and the field's templates
+ * (qorus#646, David: "as a user types a template or field reference character by character, they must get
+ * completion at every step"): Tab takes the row the keyboard is on; a context, a state or a record taken is written
+ * as text and what is in it listed next; a whole reference taken is its chip.
+ */
+export const TypingCompletesEachLevel: Story = {
+  args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
+    templateCatalogue: 'qog-loops',
+    docs: {
+      description: {
+        story:
+          'Types key by key, Tab at each level: `$da` → $data:, then its states; `rec` → $data:receive_order., ' +
+          'then its data; `cu` → $data:receive_order.customer., then the customer\'s; `na` → the chip for ' +
+          '$data:{receive_order.customer.name}.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    const step = async (typed: string, highlighted: string, then?: string[]) => {
+      await typeAsAPerson(userEvent, typed);
+      await waitFor(() => expect(highlightedCompletionLabel()).toBe(highlighted), { timeout: 30000 });
+      await userEvent.keyboard('{Tab}');
+      if (then) {
+        await waitFor(() => expect(seenCompletionLabels()).toEqual([...then, 'Browse all templates']), {
+          timeout: 30000,
+        });
+      }
+    };
+    await typeAsAPerson(userEvent, '$');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$data:', '$config:'])), {
+      timeout: 30000,
+    });
+    await step('da', '$data:', ['$data:*', 'Look up customer', 'Receive order']);
+    expect(plainTextOf(editable)).toBe('$data:');
+    await step('rec', 'Receive order', ['Customer', 'Event type', 'Order ID', 'User name']);
+    expect(plainTextOf(editable)).toBe('$data:receive_order.');
+    await step('cu', 'Customer', ['Address', 'Name']);
+    expect(plainTextOf(editable)).toBe('$data:receive_order.customer.');
+    await step('na', 'Name');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{receive_order\.customer\.name\}\s*$/)
+      )
+    );
+    expect(chipsOf(editable)).toHaveLength(1);
+  },
+};
+
+/** A context of values Qorus knows, typed key by key: `$time` → $timestamp:, then the timestamps, `tim` → a chip. */
+export const TypingCompletesAContextOfValues: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types `$time` key by key: $timestamp: is listed first and Tab writes it; the timestamps are listed, and ' +
+          '`tim` and Tab make the chip Epoch Seconds.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$time');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$timestamp:'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['Epoch Seconds'])), {
+      timeout: 30000,
+    });
+    await typeAsAPerson(userEvent, 'tim');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('Epoch Seconds'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringContaining('$timestamp:timegm')));
+    expect(chipsOf(editable)).toHaveLength(1);
+  },
+};
+
+/** A record field typed key by key is completed at every level too: `@co` → @contact., then its fields. */
+export const TypingCompletesEachFieldLevel: Story = {
+  args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types key by key, Tab at each level: `@co` → @contact., then its fields; `em` → the chip for ' +
+          '@contact.email.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    const step = async (typed: string, highlighted: string) => {
+      await typeAsAPerson(userEvent, typed);
+      await waitFor(() => expect(highlightedCompletionLabel()).toBe(highlighted), { timeout: 30000 });
+      await userEvent.keyboard('{Tab}');
+    };
+    await typeAsAPerson(userEvent, '@co');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('contact'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(
+      () => expect(seenCompletionLabels()).toEqual(['@contact.email', '@contact.phone', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    await step('em', '@contact.email');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/@contact\.email\s*$/)));
+    expect(chipsOf(editable)).toHaveLength(1);
+  },
+};
+
+/**
+ * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
+ * Enter takes it, or the editor is left (qorus#646, David's review).
+ */
+export const AFreeKeyReferenceTypedOutIsAChip: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    // a Qog state that a workflow's step runs: the order's dynamic data, its keys written
+    templateCatalogue: 'qog-workflow-host',
+    docs: {
+      description: {
+        story:
+          'Types `$dynamic:order.id` key by key in the field of a Qog a workflow runs: nothing is listed in ' +
+          '$dynamic: but the whole of it, and the list says to write its key. Enter takes what is written: the chip ' +
+          'for $dynamic:order.id. Then ` == $dynamic:batch` typed and the editor left: that too is a chip.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dynamic:order.id');
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
+        "Write what $dynamic: refers to after the ':', or pick from the list"
+      )
+    );
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$dynamic:order\.id\s*$/)));
+    await typeAsAPerson(userEvent, ' == $dynamic:batch');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id', 'dynamic: batch']));
+  },
+};
+
+
+/**
+ * The template picker offers every completion the field has, in every state - on load, after the text is cleared,
+ * after it is typed again, opened from the template button - the same set typing offers (qorus#646, David: "if the
+ * textarea is cleared, then fields are not shown in the template picker"; "users should be supported with all
+ * available completions in the template picker"). The record's fields here are known only to the language server.
+ */
+export const ThePickerOffersEveryCompletionAfterClearing: Story = {
+  args: { ...WithTemplates.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `@` key by key: the record\'s fields are listed. The text cleared with Ctrl+A and Backspace and ' +
+          'the empty field clicked, the picker lists the given templates under their group, Order data (order id, ' +
+          'customer), then Record fields (name, status, age), the ' +
+          'template contexts, the functions and the values - what typing offers. Typed again (`@`) and cleared ' +
+          'with Backspace, it lists them again; opened from the template button, the same.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const everySource = ['Record fields', 'Template contexts', 'Functions', 'Values and keywords'];
+    const openEmpty = async () => {
+      await userEvent.click(canvasElement.ownerDocument.body);
+      await userEvent.click(editable);
+      await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(everySource)), { timeout: 30000 });
+      // the given templates kept whole under their group's name beside the others, not loose among them
+      expect(pickerLabels()[0]).toBe('Order data');
+      expect(pickerLabels()).not.toContain('order id');
+      await userEvent.click(await pickerRow('Order data'));
+      await waitFor(() => expect(pickerLabels()).toEqual(['order id', 'customer']));
+      await userEvent.keyboard('{Backspace}');
+      await userEvent.click(await pickerRow('Record fields'));
+      await waitFor(() => expect(pickerLabels()).toEqual(['name', 'status', 'age']));
+      await userEvent.keyboard('{Escape}');
+    };
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '@');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['@name'])), {
+      timeout: 30000,
+    });
+    // cleared with select-all and Backspace
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(plainTextOf(editable)).toBe(''));
+    await openEmpty();
+    // typed again, cleared with Backspace
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '@');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['@name'])));
+    await userEvent.keyboard('{Escape}{Backspace}');
+    await waitFor(() => expect(plainTextOf(editable)).toBe(''));
+    await openEmpty();
+    // opened from the template button: the same
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+    await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(everySource)), { timeout: 30000 });
+  },
+};
+
+/**
+ * A template context is a container, and one Qorus reads whole is used whole (qorus#646, David: "for all
+ * 'container' values that can be used, the 'Use' control should be present"; `$data:*` - UserApi reads `*` as the
+ * whole of it): Use on its row writes `$data:*`, in the list typing opens and in the picker.
+ */
+export const AContextIsUsedWhole: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$dat`: the row $data: is a container - its ">" goes into the states - with Use beside it, set ' +
+          'apart by a divider; Use writes the whole of it, the chip for $data:*. Cleared, the picker\'s Template ' +
+          'contexts list $data: with Use too.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dat');
+    const row = await completionRow('$data:');
+    const use = row.parentElement!.querySelector<HTMLElement>('.completion-use');
+    expect(use, 'Use beside $data:').toBeTruthy();
+    expect(getComputedStyle(use!).borderLeftStyle).toBe('solid');
+    await userEvent.click(use!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$data:\*\s*$/)));
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    // the picker: the template contexts, each with Use
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await userEvent.click(editable);
+    await userEvent.click(await pickerRow('Template contexts'));
+    const context = await pickerRow('$data:');
+    expect(context.parentElement!.querySelector('.template-picker-use'), 'Use beside $data: in the picker').toBeTruthy();
+  },
+};
+
+/**
+ * A click after a chip lists what can follow it, as typing there does (qorus#646, David: "clicking the mouse on
+ * the textarea after the chip shows no templates; is this intentional?" - it was not: the story server answered
+ * nothing after a whole value).
+ */
+export const AClickAfterAChipListsWhatCanFollow: Story = {
+  args: { ...WithFsmContext.args, value: '$data:{receive_order.event_type}', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A click just after the chip Receive order › Event type lists what can follow a value there: the ' +
+          'operators (==, !=, ...), as Qorus answers after a whole value.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const chip = await waitFor(() => {
+      const found = editable.querySelector<HTMLElement>('.reqore-tag');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    const box = chip.getBoundingClientRect();
+    await userEvent.pointer({ keys: '[MouseLeft]', target: editable, coords: { clientX: box.right + 8, clientY: box.top + box.height / 2 } });
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['==', '!='])), {
+      timeout: 30000,
+    });
+  },
+};
+
+/**
+ * A context of variables is offered only where some are defined, and lists them; used whole, `$transient:*`
+ * (qorus#646, David: "if none are defined, don't offer $transient: at all"; "Qorus needs to know when transient
+ * variables have been defined and provide a guided UX"). Here the Qog defines two.
+ */
+export const TransientVariablesDefinedAreListed: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+    templateCatalogue: 'qog-loops',
+    docs: {
+      description: {
+        story:
+          'In a Qog that declares the global variable total (Qorus\'s catalog of a Qog state in a loop): `$tr` ' +
+          'lists $transient:, with Use; Tab writes it and lists the whole of it, $transient:*, and the variable; ' +
+          '`tot` and Tab make the chip for $transient:total.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$tr');
+    const row = await completionRow('$transient:');
+    expect(row.parentElement!.querySelector('.completion-use'), 'Use beside $transient:').toBeTruthy();
+    await userEvent.keyboard('{Tab}');
+    await waitFor(
+      () =>
+        expect(seenCompletionLabels()).toEqual(['$transient:*', 'total', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    await typeAsAPerson(userEvent, 'tot');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('total'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$transient:total\s*$/)));
+  },
+};
+
+/**
+ * A context of variables the Qog does not declare where the field is, or a loop's outside one, is not offered: it
+ * would read nothing when the Qog runs (qorus#646, David: "if none are defined, don't offer $transient: at all").
+ */
+export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ADollarWithNoTemplatesListsTheServersContexts`.
+    qlip: { skip: true },
+    // a Qog state that nothing runs but on demand: a global and a local variable, no automatic one, in no loop
+    templateCatalogue: 'qog-unhosted',
+    docs: {
+      description: {
+        story:
+          'In a Qog state that declares a global and a local variable, no automatic variable, and is in no loop: ' +
+          '`$` lists $transient: and $var:, and no $autovar:, $foreach: or $for: - nor the aliases $globalvar: ' +
+          'and $localvar:, which work when written but are not offered.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$');
+    // every row of the list, those scrolled out of sight too
+    const listed = () =>
+      Array.from(document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')).map((row) =>
+        row.getAttribute('data-label')
+      );
+    await waitFor(() => expect(listed()).toEqual(expect.arrayContaining(['$transient:', '$var:'])), {
+      timeout: 20000,
+    });
+    for (const context of ['$autovar:', '$globalvar:', '$localvar:', '$foreach:', '$for:']) {
+      expect(listed(), context).not.toContain(context);
+    }
+  },
+};
+
+/** A loop's context inside one: `$foreach:` lists its values, and the whole of it. */
+export const ALoopsContextInsideTheLoop: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ADollarWithNoTemplatesListsTheServersContexts`.
+    qlip: { skip: true },
+    templateCatalogue: 'qog-loops',
+    docs: {
+      description: {
+        story:
+          'Inside a foreach loop: `$fo` lists $foreach: then $for:, in the order Qorus gives them; `re` and Tab ' +
+          'list the whole of $foreach: and its values - value, index, size.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    // the contexts in the catalogue's order, the server's (`sort_priority`), as a rich-text field lists them
+    await typeAsAPerson(userEvent, '$fo');
+    await waitFor(
+      () => expect(seenCompletionLabels()).toEqual(['$foreach:', '$for:', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    await typeAsAPerson(userEvent, 're');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$foreach:'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(
+      () =>
+        expect(seenCompletionLabels()).toEqual([
+          '$foreach:*',
+          'Element',
+          'Index',
+          'Size',
+          'Browse all templates',
+        ]),
+      { timeout: 30000 }
+    );
+  },
+};
+
+/**
+ * A variable a template uses that the Qog does not declare is a warning the server gives, and the host's action for
+ * it is beside it (qorus#646: Qorus's `qog_variable_undeclared`, with where to declare it): "Declare it".
+ */
+export const AnUndeclaredVariableCanBeDeclared: Story = {
+  args: {
+    ...WithFsmContext.args,
+    value: '$transient:retries > 3',
+    onChange: fn(),
+    diagnosticAction: (diagnostic: { code?: unknown; data?: unknown }) =>
+      diagnostic.code === 'qog_variable_undeclared' ?
+        { label: 'Declare it', onClick: declareIt.bind(null, diagnostic.data) }
+      : undefined,
+  } as never,
+  parameters: {
+    templateCatalogue: 'qog-loops',
+    docs: {
+      description: {
+        story:
+          "In a Qog that declares the global variable total, not retries: `$transient:retries > 3` is said to read " +
+          "nothing - \"The Qog does not declare the global variable retries, so it reads as nothing; declare it in " +
+          "the Qog's global variables.\" - with Declare it beside it, which the host declares it with (here: the " +
+          'Qog\'s global variables, `globalvar`).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    declared.length = 0;
+    await readyEditor(canvasElement);
+    const action = await waitFor(
+      () => {
+        const button = canvasElement.querySelector<HTMLElement>('.smart-editor-diagnostic-action');
+        expect(button, 'Declare it').toBeTruthy();
+        return button!;
+      },
+      { timeout: 30000 }
+    );
+    expect(saidOfTheText(canvasElement).join(' ')).toContain(
+      "The Qog does not declare the global variable retries, so it reads as nothing; declare it in the Qog's global variables."
+    );
+    expect(action.textContent).toBe('Declare it');
+    // said once, as the server's warning - not an error of the editor's beside it - and the button its words' width
+    expect(saidOfTheText(canvasElement)).toHaveLength(1);
+    expect(action.getBoundingClientRect().width).toBeLessThan(200);
+    await userEvent.click(action);
+    expect(declared).toEqual([{ scope: 'globalvar', name: 'retries' }]);
+  },
+};
+
+/** What the story's host was asked to declare. */
+const declared: Array<{ scope: string; name: string }> = [];
+const declareIt = (data: unknown) => {
+  const facts = data as { variable_name: string; declare: { scope: string } };
+  declared.push({ scope: facts.declare.scope, name: facts.variable_name });
+};
+
+
+/**
+ * A key typed right after a pair the editor closed goes where the caret is, though the page has not drawn the pair
+ * yet (qorus#646: CI typed `"a" + 1` as `a" + 1""`). The editor closes the pair in its document and puts the caret
+ * between the quotes; the page draws it a moment later. A key typed in that moment, after a click whose caret the
+ * editor had not read yet, was put where the page's caret still was - before the quotes.
+ */
+export const AKeyRightAfterAClosedPairGoesBetweenItsQuotes: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Clicks the empty text and, in the same moment - before the page has drawn anything - types `"` and `1`: ' +
+          'the text is "1", the 1 between the quotes the editor closed, as a fast typist on a busy page types it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    /* the page's caret moved by the click, its change not read by the editor yet: the editor reads such changes
+       a little later, at most so often, and a change that comes while it waits is read at the next input */
+    const doc = editable.ownerDocument;
+    doc.dispatchEvent(new Event('selectionchange'));
+    doc.dispatchEvent(new Event('selectionchange'));
+    // in one task, before the page draws the pair: the quote's key, then the next character's input
+    // as a browser does: a key's input follows its keydown unless the keydown was taken
+    const type = (key: string, code: string) => {
+      const proceed = editable.dispatchEvent(
+        new KeyboardEvent('keydown', { key, code, shiftKey: key === '"', bubbles: true, cancelable: true })
+      );
+      if (proceed) {
+        editable.dispatchEvent(
+          new InputEvent('beforeinput', { inputType: 'insertText', data: key, bubbles: true, cancelable: true })
+        );
+      }
+    };
+    type('"', 'Quote');
+    type('1', 'Digit1');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('"1"'));
+    expect(plainTextOf(editable)).toBe('"1"');
+  },
+};
+
+/** The template picker open at the top of the field's templates, and no completion list beside it. */
+const expectThePickerAtItsTop = async () => {
+  await waitFor(
+    () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Order data', 'Template contexts', 'Record fields'])),
+    { timeout: 30000 }
+  );
+  expect(completionLabels()).toEqual([]);
+};
+
+/** Nothing open at the editor: neither the picker nor the completion list. */
+const expectNothingOpen = () =>
+  waitFor(() => {
+    expect(pickerLabels()).toEqual([]);
+    expect(completionLabels()).toEqual([]);
+  });
+
+export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
+  args: { ...WithTemplates.args, onChange: fn() },
+  parameters: {
+    ...WithTemplates.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ThePickerOffersEveryCompletionAfterClearing`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Where the completion list would hold nothing but Browse all templates, the picker opens in its place, at ' +
+          'its top (Foxhoundn on qlip #425). A click in the empty field opens it; Escape puts it away, the keys ' +
+          'staying in the text. `1 + 2` typed key by key: the picker. `+ $` lists the contexts, Browse all templates ' +
+          'among them; `zq`, which goes on to nothing: the picker. Escape puts it away each time.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    // a click in the empty field
+    await userEvent.click(editable);
+    await expectThePickerAtItsTop();
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    // typed: nothing is listed but the way to the templates
+    await typeAsAPerson(userEvent, '1 + 2');
+    await expectThePickerAtItsTop();
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 + 2'));
+    // where there are rows, Browse all templates is one of them, and the list stays
+    await typeAsAPerson(userEvent, ' + $');
+    await waitFor(
+      () => expect(completionLabels()).toEqual(expect.arrayContaining(['$data:', 'Browse all templates'])),
+      { timeout: 30000 }
+    );
+    expect(pickerLabels()).toEqual([]);
+    // a `$` that goes on to nothing
+    await typeAsAPerson(userEvent, 'zq');
+    await expectThePickerAtItsTop();
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 + 2 + $zq'));
+  },
+};
+
+export const AnEmptiedFieldOpensThePicker: Story = {
+  args: { ...WithTemplates.args, value: '1 + 2', onChange: fn() },
+  parameters: {
+    ...WithTemplates.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ThePickerOffersEveryCompletionAfterClearing`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'A text emptied as it is written offers what an empty field offers: the picker at its top. `1 + 2` ' +
+          'cleared with Ctrl+A and Backspace: the picker, whose rows the arrows move through, as in an empty field ' +
+          'clicked; Escape puts it away. `x` typed and taken back with Backspace: the picker again. The template ' +
+          'button opens it too.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    // cleared
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await expectThePickerAtItsTop();
+    // the arrows move through the picker, as in an empty field clicked
+    const first = await waitFor(() => {
+      const row = pickerFocused();
+      expect(row, 'the row the keyboard is on').toBeTruthy();
+      return row;
+    });
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(pickerFocused()).not.toBe(first));
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    // its last character deleted
+    await typeAsAPerson(userEvent, 'x');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('x'));
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await expectThePickerAtItsTop();
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    // the template button
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+    await expectThePickerAtItsTop();
   },
 };

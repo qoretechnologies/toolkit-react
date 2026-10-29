@@ -13,10 +13,11 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size, uniqBy } from 'lodash';
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
+import { allowedValueName, allowedValueOf } from '../../../../helpers/allowedValues';
 import { getListElementValue } from '../../../../helpers/options';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import {
@@ -34,7 +35,7 @@ import {
   rendersCreatableValueSelect,
 } from '../allowed-values/AllowedValues';
 import { ArrayAuto } from '../array/ArrayAuto';
-import BooleanFormField from '../boolean/Boolean';
+import BooleanFormField, { yesNoShown } from '../boolean/Boolean';
 import { ByteSizeFormField } from '../byte-size/ByteSize';
 import { TimeoutFormField } from '../timeout/Timeout';
 import ColorFormField from '../color/Color';
@@ -44,11 +45,12 @@ import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
 import MarkdownFormField from '../markdown/Markdown';
 import { MultiSelectFormField } from '../multi-select/MultiSelectFormField';
-import NumberFormField from '../number/Number';
+import NumberFormField, { numberKindOf } from '../number/Number';
 import { ReqraftObjectFormField } from '../object/Object';
 import RadioGroupFormField from '../radio-group/RadioGroup';
 import { RichTextFormField } from '../rich-text/RichText';
 import { SchemaDefinitionEditor } from '../schema-definition';
+import { useHostEditorValue } from './hostEditorValue';
 import { IDataSchemaDefinition } from '../schema-definition/types';
 import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
 import { StringFormField } from '../string/String';
@@ -76,7 +78,22 @@ export interface IAutoFieldProps
   value?: any;
   default_value?: any;
   type?: IQorusType;
-  onChange?: (name: string, value: any, type?: IQorusType, canBeNull?: boolean) => void;
+  /**
+   * The base data type of the field's values, which Qorus gives with every field (`string` for an email address,
+   * `int` for a timeout): a field of a type this field has no editor of is edited as its base type.
+   */
+  base_type?: string;
+  /**
+   * The base data type of a list's elements, which Qorus gives with every list field (`string` for a list of email
+   * addresses): an element of a type this field has no editor of is edited as its base type.
+   */
+  element_base_type?: string;
+  /**
+   * The value changed. The fourth argument says whether it is an expression, as every field's `onChange` does
+   * (TemplateField, the form engine and the expression builder read it so): a value this field edits itself is not
+   * one; a host editor (`componentOverrides`) says for its own.
+   */
+  onChange?: (name: string, value: any, type?: IQorusType, isFunction?: boolean) => void;
   /** From IDE FieldWrapper `IField` — lets `type-depends-on` query sibling fields. */
   requestFieldData?: (name: string, key: string) => any;
   canBeNull?: boolean;
@@ -149,14 +166,14 @@ export interface IAutoFieldProps
  * one drew "Unknown type!".
  */
 export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => [
-  { name: 'bool', display_name: 'True/False' },
+  { name: 'bool', display_name: 'True or false' },
   { name: 'date', display_name: 'Date' },
   { name: 'string', display_name: 'Text' },
-  { name: 'binary', display_name: 'Binary' },
-  { name: 'float', display_name: 'Decimal' },
+  { name: 'binary', display_name: 'Binary data' },
+  { name: 'float', display_name: 'Number' },
   { name: 'list', display_name: 'List' },
   { name: 'hash', display_name: 'Key/Value {}' },
-  { name: 'int', display_name: 'Integer' },
+  { name: 'int', display_name: 'Whole number' },
   { name: 'rgbcolor', display_name: 'RGB Color' },
 ];
 
@@ -175,6 +192,32 @@ export const DefaultNoSoftTypes = getImmediateValueTypes();
 export const editorTypeOf = <T extends string | undefined | null>(type: T): T =>
   (typeof type === 'string' && /^soft[a-z]/.test(type) ? type.slice(4) : type) as T;
 
+/**
+ * The type a field is declared as (`type`) and the type its value is edited as (`internalType`), as it
+ * mounts: the declared `defaultType`, or the value's own type where none is declared; an untyped field
+ * holding a value is edited as that value's type, unless `defaultInternalType` says otherwise.
+ *
+ * Both are known from the field's props, so the field is drawn with them from its first render. It was
+ * drawn first as the untyped `any` and given them only after it had mounted: for that first render a
+ * rich-text value - a document, not text - was put through the untyped field's text editor, which
+ * wrote it as `[object Object]` (reqraft's expression builder, an `in(...)` operand holding rich text).
+ */
+export const resolveAutoFieldTypes = (
+  defaultType: IQorusType | undefined,
+  defaultInternalType: IQorusType | undefined,
+  value: unknown
+): { type: IQorusType; internalType: IQorusType } => {
+  const type: IQorusType =
+    (defaultType && (defaultType.replace(/"/g, '').trim() as IQorusType)) ||
+    (getTypeFromValue(maybeParseYaml(value)) as IQorusType);
+  const internalType: IQorusType =
+    value && isUntypedOptionType(type) && !defaultInternalType ?
+      (getTypeFromValue(maybeParseYaml(value)) as IQorusType)
+    : defaultInternalType || type;
+
+  return { type, internalType };
+};
+
 function AutoField<T = any>({
   name,
   onChange,
@@ -184,6 +227,10 @@ function AutoField<T = any>({
   defaultInternalType,
   requestFieldData,
   type,
+  // read by the editor choice alone; destructured so it does not land on the editors' DOM through `...rest`
+  base_type,
+  // a list's elements' base type, handed to each element's field as its `base_type`
+  element_base_type,
   // Inert (deprecated); destructured so it does not land in `...rest`.
   noSoft, // eslint-disable-line @typescript-eslint/no-unused-vars
   path,
@@ -214,10 +261,12 @@ function AutoField<T = any>({
   expandFirstRequired,
   ...rest
 }: IAutoFieldProps & T) {
-  const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
-  const [storedInternalType, setInternalType] = useState<IQorusType>(
-    defaultInternalType || 'any'
+  // drawn as declared from the first render; see `resolveAutoFieldTypes`
+  const [mountTypes] = useState(() =>
+    resolveAutoFieldTypes(defaultType, defaultInternalType, value)
   );
+  const [currentType, setType] = useState<IQorusType>(mountTypes.type);
+  const [storedInternalType, setInternalType] = useState<IQorusType>(mountTypes.internalType);
   // What the value is edited as; see `editorTypeOf`.
   const currentInternalType = editorTypeOf(storedInternalType);
   const [isSetToNull, setIsSetToNull] = useState<boolean>(false);
@@ -225,6 +274,17 @@ function AutoField<T = any>({
     typeof arg_schema === 'string' ? undefined : arg_schema
   );
   const [error, setError] = useState<string>();
+  /* What a host editor (`componentOverrides`) is handed and how its reports go on: see `useHostEditorValue`.
+     Its `onChange` is one function for the life of the field - a new one with each render of the form
+     restarted the pause a host editor waits for before it reports, so under load it never reported. */
+  const hostEditor = useHostEditorValue(value);
+  const hostEditorReport =
+    useRef<(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => void>();
+  const handleHostEditorChange = useCallback(
+    (val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) =>
+      hostEditorReport.current?.(val, emittedType, emittedIsFunction),
+    []
+  );
 
   useWhyDidYouUpdate(`Auto field ${name} ${currentType}`, {
     name,
@@ -295,24 +355,7 @@ function AutoField<T = any>({
   }, [JSON.stringify(arg_schema)]);
 
   useMount(() => {
-    let defType: IQorusType = defaultType && (defaultType.replace(/"/g, '').trim() as any);
-
-    // If default type was not provided, get the type from the value
-    if (!defType) {
-      defType = getTypeFromValue(maybeParseYaml(value)) as IQorusType;
-    }
-
-    let internalType: IQorusType;
-    // If value already exists, but the type is auto or any
-    // set the type based on the value
-    if (value && isUntypedOptionType(defType) && !defaultInternalType) {
-      internalType = getTypeFromValue(maybeParseYaml(value)) as IQorusType;
-    } else {
-      internalType = defaultInternalType || defType;
-    }
-
-    setInternalType(internalType);
-    setType(defType);
+    const defType = mountTypes.type;
     // If the value is null and can be null, set the null flag
     if (
       (getValueOrDefaultValue(value, default_value, _canBeNull(defType)) === 'null' ||
@@ -384,9 +427,12 @@ function AutoField<T = any>({
   const handleChange: (name: string, val: any, type?: IQorusType) => void = useCallback(
     (name, val, type) => {
       const returnType: IQorusType = type || currentType;
-      // Run the onchange
+      /* A value edited here - typed, picked from the allowed values, set to null - is a value, not an
+         expression. This argument used to carry whether the type can be null, which every reader takes for
+         the expression flag: a value picked from a '*string' field's list reached the form as an expression
+         (qorus#646), which a host reads as no value at all. */
       if (onChange && returnType) {
-        onChange(name, val, returnType, _canBeNull(returnType));
+        onChange(name, val, returnType, false);
       }
     },
     [currentInternalType, currentType, onChange]
@@ -423,6 +469,13 @@ function AutoField<T = any>({
   // selectors, code-editor, …).
   const Override =
     componentOverrides?.[type as string] || componentOverrides?.[(rest as any).ui_type];
+  hostEditorReport.current = (val, emittedType, emittedIsFunction) => {
+    hostEditor.record(val);
+    const returnType = emittedType || currentType;
+    if (onChange && returnType) {
+      onChange(name, val, returnType, emittedIsFunction);
+    }
+  };
   if (Override) {
     return (
       <Override
@@ -447,13 +500,8 @@ function AutoField<T = any>({
         // downstream saw `undefined` and silently did nothing.
         inheritedFromParent={inheritedFromParent}
         name={name}
-        value={value}
-        onChange={(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => {
-          const returnType = emittedType || currentType;
-          if (onChange && returnType) {
-            onChange(name, val, returnType, emittedIsFunction);
-          }
-        }}
+        value={hostEditor.value}
+        onChange={handleHostEditorChange}
       />
     );
   }
@@ -486,6 +534,10 @@ function AutoField<T = any>({
         value={typeof value === 'string' ? value : value == null ? '' : String(value)}
         onChange={(next) => handleChange(name, next, 'string')}
         readOnly={rest.readonly || rest.disabled}
+        /* the field's templates, as every other field of the form has them (its context data, a Qog state's
+           data): a click in the field lists them as their catalogue nests them, and names their chips. They
+           were left out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review) */
+        templates={rest.allowTemplates !== false && size(rest.templates?.items) ? rest.templates : undefined}
       />
     );
   }
@@ -723,7 +775,7 @@ function AutoField<T = any>({
           return (
             <BooleanFormField
               {...rest}
-              checked={!!value}
+              checked={yesNoShown(value)}
               onChange={(checked) => handleChange(name, checked)}
             />
           );
@@ -832,9 +884,11 @@ function AutoField<T = any>({
               return (value || []).map(getListElementValue);
             };
 
+            // its value and its name however the entry is written: an envelope, a bare value or a name
             const mappedAllowedValues = rest.element_allowed_values?.map((ev) => ({
               ...ev,
-              value: ev.value?.value,
+              display_name: allowedValueName(ev),
+              value: allowedValueOf(ev),
             }));
 
             if (
@@ -883,6 +937,8 @@ function AutoField<T = any>({
                 allowed_values={rest.element_allowed_values}
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
+                // each element of a type with no editor is edited as its base type (qorus#646)
+                base_type={element_base_type}
                 // Propagate compact into every row, exactly as the `hash` case
                 // above does for a single sub-form. `compact` is destructured
                 // out of `rest`, so without this each row's AutoFormField saw
@@ -929,6 +985,8 @@ function AutoField<T = any>({
           return (
             <NumberFormField
               {...rest}
+              // the kind of number it holds: without it a float field took every number for a whole one
+              type={numberKindOf(currentType)}
               onChange={(value) => handleChange(name, value)}
               value={value}
             />
@@ -974,8 +1032,8 @@ function AutoField<T = any>({
           // previously only `allowed_values` was read, leaving `items` empty.
           const enumItems = (rest.allowed_values as any[] | undefined)?.length
             ? (rest.allowed_values as any[]).map((av) => ({
-                label: av.display_name ?? String(av.value?.value ?? av.value),
-                value: av.value?.value ?? av.value,
+                label: allowedValueName(av),
+                value: allowedValueOf(av),
                 image: av.image,
                 icon: av.icon,
               }))
@@ -1008,7 +1066,7 @@ function AutoField<T = any>({
             <SelectFormField
               items={(rest.allowed_values || []).map((av) => ({
                 ...av,
-                value: av.value?.value,
+                value: allowedValueOf(av),
               }))}
               value={value}
               onChange={(val) => handleChange(name, val)}
@@ -1043,9 +1101,10 @@ function AutoField<T = any>({
         case 'rgbcolor': {
           return (
             <ColorFormField
-              {...rest}
               value={!value ? undefined : value}
               onChange={(color) => handleChange(name, color)}
+              disabled={rest.disabled}
+              readOnly={rest.readonly}
             />
           );
         }
@@ -1060,8 +1119,17 @@ function AutoField<T = any>({
         case 'any':
         case 'auto':
           return renderTextEditor('string');
-        default:
+        default: {
+          /* A type with no editor here - a string format type such as an email address, a user type, a
+             type a newer server adds - is edited as its base type (`base_type`), as the type catalogue
+             names it by its base type (`qorusTypeEntry`); it showed "Unknown type!", and a form could not
+             set it (qorus#646). Only a type with no base type that has an editor is unknown. */
+          const baseType = editorTypeOf(base_type) as IQorusType | undefined;
+          if (baseType && baseType !== currentType) {
+            return renderField(baseType);
+          }
           return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
+        }
       }
     };
 

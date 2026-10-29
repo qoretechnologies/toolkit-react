@@ -9,16 +9,14 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A required field that is locked because its `depends_on` does not hold yet is
- * not something the author can act on: the row is disabled and says what unlocks
- * it. It used to be listed under "Needs attention" anyway — the form counted a
- * required empty field as needing attention whether or not it applied — which is
- * how a guided check in qorus-ide came to ask for its Path, Minimum, Maximum and
- * Expected value before the author had even picked what kind of check it was.
+ * A required field whose `depends_on` does not hold yet is not something the author can act on. It used to be
+ * listed under "Needs attention" anyway — the form counted a required empty field as needing attention whether or
+ * not it applied — which is how a guided check in qorus-ide came to ask for its Path, Minimum, Maximum and
+ * Expected value before the author had even picked what kind of check it was. Then it was shown locked, waiting,
+ * with what unlocks it; now (qorus#646, David) it is not shown at all until it applies.
  *
  * What does need attention is the field that unlocks it, when that one is itself
- * required; and the locked field the moment its dependency holds and it is still
- * empty.
+ * required; and the field the moment its dependency holds and it is still empty.
  */
 
 /** Modelled on the guided check: the kind decides which of the rest apply. */
@@ -65,27 +63,28 @@ const row = (container: HTMLElement, field: string) =>
   container.querySelector(`[data-field="${field}"]`);
 
 describe('a required field locked by its dependency does not need attention', () => {
-  it('leaves a locked required field out of Needs attention', async () => {
+  it('leaves a required field whose dependency does not hold out of the form, and of Needs attention', async () => {
     const { container } = renderForm(CHECK, {} as never);
 
-    // The required fields are materialised, so the rows exist — locked.
-    await waitFor(() => expect(row(container, 'expected')).toBeTruthy());
-    expect(row(container, 'expected')?.className).toContain('readfirst-row-disabled');
-    expect(row(container, 'min')?.className).toContain('readfirst-row-disabled');
+    // The form is drawn - its kind - and the fields that do not apply yet are not in it, waiting or otherwise.
+    await waitFor(() => expect(row(container, 'kind')).toBeTruthy());
+    expect(row(container, 'expected')).toBeNull();
+    expect(row(container, 'min')).toBeNull();
+    expect(container.querySelector('.readfirst-row-disabled')).toBeNull();
 
     // Nothing the author can act on, so there is no Needs attention box at all.
     expect(attentionBox(container)).toBeUndefined();
     expect(container.textContent).not.toContain('Needs attention');
   });
 
-  it('still shows the locked field, among the optional ones, with what unlocks it', async () => {
+  it('shows it nowhere, not among the optional ones either, and says nothing of it while it holds nothing', async () => {
     const { container } = renderForm(CHECK, {} as never);
 
-    await waitFor(() => expect(row(container, 'expected')).toBeTruthy());
-    const optional = box(container, 'Optional');
-    expect(optional).toBeTruthy();
-    expect(optional!.querySelector('[data-field="expected"]')).toBeTruthy();
-    expect(optional!.querySelector('[data-field="min"]')).toBeTruthy();
+    await waitFor(() => expect(row(container, 'kind')).toBeTruthy());
+    expect(box(container, 'Optional')?.querySelector('[data-field="expected"]') ?? null).toBeNull();
+    expect(box(container, 'Optional')?.querySelector('[data-field="min"]') ?? null).toBeNull();
+    // empty, so there is no value to account for
+    expect(container.querySelector('.form-hidden-field-notes')).toBeNull();
   });
 
   it('needs attention once its dependency holds and it is still empty', async () => {
@@ -94,10 +93,9 @@ describe('a required field locked by its dependency does not need attention', ()
     await waitFor(() => expect(attentionBox(container)).toBeTruthy());
     const attention = attentionBox(container)!;
     expect(attention.querySelector('[data-field="expected"]')).toBeTruthy();
-    // `min` applies to `between` alone, so it is still locked and still not asked for.
+    // `min` applies to `between` alone, so it still does not apply: not asked for, and not in the form.
     expect(attention.querySelector('[data-field="min"]')).toBeNull();
-    // It is not dropped: it waits in the (collapsed) Optional box, which counts it.
-    expect(box(container, 'Optional')?.textContent).toMatch(/^Optional1/);
+    expect(row(container, 'min')).toBeNull();
   });
 
   it('asks for every field the dependency unlocks', async () => {
@@ -111,9 +109,10 @@ describe('a required field locked by its dependency does not need attention', ()
     expect(attention.querySelector('[data-field="min"]')).toBeTruthy();
   });
 
-  it('moves the field into Needs attention when the dependency is set later', async () => {
+  it('shows the field, in Needs attention, when the dependency is set later', async () => {
     const { container, rerender } = renderForm(CHECK, {} as never);
-    await waitFor(() => expect(row(container, 'expected')).toBeTruthy());
+    await waitFor(() => expect(row(container, 'kind')).toBeTruthy());
+    expect(row(container, 'expected')).toBeNull();
     expect(attentionBox(container)).toBeUndefined();
 
     rerender(
@@ -260,10 +259,11 @@ describe('a locked required field and the completeness status', () => {
     );
   });
 
-  it('still validates a value a locked field holds', async () => {
-    // Only an EMPTY locked field is waived. A value is still checked.
+  it('keeps a value a hidden field holds, does not let it hold the form back, and says it is not valid', async () => {
+    // The field does not apply, and is not in the form, so nothing in it can be fixed there: it does not make
+    // the form invalid. Its value is kept, and the form's note says it is not valid (qorus#646).
     const onValidityChange = vi.fn();
-    render(
+    const { container } = render(
       <ReqoreUIProvider>
         <FetchContext.Provider value={fetchContext}>
           <FormEngine
@@ -277,8 +277,14 @@ describe('a locked required field and the completeness status', () => {
         </FetchContext.Provider>
       </ReqoreUIProvider>
     );
-    await waitFor(() =>
-      expect(onValidityChange).toHaveBeenLastCalledWith(false, expect.anything())
+    await waitFor(() => expect(onValidityChange).toHaveBeenLastCalledWith(true, expect.anything()));
+    const note = await waitFor(() => {
+      const found = container.querySelector('[data-field-hidden="min"]');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    expect(note.textContent).toMatch(
+      /^"Minimum" is hidden until it applies \("Kind" must be "between"\)\. Its value is kept, but it is not valid: .+\.$/
     );
   });
 });

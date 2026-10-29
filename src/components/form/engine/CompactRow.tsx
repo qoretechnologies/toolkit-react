@@ -28,6 +28,7 @@ import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/
 import { findTemplate, isValueTemplate } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
 import { hasTemplateText, templateTextSegments } from '../../../helpers/templateText';
+import { PendingEditsContext, usePendingEdits } from '../fields/pendingEdit';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { TemplateText } from '../fields/template/TemplateText';
 import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
@@ -35,16 +36,24 @@ import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
+import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
+import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
+import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
+import { resolveInheritProps } from './inheritProps';
+import { NO_OPTION_DESCRIPTION } from '../../../helpers/noDescription';
 import { revealRow } from './revealRow';
 import {
+  MONO_FONT_STACK,
   StyledActionSlot,
   StyledCardHeading,
   StyledCardLabel,
   StyledCodePreview,
-  StyledColorSwatch,
   StyledColumn,
   StyledEditCard,
+  LABEL_ASTERISK_SIZE,
   StyledLabelBlock,
+  StyledLabelAsterisk,
+  StyledLabelName,
   StyledAbsorbedField,
   StyledLabelDesc,
   StyledRowActions,
@@ -58,8 +67,8 @@ import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
+import { plainTextNode } from '../../../helpers/markdownText';
 import {
-  colorToCss,
   findAllowedValueOption,
   formatBytes,
   formatOptionValue,
@@ -73,10 +82,15 @@ import {
   isOptionValueEmpty,
   optionHasImages,
   getExpressionAst,
+  markdownToProse,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { DpqlRendering } from '../expressions/DpqlRendering';
+import { restoredFieldChange } from '../expressions/argumentPresence';
+import { ReqraftColorValue } from '../../colorValue';
 import { TFieldWithOwnTemplates } from './rendererTypes';
+import { isHoveringPointer } from '../../../helpers/hoveringPointer';
+import { webLinkOf } from '../../../helpers/webLink';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -166,6 +180,51 @@ export const richtextItemText = (item: unknown): string | undefined =>
     richtextToString((item as { value?: Parameters<typeof richtextToString>[0] }).value)
   : undefined;
 
+/**
+ * An editable row's plain text: wrapped, up to three lines (see `renderReadFirstValue`). Its newlines fold into
+ * the line, as the one-line summary folded them.
+ */
+const SUMMARY_TEXT_STYLE: React.CSSProperties = Object.freeze({
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 3,
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  minWidth: 0,
+});
+
+/**
+ * A value that is a web address, as a link to it: it opens in a new tab, and a click or Enter on it follows it
+ * without opening the row it is in. Reached with Tab, it says where it goes and that it opens a new tab, and
+ * shows its focus ring (`.options-readfirst-link`); its address is copied as a link's is.
+ */
+const WebLink = memo(({ address, color }: { address: string; color?: string }) => (
+  <a
+    className='options-readfirst-link'
+    href={address}
+    target='_blank'
+    rel='noopener noreferrer'
+    aria-label={`${address} (opens in a new tab)`}
+    style={color ? { color } : undefined}
+    // the link's, not the row's: the row opens on a click and on Enter or Space
+    onClick={(event) => event.stopPropagation()}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.stopPropagation();
+      }
+    }}
+  >
+    {address}
+  </a>
+));
+WebLink.displayName = 'WebLink';
+
+/** The status boxes by name, as their headers say them. */
+
+/** A read-only editor's change: there is none to take. */
+const ignoreReadOnlyChange = () => undefined;
+
 export const CompactRow = memo(
   ({
     optionName,
@@ -202,14 +261,23 @@ export const CompactRow = memo(
       (options?.[absorbedName] as { display_name?: string } | undefined)?.display_name ||
       absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
+    const CodeEditor = useContextSelector(CompactRowContext, (v) => v.codeEditor);
+    const readSummaries = useContextSelector(CompactRowContext, (v) => v.readSummaries);
+    const cardEditorTypes = useContextSelector(CompactRowContext, (v) => v.cardEditorTypes);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
     const showFieldTypes = useContextSelector(CompactRowContext, (v) => v.showFieldTypes);
+    // a finger's target is `small`, a mouse's `tiny` (the help button)
+    const coarse = useCoarsePointer();
+    // what kind of value the option takes, in the words the form's type catalogue names it
+    const typeName = useTypeName();
+    const typeSentenceForm = useTypeSentenceForm();
     const showAllDescriptions = useContextSelector(CompactRowContext, (v) => v.showAllDescriptions);
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
+    // the box this open field moves to when it is closed, when that is not the one it is shown in
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -222,10 +290,7 @@ export const CompactRow = memo(
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
-    const onReadOnlyActivate = useContextSelector(
-      CompactRowContext,
-      (v) => v.onReadOnlyActivate
-    );
+    const onReadOnlyActivate = useContextSelector(CompactRowContext, (v) => v.onReadOnlyActivate);
 
     /**
      * The floor recorded when a row is opened lasts until the author changes
@@ -264,10 +329,8 @@ export const CompactRow = memo(
     const availableOptions = useContextSelector(CompactRowContext, (v) => v.availableOptions);
     const requiredGroupsInfo = useContextSelector(CompactRowContext, (v) => v.requiredGroupsInfo);
     const handleValueChange = useContextSelector(CompactRowContext, (v) => v.handleValueChange);
-    const toggleExpandedOption = useContextSelector(
-      CompactRowContext,
-      (v) => v.toggleExpandedOption
-    );
+    const expandOption = useContextSelector(CompactRowContext, (v) => v.expandOption);
+    const collapseOption = useContextSelector(CompactRowContext, (v) => v.collapseOption);
     const flashOption = useContextSelector(CompactRowContext, (v) => v.flashOption);
     const hasOptionChanged = useContextSelector(CompactRowContext, (v) => v.hasOptionChanged);
     const handleOptionLabelClick = useContextSelector(
@@ -289,6 +352,7 @@ export const CompactRow = memo(
     const renderOption = useContextSelector(CompactRowContext, (v) => v.renderOption);
     const theme = useContextSelector(CompactRowContext, (v) => v.theme);
     const cMuted = useContextSelector(CompactRowContext, (v) => v.cMuted);
+    const rowInks = useContextSelector(CompactRowContext, (v) => v.rowInks);
     const templates = useContextSelector(CompactRowContext, (v) => v.templates);
     const cKey = useContextSelector(CompactRowContext, (v) => v.cKey);
     const cDivider = useContextSelector(CompactRowContext, (v) => v.cDivider);
@@ -299,15 +363,18 @@ export const CompactRow = memo(
     // A markdown value renders as a document in the row's inset; the host's
     // renderer when it supplied one, reqraft's own otherwise.
 
-    // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
+    // Value-cell content: color adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
     const renderReadFirstValue = (
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
       formatted: string,
-      // An editable row gets one line and an ellipsis — its value line is a
-      // summary you click to open. A read-only row is the only rendering the
-      // value gets, so it wraps.
+      /* An editable row's plain text wraps, up to three lines: its value line is a summary you click to open,
+         and the whole value is in the row's editor. It was one line with an ellipsis, and an address or a
+         sentence lost its end at every width (qorus#646, Foxhoundn on qlip #383: "wrap texts so users on both
+         phones and desktops can easily read and copy it"; David, 2026-10-22). A read-only row is the only
+         rendering the value gets, so it wraps in full (`full`), a long text moving to the inset under the row
+         with "Show more". */
       full = false
     ): React.ReactNode => {
       const valueType = getValueType(field, schema);
@@ -320,9 +387,13 @@ export const CompactRow = memo(
         ...(full ? { flexWrap: 'wrap' } : {}),
       };
       const textStyle: React.CSSProperties =
-        full ?
-          { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
-        : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+        full ? { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } : SUMMARY_TEXT_STYLE;
+
+      // The expression the value holds, in either shape the editor stores it: the flag on the option, or
+      // the envelope nested in its value as a reloaded draft has it.
+      const expressionAst = getExpressionAst(field as { is_expression?: boolean; value?: unknown });
+      const isExpression =
+        !!(field as { is_expression?: boolean })?.is_expression || expressionAst !== undefined;
 
       /* A row has to SAY when its value is an expression.
       
@@ -336,7 +407,7 @@ export const CompactRow = memo(
          The same Σ the expression editor uses, so the mark means the same thing
          wherever it appears. */
       const withExpressionMarker = (rendered: React.ReactNode): React.ReactNode => {
-        if (!(field as { is_expression?: boolean })?.is_expression) {
+        if (!isExpression) {
           return rendered;
         }
 
@@ -361,28 +432,52 @@ export const CompactRow = memo(
         );
       };
 
-      if (valueType === 'rgbcolor') {
-        const swatch = colorToCss(field?.value);
-        return (
-          <span
-            style={
-              swatch ?
-                {
-                  ...wrapStyle,
-                  // a slight wash of the chosen colour behind the swatch + hex
-                  background: `color-mix(in srgb, ${swatch} 14%, transparent)`,
-                  padding: '1px 8px',
-                  borderRadius: 4,
-                }
-              : wrapStyle
-            }
-          >
-            {swatch ?
-              <StyledColorSwatch aria-hidden $color={swatch} $border={cDivider} />
-            : null}
-            <span style={textStyle}>{formatted}</span>
+      // Template value ($local:…): the read-only template picker — the SAME chip
+      // TemplateField renders when disabled, so a template reads identically here
+      // and in the editor (qorus-ide intent scheme: info / qorus purple).
+      //
+      // A field may also declare templates OF ITS OWN, and a value drawn from
+      // that list is just as much a template even when it does not look like
+      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
+      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
+      // Asking the field's list whether it CONTAINS the value settles it without
+      // guessing at syntax, and hands back the entry whose label the chip prints,
+      // so a reference reads as the name it was chosen by here as well as in the
+      // editor rather than as a raw path.
+      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
+      // The grammar the field declares its references in, when it speaks one of
+      // its own — the same schema key its rich-text editor is given.
+      const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
+
+      /* A template or an expression is shown as one, whatever the field's type, so these two come before
+         any type draws a value of its own (qorus#646). A color's branch came first and called a template
+         or an expression on a color option "Set"; a file's printed the raw reference as a file name. */
+      if (
+        typeof field?.value === 'string' &&
+        !isExpression &&
+        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
+      ) {
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} />;
+      }
+
+      // An expression reads as DPQL wherever it is shown without being edited:
+      // the same rendering its Explain panel and Preview use — monospace,
+      // colored by the language server, template references as chips — so a
+      // collapsed row and the editor it opens never disagree about what the
+      // value looks like. See `DpqlRendering`. In either shape the editor stores
+      // it: the flag on the option, or the envelope nested in its value as a
+      // reloaded draft has it (`getExpressionAst`).
+      if (isExpression && formatted) {
+        return withExpressionMarker(
+          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
+            <DpqlRendering text={formatted} templates={ownTemplates} />
           </span>
         );
+      }
+
+      // a color reads as ReqraftColorValue draws one, at its one-line size; a sensitive one is not shown
+      if (valueType === 'rgbcolor' && !(schema as { sensitive?: boolean } | undefined)?.sensitive) {
+        return <ReqraftColorValue value={field?.value} size='compact' wrap={full} />;
       }
 
       if (valueType === 'file') {
@@ -401,6 +496,7 @@ export const CompactRow = memo(
         );
       }
 
+      // a yes/no holding a template has read as the template, above, not as Yes (qorus#646)
       if (valueType === 'bool' || valueType === 'boolean') {
         const truthy = field?.value === true || field?.value === 'true';
         return (
@@ -424,7 +520,7 @@ export const CompactRow = memo(
       // only surface still printing them as prose.
       //
       // `intent` is a FILL, which is what a tag is — the hazard the other
-      // branches warn about is only ever using an intent as a TEXT colour.
+      // branches warn about is only ever using an intent as a TEXT color.
       //
       // Falls through to the plain summary unless EVERY entry yields a name: a
       // partly-chipped row would read as though the unnamed cases were missing.
@@ -472,19 +568,28 @@ export const CompactRow = memo(
         return (
           <ReqoreControlGroup gapSize='tiny' verticalAlign='center' wrap>
             {(absorbedFields ?? []).map((absorbedName) => {
-              const absorbedValue = (
-                availableOptions?.[absorbedName] as IQorusFormField | undefined
-              )?.value;
+              const absorbedField = availableOptions?.[absorbedName] as IQorusFormField | undefined;
+              const absorbedValue = absorbedField?.value;
               if (absorbedValue === undefined || absorbedValue === null || absorbedValue === '') {
                 return null;
               }
+              /* What the value is called and its picture, as its own control draws it: a language is "Qore" with
+                 its logo, not the value it is stored as, "qore" (qorus#646, David's review). */
+              const absorbedSchema = options?.[absorbedName];
+              const choice = findAllowedValueOption(absorbedValue, absorbedSchema) as
+                { image?: string } | undefined;
               return (
                 <ReqoreTag
                   key={absorbedName}
                   className='options-readfirst-absorbed-tag'
                   size='small'
                   minimal
-                  label={String(absorbedValue)}
+                  icon={choice?.image ? 'CheckboxBlankLine' : undefined}
+                  leftIconProps={choice?.image ? { image: choice.image } : undefined}
+                  label={
+                    formatOptionValue(absorbedField as IQorusFormField, absorbedSchema) ||
+                    String(absorbedValue)
+                  }
                   tooltip={getAbsorbedLabel(absorbedName)}
                 />
               );
@@ -541,30 +646,6 @@ export const CompactRow = memo(
         );
       }
 
-      // Template value ($local:…): the read-only template picker — the SAME chip
-      // TemplateField renders when disabled, so a template reads identically here
-      // and in the editor (qorus-ide intent scheme: info / qorus purple).
-      //
-      // A field may also declare templates OF ITS OWN, and a value drawn from
-      // that list is just as much a template even when it does not look like
-      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
-      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
-      // Asking the field's list whether it CONTAINS the value settles it without
-      // guessing at syntax, and hands back the entry whose label the chip prints,
-      // so a reference reads as the name it was chosen by here as well as in the
-      // editor rather than as a raw path.
-      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
-      // The grammar the field declares its references in, when it speaks one of
-      // its own — the same schema key its rich-text editor is given.
-      const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
-      if (
-        typeof field?.value === 'string' &&
-        !(field as { is_expression?: boolean }).is_expression &&
-        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
-      ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
-      }
-
       // A LIST whose elements are rich-text envelopes is a list of strings, so it
       // reads as those strings. Without this the row fell through to the generic
       // list summary and printed a bare count ("1 item") above the structured
@@ -587,19 +668,6 @@ export const CompactRow = memo(
         if (segments.some((segment) => segment.kind === 'tag')) {
           return <TemplateText segments={segments} templates={ownTemplates} full={full} />;
         }
-      }
-
-      // An expression reads as DPQL wherever it is shown without being edited:
-      // the same rendering its Explain panel and Preview use — monospace,
-      // coloured by the language server, template references as chips — so a
-      // collapsed row and the editor it opens never disagree about what the
-      // value looks like. See `DpqlRendering`.
-      if ((field as { is_expression?: boolean })?.is_expression && formatted) {
-        return withExpressionMarker(
-          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
-            <DpqlRendering text={formatted} templates={ownTemplates} />
-          </span>
-        );
       }
 
       /* A value that MENTIONS a reference rather than being one.
@@ -626,11 +694,42 @@ export const CompactRow = memo(
         );
       }
 
-      return withExpressionMarker(full ? <span style={textStyle}>{formatted}</span> : formatted);
+      /* A value that is a web address is a link to it, in an editable row and a read-only one: it opens in a
+         new tab, and a click or a key on it follows it and does not open the row (Foxhoundn on qlip #383:
+         "Please render links as links"; David, 2026-10-22). Only the value as typed: a value drawn as a label
+         or masked is not its address. */
+      const link = formatted === field?.value ? webLinkOf(formatted) : undefined;
+      return withExpressionMarker(
+        <span style={textStyle}>
+          {link ?
+            <WebLink address={link} color={cInfo} />
+          : formatted}
+        </span>
+      );
     };
 
     const schema = options?.[optionName];
     const label = schema?.display_name || optionName;
+    /* The name and its asterisk, which a word joiner (U+2060) holds to the name's last character: it is on the
+       name's (last) line, never on a line of its own under it (Foxhoundn, qlip #392). The name stays one text,
+       found by its words as it always was. */
+    const nameWithAsterisk = (asterisk: boolean) => (
+      <>
+        {label}
+        {asterisk ?
+          <StyledLabelAsterisk className='options-readfirst-required'>
+            {'\u2060'}
+            <ReqoreIcon
+              icon='Asterisk'
+              color={rowInks.danger}
+              size={`${LABEL_ASTERISK_SIZE}px`}
+              margin='left'
+              marginSize='tiny'
+            />
+          </StyledLabelAsterisk>
+        : null}
+      </>
+    );
     const injectedOptionActions = React.useMemo<IReqorePanelAction[]>(
       () =>
         schema ?
@@ -756,10 +855,13 @@ export const CompactRow = memo(
           role='presentation'
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() =>
-            setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || [])
-          }
-          onMouseLeave={() => setHighlightedOptions([])}
+          // a mouse's hover, not a tap's emulated one: see `isHoveringPointer`
+          onPointerEnter={(e) => {
+            if (isHoveringPointer(e)) {
+              setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || []);
+            }
+          }}
+          onPointerLeave={() => setHighlightedOptions([])}
         >
           <ReqoreDropdown
             className='options-readfirst-required-group'
@@ -799,6 +901,20 @@ export const CompactRow = memo(
       (fixedAllowedValueOption ?
         (schema?.type as string) || (schema?.ui_type as string)
       : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
+    /* A complex field (a tall or nested editor) opens in the card below the row: reqraft's own complex types, and
+       the host's editors it names (`cardEditorTypes`): a host editor of its own, such as a sheet contract, opened
+       in the row's value column, about 240px wide (qorus#646). */
+    const isHostCardEditor = !!cardEditorTypes?.includes(editType);
+    const opensInCard = COMPACT_COMPLEX_TYPES.has(editType) || isHostCardEditor;
+    /* What the host draws for the row when it is closed (`readSummaries`): a summary of its own, under which the
+       row draws no preview of the value (see `hostSummarizes`). */
+    const readSummaryUiType = (schema as { ui_type?: string } | undefined)?.ui_type;
+    const ReadSummary = readSummaryUiType ? readSummaries?.[readSummaryUiType] : undefined;
+    /* In a read-only form, a row whose content its line does not show - a host editor that opens in the card, or a
+       row the host summarizes - opens its card with the editor read-only, and its fullscreen view: the summary is
+       one line ("4 columns · 1 rule"), and with no preview under it, the card is where what it holds is read
+       (qorus#646). Any other read-only row shows all it holds and opens nothing. */
+    const readOnlyOpens = !!readOnly && !hidden && (isHostCardEditor || !!ReadSummary);
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
     const inlineEditableNow =
@@ -809,7 +925,7 @@ export const CompactRow = memo(
       !(optionField as { is_expression?: boolean }).is_expression &&
       // A choice with per-option logos (e.g. language) reads better collapsed.
       !optionHasImages(schema) &&
-      !COMPACT_COMPLEX_TYPES.has(editType);
+      !opensInCard;
 
     /* Which of the two editors a row gets is settled when the row OPENS.
      *
@@ -979,10 +1095,16 @@ export const CompactRow = memo(
     //
     // The dependency list is `isExpanded` alone on purpose: adding the value
     // would re-take the snapshot on every keystroke, leaving nothing to cancel.
-    const editEntryValue = React.useRef<{ value: any; type?: string } | undefined>(undefined);
+    const editEntryValue = React.useRef<
+      { value: any; type?: string; is_expression?: boolean } | undefined
+    >(undefined);
     React.useEffect(() => {
       if (isExpanded) {
-        editEntryValue.current = { value: optionField?.value, type: optionField?.type };
+        editEntryValue.current = {
+          value: optionField?.value,
+          type: optionField?.type,
+          is_expression: !!(optionField as { is_expression?: boolean } | undefined)?.is_expression,
+        };
       } else {
         editEntryValue.current = undefined;
       }
@@ -994,15 +1116,28 @@ export const CompactRow = memo(
       !!editEntryValue.current &&
       !isEqual(editEntryValue.current.value, optionField?.value);
 
+    // What this row's own editor has typed and not yet reported: its fields report after a pause, and the
+    // row closing takes the pause with it. Done sends it before the row closes; Cancel and Escape drop it
+    // (see `usePendingEdit`).
+    const pendingEdits = usePendingEdits();
+
     // Discard whatever was typed since the field was opened and close it. Used
     // by both the Cancel button and Escape, so the two cannot diverge.
     const cancelEdit = React.useCallback(() => {
+      // an edit still waiting for its pause is part of what is discarded
+      pendingEdits.discard();
       const snapshot = editEntryValue.current;
-      if (snapshot && !isEqual(snapshot.value, optionField?.value)) {
-        handleValueChange(optionName, snapshot.value, snapshot.type);
+      // the field as it was opened: an expression is put back as one, a value as a value
+      if (
+        snapshot &&
+        (!isEqual(snapshot.value, optionField?.value) ||
+          snapshot.is_expression !==
+            !!(optionField as { is_expression?: boolean } | undefined)?.is_expression)
+      ) {
+        handleValueChange(optionName, ...restoredFieldChange(snapshot));
       }
-      toggleExpandedOption(optionName);
-    }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption]);
+      collapseOption(optionName);
+    }, [handleValueChange, optionField?.value, optionName, collapseOption, pendingEdits]);
 
     // The sub-schema describing this field's value, when it has one. A value the
     // form knows the shape of is previewed THROUGH that shape (see
@@ -1086,8 +1221,7 @@ export const CompactRow = memo(
             e.stopPropagation();
             handleValueChange(
               optionName,
-              originalValue.current?.[optionName]?.value,
-              originalValue.current?.[optionName]?.type
+              ...restoredFieldChange(originalValue.current?.[optionName])
             );
           }}
         />
@@ -1153,7 +1287,8 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
-    const isPassiveCloseAction = fixedAllowedValueOption;
+    // nothing can have been typed where the value is a fixed choice, or the form is read-only (a card opened to read)
+    const isPassiveCloseAction = fixedAllowedValueOption || !!readOnly;
     // Cancel — the counterpart to Done, and the answer to "how do I get out of
     // here without keeping this". Done was the only way to leave an open field,
     // so every way out committed: the check, clicking away, and Escape (which
@@ -1202,13 +1337,23 @@ export const CompactRow = memo(
         icon={isPassiveCloseAction ? 'CloseLine' : 'CheckLine'}
         aria-label={isPassiveCloseAction ? 'Close field' : 'Done'}
         tooltip={isPassiveCloseAction ? 'Close field' : 'Done'}
-        onClick={() => toggleExpandedOption(optionName)}
+        onClick={() => {
+          // what was typed inside the field's pause reaches the form before the row closes
+          pendingEdits.flush();
+          collapseOption(optionName);
+        }}
       />
     );
 
     // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
     // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
-    const infoActive = !hidden;
+    /* A field not set yet keeps quiet in the Optional box, but not once it is opened: its editor is where
+       its messages are read, and one saying why the field cannot be used is the answer to opening it. Such
+       a row used to show them only when its editor reported '' on opening, which put the field in the form
+       (qorus#646: the Qorus IDE's "Wait (ms)", disabled while "Until Step" is set). */
+    const infoActive = !hidden || isExpanded;
+    /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
+       take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
     type TInfoMsg = { intent?: string; title?: string; content: string };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
@@ -1239,17 +1384,19 @@ export const CompactRow = memo(
         }).map((m) => ({ intent: m.intent as string, content: String(m.label) }))
       : [];
     // TWO display channels, matching the Focus prototype:
-    //  • dedicated schema `messages` → prominent coloured PANELS below the row;
+    //  • dedicated schema `messages` → prominent colored PANELS below the row;
     //  • everything else (validation reasons, the unmet-dependency hint, the
     //    default-value note) → a compact INLINE reason strip — not a panel.
     const panelMessages = schemaMessages;
     const inlineMessages: TInfoMsg[] = [
       ...fieldMessages,
+
       ...(infoActive && schema?.default_value_desc ?
         [
           {
+            // the default's description is the server's markdown: its words, not its marks
             content:
-              `Default: ${schema.default_value_display_name || ''} — ${schema.default_value_desc}`.trim(),
+              `Default: ${schema.default_value_display_name || ''} — ${markdownToProse(schema.default_value_desc)}`.trim(),
           },
         ]
       : []),
@@ -1273,23 +1420,59 @@ export const CompactRow = memo(
     // the inline editor: opening a field used to drop it, leaving an editing row
     // with no route to the field's description at all. Stops propagation because
     // both labels are click targets themselves (the row expands / collapses).
+    /* A real button (qorus#646, David's decision): in the tab order with a focus ring, a finger's size on a touch
+       screen (`small`) and a mouse's on a desktop (`tiny`), opening the help on a click, Enter or Space. It was a
+       12px icon the keyboard could not reach. It sits in a label or a row that opens or closes on the same keys and
+       clicks, so it keeps them: the row does not also open or close. */
+    /* What kind of value the option takes (qorus#646, David's review: "type information should be shown on hover or
+       after clicking the 'Show all field information' control rather than by default"): in its name's hover and
+       in its help, beside its description, and beside its name only while the form shows all field information or
+       its types. */
+    const typeWords = optionTypeWords(schema, typeName);
+    const typeSentence = optionTypeSentence(schema, typeName, typeSentenceForm);
+    // what the option is, or, where it has no description at all, why nothing says so (qorus#646)
+    const labelHover =
+      [
+        schema?.short_desc || (!schema?.desc && typeSentence ? NO_OPTION_DESCRIPTION : undefined),
+        typeSentence && `Takes ${typeSentence}.`,
+      ]
+        .filter(Boolean)
+        .join('\n') || undefined;
+    const typeShown = !!showFieldTypes || showAllDescriptions === true;
+    /* the help says what the option takes, and its description where it has one: every option with either has
+       it, a short description too, so a touch screen, which has no hover, reaches the type (qorus#646, David) */
     const helpIcon =
-      schema?.desc ?
-        <ReqoreIcon
+      schema?.desc || schema?.short_desc || typeSentence ?
+        <ReqoreButton
           icon='QuestionLine'
-          size='12px'
-          effect={{ opacity: 0.55 }}
-          margin='left'
-          marginSize='tiny'
-          role='button'
-          tabIndex={-1}
-          aria-label='Help'
-          className='options-readfirst-help'
-          style={{ cursor: 'help' }}
-          onClick={(event) => {
+          size={coarse ? 'small' : 'tiny'}
+          minimal
+          flat
+          fixed
+          className={`options-readfirst-help${coarse ? ' options-readfirst-help-touch' : ''}`}
+          aria-label={`Help: ${label}`}
+          tooltip='Help'
+          effect={{ opacity: rowInks.helpOpacity }}
+          onClick={(event: React.MouseEvent) => {
             event.stopPropagation();
             handleOptionLabelClick(optionName);
           }}
+          onKeyDown={(event: React.KeyboardEvent) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.stopPropagation();
+            }
+          }}
+        />
+      : null;
+    // beside the name, muted: it is about the field, not its value
+    const typeTag =
+      typeWords && typeShown ?
+        <ReqoreTag
+          size='tiny'
+          minimal
+          className='options-readfirst-type'
+          label={typeWords}
+          labelEffect={{ opacity: rowInks.descOpacity }}
         />
       : null;
 
@@ -1310,7 +1493,7 @@ export const CompactRow = memo(
        `compact` for the same reason the row inset asks for it: this is a strip
        inside a row, never a page, and markdown authored as a document opens with
        a heading that would outgrow the field label above it. Without a host
-       renderer the string is drawn as it always was. */
+       renderer it reads as the plain text its markdown renders to (`plainTextNode`). */
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -1323,15 +1506,15 @@ export const CompactRow = memo(
       >
         {markdownRenderer && typeof m.content === 'string' ?
           markdownRenderer({ value: m.content, compact: true })
-        : m.content}
+        : plainTextNode(m.content)}
       </ReqoreMessage>
     );
+    // in the intent's shade that reads on the row (the intents themselves did not: a danger reason was 2.7:1)
     const reasonColor = (intent?: string) =>
-      intent === 'danger' ? cDanger
-      : intent === 'warning' ? cWarning
-      : intent === 'success' ?
-        (theme?.intents as Record<string, string> | undefined)?.success || cInfo
-      : `${cMuted}cc`;
+      intent === 'danger' ? rowInks.danger
+      : intent === 'warning' ? rowInks.warning
+      : intent === 'success' ? rowInks.success
+      : rowInks.mutedReason;
 
     const infoToggle = null;
 
@@ -1355,8 +1538,13 @@ export const CompactRow = memo(
     const clusterHoverProps =
       clustered && clusterMembers.length ?
         {
-          onMouseEnter: () => setHighlightedOptions(clusterMembers),
-          onMouseLeave: () => setHighlightedOptions([]),
+          // a mouse's hover, not a tap's emulated one: see `isHoveringPointer`
+          onPointerEnter: (e: React.PointerEvent) => {
+            if (isHoveringPointer(e)) {
+              setHighlightedOptions(clusterMembers);
+            }
+          },
+          onPointerLeave: () => setHighlightedOptions([]),
         }
       : {};
 
@@ -1377,8 +1565,10 @@ export const CompactRow = memo(
         tooltip='More actions'
         items={[
           {
-            label: 'Edit fullscreen',
+            // a card opened to read is viewed in full, not edited
+            label: readOnly ? 'View fullscreen' : 'Edit fullscreen',
             icon: 'FullscreenLine',
+            className: 'options-readfirst-fullscreen',
             onClick: () => setFocusedEditing(optionName),
           } as IReqoreDropdownItem,
           ...(removable && !hidden ?
@@ -1462,8 +1652,8 @@ export const CompactRow = memo(
             <ReqoreP
               className='options-readfirst-label-code-size'
               size='tiny'
-              effect={{ opacity: 0.45, textAlign: 'left' }}
-              style={{ fontFamily: 'monospace' }}
+              effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
+              style={{ fontFamily: MONO_FONT_STACK }}
             >
               {`${formatCodeChars(chars)} ${formatCodeLines(lines)}`}
             </ReqoreP>
@@ -1471,9 +1661,13 @@ export const CompactRow = memo(
         })()
       : null;
 
-    if (isExpanded && !readOnly) {
+    if (isExpanded && (!readOnly || readOnlyOpens)) {
       if (inlineEditable) {
-        const collapse = () => toggleExpandedOption(optionName);
+        // closing the row by its label keeps what was typed, as Done does
+        const collapse = () => {
+          pendingEdits.flush();
+          collapseOption(optionName);
+        };
         const editingRow = (
           <div
             key={optionName}
@@ -1492,7 +1686,7 @@ export const CompactRow = memo(
                 role='button'
                 tabIndex={0}
                 aria-label={`Collapse ${label}`}
-                title={schema?.short_desc || undefined}
+                title={labelHover}
                 $color={cKey}
                 $pointer
                 onClick={collapse}
@@ -1503,11 +1697,13 @@ export const CompactRow = memo(
                   }
                 }}
               >
-                {label}
-                {required ?
-                  <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
-                : null}
-                {helpIcon}
+                <StyledLabelName $fill>
+                  <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+                    {nameWithAsterisk(!!required)}
+                    {typeTag}
+                  </span>
+                  {helpIcon}
+                </StyledLabelName>
               </StyledRowLabel>
               {/* An OPEN field always shows its short_desc — that's where the hint
                   is needed and there's no per-row button to reveal it (the edit
@@ -1517,9 +1713,9 @@ export const CompactRow = memo(
                 <StyledLabelDesc
                   className='options-readfirst-label-desc'
                   size='small'
-                  effect={{ opacity: 0.55 }}
+                  effect={{ opacity: rowInks.descOpacity }}
                 >
-                  {labelShortDesc}
+                  {markdownToProse(labelShortDesc)}
                 </StyledLabelDesc>
               : null}
               {codeSizeNode}
@@ -1584,7 +1780,9 @@ export const CompactRow = memo(
                   are other fields, which this row did not open. */}
               <RowOpenPickerContext.Provider value={openThePicker}>
                 <RowMenuContext.Provider value={rowMenu}>
-                  {renderOption(optionName, optionField, 'small', true)}
+                  <PendingEditsContext.Provider value={pendingEdits}>
+                    {renderOption(optionName, optionField, 'small', true)}
+                  </PendingEditsContext.Provider>
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
             </div>
@@ -1639,7 +1837,9 @@ export const CompactRow = memo(
                   shortDescription={schema?.short_desc}
                   longDescriptionShownByDefault
                 />
-                {renderOption(optionName, optionField)}
+                <PendingEditsContext.Provider value={pendingEdits}>
+                  {renderOption(optionName, optionField)}
+                </PendingEditsContext.Provider>
               </FocusedEditing>
             : null}
           </StyledColumn>
@@ -1674,15 +1874,18 @@ export const CompactRow = memo(
           $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
         >
           <div
+            className='options-readfirst-card-header'
             style={{
               display: 'flex',
-              alignItems: 'flex-start',
+              // a heading of one line is centred on the card's actions; one with a description or tags under
+              // its name lines up by its top (David's review of qorus#646: the name sat above the buttons)
+              alignItems: schema?.short_desc || cardTags.length ? 'flex-start' : 'center',
               justifyContent: 'space-between',
               gap: 12,
             }}
           >
             <StyledCardHeading>
-              <StyledCardLabel $color={cKey}>
+              <StyledCardLabel $color={cKey} title={labelHover}>
                 {(
                   (schema as { icon?: string } | undefined)?.icon ||
                   (schema as { image?: string } | undefined)?.image
@@ -1693,20 +1896,21 @@ export const CompactRow = memo(
                     size='14px'
                   />
                 : null}
-                <span>
-                  {label}
-                  {required ?
-                    <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
-                  : null}
-                  {/* The `?` belongs here too. The read row and the inline
+                <StyledLabelName>
+                  <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+                    {nameWithAsterisk(!!required)}
+                    {/* The `?` belongs here too. The read row and the inline
                       editor both carry it; the edit CARD did not — and the card
                       is the path every field with an `arg_schema` takes, so a
                       nested form like an auth profile's Context Mapping opened
                       with its long description unreachable. Expanding a field
                       is exactly when its explanation is wanted, so losing the
-                      affordance on the way in is backwards. */}
+                      affordance on the way in is backwards. Beside the name, as
+                      on the read row. */}
+                  </span>
                   {helpIcon}
-                </span>
+                </StyledLabelName>
+                {typeTag}
                 {cardBadges.map((badge, index) =>
                   typeof badge === 'object' ?
                     <ReqoreTag
@@ -1816,6 +2020,8 @@ export const CompactRow = memo(
               isFullscreen={focusedEditing === optionName}
               onClose={() => setFocusedEditing(undefined)}
               description={(schema?.display_name as string) || optionName}
+              // a card opened to read is viewed in full, not edited
+              {...(readOnly ? { label: 'Focused View' } : {})}
             >
               {focusedEditing === optionName ?
                 <Description
@@ -1825,7 +2031,9 @@ export const CompactRow = memo(
                 />
               : null}
               <RowMenuContext.Provider value={rowMenu}>
-                {renderOption(optionName, optionField)}
+                <PendingEditsContext.Provider value={pendingEdits}>
+                  {renderOption(optionName, optionField)}
+                </PendingEditsContext.Provider>
               </RowMenuContext.Provider>
             </FocusedEditing>
           </div>
@@ -1892,8 +2100,13 @@ export const CompactRow = memo(
       typeof optionField.value === 'object' &&
       !Array.isArray(optionField.value) &&
       !isExpression;
+    /* Where the host draws the row's summary (`readSummaries`), the row draws no preview of its own under it: the
+       host's summary says what the value is ("4 columns · 1 rule"), and a structured preview of the same value
+       under it ("columns · List · 4 items") said it again, in reqraft's words (qorus#646). The card, which a
+       read-only form opens for such a row too (`readOnlyOpens`), is where the value is read in full. */
+    const hostSummarizes = !!ReadSummary;
     const hashEntries =
-      !hidden && (isPlainHashType || isObjectValuedType) ?
+      !hidden && !hostSummarizes && (isPlainHashType || isObjectValuedType) ?
         getHashEntries(optionField, schema)
       : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
@@ -1902,6 +2115,7 @@ export const CompactRow = memo(
     // {type,value} envelope. Plain scalar lists keep just their joined summary.
     const isHashList =
       !hidden &&
+      !hostSummarizes &&
       (valueType === 'list' || valueType === 'free-list' || valueType === 'array') &&
       Array.isArray(optionField?.value) &&
       optionField.value.length > 0 &&
@@ -1923,6 +2137,7 @@ export const CompactRow = memo(
     // preview uses — mutually exclusive with `showStructuredPreview`.
     const showCodePreview =
       !hidden &&
+      !hostSummarizes &&
       valueType === 'code-editor' &&
       typeof optionField?.value === 'string' &&
       optionField.value.length > 0;
@@ -1980,6 +2195,7 @@ export const CompactRow = memo(
     // every description row tall for nothing.
     const showMarkdownPreview =
       !hidden &&
+      !hostSummarizes &&
       !showCodePreview &&
       !!markdownRenderer &&
       // keyed on the schema's ui_type, not on getValueType(): a markdown value
@@ -2002,6 +2218,7 @@ export const CompactRow = memo(
     const showLongTextInset =
       readOnly &&
       !hidden &&
+      !hostSummarizes &&
       !showCodePreview &&
       !showMarkdownPreview &&
       !showStructuredPreview &&
@@ -2032,10 +2249,8 @@ export const CompactRow = memo(
       ) ?
         `${optionField.value.trim().split('\n').length} lines`
       : undefined;
-    const typeLabel =
-      showFieldTypes ?
-        `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
-      : null;
+    // the option's type beside its name, while the form shows field types: in words, as an open option says it
+    const typeLabel = typeShown ? typeWords : undefined;
     // A `readonly` field is one the system owns — an assigned id, a recorded
     // provenance. The server states that on the field itself; only the older
     // compat projection also mapped it to `disabled`, so on this path the form
@@ -2098,8 +2313,13 @@ export const CompactRow = memo(
           role='presentation'
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() => setHighlightedOptions(depHighlightNames)}
-          onMouseLeave={() => setHighlightedOptions([])}
+          // a mouse's hover, not a tap's emulated one: see `isHoveringPointer`
+          onPointerEnter={(e) => {
+            if (isHoveringPointer(e)) {
+              setHighlightedOptions(depHighlightNames);
+            }
+          }}
+          onPointerLeave={() => setHighlightedOptions([])}
         >
           <ReqoreDropdown
             className='options-readfirst-lock-deps'
@@ -2147,7 +2367,11 @@ export const CompactRow = memo(
       // change has said exactly what they want, and answering with silence
       // teaches them the surface is broken.
       if (fieldDisabled || readOnly) {
-        if (readOnly && !fieldDisabled) {
+        // ...except a row whose line cannot show what it holds: it opens its card to be read (`readOnlyOpens`)
+        if (readOnlyOpens && !fieldDisabled) {
+          // what the row was drawn as decides: open, it closes; closed, it opens (see expandOption)
+          (isExpanded ? collapseOption : expandOption)(optionName);
+        } else if (readOnly && !fieldDisabled) {
           onReadOnlyActivate?.(optionName);
         }
         return;
@@ -2164,7 +2388,11 @@ export const CompactRow = memo(
       // not-yet-set field just expands its editor (with an empty value); it joins
       // the form's output the moment a value is set (and moves to Set / Needs
       // attention), and drops back to Optional when cleared. No explicit add step.
-      toggleExpandedOption(optionName);
+      //
+      // What the row was drawn as decides, not the state by the time the update lands: a click on a row drawn
+      // closed opens it, even if the first-required scan's update has opened it in the meantime (a toggle closed
+      // it again: qorus#646, the Qorus IDE's Schema "Draft Is Saved").
+      (isExpanded ? collapseOption : expandOption)(optionName);
     };
 
     // Row chrome: icon/image before the label; schema `intent` as the edge
@@ -2220,8 +2448,8 @@ export const CompactRow = memo(
        go. Then it takes a button's role, focus and keyboard handling, because
        a thing that acts on a click has to be reachable without a mouse and has
        to announce what it does — and "Edit X", not "X", is what it does. */
-    const readOnlyIsAWayIn = !!readOnly && !fieldDisabled && !!onReadOnlyActivate;
-    const actsOnClick = !readOnly || readOnlyIsAWayIn;
+    const readOnlyIsAWayIn = !!readOnly && !fieldDisabled && !readOnlyOpens && !!onReadOnlyActivate;
+    const actsOnClick = !readOnly || readOnlyIsAWayIn || readOnlyOpens;
 
     const row = (
       <div
@@ -2231,12 +2459,17 @@ export const CompactRow = memo(
         tabIndex={actsOnClick ? 0 : undefined}
         aria-label={
           readOnlyIsAWayIn ? `Edit ${label}`
-          : readOnly ? undefined
+          : readOnlyOpens ?
+            `View ${label}`
+          : readOnly ?
+            undefined
           : label
         }
-        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn ? ' readfirst-row-way-in' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn || readOnlyOpens ? ' readfirst-row-way-in' : ''}${readOnlyOpens ? ' readfirst-row-opens' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
-        style={readOnlyIsAWayIn ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle}
+        style={
+          readOnlyIsAWayIn || readOnlyOpens ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle
+        }
         onClick={actsOnClick ? activate : undefined}
         onKeyDown={
           !actsOnClick ? undefined : (
@@ -2252,34 +2485,35 @@ export const CompactRow = memo(
       >
         {clusterNode}
         <StyledLabelBlock className='options-readfirst-label-block'>
-          <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
+          <StyledRowLabel title={labelHover} $color={cKey}>
             {rowChromeIcon}
-            {/* label + asterisk + help flow as ONE inline run, so the asterisk
-                stays right after the last word even when the name wraps. */}
-            <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
-              {label}
-              {requiredMark ?
-                <ReqoreIcon
-                  icon='Asterisk'
-                  color='danger'
-                  size='10px'
-                  margin='left'
-                  marginSize='tiny'
-                />
-              : null}
+            {/* The name, its asterisk with its last word and what it takes flow as one run that wraps; the help is
+                at the column's right edge, on the name's first line, the same x in every row (`StyledLabelName`). */}
+            <StyledLabelName $fill>
+              <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+                {nameWithAsterisk(requiredMark)}
+                {typeLabel ?
+                  <ReqoreTag
+                    size='tiny'
+                    minimal
+                    className='options-readfirst-type'
+                    label={typeLabel}
+                    labelEffect={{ opacity: rowInks.descOpacity }}
+                  />
+                : null}
+              </span>
               {helpIcon}
-            </span>
-            {typeLabel ?
-              <ReqoreTag size='tiny' minimal label={typeLabel} labelEffect={{ opacity: 0.55 }} />
-            : null}
+            </StyledLabelName>
           </StyledRowLabel>
           {showLabelDesc ?
+            /* A sentence in the label's own type, clamped to three lines: drawn as the prose its markdown
+               renders to, never its marks (`markdownToProse`). */
             <StyledLabelDesc
               className='options-readfirst-label-desc'
               size='small'
-              effect={{ opacity: 0.55 }}
+              effect={{ opacity: rowInks.descOpacity }}
             >
-              {labelShortDesc}
+              {markdownToProse(labelShortDesc)}
             </StyledLabelDesc>
           : null}
           {codeSizeNode}
@@ -2287,8 +2521,8 @@ export const CompactRow = memo(
             <ReqoreP
               className='options-readfirst-label-lines'
               size='tiny'
-              effect={{ opacity: 0.45, textAlign: 'left' }}
-              style={{ fontFamily: 'monospace' }}
+              effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
+              style={{ fontFamily: MONO_FONT_STACK }}
             >
               {lineCountNote}
             </ReqoreP>
@@ -2322,7 +2556,7 @@ export const CompactRow = memo(
           // actual data — crucial when stacked under a (muted) description on
           // mobile, where a dim value blends into the prose. The bold name still
           // outranks it; the empty dash stays faint.
-          $color={empty || hidden ? `${cMuted}66` : cKey}
+          $color={empty || hidden ? rowInks.emptyValue : cKey}
           $empty={empty || hidden}
         >
           {/* A markdown value with a host renderer draws in full in the inset
@@ -2357,12 +2591,29 @@ export const CompactRow = memo(
           ) ?
             null
           : <span className='options-readfirst-valuetext'>
-              {hidden || empty ?
+              {ReadSummary && !hidden ?
+                /* the host's own summary: an editor that reports a status says it here, set or not
+                   ("Field mappings required", "… incomplete"), where "2 items" said nothing of it (qorus#646) */
+                <ReadSummary
+                  name={optionName}
+                  value={optionField?.value}
+                  schema={schema}
+                  formatted={formatted}
+                />
+              : hidden || empty ?
                 formattedDefault || '—'
               : renderReadFirstValue(optionField, schema, formatted, readOnly)}
             </span>}
           {readOnlyChoiceDesc ?
-            <span className='options-readfirst-choice-desc'>{readOnlyChoiceDesc}</span>
+            /* What the chosen option means, on its own line: the server writes it in markdown ("Each
+               `POST /conversations` ..."), so the host's renderer draws it, as it draws the schema messages
+               below; without one, it reads as the plain text it renders to, its paragraphs kept. A block, as
+               what is drawn is. */
+            <div className='options-readfirst-choice-desc'>
+              {markdownRenderer ?
+                markdownRenderer({ value: readOnlyChoiceDesc, compact: true })
+              : plainTextNode(readOnlyChoiceDesc)}
+            </div>
           : null}
           {valueReasons.map((m, i) => (
             <span
@@ -2370,6 +2621,7 @@ export const CompactRow = memo(
               className='options-readfirst-reason'
               style={{ color: reasonColor(m.intent) }}
             >
+              {/* a reason is a line in the row's type, said as it is (see `TInfoMsg`) */}
               {m.content}
             </span>
           ))}
@@ -2435,7 +2687,7 @@ export const CompactRow = memo(
                         // lives (qorus-ide registers its brand purple there).
                         // Falling back to `info` keeps this working for a
                         // consumer that registers nothing — the heading is
-                        // accented either way, just in the theme's own colour
+                        // accented either way, just in the theme's own color
                         // rather than one this library picked.
                         accent:
                           (theme?.intents as Record<string, string> | undefined)?.custom1 || cInfo,
@@ -2476,6 +2728,24 @@ export const CompactRow = memo(
                     options,
                     values: availableOptions,
                   })
+                : CodeEditor ?
+                  /* Code is shown as the host shows code: its own editor, read-only, given what it inherits (its
+                     language) - highlighted, with its language server - and as a plain block only where there is
+                     none (qorus#646, David's decision). */
+                  <div className='options-readfirst-code options-readfirst-code-editor'>
+                    <CodeEditor
+                      {...(schema as object)}
+                      {...resolveInheritProps(
+                        (schema as { inherit_props?: Record<string, string> } | undefined)
+                          ?.inherit_props,
+                        availableOptions
+                      )}
+                      name={optionName}
+                      value={optionField.value as string}
+                      readOnly
+                      onChange={ignoreReadOnlyChange}
+                    />
+                  </div>
                 : <StyledCodePreview
                     className='options-readfirst-code'
                     $bg={cHover}
@@ -2600,8 +2870,7 @@ export const CompactRow = memo(
                   e.stopPropagation();
                   handleValueChange(
                     optionName,
-                    originalValue.current?.[optionName]?.value,
-                    originalValue.current?.[optionName]?.type
+                    ...restoredFieldChange(originalValue.current?.[optionName])
                   );
                 }}
               />

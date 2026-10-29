@@ -4,6 +4,7 @@ import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
+import { markdownToProse } from '../../helpers/markdownText';
 import { useMarkdownRenderer } from './markdownRendererContext';
 
 export interface IDescriptionProps extends IReqoreParagraphProps {
@@ -46,9 +47,9 @@ const StyledDescriptionMarkdown = styled.div<{ $compact?: boolean }>`
    * the sentence around it.
    *
    * This used to map the code element to a ReqoreTag with an explicit near-white
-   * colour, which auto-contrasted to near-black text: on a dark form a description
+   * color, which auto-contrasted to near-black text: on a dark form a description
    * full of option names read as a row of glaring labels rather than as prose with
-   * identifiers in it. Keeping the reading colour and tinting the background
+   * identifiers in it. Keeping the reading color and tinting the background
    * behind it says "literal" without shouting it.
    */
   code {
@@ -243,7 +244,8 @@ export const Description = memo(
         ) : (
           <ReqoreP {...rest}>
             <ReqoreSpan effect={effect}>
-              {finalShownDescription} {finalLongDescription ? renderToggle() : null}
+              {/* one line of prose until expanded: the words of its markdown, never the marks */}
+              {markdownToProse(finalShownDescription)} {finalLongDescription ? renderToggle() : null}
             </ReqoreSpan>
           </ReqoreP>
         )}

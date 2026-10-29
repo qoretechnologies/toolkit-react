@@ -6,8 +6,10 @@
 // DPQL rendering, that rendering named a reference by its path only, so the
 // Discord assistant's Save Reply row went from `trim(Choices[0].message.content)`
 // back to the `$data:{dc_ai_reply.choices[0].message.content}` path.
+import { TEMPLATE_INTENT_MEANINGS } from '../../src/helpers/templateTree';
 import { describe, expect, it } from 'vitest';
 import { makeDpqlTagRenderer } from '../../src/components/dpqlEditor/dpqlTags';
+import { REFERENCE_CHIP_PROPS } from '../../src/helpers/templates';
 import type { ISlateElement } from '../../src/components/smartEditor/types';
 
 const TEMPLATES = {
@@ -40,10 +42,10 @@ describe('makeDpqlTagRenderer template references', () => {
     );
 
     expect(props.label).toBe('Choices[0].message.content');
-    expect(props.tooltip).toMatchObject({
-      title: 'Choices[0].message.content',
-      content: 'The choices the model returned',
-    });
+    expect(props.tooltip).toMatchObject({ title: 'Choices[0].message.content' });
+    // what it is; a blue chip's color says nothing of its own (green and purple do: `TEMPLATE_INTENT_MEANINGS`)
+    expect(props.tooltip).toMatchObject({ content: 'The choices the model returned' });
+    expect(TEMPLATE_INTENT_MEANINGS.success).toBe('From the event that starts the Qog.');
     expect(props.icon).toBe('ExchangeDollarLine');
   });
 
@@ -59,6 +61,7 @@ describe('makeDpqlTagRenderer template references', () => {
       tag('$data:{dc_ai_reply.choices[0].message.content}')
     );
 
-    expect(props).toEqual({ icon: 'ExchangeDollarLine', intent: 'info' });
+    // the reference chip every view draws, and nothing that names it
+    expect(props).toEqual({ ...REFERENCE_CHIP_PROPS, icon: 'ExchangeDollarLine', intent: 'info' });
   });
 });
