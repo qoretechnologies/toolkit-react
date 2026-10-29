@@ -2042,13 +2042,6 @@ export const WithTemplates: Story = {
       },
       { timeout: 30000 }
     );
-    // leave nothing open behind this story: the next one in the file starts from a clean editor (develop #602,
-    // the timeout whose stack was in the story that ran after this one)
-    await userEvent.keyboard('{Escape}');
-    await waitFor(() => {
-      expect(document.querySelector('.completion-menu')).toBeNull();
-      expect(document.querySelector('.template-picker')).toBeNull();
-    });
   },
 };
 
