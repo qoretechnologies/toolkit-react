@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
 import { debounce } from 'lodash';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BaseEditor, BasePoint, Editor, Point, Range, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
@@ -488,7 +488,10 @@ export function useLspAutocomplete(
     !emptyMessage &&
     filteredItems.length === 1 &&
     !!templateRowMarks(filteredItems[0]).browseAll;
-  useEffect(() => {
+  /* A layout effect, not a passive one: it runs within the commit that leaves only Browse all templates, before
+     the next event - an Escape closing the list - can be heard. A passive effect runs after paint, so a close
+     landing in that window reopened the picker it had just put away (a flake only a loaded machine lost). */
+  useLayoutEffect(() => {
     if (!onlyBrowseAll) return;
     const editor = editorRef.current;
     let empty = false;
