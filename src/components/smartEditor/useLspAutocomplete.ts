@@ -665,6 +665,21 @@ export function useLspAutocomplete(
     // a list put away is at no chip, from now: the next one asked by typing is at the caret
     anchoredChipPathRef.current = null;
     pendingChipRequestRef.current = null;
+    /* The picker is left with the editor still focused (its keys came from the page): put the caret back where it
+       asked, so what follows acts on the text - a select-all, a key - and is not lost because the picker's
+       open/close left the editor without a selection (develop #602, RichText clear after the picker). Only when
+       the editor still has the focus and no selection of its own: a click away keeps its own. */
+    const editor = editorRef.current;
+    const caret = askedAtRef.current;
+    if (editor && caret) {
+      try {
+        if (ReactEditor.isFocused(editor) && !editor.selection) {
+          Transforms.select(editor, caret);
+        }
+      } catch {
+        // a point the editor no longer has, or the editor is gone: nothing to restore
+      }
+    }
     askedAtRef.current = null;
     requestCompletions.cancel();
     // an answer still on its way is for a list that has been put away

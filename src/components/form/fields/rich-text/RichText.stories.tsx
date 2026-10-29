@@ -1022,6 +1022,18 @@ export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
         expect(pickerLabels()).toEqual([]);
         expect(completionLabels()).toEqual([]);
       });
+    // clears the editor deterministically: selects all its content through the DOM and deletes it, so the
+    // emptying never rides on Ctrl+A landing while the editor's selection is mid-sync after the picker closed
+    // (develop #602: Ctrl+A did not select all, so Backspace left all but the last character)
+    const clearEditable = async () => {
+      editable.focus();
+      const range = canvasElement.ownerDocument.createRange();
+      range.selectNodeContents(editable);
+      const selection = canvasElement.ownerDocument.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      await userEvent.keyboard('{Backspace}');
+    };
     await userEvent.click(editable);
     await expectTop();
     await userEvent.keyboard('{Escape}');
@@ -1038,7 +1050,7 @@ export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
     await userEvent.keyboard('{Escape}');
     await expectClosed();
     expect(plainTextOf(editable)).toBe('Dear $zq');
-    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await clearEditable();
     await waitFor(() => expect(plainTextOf(editable)).toBe(''));
     await expectTop();
     await userEvent.keyboard('{Escape}');

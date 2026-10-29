@@ -2018,8 +2018,19 @@ export const WithTemplates: Story = {
       expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'Interface ID']))
     );
 
-    // Clear and switch to `@` → fields.
-    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    // Clear and switch to `@` → fields. Clearing is deterministic (select all through the DOM, then delete)
+    // so it never rides on Ctrl+A landing mid-selection-sync; the emptied field offers its picker, which the
+    // Escape puts away before `@` opens the completion list in its place (develop #602).
+    await userEvent.keyboard('{Escape}');
+    const range = canvasElement.ownerDocument.createRange();
+    range.selectNodeContents(editable);
+    const selection = canvasElement.ownerDocument.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() => expect(editable.textContent?.replace(/\uFEFF/g, '').trim()).toBe(''));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
     await typeAsAPerson(userEvent, '@');
     await waitFor(
       () => {
@@ -2030,6 +2041,13 @@ export const WithTemplates: Story = {
       },
       { timeout: 30000 }
     );
+    // leave nothing open behind this story: the next one in the file starts from a clean editor (develop #602,
+    // the timeout whose stack was in the story that ran after this one)
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(document.querySelector('.completion-menu')).toBeNull();
+      expect(document.querySelector('.template-picker')).toBeNull();
+    });
   },
 };
 
