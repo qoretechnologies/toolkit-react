@@ -76,6 +76,8 @@ export interface ITicketThreadMessage {
   message_id: string;
   author_type: TTicketMessageAuthor;
   author_id: string;
+  /** the author's display name where the plane knows one; the id otherwise */
+  author_name?: string;
   body: string;
   internal?: boolean;
   created: string;
@@ -175,7 +177,7 @@ const authorLabel = (message: ITicketThreadMessage, viewerRole: TTicketViewerRol
   if (viewerRole === 'customer') {
     return message.author_type === 'customer' ? 'You' : 'Qorus Support';
   }
-  return `${message.author_type === 'staff' ? 'Support' : 'Customer'} · ${message.author_id}`;
+  return `${message.author_type === 'staff' ? 'Support' : 'Customer'} · ${message.author_name ?? message.author_id}`;
 };
 
 /**

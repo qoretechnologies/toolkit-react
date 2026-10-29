@@ -47,7 +47,7 @@ export const States: Story = {
     docs: {
       description: {
         story:
-          'Renders every state of the value as a labelled rail row against one frozen clock: an active grant from the staff and the customer side, one expiring within the hour (amber), one whose expiry passed (muted), an automatic grant until the ticket is resolved, a revoked one, an open request from both sides, a setting of "never", and none.',
+          'Renders every state of the value as a labeled rail row against one frozen clock: an active grant from the staff and the customer side, one expiring within the hour (amber), one whose expiry passed (muted), an automatic grant until the ticket is resolved, a revoked one, an open request from both sides, a setting of "never", and none.',
       },
     },
   },
@@ -65,7 +65,7 @@ export const States: Story = {
       'Granted by the customer · ends in 40 minutes',
       'Access ended 5 minutes ago',
       'Granted automatically · ends in 6 days',
-      'Access revoked: ended by support · yesterday',
+      'Access ended by support · yesterday',
       'Requested for 3 days · awaiting the customer · 45 minutes ago',
       'Qorus Support asks for access for 24 hours · 45 minutes ago',
       "Not allowed: the account's setting is never",

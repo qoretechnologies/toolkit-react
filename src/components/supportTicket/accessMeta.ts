@@ -1,6 +1,7 @@
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { ITicketEnumMeta, humaniseWireValue } from './meta';
+import type { TTicketViewerRole } from '../supportTicket/meta';
 
 /*
  * The delegated-support-access vocabulary (qorus#692): how the account's access
@@ -107,19 +108,28 @@ export const SUPPORT_GRANT_STATE_META: Record<TSupportGrantState, ISupportAccess
 };
 export const supportGrantStateMeta = lookup(SUPPORT_GRANT_STATE_META);
 
+/** How a grant ended, as what follows "Access": "ended by the customer", "ran out". */
 export const SUPPORT_GRANT_END_CAUSE_LABEL: Record<TSupportGrantEndCause, string> = {
   customer_revoked: 'ended by the customer',
   staff_revoked: 'ended by support',
   superseded: 'extended into a new grant',
-  ticket_resolved: 'the ticket was resolved',
-  ticket_closed: 'the ticket was closed',
-  policy_changed: "the account's setting changed",
-  account_erased: 'the account was erased',
-  workspace_deleted: 'the workspace was deleted',
-  expired: 'expired',
+  ticket_resolved: 'ended when the ticket was resolved',
+  ticket_closed: 'ended when the ticket was closed',
+  policy_changed: "ended when the account's setting changed",
+  account_erased: 'ended when the account was erased',
+  workspace_deleted: 'ended when the workspace was deleted',
+  expired: 'ran out',
 };
-export const supportGrantEndCauseLabel = (cause: string | undefined): string | undefined =>
-  cause ? ((SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseWireValue(cause)) : undefined;
+/**
+ * The cause as the viewer reads it: the customer who ended it reads "ended by you", and
+ * reads staff as "Qorus Support", as everywhere on the customer surface.
+ */
+export const supportGrantEndCauseLabel = (cause?: string, viewerRole?: TTicketViewerRole): string | undefined => {
+  if (!cause) return undefined;
+  if (viewerRole === 'customer' && cause === 'customer_revoked') return 'ended by you';
+  if (viewerRole === 'customer' && cause === 'staff_revoked') return 'ended by Qorus Support';
+  return (SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseWireValue(cause);
+};
 
 export const SUPPORT_ACCESS_DURATION_LABEL: Record<TSupportAccessDuration, string> = {
   '24h': '24 hours',
@@ -137,7 +147,7 @@ export const SUPPORT_ACCESS_AUDIT_ACTION_META: Record<TSupportAccessAuditAction,
   access_requested: { label: 'Access requested', intent: 'pending', icon: 'ShieldUserLine' },
   granted: { label: 'Access granted', intent: 'success', icon: 'ShieldCheckLine' },
   extended: { label: 'Access extended', intent: 'info', icon: 'TimerLine' },
-  revoked: { label: 'Access revoked', intent: 'danger', icon: 'ShieldCrossLine' },
+  revoked: { label: 'Access ended', intent: 'danger', icon: 'ShieldCrossLine' },
   expired: { label: 'Access expired', intent: 'muted', icon: 'HourglassLine' },
   used: { label: 'Workspace read', intent: 'info', icon: 'EyeLine' },
   use_refused: { label: 'Read refused', intent: 'warning', icon: 'ForbidLine' },
@@ -157,7 +167,6 @@ export const supportAccessAuditActionMeta = (action: string): ISupportAccessMeta
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 60 * 60 * 24 * 365],
   ['month', 60 * 60 * 24 * 30],
-  ['week', 60 * 60 * 24 * 7],
   ['day', 60 * 60 * 24],
   ['hour', 60 * 60],
   ['minute', 60],
@@ -165,9 +174,16 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 ];
 
 /**
+ * The callers' clock (`useNow`) ticks once a minute while the plane stamps an event the
+ * moment it happens, so a fresh event sits up to a minute ahead of that clock. The gap is
+ * the present, not the future: "asked in 8 seconds" is the artifact this closes.
+ */
+const CLOCK_TICK_SECONDS = 60;
+
+/**
  * "in 3 hours" / "2 days ago" against a clock the caller passes, so a story freezes it
  * and two surfaces reading the same grant agree. An unparsable instant is an empty
- * string, never "NaN years ago".
+ * string, never "NaN years ago"; an instant inside the clock's tick is "just now".
  *
  * Not `epoch-timeago` (what `ReqoreTimeAgo` and `TicketReferences` use): it speaks only
  * of the past and reads the real clock, so it can neither say "in 3 hours" for a grant
@@ -178,10 +194,17 @@ export const formatRelativeTime = (iso: string | undefined, now: number, locale 
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
   const seconds = Math.round((then - now) / 1000);
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  if (seconds >= 0 && seconds < CLOCK_TICK_SECONDS) {
+    return locale === 'en'
+      ? 'just now'
+      : new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(0, 'second');
+  }
   for (const [unit, secondsInUnit] of RELATIVE_UNITS) {
     if (Math.abs(seconds) >= secondsInUnit || unit === 'second') {
-      return rtf.format(Math.round(seconds / secondsInUnit), unit);
+      // "tomorrow" and "yesterday" read well; "next month" does not say when a grant ends, and a week
+      // is not a unit here so seven days read "in 7 days", not "next week"
+      const numeric = secondsInUnit > 60 * 60 * 24 ? 'always' : 'auto';
+      return new Intl.RelativeTimeFormat(locale, { numeric }).format(Math.round(seconds / secondsInUnit), unit);
     }
   }
   return '';
