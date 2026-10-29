@@ -643,7 +643,7 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next; the yes/no checkbox is one menu item away: "Use Custom Value" in the ⋮ menu.',
+          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next, with the picker of its templates open; the yes/no checkbox is one menu item away: "Use Custom Value" in the ⋮ menu.',
       },
     },
   },
@@ -655,13 +655,21 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
       expect(el).toBeTruthy();
       return el as HTMLElement;
     });
-    await userEvent.type(editor, '{Backspace}{Backspace}');
+    /* the caret after the chip, where a click past the line's end puts it: set as well as clicked, for a page
+       opened on this story alone has no caret of its own until something is typed (the window's selection is
+       empty after the click) */
+    await userEvent.click(editor);
+    const spots = editor.querySelectorAll('[data-slate-string], [data-slate-zero-width]');
+    const last = document.createTreeWalker(spots[spots.length - 1], NodeFilter.SHOW_TEXT).nextNode() as Text;
+    window.getSelection()?.collapse(last, last.length);
+    await userEvent.keyboard('{Backspace}{Backspace}');
     await waitFor(() => expect(editor.textContent?.replace(/\uFEFF/g, '').trim()).toBe(''));
     expect(editor.isConnected).toBe(true);
     expect(document.querySelector('.reqore-checkbox')).toBeNull();
-    // the checkbox, from the menu
-    const buttons = canvasElement.querySelectorAll<HTMLElement>('button');
-    await userEvent.click(buttons[buttons.length - 1]);
+    // the emptied text offers its templates: the picker, at its top (Foxhoundn on qlip #425)
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeInTheDocument());
+    // the checkbox, from the menu: one click on it, the picker open or not
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('button.template-more')!);
     await userEvent.click(await screen.findByText('Use Custom Value'));
     await waitFor(() => expect(document.querySelector('.reqore-checkbox')).toBeInTheDocument());
   },

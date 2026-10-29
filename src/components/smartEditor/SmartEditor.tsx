@@ -348,6 +348,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
     const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
     const lastPlainTextRef = useRef(value);
+    // what an emptied text opens (set where the picker's roots are known, below)
+    const emptiedRef = useRef<() => void>(() => undefined);
     // Cached Slate nodes, refreshed only on EXTERNAL value changes — not on
     // the typing echo. Passing a fresh ref every keystroke re-runs
     // ReqoreRichTextEditor's tokenizer mid-token (typed `@s` collapses to a
@@ -780,6 +782,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const handleSlateChange = useCallback(
       (newNodes: ISlateElement[]) => {
         const plainText = converter.fromSlateNodes(newNodes);
+        // the text emptied by this edit (cleared, or its last character deleted): see below
+        const emptied = !!lastPlainTextRef.current?.trim() && !plainText.trim();
 
         // A selection change reports the same tree; anything else is the tree
         // the editor now holds, and the one every offset is computed against.
@@ -822,6 +826,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         if (editorRef.current && !readOnly) {
           autocomplete.onSlateChange(editorRef.current as any, newNodes);
+          /* A text emptied where the author is writing offers what an empty text offers: its templates and
+             fields, the picker at its top, as a click in it opens it - not nothing, nor a list of one row that
+             only leads there (Foxhoundn on qlip #425; David: the picker offers every completion in every
+             state). */
+          if (emptied) emptiedRef.current();
         }
         aidsChangeRef.current();
         askInsertableRef.current();
@@ -886,6 +895,22 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        box through React. */
     const { openAtCaret, openBrowse } = autocomplete;
     const browsesOnClick = !!pickerRoots.length;
+    // the picker at the top of an emptied text, where it has templates and the author is in it
+    emptiedRef.current = () => {
+      const editor = editorRef.current;
+      if (!browsesOnClick || readOnly || !editor) return;
+      try {
+        if (!ReactEditor.isFocused(editor)) return;
+        const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
+        openBrowse(editor as any, {
+          rect: { left: at.left, bottom: at.bottom },
+          caret: Editor.start(editor as unknown as Editor, []),
+          arrows: true,
+        });
+      } catch {
+        // the editor is not drawn: nothing opens
+      }
+    };
     // whether the Tab whose key comes up brought the focus into the editor (`onKeyUp` below)
     const tabCameIn = useTabCameIn(() => {
       const editor = editorRef.current;

@@ -475,6 +475,35 @@ export function useLspAutocomplete(
 
   const groups = useMemo(() => groupCompletionItems(filteredItems), [filteredItems]);
 
+  /* A list of nothing but Browse all templates, with nothing said above it, is a step for nothing: the picker
+     opens in its place, at its top, as taking that row would open it (Foxhoundn on qlip #425: "automatically show
+     all the templates if it's the only available option"; David: the picker offers every completion in every
+     state). Where the list says something with it (no record fields here, what to write after a context), the
+     list stays, for what it says. */
+  const onlyBrowseAll =
+    isOpen &&
+    !browse &&
+    !isFetching &&
+    !note &&
+    !emptyMessage &&
+    filteredItems.length === 1 &&
+    !!templateRowMarks(filteredItems[0]).browseAll;
+  useEffect(() => {
+    if (!onlyBrowseAll) return;
+    const editor = editorRef.current;
+    let empty = false;
+    try {
+      empty = !!editor && !converter.fromSlateNodes(editor.children as ISlateElement[]).trim();
+    } catch {
+      // the editor is not drawn: the picker opens without the arrows
+    }
+    setDocsFor(null);
+    // in an empty text the arrows have nowhere else to go: they move through the picker, as a click there opens it
+    setBrowse({ arrows: empty || undefined });
+    popoverKeyRef.current += 1;
+    setPopoverKey(popoverKeyRef.current);
+  }, [onlyBrowseAll, converter, setBrowse]);
+
   // Fires the LSP request and commits results into state. Separate from
   // the debounced wrapper so imperative callers (`openAtChip`) can bypass
   // the typing debounce.

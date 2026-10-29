@@ -622,6 +622,44 @@ export const RichTextFormField = memo(({
 
   /* A click on a template chip the catalogue lists opens the picker at the chip's group, its row the keyboard's,
      and the pick takes its place; a second click puts it away. */
+  /* A text emptied where the author is writing (cleared, or its last character deleted) offers what an empty text
+     offers: the picker at its top, as a click in it opens it (Foxhoundn on qlip #425; David: the picker offers
+     every completion in every state). */
+  const writtenRef = useRef<string>();
+  // the value the text is drawn with (`formattedValue`, below)
+  const drawnRef = useRef<unknown>();
+  const openWhereEmptied = (nodes: unknown) => {
+    let text = '';
+    try {
+      text = defaultSlateConverter.fromSlateNodes(nodes as any);
+    } catch {
+      return;
+    }
+    // what it held before: its last edit's, or the value it was drawn with
+    let before = writtenRef.current;
+    if (before === undefined) {
+      try {
+        before = defaultSlateConverter.fromSlateNodes(drawnRef.current as any);
+      } catch {
+        before = '';
+      }
+    }
+    writtenRef.current = text;
+    const editor = editorRef.current;
+    if (!before?.trim() || text.trim() || !templateRoots.length || readOnly || !editor) return;
+    try {
+      if (!ReactEditor.isFocused(editor)) return;
+      const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
+      openBrowse(editor as any, {
+        rect: { left: at.left, bottom: at.bottom },
+        caret: Editor.start(editor as unknown as Editor, []),
+        arrows: true,
+      });
+    } catch {
+      // the editor is not drawn: nothing opens
+    }
+  };
+
   const templateChipClick = useCallback(
     (tag: { value?: unknown }) => {
       const listed =
@@ -808,6 +846,7 @@ export const RichTextFormField = memo(({
     typeof localValue !== 'object' ? [{ type: 'paragraph', children: [{ text: String(localValue ?? '') }] }]
     : localValue === null ? undefined
     : localValue;
+  drawnRef.current = formattedValue;
 
 
   /* Everything the caller passed, minus its own `tags` — see the prop's doc
@@ -831,6 +870,7 @@ export const RichTextFormField = memo(({
       onChange={(val: any) => {
         handleChange(val);
         if (editorRef.current) autocomplete.onSlateChange(editorRef.current as any, val);
+        openWhereEmptied(val);
       }}
       /* `rest` is spread BEFORE everything this component computes. It used to
          come after, so a caller's prop of the same name silently replaced the

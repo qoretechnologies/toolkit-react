@@ -994,3 +994,54 @@ export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
     await waitFor(() => expect(chipsOf(editable)).toEqual(['Interface Name']));
   },
 };
+
+export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AScalarValueTakesNoRecordWhole`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Where the list would hold nothing but Browse all templates, the picker opens in its place (Foxhoundn on ' +
+          'qlip #425). `Dear $zq` typed key by key, a `$` that goes on to nothing: the picker at its top; Escape ' +
+          'puts it away, the keys staying in the text. The text cleared with Ctrl+A and Backspace: the picker again.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    const top = ['Context Data', 'Look up customer', 'Receive order', 'Template contexts'];
+    const expectTop = async () => {
+      await waitFor(() => expect(pickerLabels()).toEqual(top), { timeout: 30000 });
+      expect(completionLabels()).toEqual([]);
+    };
+    const expectClosed = () =>
+      waitFor(() => {
+        expect(pickerLabels()).toEqual([]);
+        expect(completionLabels()).toEqual([]);
+      });
+    await userEvent.click(editable);
+    await expectTop();
+    await userEvent.keyboard('{Escape}');
+    await expectClosed();
+    // where `$` has rows, Browse all templates is among them
+    await typeAsAPerson(userEvent, 'Dear $');
+    await waitFor(
+      () => expect(completionLabels()).toEqual(expect.arrayContaining(['$data:', 'Browse all templates'])),
+      { timeout: 30000 }
+    );
+    await typeAsAPerson(userEvent, 'zq');
+    await expectTop();
+    expect(editable.contains(document.activeElement), "the keys are the text's").toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await expectClosed();
+    expect(plainTextOf(editable)).toBe('Dear $zq');
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(plainTextOf(editable)).toBe(''));
+    await expectTop();
+    await userEvent.keyboard('{Escape}');
+    await expectClosed();
+  },
+};

@@ -3272,3 +3272,119 @@ export const AKeyRightAfterAClosedPairGoesBetweenItsQuotes: Story = {
     expect(plainTextOf(editable)).toBe('"1"');
   },
 };
+
+/** The template picker open at the top of the field's templates, and no completion list beside it. */
+const expectThePickerAtItsTop = async () => {
+  await waitFor(
+    () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Order data', 'Template contexts', 'Record fields'])),
+    { timeout: 30000 }
+  );
+  expect(completionLabels()).toEqual([]);
+};
+
+/** Nothing open at the editor: neither the picker nor the completion list. */
+const expectNothingOpen = () =>
+  waitFor(() => {
+    expect(pickerLabels()).toEqual([]);
+    expect(completionLabels()).toEqual([]);
+  });
+
+export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
+  args: { ...WithTemplates.args, onChange: fn() },
+  parameters: {
+    ...WithTemplates.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ThePickerOffersEveryCompletionAfterClearing`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Where the completion list would hold nothing but Browse all templates, the picker opens in its place, at ' +
+          'its top (Foxhoundn on qlip #425). A click in the empty field opens it; Escape puts it away, the keys ' +
+          'staying in the text. `1 + 2` typed key by key: the picker. `+ $` lists the contexts, Browse all templates ' +
+          'among them; `zq`, which goes on to nothing: the picker. Escape puts it away each time.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    // a click in the empty field
+    await userEvent.click(editable);
+    await expectThePickerAtItsTop();
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    // typed: nothing is listed but the way to the templates
+    await typeAsAPerson(userEvent, '1 + 2');
+    await expectThePickerAtItsTop();
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 + 2'));
+    // where there are rows, Browse all templates is one of them, and the list stays
+    await typeAsAPerson(userEvent, ' + $');
+    await waitFor(
+      () => expect(completionLabels()).toEqual(expect.arrayContaining(['$data:', 'Browse all templates'])),
+      { timeout: 30000 }
+    );
+    expect(pickerLabels()).toEqual([]);
+    // a `$` that goes on to nothing
+    await typeAsAPerson(userEvent, 'zq');
+    await expectThePickerAtItsTop();
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 + 2 + $zq'));
+  },
+};
+
+export const AnEmptiedFieldOpensThePicker: Story = {
+  args: { ...WithTemplates.args, value: '1 + 2', onChange: fn() },
+  parameters: {
+    ...WithTemplates.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ThePickerOffersEveryCompletionAfterClearing`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'A text emptied as it is written offers what an empty field offers: the picker at its top. `1 + 2` ' +
+          'cleared with Ctrl+A and Backspace: the picker, whose rows the arrows move through, as in an empty field ' +
+          'clicked; Escape puts it away. `x` typed and taken back with Backspace: the picker again. The template ' +
+          'button opens it too.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    // cleared
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await expectThePickerAtItsTop();
+    // the arrows move through the picker, as in an empty field clicked
+    const first = await waitFor(() => {
+      const row = pickerFocused();
+      expect(row, 'the row the keyboard is on').toBeTruthy();
+      return row;
+    });
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(pickerFocused()).not.toBe(first));
+    expect(editable.contains(document.activeElement), 'the keys are the text\'s').toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    // its last character deleted
+    await typeAsAPerson(userEvent, 'x');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('x'));
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await expectThePickerAtItsTop();
+    await userEvent.keyboard('{Escape}');
+    await expectNothingOpen();
+    // the template button
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+    await expectThePickerAtItsTop();
+  },
+};
