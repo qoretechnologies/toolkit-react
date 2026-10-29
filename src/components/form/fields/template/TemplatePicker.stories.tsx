@@ -130,6 +130,9 @@ export const DrillDownAndBack: Story = {
 export const SearchReachesDeepPaths: Story = {
   args: { onPick: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SearchInAGroupOrEverywhere`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -177,6 +180,9 @@ export const SearchInAGroupOrEverywhere: Story = {
 export const KeyboardOnly: Story = {
   args: { onPick: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `QogTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -218,6 +224,9 @@ export const ALargeGroupIsPaged: Story = {
     fields: undefined,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SearchInAGroupOrEverywhere`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -263,6 +272,9 @@ export const MembersLoadedWhenOpened: Story = {
     fields: undefined,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `QogTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

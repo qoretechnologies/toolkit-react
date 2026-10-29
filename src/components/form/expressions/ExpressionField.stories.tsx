@@ -151,6 +151,9 @@ export const ModeToggleInTheHostsWords: Story = {
     modeLabels: { text: 'Texte', visual: 'Visuel' },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -800,6 +803,12 @@ export const TextModeConditionThatGivesTrueOrFalse: Story = typedExpressionStory
   },
   CONDITION_SCHEMA
 );
+TextModeConditionThatGivesTrueOrFalse.parameters = {
+  ...TextModeConditionThatGivesTrueOrFalse.parameters,
+  // Interaction-only: the play assertions are the guard, and the end state
+  // is already pictured by `TextModeTypeFits`.
+  qlip: { skip: true },
+};
 
 export const TextModeBoolValueThatGivesANumber: Story = typedExpressionStory(
   'bool',
@@ -895,6 +904,12 @@ export const TextModeAutoAsksNothing: Story = typedExpressionStory(
     expect(canvasElement.textContent).not.toContain('This may not fit');
   }
 );
+TextModeAutoAsksNothing.parameters = {
+  ...TextModeAutoAsksNothing.parameters,
+  // Interaction-only: the play assertions are the guard, and the end state
+  // is already pictured by `TextModeTypeFits`.
+  qlip: { skip: true },
+};
 
 /**
  * Text (DPQL) mode, backed by a mock-socket LSP. Typing DPQL parses to the
@@ -952,6 +967,9 @@ export const TextModeHoverSaysWhatAnOperatorIs: Story = {
     defaultMode: 'text',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeSeedsWhenAstArrivesLate`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -986,6 +1004,9 @@ export const TextModeReferenceTypedOutIsAChip: Story = {
     defaultMode: 'text',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeSeedsWhenAstArrivesLate`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1027,6 +1048,9 @@ export const TextModeOfAnUnfinishedExpression: Story = {
     defaultMode: 'text',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeConditionThatGivesANumber`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1152,6 +1176,9 @@ const openMoreMenu = async (canvasElement: HTMLElement) => {
 
 export const WriteAConditionInFormEngine: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TextModeOffersTemplateCompletions`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1213,6 +1240,9 @@ export const WriteAConditionInFormEngineOnAPhone: Story = {
  */
 export const ToggleInFormEngine: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `RemovedInVisualStaysInVisual`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1448,6 +1478,9 @@ export const OfferAcceptedOpensTextMode: Story = {
  */
 export const OfferSurvivesARederivedSchema: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `OfferAcceptedOpensTextMode`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2254,6 +2287,9 @@ export const VisualConditionSaysTheServersWords: Story = {
   },
   beforeEach: serverWordsForConditions,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `VisualConditionWithANumberPart`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2279,6 +2315,9 @@ export const VisualTextConditionSaysTheServersWords: Story = {
   },
   beforeEach: serverWordsForConditions,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `VisualConditionWithATextPart`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2300,7 +2339,9 @@ export const VisualConditionSaysTheServersWordsOnAPhone: Story = {
   ...VisualConditionSaysTheServersWords,
   decorators: [withCoarsePointer],
   parameters: {
-    qlip: { viewport: PHONE_VIEWPORT },
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `VisualConditionWithANumberPartOnAPhone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2471,6 +2512,9 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
     localTemplates: FIELD_TEMPLATES as never,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AnAtWithNoRecordSaysThereIsNone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2523,6 +2567,9 @@ export const TheTextViewPickerOffersEveryCompletion: Story = {
     localTemplates: FIELD_TEMPLATES as never,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AnAtWithNoRecordSaysThereIsNone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

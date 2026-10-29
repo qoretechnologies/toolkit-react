@@ -267,6 +267,9 @@ export const NumberTypedFreely: StoryObj<typeof meta> = {
     componentFromType: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateReferencesInText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -354,6 +357,9 @@ export const TemplateValue: StoryObj<typeof meta> = {
     value: '$local:id',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateReferencesInText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -392,6 +398,9 @@ export const BracedTemplateValue: StoryObj<typeof meta> = {
     } as any),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateReferencesInText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -445,6 +454,9 @@ export const AliasedStateTemplateValue: StoryObj<typeof meta> = {
     } as any,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateReferencesInText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -494,6 +506,9 @@ export const ExtendedPathTemplateValue: StoryObj<typeof meta> = {
     } as any,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateReferencesInText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -545,6 +560,9 @@ export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
 export const ShowsTemplatesList: StoryObj<typeof meta> = {
   ...TemplateValue,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForNumber`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -575,6 +593,9 @@ export const ShowsTemplatesListForString: StoryObj<typeof meta> = {
 export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
   ...BooleanComponent,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForNumber`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -616,6 +637,9 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     componentFromType: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateWithFunctions`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -742,6 +766,9 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     defaultInternalType: 'string',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateReferencesInText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -770,6 +797,9 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
 
 export const ValueIsResetWhenChangingToCustom: StoryObj<typeof meta> = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AutoComponent`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -819,6 +849,9 @@ export const TemplatesWithMultipleLevels: StoryObj<typeof meta> = {
     templates: buildTemplates(multiLevelTemplates as any),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForString`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -836,6 +869,9 @@ export const TemplatesWithMultipleLevels: StoryObj<typeof meta> = {
 
 export const TemplatesWithMultipleLevelsAndHashField: StoryObj<typeof meta> = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AStateIsTakenWholeByARecordField`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1073,6 +1109,9 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
     value: undefined,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AutoComponent`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1162,6 +1201,9 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
     value: 'already-typed',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `StringComponent`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1280,6 +1322,9 @@ export const WrittenAsTextTextAroundTheTemplate: StoryObj<typeof meta> = {
   args: { ...WrittenAsTextTemplateAlone.args, value: '$record:{pos}' },
   render: WrittenAsText,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WrittenAsTextTemplateAlone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1310,6 +1355,9 @@ export const WrittenAsTextNumberWithATemplate: StoryObj<typeof meta> = {
   },
   render: WrittenAsText,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WrittenAsTextNumberEmptiedKeepsItsField`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1500,6 +1548,9 @@ export const WrittenAsTextNullStaysAValue: StoryObj<typeof meta> = {
   args: { type: 'any', value: null, allowTemplates: true, allowCustomValues: true, templates: recordTemplates as any, filterTemplatesByType: false },
   render: WrittenAsText,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WrittenAsTextNumberEmptiedKeepsItsField`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1605,6 +1656,9 @@ export const WrittenAsTextNumberPicksATemplate: StoryObj<typeof meta> = {
   },
   render: WrittenAsText,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WrittenAsTextTemplateAlone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1689,6 +1743,9 @@ const onAPhone = {
 export const ATypeOnlyTheServerListsIsOfferedItsTemplates: StoryObj<typeof meta> = {
   args: { component: string, type: 'order-ref', value: '$local:name', allowTemplates: true },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForNumber`.
+    qlip: { skip: true },
     mockData: [
       {
         url: storyApiUrl('system/qorus-type-info'),
@@ -1720,6 +1777,9 @@ export const ATypeOnlyTheServerListsIsOfferedItsTemplatesOnAPhone: StoryObj<type
   parameters: {
     ...ATypeOnlyTheServerListsIsOfferedItsTemplates.parameters,
     ...onAPhone.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ATemplatesTypeIsNamedInTheListOnAPhone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1738,6 +1798,9 @@ export const AnUnlistedTypeIsOfferedItsBaseTypesTemplates: StoryObj<typeof meta>
     allowTemplates: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForNumber`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1756,6 +1819,9 @@ export const AnUnlistedTypeIsOfferedItsBaseTypesTemplatesOnAPhone: StoryObj<type
   globals: onAPhone.globals,
   parameters: {
     ...onAPhone.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ATemplatesTypeIsNamedInTheListOnAPhone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1811,6 +1877,9 @@ export const ATemplateOfAnUnlistedTypeFitsAsItsBaseType: StoryObj<typeof meta> =
     templates: ORDER_TEMPLATES,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForNumber`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1837,6 +1906,9 @@ export const ATemplateOfAnUnlistedTypeFitsAsItsBaseTypeOnAPhone: StoryObj<typeof
   globals: onAPhone.globals,
   parameters: {
     ...onAPhone.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ATemplatesTypeIsNamedInTheListOnAPhone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1893,6 +1965,9 @@ export const ATemplatesTypeIsNamedInTheList: StoryObj<typeof meta> = {
     templates: TYPED_TEMPLATES,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ShowsTemplatesListForNumber`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

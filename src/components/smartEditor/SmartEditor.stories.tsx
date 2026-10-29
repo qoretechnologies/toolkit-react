@@ -97,6 +97,9 @@ export const BasicMock: Story = {
     triggerCharacters: new Set([' ', '.']),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -157,6 +160,9 @@ export const WithMarkdownDocs: Story = {
     triggerCharacters: new Set([' ', '.']),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -551,6 +557,9 @@ const openTheList = async (canvasElement: HTMLElement, onChange: ((value: string
 export const CompletionDocsFromItsInfoButton: Story = {
   args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -582,6 +591,9 @@ export const CompletionDocsFromItsInfoButton: Story = {
 export const CompletionDocsFromTheKeyboard: Story = {
   args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -676,6 +688,9 @@ const shownHovers = () =>
 export const HoverFollowsTheMouseToTheNextWord: Story = {
   args: { languageId: 'demo', initialValue: 'forEach map' },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ReadOnly`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

@@ -527,6 +527,9 @@ export const WithFieldReference: Story = {
     value: '@name == "Alice"',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -541,6 +544,9 @@ export const WithTemplateVariable: Story = {
     value: 'contains("$local:input", "es")',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -557,6 +563,9 @@ export const WithMixedContent: Story = {
     value: '@name == $data:{1.name} && @age > $config:min_age',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -584,6 +593,9 @@ export const WithQuotedFieldReferences: Story = {
     onChange: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -612,6 +624,9 @@ export const WithQuotedFieldReferences: Story = {
 export const QuotedFieldTypedOutIsAChip: Story = {
   args: { value: '', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -643,6 +658,9 @@ export const WithAccessorChains: Story = {
     onChange: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -680,6 +698,9 @@ const chipLook = (chip: HTMLElement) => {
 export const ARecordFieldIsOneChip: Story = {
   args: { value: '@orders[*].id == $record:{orders[*].id}', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -858,6 +879,9 @@ export const DetailsOnAChipOnATouchScreen: Story = {
 export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
   args: { value: '@name == @customer.name', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -954,6 +978,9 @@ export const AChipLongerThanItsLineWrapsInsideIt: Story = {
 export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
   args: { value: '@name == "Alice"', provider: 'orders-db', recordType: 'record', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `HoverOverAChipSaysWhatItsPathIs`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -979,6 +1006,9 @@ export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
 export const AccessorChainTypedOutIsAChip: Story = {
   args: { value: '', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1017,6 +1047,9 @@ export const WithServerParse: Story = {
     useServerParse: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1054,6 +1087,9 @@ export const WithDelayedContext: Story = {
     lsp.delays['dpql/setContext'] = 1500;
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1103,6 +1139,9 @@ export const WithAlertPayloadContext: Story = {
     alertPayloadContext: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1156,6 +1195,9 @@ export const WithFsmContext: Story = {
     templates: QOG_FIELD_TEMPLATES,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TypingNarrowsToWhatItReaches`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1224,6 +1266,9 @@ const caretAt = async (editable: HTMLElement, offset: number) => {
 export const AStateDataPickIsWrittenAsItsChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1257,6 +1302,9 @@ export const AStateDataPickIsWrittenAsItsChip: Story = {
 export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1297,6 +1345,9 @@ export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
 export const AStateChipAndADotGoOnToOneChip: Story = {
   args: { ...WithFsmContext.args, value: '$data:receive_order', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1386,6 +1437,9 @@ export const TypingNarrowsToWhatItReaches: Story = {
 export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
   args: { ...WithFsmContext.args },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1424,6 +1478,9 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
 export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1463,6 +1520,9 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
 export const TheKeyboardBrowsesThePicker: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1498,6 +1558,9 @@ export const TheKeyboardBrowsesThePicker: Story = {
 export const TheTemplateButtonInsertsAtTheCaret: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSignatureHelp`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1539,6 +1602,9 @@ export const TheTemplateButtonInsertsAtTheCaret: Story = {
 export const AChipIsReplacedFromItsGroup: Story = {
   args: { ...WithFsmContext.args, value: '$data:{receive_order.order_id} > 10', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2057,6 +2123,9 @@ export const CanTypeText: Story = {
     onChange: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithPlainText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2114,6 +2183,9 @@ const typeAtTheEndOfTheLine =
 export const TypesAfterAReferenceThatIsTheWholeLine: Story = {
   args: { value: '@pos', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2127,6 +2199,9 @@ export const TypesAfterAReferenceThatIsTheWholeLine: Story = {
 export const TypesAfterAReferenceThatIsTheWholeLineOnTouch: Story = {
   args: { value: '@pos', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2140,6 +2215,9 @@ export const TypesAfterAReferenceThatIsTheWholeLineOnTouch: Story = {
 export const TypesAfterAServerDrawnReference: Story = {
   args: { value: '$record:{pos}', useServerParse: true, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2162,6 +2240,9 @@ export const LspCompletionRoundtrip: Story = {
     onChange: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2216,6 +2297,9 @@ export const LspCompletionRoundtrip: Story = {
  */
 export const TwoEditorsOneConnection: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithPlainText`.
+    qlip: { skip: true },
     chromatic: { disable: true },
     docs: {
       description: {
@@ -2257,6 +2341,9 @@ export const TwoEditorsOneConnection: Story = {
 export const BracketsAndQuotesAreClosed: Story = {
   args: { value: '', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SpaceLeavesAHalfReferenceAsAnError`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2313,6 +2400,9 @@ export const TheMatchingBracketIsMarked: Story = {
 export const FindAndReplace: Story = {
   args: { value: 'concat("old", " and ", "old")', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSignatureHelp`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2349,6 +2439,9 @@ export const FindAndReplace: Story = {
 export const LinesMovedAndCopied: Story = {
   args: { value: '', onChange: fn(), lineNumbers: true },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SpaceLeavesAHalfReferenceAsAnError`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2376,6 +2469,9 @@ export const LinesMovedAndCopied: Story = {
 export const FormattedByTheServer: Story = {
   args: { value: '1+2', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story: 'Shift+Alt+F in "1+2" formats it as the server does (textDocument/formatting): "1 + 2".',
@@ -2500,6 +2596,9 @@ export const AChipSaysWhatItsColorMeans: Story = {
 export const TypingOffersTheServersCompletionsToo: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2540,6 +2639,9 @@ export const TypingOffersTheServersCompletionsToo: Story = {
 export const TabTakesTheHighlightedCompletion: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2615,6 +2717,9 @@ export const SpaceLeavesAHalfReferenceAsAnError: Story = {
 export const AColonBetweenAReferencesPartsIsRefused: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `SpaceLeavesAHalfReferenceAsAnError`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2650,6 +2755,9 @@ export const AColonBetweenAReferencesPartsIsRefused: Story = {
 export const TypingCompletesEachLevel: Story = {
   args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
     templateCatalogue: 'qog-loops',
     docs: {
@@ -2699,6 +2807,9 @@ export const TypingCompletesEachLevel: Story = {
 export const TypingCompletesAContextOfValues: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AChipSaysWhatItsColorMeans`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2729,6 +2840,9 @@ export const TypingCompletesAContextOfValues: Story = {
 export const TypingCompletesEachFieldLevel: Story = {
   args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2766,6 +2880,9 @@ export const TypingCompletesEachFieldLevel: Story = {
 export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     // a Qog state that a workflow's step runs: the order's dynamic data, its keys written
     templateCatalogue: 'qog-workflow-host',
     docs: {
@@ -2936,6 +3053,9 @@ export const AClickAfterAChipListsWhatCanFollow: Story = {
 export const TransientVariablesDefinedAreListed: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
     templateCatalogue: 'qog-loops',
     docs: {
       description: {
@@ -2973,6 +3093,9 @@ export const TransientVariablesDefinedAreListed: Story = {
 export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ADollarWithNoTemplatesListsTheServersContexts`.
+    qlip: { skip: true },
     // a Qog state that nothing runs but on demand: a global and a local variable, no automatic one, in no loop
     templateCatalogue: 'qog-unhosted',
     docs: {
@@ -3007,6 +3130,9 @@ export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
 export const ALoopsContextInsideTheLoop: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ADollarWithNoTemplatesListsTheServersContexts`.
+    qlip: { skip: true },
     templateCatalogue: 'qog-loops',
     docs: {
       description: {
@@ -3109,6 +3235,9 @@ const declareIt = (data: unknown) => {
 export const AKeyRightAfterAClosedPairGoesBetweenItsQuotes: Story = {
   args: { value: '', onChange: fn() },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

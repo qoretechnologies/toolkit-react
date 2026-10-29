@@ -214,6 +214,9 @@ export const ConcreteString: Story = {
     defaultType: 'string',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InferredText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -281,6 +284,9 @@ export const AllowedTypesSubset: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AllowedSoftTypesOfferedAsTheirBase`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -465,6 +471,9 @@ export const RichText: Story = {
     templates: buildTemplates(templates as any),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InferredText`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -637,6 +646,9 @@ export const SavedSoftTypeEditsAsItsBase: Story = {
     value: 5,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AutoDoesNotChangeTypeBackToAuto`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -675,6 +687,9 @@ export const ListWithAllowedValues: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `StringWithAllowedValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -731,6 +746,9 @@ export const StringWithCreatableAllowedValuesOutsideTheList: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `StringWithCreatableAllowedValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

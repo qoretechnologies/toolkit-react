@@ -1212,11 +1212,17 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 {(() => {
                   // what the host can do about it, beside what is said of it
                   const action = diagnosticAction?.(diag);
-                  // as wide as its words, under what is said: a message lays its children out at its width
+                  // as wide as its words, under what is said and apart from it: a message lays its children out at
+                  // its width. The size of the message's words with a pointer, a finger's on a touch screen
+                  // (Foxhoundn on qlip #425: "enormous compared to the text in the message")
                   return action ?
-                      <ReqoreControlGroup size='small' fluid={false}>
+                      <ReqoreControlGroup
+                        size={coarse ? 'small' : 'tiny'}
+                        fluid={false}
+                        style={{ marginTop: 8 }}
+                      >
                         <ReqoreButton
-                          size='small'
+                          size={coarse ? 'small' : 'tiny'}
                           compact
                           fixed
                           className='smart-editor-diagnostic-action'

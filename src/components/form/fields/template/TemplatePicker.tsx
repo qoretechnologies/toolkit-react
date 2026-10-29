@@ -472,7 +472,14 @@ export const TemplatePicker = memo(
       <div
         ref={rootRef}
         className='template-picker'
-        style={{ width: fill ? '100%' : TEMPLATE_PICKER_WIDTH, maxWidth: '100%' }}
+        // the list's own color under all of it - its way back and search box too: the popover it opens in is
+        // transparent, so without it the page shows through around the rows (Foxhoundn on qlip #425)
+        style={{
+          width: fill ? '100%' : TEMPLATE_PICKER_WIDTH,
+          maxWidth: '100%',
+          background: COMPLETION_LIST_THEME.main as string,
+          borderRadius: 6,
+        }}
         onKeyDown={(event) => {
           if (keyFor && (event.target as HTMLElement)?.tagName === 'INPUT') return;
           if (handleKey(event, false)) {
