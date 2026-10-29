@@ -52,6 +52,8 @@ export interface ITicketMessage {
   author_type: TTicketMessageAuthor;
   /** author identity; staff identities are masked from the customer */
   author_id: string;
+  /** the author's display name where the plane knows one (a customer's account name, staff view only) */
+  author_name?: string;
   /** message body (markdown) */
   body: string;
   /** staff-only internal note — never present in the customer thread */
@@ -114,6 +116,9 @@ export interface IStaffTicket extends ITicket {
   /** organization / account */
   scope_type: string;
   account_id: number;
+  /** the customer's account display name and email, for staff; absent when the account has none */
+  customer_name?: string;
+  customer_email?: string;
   groupid?: number;
   /** the staff assignee */
   assignee?: string;

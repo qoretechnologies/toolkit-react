@@ -105,10 +105,10 @@ export const describeWorkspaceAccess = (
   }
   if (grant) {
     const meta = supportGrantStateMeta(grant.state);
-    const cause = supportGrantEndCauseLabel(grant.end_cause);
+    const cause = supportGrantEndCauseLabel(grant.end_cause, viewerRole);
     const when = formatRelativeTime(grant.ended_at ?? grant.expires_at, now);
     return {
-      text: `Access ${meta.label.toLowerCase()}${cause && cause !== meta.label.toLowerCase() ? `: ${cause}` : ''}${when ? ` · ${when}` : ''}`,
+      text: `Access ${cause ?? meta.label.toLowerCase()}${when ? ` · ${when}` : ''}`,
       tooltip: formatInstant(grant.ended_at ?? grant.expires_at) || undefined,
       intent: meta.intent,
       icon: meta.icon,
