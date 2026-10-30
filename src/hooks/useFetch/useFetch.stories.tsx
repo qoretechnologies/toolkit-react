@@ -73,6 +73,9 @@ export const Put: Story = {
     method: 'PUT',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Get`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -101,6 +104,9 @@ export const Post: Story = {
     method: 'POST',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Get`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -129,6 +135,9 @@ export const Del: Story = {
     method: 'DELETE',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Get`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

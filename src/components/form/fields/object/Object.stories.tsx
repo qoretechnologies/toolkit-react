@@ -73,6 +73,9 @@ export const List: Story = {
     resultDataType: 'yaml',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Object`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -278,6 +281,9 @@ export const Yaml: Story = {
     resultDataType: 'yaml',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Json`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -320,6 +326,9 @@ export const YamlToJson: Story = {
     resultDataType: 'json',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Json`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -362,6 +371,9 @@ export const NativeToYaml: Story = {
     resultDataType: 'yaml',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Json`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

@@ -2592,8 +2592,27 @@ export const TheTextViewPickerOffersEveryCompletion: Story = {
       Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row')).map((row) =>
         row.getAttribute('data-label')
       );
+    const nothingOpen = () =>
+      waitFor(() => {
+        expect(document.querySelector('.template-picker')).toBeNull();
+        expect(document.querySelector('.completion-menu')).toBeNull();
+      });
+    // clears the editor deterministically: selects all its content through the DOM and deletes it, so the
+    // emptying never rides on Ctrl+A landing while the editor's selection is mid-sync (develop #602)
+    const clearEditable = async () => {
+      editable.focus();
+      const range = canvasElement.ownerDocument.createRange();
+      range.selectNodeContents(editable);
+      const selection = canvasElement.ownerDocument.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      await userEvent.keyboard('{Backspace}');
+    };
     const openEmpty = async () => {
+      // close whatever is open, and wait for it gone, so the click below opens the picker fresh - not a click
+      // that lands while an earlier list is still closing, which left nothing open (develop #602)
       await userEvent.click(canvasElement.ownerDocument.body);
+      await nothingOpen();
       await userEvent.click(editable);
       await waitFor(
         // the row's fields kept whole under their group's name beside the server's groups
@@ -2601,12 +2620,14 @@ export const TheTextViewPickerOffersEveryCompletion: Story = {
         { timeout: 20000 }
       );
       await userEvent.keyboard('{Escape}');
+      await nothingOpen();
     };
     await openEmpty();
     await userEvent.click(editable);
     await typeAsAPerson(userEvent, '$lo');
     await waitFor(() => expect(seenCompletionLabels()).toContain('$local:'), { timeout: 20000 });
-    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await userEvent.keyboard('{Escape}');
+    await clearEditable();
     await openEmpty();
   },
 };

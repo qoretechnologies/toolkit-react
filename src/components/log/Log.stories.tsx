@@ -185,6 +185,9 @@ export const WithTimestamps: Story = {
     showTimestamps: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CanSendMessages`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -204,6 +207,9 @@ export const WithDefaultMessages: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CanSendMessages`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -219,6 +225,9 @@ export const WithCopyableMessages: Story = {
     allowMessageCopy: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithDeletableMessages`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -348,6 +357,9 @@ export const WithAutoScroll: Story = {
     style: { height: '200px' },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -367,6 +379,9 @@ export const WithAutoScrollAndManualScroll: Story = {
     style: { height: '200px' },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

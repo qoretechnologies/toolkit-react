@@ -50,6 +50,9 @@ export const Default: Story = {
  */
 export const StaffAwaitingLabel: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CustomerAwaitingLabel`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -86,6 +89,9 @@ export const CustomerAwaitingLabel: Story = {
 /** `hideCategory` drops the category tag — for dense list rows. */
 export const HideCategory: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

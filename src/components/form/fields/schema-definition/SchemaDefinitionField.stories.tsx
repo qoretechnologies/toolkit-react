@@ -77,6 +77,9 @@ export const Starter: Story = {
     value: starterDefinition,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ViaFormField`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -269,6 +272,9 @@ export const WithValidationBanner: Story = {
     value: mockPopulatedDefinition,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ViaFormField`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

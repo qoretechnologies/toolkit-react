@@ -665,6 +665,21 @@ export function useLspAutocomplete(
     // a list put away is at no chip, from now: the next one asked by typing is at the caret
     anchoredChipPathRef.current = null;
     pendingChipRequestRef.current = null;
+    /* The picker is left with the editor still focused (its keys came from the page): put the caret back where it
+       asked, so what follows acts on the text - a select-all, a key - and is not lost because the picker's
+       open/close left the editor without a selection (develop #602, RichText clear after the picker). Only when
+       the editor still has the focus and no selection of its own: a click away keeps its own. */
+    const editor = editorRef.current;
+    const caret = askedAtRef.current;
+    if (editor && caret) {
+      try {
+        if (ReactEditor.isFocused(editor) && !editor.selection) {
+          Transforms.select(editor, caret);
+        }
+      } catch {
+        // a point the editor no longer has, or the editor is gone: nothing to restore
+      }
+    }
     askedAtRef.current = null;
     requestCompletions.cancel();
     // an answer still on its way is for a list that has been put away
@@ -997,6 +1012,12 @@ export function useLspAutocomplete(
      ready the completions are asked for what it holds then, as for a chip click (see
      `pendingChipRequestRef`). */
   const pendingTypingRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
+  /* The session's readiness read live, not from this handler's closure: a keystroke the editor hears just as the
+     session becomes ready must not be deferred against a stale `isReady === false` and then left unanswered
+     because the flush effect (which runs on `isReady` changing) has already run. That lost the first `$`/`@`
+     completion on a loaded runner, so the story's wait for it never resolved and the test timed out (#602). */
+  const isReadyRef = useRef(isReady);
+  isReadyRef.current = isReady;
 
   const onSlateChangeImpl = useCallback(
     (
@@ -1004,7 +1025,7 @@ export function useLspAutocomplete(
       nodes: ISlateElement[]
     ) => {
       editorRef.current = editor;
-      if (!editor.selection || !isReady) {
+      if (!editor.selection || !isReadyRef.current) {
         // Don't tear down replace mode just because the click that
         // opened it momentarily left the selection null — clicking a
         // void inline can do that.
@@ -1053,7 +1074,7 @@ export function useLspAutocomplete(
 
       completeAtCaret(editor, nodes);
     },
-    [isReady, isOpen, close, completeAtCaret]
+    [isOpen, close, completeAtCaret]
   );
 
   // Answer an edit made before the session was ready, for what the editor holds now.

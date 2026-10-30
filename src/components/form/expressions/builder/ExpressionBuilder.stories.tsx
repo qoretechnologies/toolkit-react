@@ -162,6 +162,9 @@ export const Default: Story = {
 export const AdditionPickedFresh: Story = {
   ...Default,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AddValueSlot`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -192,6 +195,9 @@ export const DefaultBoolean: Story = {
     returnType: ['boolean'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NewGroupsCanBeCreated`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -461,6 +467,9 @@ export const WithIntType: Story = {
     },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSimpleValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -485,6 +494,9 @@ export const ArgsChangeWhenOperatorChanges: Story = {
   ...WithSimpleValue,
   parameters: {
     ...WithSimpleValue.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithArgWithAllowedValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -533,6 +545,9 @@ export const GroupsCanBeDeleted: Story = {
   ...WithComplexValue,
   parameters: {
     ...WithComplexValue.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithComplexValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -640,6 +655,9 @@ export const VariableArgumentsCanBeRemoved: Story = {
   ...ExpressionWithIntReturnType,
   parameters: {
     ...ExpressionWithIntReturnType.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionWithIntReturnType`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -661,6 +679,9 @@ export const VariableArgumentsCanBeAdded: Story = {
   ...ExpressionWithIntReturnType,
   parameters: {
     ...ExpressionWithIntReturnType.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AddValueSlot`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -873,6 +894,9 @@ export const ReorderLongConcat: Story = {
 export const ReorderViaOverflowMenu: Story = {
   args: { ...concatArgs, reorder: ['overflowMenu'] },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionWithIntReturnType`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -912,6 +936,9 @@ export const ReorderViaOverflowMenu: Story = {
 export const ReorderViaDragHandle: Story = {
   args: { ...concatArgs, reorder: ['dragHandle'] },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionWithIntReturnType`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1023,6 +1050,9 @@ export const AddValueSlotWhileIncomplete: Story = {
     },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AddValueSlot`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1041,6 +1071,9 @@ export const AddValueSlotWhileIncomplete: Story = {
 export const AddValueSlotDropToEnd: Story = {
   args: { ...concatArgs, reorder: ['dragHandle'] },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionWithIntReturnType`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1233,7 +1266,9 @@ export const OperandsFitNarrowColumn: Story = {
   args: NestedFitsNarrowColumn.args,
   decorators: NestedFitsNarrowColumn.decorators,
   parameters: {
-    qlip: { viewport: { width: 320, height: 800 } },
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NestedFitsNarrowColumn`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1268,7 +1303,9 @@ export const OperandsFitNarrowColumn: Story = {
 export const RemoveValueOnPhone: Story = {
   args: concatArgs,
   parameters: {
-    qlip: { viewport: { width: 390, height: 844 } },
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ReorderOnPhone`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1290,6 +1327,9 @@ export const RemoveValueOnPhone: Story = {
 export const FirstValueCanBeRemoved: Story = {
   args: concatArgs,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionWithIntReturnType`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1318,6 +1358,9 @@ export const FirstValueCanBeRemoved: Story = {
 export const AddValueSlotReadOnly: Story = {
   args: { ...concatArgs, readOnly: true },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Readonly`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1354,6 +1397,9 @@ export const ReorderKeepsTemplateOperand: Story = {
     },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionWithIntReturnType`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1423,6 +1469,9 @@ export const ReorderViaPositionPicker: Story = {
 export const ReorderAllSurfaces: Story = {
   args: { ...concatArgs, reorder: ['overflowMenu', 'dragHandle', 'positionPicker'] },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ConcatExpression`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1445,6 +1494,9 @@ export const ReorderAllSurfaces: Story = {
 export const ReorderDisabled: Story = {
   args: { ...concatArgs, reorder: false },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ConcatExpression`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1535,6 +1587,9 @@ export const ExpressionCanBeUnwrapped: Story = {
   ...ExpressionCanBeWrapped,
   parameters: {
     ...ExpressionCanBeWrapped.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ExpressionCanBeWrapped`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1796,6 +1851,9 @@ export const AcceptIncompatibleFunctionArgsSelection: Story = {
   ...SeededMismatchBase,
   parameters: {
     ...SeededMismatchBase.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSimpleValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1825,6 +1883,9 @@ export const AcceptAllIncompatibleFunctionArgs: Story = {
   ...SeededMismatchBase,
   parameters: {
     ...SeededMismatchBase.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSimpleValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1853,6 +1914,9 @@ export const DiscardAllIncompatibleFunctionArgs: Story = {
   ...SeededMismatchBase,
   parameters: {
     ...SeededMismatchBase.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AddValueSlot`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

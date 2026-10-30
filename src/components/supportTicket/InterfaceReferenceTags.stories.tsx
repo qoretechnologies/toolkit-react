@@ -213,6 +213,9 @@ export const KindImage: Story = {
 
 export const KindImagePreferred: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `KindImage`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

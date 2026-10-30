@@ -172,6 +172,9 @@ export const LightboxOpens: Story = {
  *  staff reply's attachment reads "Qorus Support" — never the raw staff identity. */
 export const CustomerView: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Populated`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

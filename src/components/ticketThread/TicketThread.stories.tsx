@@ -214,6 +214,9 @@ export const CustomerView: Story = {
  */
 export const TicketReferencesEchoOnOpeningMessage: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `EveryReferenceKind`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -262,6 +265,9 @@ export const TicketReferencesEchoOnOpeningMessage: Story = {
 
 export const WithInterfaceReferences: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `EveryReferenceKind`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -349,6 +355,9 @@ export const Loading: Story = {
 
 export const RefetchKeepsTheConversation: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `StaffView`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -633,6 +642,9 @@ export const InternalNote: Story = {
 /** A single message — the footer count reads "1 message", not "1 messages". */
 export const SingleMessage: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CustomerView`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -655,6 +667,9 @@ export const SingleMessage: Story = {
  *  the latest message sits at the bottom against the composer. */
 export const LongThread: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CustomerView`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

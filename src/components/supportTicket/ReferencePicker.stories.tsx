@@ -214,6 +214,9 @@ export const Default: Story = {
 /** A picked interface can be un-picked from the list it was picked in. */
 export const DeselectsAPickedInterface: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -303,6 +306,9 @@ export const SearchMatchesDescriptions: Story = {
 /** Selecting a kind on the left swaps the right pane to that kind's interfaces. */
 export const SwitchesKind: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

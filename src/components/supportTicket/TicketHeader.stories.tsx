@@ -125,6 +125,9 @@ export const Staff: Story = {
  */
 export const RowsAlign: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Staff`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

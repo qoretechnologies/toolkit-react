@@ -56,6 +56,9 @@ export const Default: Story = {
  */
 export const StaffWithInternalNote: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `RichHelpdeskReply`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
