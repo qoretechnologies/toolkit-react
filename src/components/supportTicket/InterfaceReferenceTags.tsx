@@ -4,6 +4,7 @@ import { ComponentProps } from 'react';
 import {
   defaultInterfaceIcon,
   IInterfaceReference,
+  interfaceReferenceKey,
   toInterfaceKindMark,
   TResolveInterfaceIcon,
 } from './meta';
@@ -22,6 +23,18 @@ export interface IInterfaceReferenceTagsProps {
   /** Open a referenced interface; chips are static (informational) when omitted —
    *  e.g. the staff view, which can't reach the customer's instance. */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /**
+   * Whether a reference can be opened right now; consulted only when `onInterfaceClick`
+   * is given, and every reference is linkable when it is omitted. A chip it refuses
+   * renders without the click and with an unlink glyph, and its tooltip carries
+   * `unlinkableReason` when there is one. A support reader can open only what the
+   * customer's grant covers, and an interface that moved group or was deleted since it
+   * was cited is a reference with nowhere to go — the chip still shows what was cited.
+   */
+  isInterfaceLinkable?: (reference: IInterfaceReference) => boolean;
+  /** Why a reference is not linkable, for the chip's tooltip ("not covered by the
+   *  grant", "no longer on the instance"). Consulted only for refused references. */
+  unlinkableReason?: (reference: IInterfaceReference) => string | undefined;
   /**
    * Detach a reference. Each chip grows an "×" when given — for the composer,
    * where the chips are the references you're about to send and so are still
@@ -68,6 +81,8 @@ export const InterfaceReferenceTags = ({
   label,
   resolveInterfaceIcon,
   onInterfaceClick,
+  isInterfaceLinkable,
+  unlinkableReason,
   onRemove,
   size = 'small',
   intent,
@@ -100,25 +115,30 @@ export const InterfaceReferenceTags = ({
         // The chosen image (see `preferKindImage`) once it has loaded; the kind's
         // font icon until then, and if it fails.
         const loaded = isLoaded(image);
+        // Linkable: a click handler is wired AND the consumer does not refuse this one.
+        // A refused chip keeps its look and says why, instead of opening nothing.
+        const linkable = !!onInterfaceClick && (isInterfaceLinkable?.(reference) ?? true);
+        const reason = onInterfaceClick && !linkable ? unlinkableReason?.(reference) : undefined;
+        const described = `${reference.interface_kind}: ${reference.interface_name}`;
         return (
           <ReqoreTag
-            key={
-              reference.reference_id ??
-              `${reference.interface_kind}:${reference.interface_name}`
-            }
+            key={reference.reference_id ?? interfaceReferenceKey(reference)}
             icon={icon}
             leftIconProps={loaded ? { image } : undefined}
+            rightIcon={onInterfaceClick && !linkable ? 'LinkUnlinkM' : undefined}
             labelKey={reference.interface_kind}
             label={reference.interface_name}
             size={size}
             intent={intent}
             customTheme={customTheme}
             tooltip={
-              onInterfaceClick
+              linkable
                 ? `Open ${reference.interface_kind} ${reference.interface_name}`
-                : `${reference.interface_kind}: ${reference.interface_name}`
+                : reason
+                  ? `${described} — ${reason}`
+                  : described
             }
-            onClick={onInterfaceClick ? () => onInterfaceClick(reference) : undefined}
+            onClick={linkable ? () => onInterfaceClick(reference) : undefined}
             onRemoveClick={onRemove ? () => onRemove(reference) : undefined}
             removeTooltip={`Remove ${reference.interface_kind} ${reference.interface_name}`}
           />

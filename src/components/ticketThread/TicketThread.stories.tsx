@@ -6,7 +6,7 @@ import { thinScrollbar } from '../../helpers/scrollbar';
 import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
 import type { IInterfaceReference, TTicketMessageAuthor } from '../supportTicket/meta';
-import { ITicketThreadMessage, TicketThread } from './TicketThread';
+import { ITicketSystemEventAction, ITicketThreadMessage, TicketThread } from './TicketThread';
 
 /* The drawer body's scroll area — the thin Qorus scrollbar rather than the platform
  * default, matching what the app's ThreadScroll should carry. */
@@ -844,3 +844,105 @@ export const Everything: Story = {
     await expect(canvas.getByText('pgsql-omq')).toBeInTheDocument();
   },
 };
+
+// The delegated-access lifecycle as the control plane writes it into the thread
+// (qorus#693): a request from support, then the customer's answer and what followed.
+const SUPPORT_ACCESS_THREAD: ITicketThreadMessage[] = [
+  { message_id: 'o1', author_type: 'customer', author_id: 'acme', body: 'The nightly reconcile has been failing since Tuesday.', created: ago(400) },
+  {
+    message_id: 'sa1',
+    author_type: 'system',
+    author_id: 'system',
+    system_event: 'support_access.requested',
+    system_detail: { reason: 'To read the nightly-reconcile job and its last three runs.', suggested_hours: 24 },
+    body: 'Qorus Support asks to read this workspace for **24 hours** to look at `nightly-reconcile` and its last three runs. Nothing is changed; every read is recorded here.',
+    created: ago(300),
+  },
+  { message_id: 'sa2', author_type: 'system', author_id: 'system', system_event: 'support_access.granted', body: 'Workspace access granted until **tomorrow 14:00**.', created: ago(280) },
+  { message_id: 'sa3', author_type: 'system', author_id: 'system', system_event: 'support_access.first_used', body: 'Qorus Support opened the workspace.', created: ago(200) },
+  { message_id: 'st1', author_type: 'staff', author_id: 'nick', body: 'Found it: the job runs with the pool default from 3.2. Fix coming in 3.2.1.', created: ago(150) },
+  { message_id: 'sa4', author_type: 'system', author_id: 'system', system_event: 'support_access.extended', body: 'Workspace access extended until **Friday 14:00**.', created: ago(100) },
+  { message_id: 'sa5', author_type: 'system', author_id: 'system', system_event: 'support_access.revoked', body: 'Workspace access revoked by you.', created: ago(40) },
+  { message_id: 'sa6', author_type: 'system', author_id: 'system', system_event: 'support_access.expired', body: 'Workspace access expired.', created: ago(5) },
+];
+
+/**
+ * A support request for workspace access is the one system message that asks the reader
+ * something, so it renders as a card rather than a line — and the customer's surface can
+ * put its answer on it through `systemEventAction`. Every other access event is a line
+ * marked with its own icon.
+ */
+export const SupportAccessRequestCard: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the delegated-access events in a customer thread in the notification look: the support request as a card (frosted surface, icon tile, the Grant action supplied by the consumer under the text), and the granted, opened, extended, revoked and expired events as compact pills centered in the thread (qorus#693).',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'customer',
+    messages: SUPPORT_ACCESS_THREAD,
+    systemEventAction: fn(
+      (message: ITicketThreadMessage): ITicketSystemEventAction | undefined =>
+        message.system_event === 'support_access.requested'
+          ? { label: 'Grant access', icon: 'ShieldCheckLine', onClick: fn() }
+          : undefined
+    ),
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Workspace access requested')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('.reqore-ticket-system-card')).not.toBeNull();
+    const grant = canvas.getByText('Grant access');
+    await expect(grant).toBeInTheDocument();
+    await expect(canvas.getByText(/Workspace access granted until/)).toBeInTheDocument();
+    await expect(canvas.getByText(/Workspace access expired/)).toBeInTheDocument();
+  },
+};
+
+/** The staff side of the same thread: the request card renders with no action, because
+ *  the answer is the customer's, and the lines read the same. */
+export const SupportAccessRequestCardStaffView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same delegated-access thread for staff: the request card carries no action (only the customer can answer), the lines are unchanged, and the staff reply sits on the right.',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'staff',
+    messages: SUPPORT_ACCESS_THREAD,
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Workspace access requested')).toBeInTheDocument();
+    await expect(canvas.queryByText('Grant access')).toBeNull();
+    await expect(canvasElement.querySelectorAll('.reqore-ticket-system-card-action')).toHaveLength(0);
+  },
+};
+
+/** The request card at phone width: the card and its action stay inside the screen. */
+export const SupportAccessRequestCardMobile: Story = {
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the delegated-access thread at 390px: the request card and its Grant action fit the screen, and the event lines wrap rather than overflow.',
+      },
+    },
+  },
+  args: SupportAccessRequestCard.args,
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Grant access')).toBeInTheDocument();
+    const card = canvasElement.querySelector('.reqore-ticket-system-card') as HTMLElement;
+    await expect(card).not.toBeNull();
+    await waitFor(() => expect(card.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth));
+  },
+};
+

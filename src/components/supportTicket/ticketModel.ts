@@ -52,6 +52,8 @@ export interface ITicketMessage {
   author_type: TTicketMessageAuthor;
   /** author identity; staff identities are masked from the customer */
   author_id: string;
+  /** the author's display name where the plane knows one (a customer's account name, staff view only) */
+  author_name?: string;
   /** message body (markdown) */
   body: string;
   /** staff-only internal note — never present in the customer thread */
@@ -61,6 +63,16 @@ export interface ITicketMessage {
   attachments?: ITicketAttachment[];
   /** interfaces referenced in this message, as `{kind, name}` snapshots */
   referenced_interfaces?: IInterfaceReference[];
+  /**
+   * For a `system` message: the event it records (qorus#693), e.g.
+   * `support_access.requested`. A thread renders a known event with its own mark, and the
+   * `support_access.requested` event as a card that can carry the customer's Grant action;
+   * absent on the plain system lines (status changes, assignments).
+   */
+  system_event?: string;
+  /** For a `system` message: the event's structured payload (a grant id, an expiry, the
+   *  requesting staff member's reason), as the server wrote it. */
+  system_detail?: Record<string, unknown>;
 }
 
 /**
@@ -104,6 +116,9 @@ export interface IStaffTicket extends ITicket {
   /** organization / account */
   scope_type: string;
   account_id: number;
+  /** the customer's account display name and email, for staff; absent when the account has none */
+  customer_name?: string;
+  customer_email?: string;
   groupid?: number;
   /** the staff assignee */
   assignee?: string;

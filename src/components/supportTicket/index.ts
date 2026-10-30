@@ -1,4 +1,5 @@
 export * from './meta';
+export * from './accessMeta';
 export * from './ticketModel';
 export * from './attachmentAccess';
 export * from './AttachmentChips';
@@ -8,3 +9,4 @@ export * from './InterfaceReferenceTags';
 export * from './ReferencePicker';
 export * from './fileToAttachment';
 export * from './TicketReplyBox';
+export * from './WorkspaceAccessStatus';
