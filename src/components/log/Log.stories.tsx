@@ -2,6 +2,7 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fireEvent, fn, waitFor } from 'storybook/test';
 import { Server } from 'mock-socket';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
+import { storyCopiedTexts, withStoryClipboard } from '../../stories/clipboard';
 import { storySocketUrl } from '../../stories/storyNetwork';
 import { withTouchScreen } from '../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../stories/tracking';
@@ -219,24 +220,86 @@ export const WithDefaultMessages: Story = {
   },
 };
 
+const LINK_MESSAGE = 'This is a message with a link: https://www.qoretechnologies.com';
+
+/** Clicks the copy action of the message row reading `message`. */
+const clickCopyMessage = async (message: string) => {
+  // the row of a copy action is its nearest ancestor holding a message
+  const rowMessage = (button: Element) => {
+    let element = button.parentElement;
+    while (element && !element.querySelector('.reqraft-log-message')) {
+      element = element.parentElement;
+    }
+    return element?.querySelector('.reqraft-log-message')?.textContent;
+  };
+  const copy = Array.from(document.querySelectorAll('.reqraft-log-copy-message')).find(
+    (button) => rowMessage(button) === message
+  );
+  await expect(copy).toBeTruthy();
+  fireEvent.click(copy);
+};
+
+const waitForNotification = (text: string) =>
+  waitFor(
+    () => {
+      const shown = Array.from(document.querySelectorAll('.reqore-notification')).map(
+        (notification) => notification.textContent || ''
+      );
+      if (!shown.some((content) => content.includes(text))) {
+        throw new Error(`no notification "${text}" yet: ${JSON.stringify(shown)}`);
+      }
+      return shown;
+    },
+    { timeout: 10000 }
+  );
+
 export const WithCopyableMessages: Story = {
   ...Basic,
+  beforeEach: withStoryClipboard('clipboard-api'),
   args: {
     allowMessageCopy: true,
   },
   parameters: {
-    // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `WithDeletableMessages`.
+    // Interaction-only: the play assertions are the guard; the copy actions are
+    // pictured by `WithDeletableMessages`, and a copy notification by `CopyFailed`.
     qlip: { skip: true },
     docs: {
       description: {
         story:
-          'Renders ReqraftLog with allowMessageCopy — each message row exposes a copy action next to its content.',
+          'Renders ReqraftLog with allowMessageCopy — each message row exposes a copy action next to its content. Clicking a message\'s copy action copies that message and shows the "Log message copied to clipboard" notification.',
       },
     },
   },
   play: async (args) => {
     await Basic.play(args);
+    await clickCopyMessage(LINK_MESSAGE);
+    await waitForNotification('Log message copied to clipboard');
+    await expect(storyCopiedTexts()).toEqual([LINK_MESSAGE]);
+  },
+};
+
+export const CopyFailed: Story = {
+  ...Basic,
+  beforeEach: withStoryClipboard('none'),
+  args: {
+    allowMessageCopy: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with copyable messages on a page where the browser allows no way of copying. Clicking a message\'s copy action copies nothing and shows a danger notification that stays until it is closed: "Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself."',
+      },
+    },
+  },
+  play: async (args) => {
+    await Basic.play(args);
+    await clickCopyMessage(LINK_MESSAGE);
+    const shown = await waitForNotification(
+      'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.'
+    );
+    await expect(shown.some((content) => content.includes('copied to clipboard'))).toBe(false);
+    await expect(storyCopiedTexts()).toEqual([]);
   },
 };
 
