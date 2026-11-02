@@ -594,6 +594,16 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     line-height: 1.4;
     opacity: 0.6;
   }
+  /* A data provider's description, under its identity in the preview inset:
+     the same quiet companion text a chosen option's description is. */
+  .options-readfirst-provider-desc {
+    min-width: 0;
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: 0.6;
+    overflow-wrap: anywhere;
+  }
   .options-readfirst-text {
     color: ${({ $color }) => $color};
     white-space: pre-wrap;

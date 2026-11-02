@@ -74,6 +74,7 @@ import {
   formatOptionValue,
   getAllowedValueIcon,
   getAllowedValueImage,
+  getDataProviderPreview,
   getFileSize,
   getHashEntries,
   getReadFirstStatus,
@@ -2105,8 +2106,21 @@ export const CompactRow = memo(
        under it ("columns · List · 4 items") said it again, in reqraft's words (qorus#646). The card, which a
        read-only form opens for such a row too (`readOnlyOpens`), is where the value is read in full. */
     const hostSummarizes = !!ReadSummary;
+    /* A data provider previews the PROVIDER, not the object the picker stores. That object also holds what the
+       server said about the provider when it was picked (`supports_*`, `transaction_management`, …), which read as
+       part of the value, and the picker's `descriptions`, server markdown that the untyped data view printed
+       verbatim, backticks and all. The preview shows the provider's identity in that view, and its description
+       through the host's markdown renderer, as every other server description in the form is drawn. */
+    const dataProviderPreview =
+      !hidden && !hostSummarizes && isObjectValuedType && valueType === 'data-provider' ?
+        getDataProviderPreview(optionField.value)
+      : undefined;
     const hashEntries =
-      !hidden && !hostSummarizes && (isPlainHashType || isObjectValuedType) ?
+      (
+        !hidden &&
+        !hostSummarizes &&
+        (isPlainHashType || (isObjectValuedType && valueType !== 'data-provider'))
+      ) ?
         getHashEntries(optionField, schema)
       : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
@@ -2129,7 +2143,7 @@ export const CompactRow = memo(
           : item;
         return inner !== null && typeof inner === 'object';
       });
-    const showStructuredPreview = hashEntries.length > 0 || isHashList;
+    const showStructuredPreview = hashEntries.length > 0 || isHashList || !!dataProviderPreview;
     // Multi-line code preview: a `code-editor` field with a non-empty string
     // value gets a `<pre>`-based code block under the row, capped by a
     // `ReqoreCollapsibleContent` so the collapsed height stays row-sized and
@@ -2587,7 +2601,9 @@ export const CompactRow = memo(
               and rendered nothing at all: a test with cases read as a bare
               "Cases" and looked unset until it was opened. */}
           {(
-            showMarkdownPreview || showLongTextInset || (previewWithSchema && showStructuredPreview)
+            showMarkdownPreview ||
+            showLongTextInset ||
+            (previewWithSchema && !dataProviderPreview && showStructuredPreview)
           ) ?
             null
           : <span className='options-readfirst-valuetext'>
@@ -2655,12 +2671,35 @@ export const CompactRow = memo(
                 // does — a labelled row rather than a packed chip — but there is
                 // far less of it to read, so it gets enough room to show a
                 // couple of complete items instead of fading out mid-row. A tree
-                // of unknown depth keeps the tighter cap.
-                maxCollapsedHeight={previewWithSchema ? 140 : 96}
+                // of unknown depth keeps the tighter cap. A provider's preview is
+                // a few known lines and its description, and the description
+                // must not be the part that fades out.
+                maxCollapsedHeight={previewWithSchema || dataProviderPreview ? 140 : 96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
                 <div className='options-readfirst-structured'>
-                  {previewWithSchema ?
+                  {dataProviderPreview ?
+                    <>
+                      {Object.keys(dataProviderPreview.identity).length ?
+                        <StructuredDataView
+                          value={dataProviderPreview.identity}
+                          collapsibleRoot={false}
+                          showTypes={showFieldTypes}
+                          defaultExpandDepth={2}
+                          onItemClick={() => activate()}
+                        />
+                      : null}
+                      {dataProviderPreview.description ?
+                        /* What the provider is, in the server's words: markdown, drawn by the host's renderer as
+                           the form's other descriptions are; without one, the plain text it renders to. */
+                        <div className='options-readfirst-provider-desc'>
+                          {markdownRenderer ?
+                            markdownRenderer({ value: dataProviderPreview.description, compact: true })
+                          : plainTextNode(dataProviderPreview.description)}
+                        </div>
+                      : null}
+                    </>
+                  : previewWithSchema ?
                     // The form already knows this value's shape, names and
                     // choices, so the preview says it rather than making the
                     // reader decode it: "Scheme Type — Default RBAC", not a data

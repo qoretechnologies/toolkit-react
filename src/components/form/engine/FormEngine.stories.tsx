@@ -10544,12 +10544,39 @@ const ReadOnlyDataProviderValue = {
   },
 } as never;
 
+/** What the picker caches beside a provider when it is chosen: never part of the preview. */
+const PROVIDER_CAPABILITY_CACHE_KEYS = [
+  'transaction_management',
+  'record_requires_search_options',
+  'supports_read',
+  'supports_create',
+  'descriptions',
+];
+
+/** A provider row's preview shows the provider and its description, not the picker's cache or markdown marks. */
+const expectProviderPreview = async (row: HTMLElement, description: string) => {
+  await waitFor(() =>
+    expect(row.querySelector('.options-readfirst-structured')).toBeTruthy()
+  );
+  const preview = row.querySelector('.options-readfirst-structured') as HTMLElement;
+  expect(preview.textContent).toContain('datasource');
+  expect(preview.textContent).toContain('/bb_local');
+  for (const cached of PROVIDER_CAPABILITY_CACHE_KEYS) {
+    expect(preview.textContent).not.toContain(cached);
+  }
+  await waitFor(() =>
+    expect(preview.querySelector('.options-readfirst-provider-desc')).toHaveTextContent(description)
+  );
+  expect(preview.textContent).not.toContain('`');
+  return preview;
+};
+
 export const CompactReadOnlyDataProvider: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'A read-only row whose value is a data provider names it — "datasource · omquser · /bb_local", the kind, the name and the path as the picker shows them — instead of counting its keys ("11 fields", which read as a string that happened to say "fields"). The keys themselves sit one disclosure away in the same structured preview a hash row has. The string row beside it stays one line: the preview follows the shape of the value, not the read mode.',
+          'Renders a read-only row whose value is a data provider, in a host that draws no markdown: it names the provider ("datasource · omquser · /bb_local") and previews what it is (type, name, path) with its description as plain text ("Record-based data provider for db table public.bb_local"), no backticks, and none of the capabilities the picker cached. The string row beside it stays one line.',
       },
     },
   },
@@ -10566,13 +10593,68 @@ export const CompactReadOnlyDataProvider: Story = {
       document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement;
     // The summary names the provider; the count is gone.
     expect(row('value').textContent).not.toContain('fields');
-    // Its keys are one disclosure away, as they are for a hash.
-    await waitFor(() =>
-      expect(row('value').querySelector('.options-readfirst-structured')).toBeTruthy()
+    // The provider is one disclosure away, and its description reads as the prose it renders to.
+    const preview = await expectProviderPreview(
+      row('value'),
+      'Record-based data provider for db table public.bb_local'
     );
-    expect(row('value').textContent).toContain('bb_local');
+    expect(preview.querySelector('.options-readfirst-provider-desc code')).toBeNull();
     // The counterweight: a scalar row gets no preview.
     expect(row('name').querySelector('.options-readfirst-structured')).toBeNull();
+  },
+};
+
+/** The reported case: a Qog action's data_provider option, with the description the server gave the datasource. */
+const ReadOnlyDataProviderDescribedValue = {
+  data_provider: {
+    type: 'data-provider',
+    value: {
+      type: 'datasource',
+      name: 'omquser',
+      path: '/bb_local',
+      transaction_management: true,
+      record_requires_search_options: false,
+      supports_read: true,
+      supports_create: true,
+      descriptions: ['Data provider for database `pgsql:omquser@omquser`'],
+    },
+  },
+} as never;
+
+export const CompactReadOnlyDataProviderDescriptionDrawn: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a read-only data-provider row in a host that draws markdown: the preview shows the provider (type, name, path) and its description drawn by the host, "pgsql:omquser@omquser" as code with no backticks, and none of the capabilities the picker cached.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    name: 'action',
+    options: {
+      data_provider: {
+        type: 'data-provider',
+        ui_type: 'data-provider',
+        display_name: 'Data provider',
+      },
+    } as never,
+    value: ReadOnlyDataProviderDescribedValue,
+    markdownRenderer: defaultMarkdownRenderer,
+  } as never,
+  play: async () => {
+    await _testsWaitForText('datasource · omquser · /bb_local');
+    const preview = await expectProviderPreview(
+      document.querySelector('.readfirst-row[data-field="data_provider"]') as HTMLElement,
+      'Data provider for database pgsql:omquser@omquser'
+    );
+    await waitFor(() =>
+      expect(preview.querySelector('.options-readfirst-provider-desc code')).toHaveTextContent(
+        'pgsql:omquser@omquser'
+      )
+    );
   },
 };
 

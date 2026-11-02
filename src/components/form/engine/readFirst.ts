@@ -17,6 +17,7 @@ import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
 import { firstDeclaredType } from '../../../helpers/optionUiTypes';
 import { findAllowedValueOption } from '../../../helpers/allowedValues';
 import { isOptionValueEmpty } from '../../../helpers/validations';
+import type { IProviderType } from '../../../helpers/providerValue';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -142,6 +143,76 @@ export const formatDataProviderValue = (value: unknown): string | undefined => {
     (part): part is string => typeof part === 'string' && part.trim() !== ''
   );
   return parts.length ? parts.join(' · ') : undefined;
+};
+
+/**
+ * The parts of a stored data-provider value that say which provider it is and
+ * how it was set up, in the order the picker says them.
+ *
+ * An allow-list, not a deny-list of the cache: everything else the picker
+ * stores beside them is what the server said about the provider when it was
+ * picked (`supports_*`, `transaction_management`,
+ * `record_requires_search_options`, `up`, …) or the picker's own bookkeeping
+ * (`optionsChanged`, `descriptions`). None of that is the value, and a key the
+ * picker starts caching tomorrow must not show up in the preview as if it were.
+ */
+const DATA_PROVIDER_IDENTITY_KEYS: ReadonlyArray<keyof IProviderType> = [
+  'type',
+  'name',
+  'path',
+  'subtype',
+  'options',
+  'search_options',
+];
+
+/** What a data-provider row previews under its summary (`getDataProviderPreview`). */
+export interface IDataProviderPreview {
+  /** The provider's identity and set-up (`DATA_PROVIDER_IDENTITY_KEYS`), empty parts left out. */
+  identity: Partial<IProviderType>;
+  /** The provider's description as the server wrote it, in markdown; drawing it is the renderer's job. */
+  description?: string;
+}
+
+const nonBlankString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim() !== '';
+
+/**
+ * A stored data-provider value as its read-first preview shows it: what the
+ * provider is, and the provider's own description.
+ *
+ * The picker stores one description per step of the provider's path
+ * (`descriptions[0]` is the name's, each later entry the next path step's); the
+ * provider's own is the last one, which is the one the picker itself shows for
+ * the selection. A value without them falls back to its `desc`.
+ *
+ * Undefined when the value is not a provider object or has nothing to show, so
+ * the row draws no inset.
+ */
+export const getDataProviderPreview = (value: unknown): IDataProviderPreview | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const provider = value as Partial<Record<keyof IProviderType, unknown>>;
+  const identity: Partial<Record<keyof IProviderType, unknown>> = {};
+  for (const key of DATA_PROVIDER_IDENTITY_KEYS) {
+    const part = provider[key];
+    const isEmptyObject =
+      !!part && typeof part === 'object' && !Array.isArray(part) && !Object.keys(part).length;
+    if (!isOptionValueEmpty(part) && !isEmptyObject) {
+      identity[key] = part;
+    }
+  }
+  const descriptions = Array.isArray(provider.descriptions) ? provider.descriptions : [];
+  const description =
+    [...descriptions].reverse().find(nonBlankString) ??
+    (nonBlankString(provider.desc) ? provider.desc : undefined);
+  if (!Object.keys(identity).length && description === undefined) {
+    return undefined;
+  }
+  return {
+    identity: identity as Partial<IProviderType>,
+    ...(description !== undefined ? { description } : {}),
+  };
 };
 
 /** Summarise a hash/object by its field count ("2 fields"), or "Set" when empty. */
