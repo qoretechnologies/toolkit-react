@@ -3479,6 +3479,15 @@ export const CompactEditingShowsDescription: Story = {
 /** An open row's (?) and its own controls, measured: one height (qorus#646). */
 const expectHelpAsTallAsTheControls = async () => {
   await _testsWaitForText('order-fulfilment');
+  // At rest the read row's (?) is already the open editor's size: one control, drawn the same way in both.
+  const restingHelp = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(
+      '.readfirst-row[data-field="name"] .options-readfirst-help'
+    );
+    expect(el).toBeTruthy();
+    return el as HTMLElement;
+  });
+  expect(Math.round(restingHelp.getBoundingClientRect().height)).toBe(32);
   await _testsClickText('order-fulfilment');
   await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
   const row = await waitFor(() => {
@@ -3513,7 +3522,7 @@ export const CompactEditingHelpIsTheSizeOfTheControls: Story = {
     docs: {
       description: {
         story:
-          "Renders the compact form and opens a field: its (?) is as tall as the row's Done (32px), where it used to be 26px beside it.",
+          "Renders the compact form: the read row's (?) is 32px at rest, and once the field is opened it is as tall as the row's Done (32px), where it used to be 26px beside it.",
       },
     },
   },

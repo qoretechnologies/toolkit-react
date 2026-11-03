@@ -157,45 +157,12 @@ describe('an option keeps its help affordance when it is opened', () => {
   });
 });
 
-/**
+/*
  * The `?` is one of the row's controls, and is sized as they are (qorus#646, the IDE's Sheet Contract Review): it
- * was reqore's `tiny` (26px) on a desktop, beside the open editor's `small` (32px) clear, list and Done buttons, so
- * the controls of one row stood at two heights. A touch screen already had it at `small`.
+ * was reqore's `tiny` (26px) on a desktop, beside the open editor's `small` (32px) clear, list and Done buttons.
+ * That is a drawn height, and jsdom draws nothing: it lays nothing out (every box is 0px high) and does not resolve
+ * the CSS variables reqore sizes its buttons with, so a height read here compares two unresolved strings. The
+ * heights are measured in a real browser instead, by the stories CompactEditingHelpIsTheSizeOfTheControls and
+ * CompactEditingHelpIsTheSizeOfTheControlsOnATouchScreen (the read row's (?) at rest, and beside the open
+ * editor's Done, clear and cancel).
  */
-describe("an option's ? beside the row's controls", () => {
-  const heightOf = (element: Element | null) => {
-    expect(element).toBeTruthy();
-    const style = getComputedStyle(element as HTMLElement);
-    return { height: style.height, minHeight: style.minHeight, minWidth: style.minWidth };
-  };
-
-  it("is as tall as the open editor's Done", async () => {
-    const { container } = renderForm(SCALAR, SCALAR_VALUE, ['name']);
-
-    await waitFor(() =>
-      expect(container.querySelector('[data-field="name"] .options-readfirst-done')).toBeTruthy()
-    );
-    const done = heightOf(container.querySelector('[data-field="name"] .options-readfirst-done'));
-    // a size is drawn: the comparison below is between two real heights
-    expect(done.minHeight || done.height).toMatch(/px$/);
-    expect(
-      heightOf(container.querySelector('[data-field="name"] .options-readfirst-help'))
-    ).toEqual(done);
-  });
-
-  it("is as tall as the read row's own controls", async () => {
-    const { container } = renderForm(SCALAR, SCALAR_VALUE);
-
-    await waitFor(() =>
-      expect(container.querySelector('[data-field="name"] .options-readfirst-help')).toBeTruthy()
-    );
-    // the edit card's controls and the open editor's are `small`: the read row's ? is the same size
-    const { container: open } = renderForm(SCALAR, SCALAR_VALUE, ['name']);
-    await waitFor(() =>
-      expect(open.querySelector('[data-field="name"] .options-readfirst-done')).toBeTruthy()
-    );
-    expect(
-      heightOf(container.querySelector('[data-field="name"] .options-readfirst-help'))
-    ).toEqual(heightOf(open.querySelector('[data-field="name"] .options-readfirst-done')));
-  });
-});
