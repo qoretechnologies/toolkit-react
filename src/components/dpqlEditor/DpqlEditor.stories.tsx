@@ -1516,6 +1516,67 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
   },
 };
 
+/**
+ * A record field the host lists as a template (`$record:{status}` under "Fields of the row") is that field: the
+ * picker lists it once, where the host does, and not again under Record fields from the record and its language
+ * server (qorus#646, the IDE's Sheet Contract Review: the first click showed two groups holding the same fields).
+ */
+export const TheRowsFieldsAreListedOnce: Story = {
+  args: {
+    value: '',
+    provider: 'datasource:omq/table/orders',
+    recordType: 'record',
+    templates: {
+      items: [
+        {
+          label: 'Fields of the row',
+          items: [
+            { label: 'name', value: '$record:{name}' },
+            { label: 'status', value: '$record:{status}' },
+            { label: 'age', value: '$record:{age}' },
+          ],
+        },
+      ],
+    } as never,
+    onChange: fn(),
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the picker at its top is pictured by
+    // `WithSemanticTokens`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders a DPQL field whose host lists the record\'s fields as "Fields of the row". A click in the empty ' +
+          'field opens the picker at Fields of the row, the template contexts, the functions and the values - no ' +
+          'Record fields group repeating them. Fields of the row opens into name, status and age, described as the ' +
+          'record describes them; status picked is written as the host writes it, $record:{status}.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await waitFor(
+      () =>
+        expect(pickerLabels()).toEqual([
+          'Fields of the row',
+          'Template contexts',
+          'Functions',
+          'Values and keywords',
+        ]),
+      { timeout: 30000 }
+    );
+    await userEvent.click(await pickerRow('Fields of the row'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['name', 'status', 'age']));
+    await userEvent.click(await pickerRow('status'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$record:\{status\}\s*$/))
+    );
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+  },
+};
+
 /** The keyboard browses the picker an empty field opens: the arrows, Enter to open and pick, ← to go back. */
 export const TheKeyboardBrowsesThePicker: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },

@@ -19,6 +19,7 @@ import { NO_VALUE_DESCRIPTION } from './noDescription';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
+import { endOfBracedSegment, recordFieldOfTemplate } from './recordFieldTemplate';
 import {
   catalogueGroupFor,
   catalogueRowTrail,
@@ -157,25 +158,6 @@ const TEMPLATE_KEY = /[A-Za-z_][\w-]*/y;
    being written on. */
 const TEMPLATE_WORD_SEGMENT = /\*(?![\w.])|\w[\w-]*(?:\.[\w-]+)*/y;
 
-/** Where a braced segment that opens at `from` (its `{`) ends: the index after the `}` that closes it, or -1. */
-const endOfBracedSegment = (text: string, from: number): number => {
-  let depth = 0;
-  for (let i = from; i < text.length; i += 1) {
-    const char = text[i];
-    if (char === '\\' && ['{', '}', '\\'].includes(text[i + 1])) {
-      i += 1;
-    } else if (char === '{') {
-      depth += 1;
-    } else if (char === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        return i + 1;
-      }
-    }
-  }
-  return -1;
-};
-
 /** Where the template token that starts at `at` (its `$`) ends, or -1 when none starts there. */
 const endOfTemplateToken = (text: string, at: number): number => {
   if (text[at] !== '$') {
@@ -227,16 +209,8 @@ export const templateTokenSpans = (text: string): Array<[number, number]> => {
   return spans;
 };
 
-/** The record field a template names - `$record:{orders[*].id}` is `orders[*].id` - when it is that template alone
- *  (one braced segment, nothing after it); otherwise undefined. */
-export const recordFieldOfTemplate = (token: string): string | undefined => {
-  const prefix = '$record:';
-  return (
-      token.startsWith(`${prefix}{`) && endOfBracedSegment(token, prefix.length) === token.length
-    ) ?
-      token.slice(prefix.length + 1, -1)
-    : undefined;
-};
+/** The record field a template names (`recordFieldTemplate.ts`). */
+export { recordFieldOfTemplate };
 
 /** `text` cut at its template tokens: the pieces of text and the tokens, in order, none of them empty. */
 export const splitAtTemplateTokens = (text: string): string[] => {

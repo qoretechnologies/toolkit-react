@@ -241,7 +241,13 @@ empty document, and operators after a value (`12 |`, `$record:{pos}|`), so a
 pick is always a value where one can stand: `12 pos` cannot be written. Rows
 are flat, the template's group and type on its detail line; after an `@`,
 only the templates that are the record's fields, and a field the server and
-the catalogue both offer is listed once. Where nothing is offered after an
+the catalogue both offer is listed once. The template picker follows the
+same rule (`templateTree`, `withServerCompletions`): a record field the
+catalogue lists as its template (`$record:{pos}` under the host's "Fields of
+the row") is that field, kept in the host's group and order and written as
+the host writes it, with the record's type and description where the host
+gives none; Record fields lists only the fields the catalogue does not. Where
+nothing is offered after an
 `@`, the list says "No record fields here" (`dpqlEmptyCompletionMessage`;
 not with no server, which might know a record).
 

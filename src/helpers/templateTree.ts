@@ -13,6 +13,7 @@
 import type { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { templateBaseType, templateType } from './templateType';
 import type { ITemplateCatalogueContext } from './templateCatalogue';
+import { recordFieldOfTemplate } from './recordFieldTemplate';
 
 /** What a node is, as its row says it: the badge a row carries and the icon it is drawn with. */
 export type TTemplateNodeKind =
@@ -373,11 +374,22 @@ export const templateTree = (
   const roots = rows
     .filter((row) => !(row as { divider?: boolean }).divider)
     .map((row, index) => nodeOf(row, String(index), [], [], wholeRecords));
-  const fieldNames = Object.keys(fields ?? {});
-  if (fieldNames.length) {
-    const id = String(roots.length);
+  /* A field the catalogue already lists as its `$record:{…}` template is that field: listed once, where the host
+     lists it and as the host writes it, with what the record says of it where the host says nothing (qorus#646,
+     the IDE's Sheet Contract Review: "Fields of the row" and Record fields held the same fields). */
+  const listed =
+    fields && Object.keys(fields).length ?
+      recordFieldNodes(roots)
+    : new Map<string, ITemplateNode>();
+  const merged =
+    listed.size ? roots.map((root) => withRecordFieldsSaid(root, listed, fields ?? {})) : roots;
+  const unlisted = Object.fromEntries(
+    Object.entries(fields ?? {}).filter(([name]) => !listed.has(name))
+  );
+  if (Object.keys(unlisted).length) {
+    const id = String(merged.length);
     const trail = [RECORD_FIELDS_LABEL];
-    roots.push({
+    merged.push({
       id,
       label: RECORD_FIELDS_LABEL,
       reference: undefined,
@@ -385,10 +397,48 @@ export const templateTree = (
       description: 'The fields of the record the expression is about',
       trail: [],
       trailIds: [],
-      children: fieldNodes(fields, id, trail, '@'),
+      children: fieldNodes(unlisted, id, trail, '@'),
     });
   }
-  return keepLoneGroup ? roots : openLoneGroup(roots);
+  return keepLoneGroup ? merged : openLoneGroup(merged);
+};
+
+/** The catalogue's nodes that are a record field's template (`$record:{pos}`), by the field they name. */
+const recordFieldNodes = (roots: ITemplateNode[]): Map<string, ITemplateNode> => {
+  const out = new Map<string, ITemplateNode>();
+  for (const node of allTemplateNodes(roots)) {
+    const field = node.value ? recordFieldOfTemplate(node.value) : undefined;
+    if (field !== undefined && !out.has(field)) {
+      out.set(field, node);
+    }
+  }
+  return out;
+};
+
+/** `node` and its members, each record field's template given its field's type and description where it has none. */
+const withRecordFieldsSaid = (
+  node: ITemplateNode,
+  listed: Map<string, ITemplateNode>,
+  fields: Record<string, ITemplateTreeField>
+): ITemplateNode => {
+  const field = node.value ? recordFieldOfTemplate(node.value) : undefined;
+  const said = field !== undefined && listed.get(field) === node ? fields[field] : undefined;
+  const description =
+    said &&
+    [
+      said.display_name && said.display_name !== field ? said.display_name : undefined,
+      said.short_desc ?? said.desc,
+    ]
+      .filter(Boolean)
+      .join(': ');
+  return {
+    ...node,
+    ...(said && !node.type && fieldTypeName(said.type) ? { type: fieldTypeName(said.type) } : {}),
+    ...(said && !node.description && description ? { description } : {}),
+    ...(node.children ?
+      { children: node.children.map((child) => withRecordFieldsSaid(child, listed, fields)) }
+    : {}),
+  };
 };
 
 /**
@@ -947,6 +997,10 @@ export const withServerCompletions = (
       (node) => [node.value, node.reference].filter(Boolean) as string[]
     )
   );
+  // a record field the field's catalogue lists as its template (`$record:{pos}`) is known as `@pos` too
+  for (const field of Array.from(recordFieldNodes(roots).keys())) {
+    known.add(fieldReference(field));
+  }
   const fields = items.filter(
     (item) => item.kind === 5 && /^@/.test(written(item)) && !known.has(written(item))
   );
