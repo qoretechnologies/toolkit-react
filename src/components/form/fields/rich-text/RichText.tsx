@@ -51,6 +51,7 @@ import {
 } from '../template/referenceNames';
 import {
   browseAllTemplatesItem,
+  REFERENCE_BEING_TYPED,
   templateChipInserter,
   templateSearchItems,
   unlistedContextMessage,
@@ -80,11 +81,6 @@ const TEMPLATE_TRIGGERS = new Set(['$', ':', '.']);
    the completion request is remade when it changes, and a remade request drops the one waiting to be sent. */
 const unlistedContextMessageAt = (plainText: string, offset: number) =>
   unlistedContextMessage(plainText.slice(0, offset));
-/**
- * A reference being typed at the end of a text: a `$` and the template after it (`$data:receive_order.`), or an
- * `@` and the record field after it (`@po`) - an `@` that starts a word, not one in an email address.
- */
-const REFERENCE_BEING_TYPED = /(?:^|[^\p{L}\p{N}_.])([$@][\p{L}\p{M}\p{N}_.:{}[\]*-]*)$/u;
 /** Distinguishes the completion lists of the fields on a page, for each field's `aria-controls`. */
 let textCompletionMenuCounter = 0;
 

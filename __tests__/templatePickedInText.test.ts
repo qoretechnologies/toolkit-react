@@ -61,6 +61,28 @@ describe('a template picked from the list typing opens in a text', () => {
   it('leaves the text before the word it completes', () => {
     expect(pick('a@b.com @po')).toEqual({ text: 'a@b.com ', chips: ['$record:{pos}'] });
   });
+
+  /* The IDE's Sheet Contract Review: `SUP-` typed, the text clicked and a field picked from the picker that opened
+     at the caret read as the chip alone - "SUP-" was deleted, as if it were what the pick was asked for by. Only a
+     reference being written (a `$` or an `@` and what follows it) is what a pick takes the place of. */
+  it.each([
+    ['a word with a dash', 'SUP-', 'SUP-'],
+    ['a word', 'Order', 'Order'],
+    ['a word after a space', 'Ticket SUP', 'Ticket SUP'],
+    ['a path', 'a.b:c', 'a.b:c'],
+    ['a word after a mail address', 'mail a@b.com', 'mail a@b.com'],
+    ['nothing', '', ''],
+  ])('keeps %s that no $ or @ starts', (_name, typed, kept) => {
+    expect(pick(typed)).toEqual({ text: kept, chips: ['$record:{pos}'] });
+  });
+
+  it('takes the place of a reference only where one opens the list', () => {
+    // after a dash or a space, `$rec` is a reference being written: it goes, the word before it stays
+    expect(pick('SUP-$rec')).toEqual({ text: 'SUP-', chips: ['$record:{pos}'] });
+    expect(pick('SUP- $rec')).toEqual({ text: 'SUP- ', chips: ['$record:{pos}'] });
+    // inside a word a `$` opens no list, so nothing typed is what the pick was asked for by
+    expect(pick('SUP$rec')).toEqual({ text: 'SUP$rec', chips: ['$record:{pos}'] });
+  });
 });
 
 describe('a template chip in an expression', () => {
