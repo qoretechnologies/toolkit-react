@@ -3476,6 +3476,69 @@ export const CompactEditingShowsDescription: Story = {
   },
 };
 
+/** An open row's (?) and its own controls, measured: one height (qorus#646). */
+const expectHelpAsTallAsTheControls = async () => {
+  await _testsWaitForText('order-fulfilment');
+  await _testsClickText('order-fulfilment');
+  await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+  const row = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>('.options-readfirst-inline');
+    expect(el?.querySelector('.options-readfirst-help')).toBeTruthy();
+    expect(el?.querySelector('.options-readfirst-done')).toBeTruthy();
+    return el as HTMLElement;
+  });
+  const height = (selector: string) =>
+    Math.round(row.querySelector<HTMLElement>(selector)!.getBoundingClientRect().height);
+  // the row's controls: Done, and the clear where the field has one of its own
+  const controls = ['.options-readfirst-done', '.options-readfirst-clear', '.options-readfirst-cancel'].filter(
+    (selector) => row.querySelector(selector)
+  );
+  for (const control of controls) {
+    expect(height('.options-readfirst-help'), `the (?) beside ${control}`).toBe(height(control));
+  }
+  expect(height('.options-readfirst-help')).toBe(32);
+  // it takes no more of the label column than the 26px button it replaced: more wrapped a name in a narrow column
+  const help = row.querySelector<HTMLElement>('.options-readfirst-help')!;
+  const { marginLeft, marginRight } = getComputedStyle(help);
+  expect(
+    Math.round(help.getBoundingClientRect().width + parseFloat(marginLeft) + parseFloat(marginRight))
+  ).toBe(26);
+};
+
+export const CompactEditingHelpIsTheSizeOfTheControls: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the open row with its (?) is pictured by
+    // `CompactEditingShowsDescription`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the compact form and opens a field: its (?) is as tall as the row's Done (32px), where it used to be 26px beside it.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactHelpSchema,
+  },
+  play: expectHelpAsTallAsTheControls,
+};
+
+export const CompactEditingHelpIsTheSizeOfTheControlsOnATouchScreen: Story = {
+  ...CompactEditingHelpIsTheSizeOfTheControls,
+  parameters: {
+    // Interaction-only: on a touch screen the (?) was already `small`; the play is the guard that it stays even.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the same form where the pointer is a finger and opens the field: the (?) and Done stay one height (32px).",
+      },
+    },
+  },
+  decorators: [withCoarsePointer],
+};
+
 export const CompactWithPanelProps: Story = {
   parameters: {
     docs: {
@@ -10145,7 +10208,7 @@ export const AnOptionsHelpIsAButton: Story = {
     docs: {
       description: {
         story:
-          "Renders the Skip when form. An option's (?) is a button (David's decision): Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is a mouse's size on a desktop, and the focus left on it shows its ring in the capture.",
+          "Renders the Skip when form. An option's (?) is a button (David's decision): Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is the size of the row's other controls (reqore's `small`, 32px), and the focus left on it shows its ring in the capture.",
       },
     },
   },
@@ -10175,8 +10238,8 @@ export const AnOptionsHelpIsAButton: Story = {
     expect(row.classList.contains('readfirst-row-editing'), 'the row stays closed').toBe(false);
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeFalsy());
-    // a mouse's size here, reqore's `tiny` (a finger's on a touch screen: On A Touch Screen)
-    expect(Math.round(help.getBoundingClientRect().height)).toBe(26);
+    // the size of the row's other controls, reqore's `small`, as on a touch screen (On A Touch Screen)
+    expect(Math.round(help.getBoundingClientRect().height)).toBe(32);
     // its focus is seen: a ring
     help.focus();
     await waitFor(() => expect(getComputedStyle(help).outlineStyle).toBe('solid'));

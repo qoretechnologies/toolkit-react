@@ -36,7 +36,6 @@ import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
-import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
 import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
 import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 import { resolveInheritProps } from './inheritProps';
@@ -269,8 +268,6 @@ export const CompactRow = memo(
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
     const showFieldTypes = useContextSelector(CompactRowContext, (v) => v.showFieldTypes);
-    // a finger's target is `small`, a mouse's `tiny` (the help button)
-    const coarse = useCoarsePointer();
     // what kind of value the option takes, in the words the form's type catalogue names it
     const typeName = useTypeName();
     const typeSentenceForm = useTypeSentenceForm();
@@ -1446,11 +1443,14 @@ export const CompactRow = memo(
       schema?.desc || schema?.short_desc || typeSentence ?
         <ReqoreButton
           icon='QuestionLine'
-          size={coarse ? 'small' : 'tiny'}
+          /* `small`, as the row's other controls are (its clear, its list, Done, its revert): it was `tiny` with a
+             mouse, and stood 26px high beside the open editor's 32px buttons (qorus#646). A finger had `small`
+             already, so a touch screen draws it as before. */
+          size='small'
           minimal
           flat
           fixed
-          className={`options-readfirst-help${coarse ? ' options-readfirst-help-touch' : ''}`}
+          className='options-readfirst-help'
           aria-label={`Help: ${label}`}
           tooltip='Help'
           effect={{ opacity: rowInks.helpOpacity }}
