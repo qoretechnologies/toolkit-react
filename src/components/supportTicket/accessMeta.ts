@@ -231,3 +231,25 @@ export const grantTimeIntent = (expiresAt: string | undefined, now: number): TRe
   if (left <= 0) return 'muted';
   return left < EXPIRING_SOON_MS ? 'warning' : 'success';
 };
+
+/** The grantee, as every surface names the support team. */
+const GRANTEE = 'Qorus Support';
+
+/**
+ * The line of a delegated-access event in a thread, read from the viewer's side. The plane records
+ * what happened (`system_event` + `system_detail`) with a third-person body as the fallback; the
+ * end of a grant is re-read here so the customer who ended it reads "ended by you", staff read
+ * "ended by the customer", and an expiry reads "ran out" on both sides — the one vocabulary
+ * (`supportGrantEndCauseLabel`) the rail and the access log already speak. Any other event, an end
+ * the plane did not explain, or a cause this vocabulary does not know, keeps the plane's body: a
+ * humanised wire value glued into the sentence would read as a phrase nobody wrote.
+ */
+export const supportAccessEventText = (
+  message: { system_event?: string; system_detail?: Record<string, unknown>; body: string },
+  viewerRole?: TTicketViewerRole
+): string => {
+  const cause = message.system_detail?.end_cause;
+  const ended = message.system_event === 'support_access.revoked' || message.system_event === 'support_access.expired';
+  if (!ended || typeof cause !== 'string' || !(cause in SUPPORT_GRANT_END_CAUSE_LABEL)) return message.body;
+  return `${GRANTEE}'s read-only access to this workspace ${supportGrantEndCauseLabel(cause, viewerRole)}.`;
+};

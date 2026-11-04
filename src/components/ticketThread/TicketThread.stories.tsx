@@ -862,8 +862,25 @@ const SUPPORT_ACCESS_THREAD: ITicketThreadMessage[] = [
   { message_id: 'sa3', author_type: 'system', author_id: 'system', system_event: 'support_access.first_used', body: 'Qorus Support opened the workspace.', created: ago(200) },
   { message_id: 'st1', author_type: 'staff', author_id: 'nick', body: 'Found it: the job runs with the pool default from 3.2. Fix coming in 3.2.1.', created: ago(150) },
   { message_id: 'sa4', author_type: 'system', author_id: 'system', system_event: 'support_access.extended', body: 'Workspace access extended until **Friday 14:00**.', created: ago(100) },
-  { message_id: 'sa5', author_type: 'system', author_id: 'system', system_event: 'support_access.revoked', body: 'Workspace access revoked by you.', created: ago(40) },
-  { message_id: 'sa6', author_type: 'system', author_id: 'system', system_event: 'support_access.expired', body: 'Workspace access expired.', created: ago(5) },
+  // the plane writes the end in the third person and names the cause in the detail; the thread words it from the viewer's side
+  {
+    message_id: 'sa5',
+    author_type: 'system',
+    author_id: 'system',
+    system_event: 'support_access.revoked',
+    system_detail: { grant_id: 'g-1', end_cause: 'customer_revoked' },
+    body: "Qorus Support's read-only access to this workspace was ended by the customer.",
+    created: ago(40),
+  },
+  {
+    message_id: 'sa6',
+    author_type: 'system',
+    author_id: 'system',
+    system_event: 'support_access.expired',
+    system_detail: { grant_id: 'g-2', end_cause: 'expired' },
+    body: "Qorus Support's read-only access to this workspace ran out.",
+    created: ago(5),
+  },
 ];
 
 /**
@@ -877,7 +894,7 @@ export const SupportAccessRequestCard: Story = {
     docs: {
       description: {
         story:
-          'Renders the delegated-access events in a customer thread in the notification look: the support request as a card (frosted surface, icon tile, the Grant action supplied by the consumer under the text), and the granted, opened, extended, revoked and expired events as compact pills centered in the thread (qorus#693).',
+          'Renders the delegated-access events in a customer thread in the notification look: the support request as a card (frosted surface, icon tile, the Grant action supplied by the consumer under the text), and the granted, opened, extended, revoked and expired events as compact pills centered in the thread (qorus#693). The end of a grant is worded from the viewer\'s side: the customer who ended it reads "ended by you", and an expiry reads "ran out".',
       },
     },
   },
@@ -898,7 +915,9 @@ export const SupportAccessRequestCard: Story = {
     const grant = canvas.getByText('Grant access');
     await expect(grant).toBeInTheDocument();
     await expect(canvas.getByText(/Workspace access granted until/)).toBeInTheDocument();
-    await expect(canvas.getByText(/Workspace access expired/)).toBeInTheDocument();
+    await expect(canvas.getByText(/access to this workspace ended by you\./)).toBeInTheDocument();
+    await expect(canvas.getByText(/access to this workspace ran out\./)).toBeInTheDocument();
+    await expect(canvas.queryByText(/by the customer/)).toBeNull();
   },
 };
 
@@ -909,7 +928,7 @@ export const SupportAccessRequestCardStaffView: Story = {
     docs: {
       description: {
         story:
-          'Renders the same delegated-access thread for staff: the request card carries no action (only the customer can answer), the lines are unchanged, and the staff reply sits on the right.',
+          'Renders the same delegated-access thread for staff: the request card carries no action (only the customer can answer), the end of the grant reads "ended by the customer", and the staff reply sits on the right.',
       },
     },
   },
@@ -922,6 +941,8 @@ export const SupportAccessRequestCardStaffView: Story = {
     await expect(canvas.getByText('Workspace access requested')).toBeInTheDocument();
     await expect(canvas.queryByText('Grant access')).toBeNull();
     await expect(canvasElement.querySelectorAll('.reqore-ticket-system-card-action')).toHaveLength(0);
+    await expect(canvas.getByText(/access to this workspace ended by the customer\./)).toBeInTheDocument();
+    await expect(canvas.queryByText(/by you/)).toBeNull();
   },
 };
 

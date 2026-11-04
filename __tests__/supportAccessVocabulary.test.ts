@@ -11,6 +11,7 @@ import {
   SUPPORT_ACCESS_AUDIT_ACTION_META,
   supportAccessAuditActionMeta,
   supportAccessDurationLabel,
+  supportAccessEventText,
   supportAccessPolicyMeta,
   supportAccessPolicySourceLabel,
   supportGrantEndCauseLabel,
@@ -73,5 +74,47 @@ describe('time against a given clock', () => {
     expect(grantTimeIntent('2026-10-19T12:40:00Z', NOW)).toBe('warning');
     expect(grantTimeIntent('2026-10-19T11:00:00Z', NOW)).toBe('muted');
     expect(grantTimeIntent(undefined, NOW)).toBe('success');
+  });
+});
+
+describe('the thread line of an ended grant', () => {
+  const line = (system_event: string, end_cause?: string) => ({
+    system_event,
+    system_detail: end_cause ? { grant_id: 'g-1', end_cause } : undefined,
+    body: "Qorus Support's read-only access to this workspace was ended by the customer.",
+  });
+
+  it('reads the end from the viewer\'s side', () => {
+    expect(supportAccessEventText(line('support_access.revoked', 'customer_revoked'), 'customer')).toBe(
+      "Qorus Support's read-only access to this workspace ended by you."
+    );
+    expect(supportAccessEventText(line('support_access.revoked', 'customer_revoked'), 'staff')).toBe(
+      "Qorus Support's read-only access to this workspace ended by the customer."
+    );
+    expect(supportAccessEventText(line('support_access.revoked', 'staff_revoked'), 'customer')).toBe(
+      "Qorus Support's read-only access to this workspace ended by Qorus Support."
+    );
+    expect(supportAccessEventText(line('support_access.revoked', 'staff_revoked'), 'staff')).toBe(
+      "Qorus Support's read-only access to this workspace ended by support."
+    );
+  });
+
+  it('says an expiry ran out, and names the other causes, on both sides', () => {
+    expect(supportAccessEventText(line('support_access.expired', 'expired'), 'customer')).toBe("Qorus Support's read-only access to this workspace ran out.");
+    expect(supportAccessEventText(line('support_access.expired', 'expired'), 'staff')).toBe("Qorus Support's read-only access to this workspace ran out.");
+    expect(supportAccessEventText(line('support_access.revoked', 'ticket_resolved'), 'customer')).toBe(
+      "Qorus Support's read-only access to this workspace ended when the ticket was resolved."
+    );
+  });
+
+  it('keeps the plane\'s body when the end is unexplained, the cause is unknown, or the event is another', () => {
+    expect(supportAccessEventText(line('support_access.revoked'), 'customer')).toBe(
+      "Qorus Support's read-only access to this workspace was ended by the customer."
+    );
+    expect(supportAccessEventText(line('support_access.revoked', 'something_new'), 'staff')).toBe(
+      "Qorus Support's read-only access to this workspace was ended by the customer."
+    );
+    expect(supportAccessEventText({ ...line('support_access.granted', 'customer_revoked'), body: 'Granted until Friday.' }, 'customer')).toBe('Granted until Friday.');
+    expect(supportAccessEventText({ body: 'Ticket opened.' }, 'staff')).toBe('Ticket opened.');
   });
 });

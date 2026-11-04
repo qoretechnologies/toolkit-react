@@ -33,6 +33,7 @@ import {
   IInterfaceReference,
   InterfaceReferenceTags,
   TICKET_SYSTEM_EVENT_META,
+  supportAccessEventText,
   ticketSystemEventMeta,
   TResolveInterfaceIcon,
   TTicketMessageAuthor,
@@ -607,11 +608,14 @@ const SystemMessage = ({
   message,
   action,
   opacity,
+  viewerRole,
 }: {
   message: ITicketThreadMessage;
   action?: ITicketSystemEventAction;
   /** the readable opacity of a plain system line (develop's `useReadableOpacity`); a card is not dimmed */
   opacity: number;
+  /** whose side the line is read from: the end of a grant says "by you" to the one who ended it */
+  viewerRole: TTicketViewerRole;
 }) => {
   const meta = ticketSystemEventMeta(message.system_event);
   if (message.system_event === 'support_access.requested') {
@@ -649,7 +653,8 @@ const SystemMessage = ({
   }
   // A delegated-access event the vocabulary knows is a compact pill in the same look as
   // the request card, so the grant's story reads as one family: asked, granted, opened,
-  // extended, revoked, expired. Any other system line stays the plain centred line.
+  // extended, revoked, expired — the end of a grant worded from the viewer's side. Any
+  // other system line stays the plain centred line.
   if (message.system_event && message.system_event in TICKET_SYSTEM_EVENT_META) {
     return (
       <StyledSystemPill id={ticketMessageDomId(message.message_id)} className='reqore-ticket-system-pill'>
@@ -659,7 +664,7 @@ const SystemMessage = ({
           size='small'
           icon={meta.icon}
           intent={meta.intent}
-          content={<ReactMarkdown components={{ p: 'span' }}>{message.body}</ReactMarkdown>}
+          content={<ReactMarkdown components={{ p: 'span' }}>{supportAccessEventText(message, viewerRole)}</ReactMarkdown>}
         />
       </StyledSystemPill>
     );
@@ -793,6 +798,7 @@ export const TicketThread = ({
             message={segment.message}
             action={systemEventAction?.(segment.message)}
             opacity={systemNoteOpacity}
+            viewerRole={viewerRole}
           />
         ) : (
           <ReqoreBubbleGroup key={`group-${index}`}>
