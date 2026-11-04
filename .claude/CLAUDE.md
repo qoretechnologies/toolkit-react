@@ -189,6 +189,7 @@ yarn build:test         # Type-check without emit
   like ten different release lines instead of successive previews of one.
 - Bump in `package.json` only (no git tag): `npm version patch --no-git-tag-version`, and include the bump in the PR's commit.
 - If another PR bumps to the same version before yours merges, rebase and bump again — the version at merge time must be strictly greater than the last published one.
+- A reqore release arrives on its own: `.github/workflows/library-release.yml` answers reqore's `library-release` dispatch with a `deps/reqore` PR opened by `qorus-github-bot` that takes the version, bumps our patch version itself (so the merge publishes) and merges itself when `Pull Request Tests` is green and its Qlip build has no changed snapshot. One that stays open is held for a person: review its Qlip build, then merge by hand; the next reqore release recuts it. Our own release then tells qorus-ide the same way (`publish.yml`). Issue #155.
 
 ### Testing Patterns
 

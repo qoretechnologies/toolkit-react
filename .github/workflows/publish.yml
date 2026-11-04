@@ -114,6 +114,34 @@ jobs:
           draft: false
           prerelease: false
 
+      # Tell qorus-ide. It answers with a `deps/reqraft` PR that takes this
+      # version, runs its own CI and Qlip, and merges itself when nothing
+      # changed visually; see library-release.yml there (and here, for the
+      # reqore releases we take the same way). A failure here is a warning,
+      # not a failed release: the package is already on npm, and the consumer's
+      # workflow can be run by hand (Actions -> Library release -> Run workflow).
+      - name: Mint a token for the consumer
+        id: bot
+        continue-on-error: true
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.QORUS_BOT_APP_ID }}
+          private-key: ${{ secrets.QORUS_BOT_APP_PRIVATE_KEY }}
+          owner: qoretechnologies
+          repositories: qorus-ide
+      - name: Tell qorus-ide a release exists
+        if: steps.bot.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          VERSION: ${{ steps.save_release_version.outputs.version }}
+        run: |
+          jq -cn --arg version "$VERSION" --arg sha "$GITHUB_SHA" --arg repository "$GITHUB_REPOSITORY" \
+            '{event_type: "library-release", client_payload: {package: "@qoretechnologies/reqraft", version: $version, repository: $repository, sha: $sha}}' \
+          | gh api repos/qoretechnologies/qorus-ide/dispatches --input - \
+            && echo "told qorus-ide about reqraft $VERSION" \
+            || echo "::warning::could not tell qorus-ide about reqraft $VERSION; run its Library release workflow by hand"
+
       # Notify discord if success
       - name: Discord notification
         env:
