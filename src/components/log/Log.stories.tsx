@@ -383,6 +383,11 @@ export const CopyableMessagesReadAsLines: Story = {
     const rows = logRows(canvasElement);
     const fontSize = parseFloat(getComputedStyle(rows[0].message).fontSize);
 
+    // everything is in view, so there is nothing to scroll to
+    await expect(canvasElement.querySelector('.reqraft-log-scroll-to-bottom')).toBeNull();
+    const panel = canvasElement.querySelector('.reqore-panel-content') as HTMLElement;
+    await expect(panel.scrollHeight).toBeLessThanOrEqual(panel.clientHeight);
+
     // one line after another: no space between them as high as a line (the copy buttons made it 23 px)
     const gaps = gapsBetweenLines(canvasElement);
     for (const gap of gaps) {
@@ -514,6 +519,8 @@ export const Pause: Story = {
   play: async () => {
     await testsWaitForText('This is another message');
     await testsClickButton({ selector: '.reqraft-log-pause-resume' });
+    // everything is in view, so there is nothing to scroll to
+    await expect(document.querySelector('.reqraft-log-scroll-to-bottom')).toBeNull();
   },
 };
 
@@ -534,6 +541,8 @@ export const Clear: Story = {
     await Basic.play(args);
     await testsClickButton({ selector: '.reqraft-log-clear' });
     await testsWaitForText('No messages');
+    // nothing is left to scroll to
+    await expect(document.querySelector('.reqraft-log-scroll-to-bottom')).toBeNull();
   },
 };
 
@@ -634,5 +643,9 @@ export const WithAutoScrollAndManualScroll: Story = {
       target: { scrollTop: 100 },
     });
     await sleep(100);
+    // scrolled up, with more below: the action back to the end is offered
+    await waitFor(() =>
+      expect(document.querySelector('.reqraft-log-scroll-to-bottom')).toBeTruthy()
+    );
   },
 };
