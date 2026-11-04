@@ -106,17 +106,13 @@ export const templateCompletionItems = (
 };
 
 /**
- * The signs a template is asked for by, as it is typed: `$`, as a template is written, and `@`, as a field is
- * named in an expression - the list opens on either (`useLspAutocomplete`'s sigil tokens), so the template chosen
- * takes either's place.
+ * A reference being typed at the end of a text: a `$` and the template after it (`$data:receive_order.`), or an
+ * `@` and the record field after it (`@po`) - an `@` that starts a word, not one in an email address. The one rule
+ * for both what opens a text's template list (`RichText`) and what a pick from it takes the place of
+ * (`templateChipInserter`): a pick that deleted what did not open the list took a word the author wrote with it.
  */
-const TEMPLATE_SIGILS = new Set(['$', '@']);
+export const REFERENCE_BEING_TYPED = /(?:^|[^\p{L}\p{N}_.])([$@][\p{L}\p{M}\p{N}_.:{}[\]*-]*)$/u;
 
-/**
- * Inserts a template chosen from the completion list as the chip it is, in place of what was typed for it: the `$`
- * or `@` that opened the list and the word after it. The `@` stayed in front of the chip (qorus#646, David's
- * review): only a `$` was taken away.
- */
 /**
  * Writes a completion as text in the place of what is typed of it (or of the chip it replaces): the reference of
  * a context, a state or a record taken to go on into (`$data:`, `$data:receive_order.`), which is completed on.
@@ -149,6 +145,15 @@ export const templateTextInserter: TCompletionInserter = (item, editor, ctx) => 
   focusEditor(editor);
 };
 
+/**
+ * Inserts a template chosen from the completion list or the picker as the chip it is, in place of what was typed
+ * for it: the `$` or `@` that opened the list and the word after it (`REFERENCE_BEING_TYPED`). The `@` stayed in
+ * front of the chip (qorus#646, David's review): only a `$` was taken away.
+ *
+ * Nothing else is deleted. A pick from the picker opened by a click in the text is asked for by no word, and it
+ * took the word before the caret all the same: "SUP-" typed, the text clicked and a field picked read as the chip
+ * alone (qorus#646, the IDE's Sheet Contract Review).
+ */
 export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => {
   const value = item.insertText ?? item.label;
   if (ctx.replacementPath) {
@@ -166,16 +171,10 @@ export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => 
     return;
   }
   if (editor.selection) {
-    let start = ctx.cursorOffset - 1;
-    while (start >= 0 && /[\w.:{}-]/.test(ctx.plainText[start])) start--;
-    if (!(start >= 0 && TEMPLATE_SIGILS.has(ctx.plainText[start]))) start++;
     const typed = typedInTheText(editor);
+    const written = REFERENCE_BEING_TYPED.exec(typed)?.[1] ?? '';
     const extended = chipExtendedBy(editor, typed, value);
-    for (
-      let left = Math.min(ctx.cursorOffset - start, extended ? typed.length : Infinity);
-      left > 0;
-      left--
-    ) {
+    for (let left = extended ? typed.length : written.length; left > 0; left--) {
       Editor.deleteBackward(editor, { unit: 'character' });
     }
     if (extended) {

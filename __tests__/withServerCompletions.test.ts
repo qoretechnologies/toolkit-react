@@ -72,3 +72,78 @@ describe('a lone group of templates', () => {
     ]);
   });
 });
+
+/*
+ * qorus#646, the IDE's Sheet Contract Review: a host's catalogue lists the row's fields as templates
+ * (`$record:{pos}` under "Fields of the row") and the expression's language server and its record (`@pos`, under
+ * Record fields) list them again, so the picker's first look was two groups holding the same fields rather than the
+ * fields. A record field the catalogue already lists is that one field: listed once, where the host lists it.
+ */
+describe("the row's fields, listed by the host and by the record", () => {
+  const HOST = {
+    items: [
+      {
+        label: 'Fields of the row',
+        items: [
+          { label: 'pos', value: '$record:{pos}' },
+          { label: 'bezeichnung', value: '$record:{bezeichnung}' },
+        ],
+      },
+    ],
+  };
+  const ROW_FIELDS = {
+    pos: { type: 'int', short_desc: 'The position' },
+    bezeichnung: { type: 'string' },
+  };
+  const labels = (nodes: { label: string }[]) => nodes.map((node) => node.label);
+
+  it("are the host's, once each, and no Record fields group repeats them", () => {
+    const kept = templateTree(HOST, { fields: ROW_FIELDS, keepLoneGroup: true });
+    expect(labels(kept)).toEqual(['Fields of the row']);
+    expect(labels(kept[0].children ?? [])).toEqual(['pos', 'bezeichnung']);
+  });
+
+  it('are what the first look shows, the language server answering with them too', async () => {
+    const { openLoneGroup } = await import('../src/helpers/templateTree');
+    const kept = templateTree(HOST, { fields: ROW_FIELDS, keepLoneGroup: true });
+    const server = [
+      { label: '@pos', kind: 5, insertText: '@pos', detail: 'Whole number' },
+      { label: '@bezeichnung', kind: 5, insertText: '@bezeichnung' },
+    ];
+    const roots = openLoneGroup(withServerCompletions(kept, server));
+    expect(labels(roots)).toEqual(['pos', 'bezeichnung']);
+    // written as the host writes them
+    expect(roots.map((node) => node.value)).toEqual(['$record:{pos}', '$record:{bezeichnung}']);
+  });
+
+  it('keep what the record says of a field where the host says nothing', () => {
+    const [group] = templateTree(HOST, { fields: ROW_FIELDS, keepLoneGroup: true });
+    const pos = group.children!.find((node) => node.label === 'pos')!;
+    expect(pos).toMatchObject({ value: '$record:{pos}', type: 'int', description: 'The position' });
+  });
+
+  it('list a field the host does not list under Record fields, alone', () => {
+    const kept = templateTree(HOST, {
+      fields: { ...ROW_FIELDS, menge: { type: 'float' } },
+      keepLoneGroup: true,
+    });
+    expect(labels(kept)).toEqual(['Fields of the row', 'Record fields']);
+    expect(labels(kept[1].children ?? [])).toEqual(['menge']);
+    const merged = withServerCompletions(kept, [
+      { label: '@pos', kind: 5, insertText: '@pos' },
+      { label: '@status', kind: 5, insertText: '@status' },
+    ]);
+    expect(
+      merged.find((node) => node.label === 'Record fields')?.children?.map((node) => node.value)
+    ).toEqual(['@menge', '@status']);
+  });
+
+  it('are not a path into a field: `$record:{customer.name}` is not the field customer', () => {
+    const kept = templateTree(
+      { items: [{ label: 'Row', items: [{ label: 'name', value: '$record:{customer.name}' }] }] },
+      { fields: { customer: { type: 'hash' } }, keepLoneGroup: true }
+    );
+    expect(labels(kept)).toEqual(['Row', 'Record fields']);
+    expect(labels(kept[1].children ?? [])).toEqual(['customer']);
+  });
+});

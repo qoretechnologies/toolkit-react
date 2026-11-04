@@ -397,21 +397,19 @@ export const StyledLabelBlock = styled.div`
 `;
 
 /* An option's help is a button in the tab order (qorus#646), beside the name on its line: a button is a block,
-   which put it on a line of its own under a name in a narrow label column. Its target is reqore's `tiny` (26px),
-   or `small` (32px) for a finger, taller than the name's line: it reaches into the row's padding rather than
-   making every row with help taller. Its focus ring is reqore's, drawn inside it: one outside it overlapped the
-   name's last letter. */
+   which put it on a line of its own under a name in a narrow label column. Its target is reqore's `small` (32px),
+   the size of the row's other controls, for a mouse and a finger alike, taller than the name's line: it reaches
+   into the row's padding rather than making every row with help taller. It reaches 6px to its left too, into the
+   gap before it and the padding around its own icon, so it takes the 26px of the label column the `tiny` button
+   it replaced took, its right edge still the column's: 6px more of a narrow column wrapped "Required Option 1"
+   onto two lines and made each row taller. Its focus ring is reqore's, drawn inside it: one outside it
+   overlapped the name's last letter. */
 const HELP_BUTTON_BESIDE_THE_NAME = `
   .options-readfirst-help {
     display: inline-flex;
     vertical-align: middle;
     flex-shrink: 0;
-    margin-top: -5px;
-    margin-bottom: -5px;
-  }
-  .options-readfirst-help-touch {
-    margin-top: -8px;
-    margin-bottom: -8px;
+    margin: -8px 0 -8px -6px;
   }
 `;
 
@@ -593,6 +591,16 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     font-size: 12px;
     line-height: 1.4;
     opacity: 0.6;
+  }
+  /* A data provider's description, under its identity in the preview inset:
+     the same quiet companion text a chosen option's description is. */
+  .options-readfirst-provider-desc {
+    min-width: 0;
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: 0.6;
+    overflow-wrap: anywhere;
   }
   .options-readfirst-text {
     color: ${({ $color }) => $color};

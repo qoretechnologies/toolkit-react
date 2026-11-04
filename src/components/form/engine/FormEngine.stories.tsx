@@ -3476,6 +3476,78 @@ export const CompactEditingShowsDescription: Story = {
   },
 };
 
+/** An open row's (?) and its own controls, measured: one height (qorus#646). */
+const expectHelpAsTallAsTheControls = async () => {
+  await _testsWaitForText('order-fulfilment');
+  // At rest the read row's (?) is already the open editor's size: one control, drawn the same way in both.
+  const restingHelp = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>(
+      '.readfirst-row[data-field="name"] .options-readfirst-help'
+    );
+    expect(el).toBeTruthy();
+    return el as HTMLElement;
+  });
+  expect(Math.round(restingHelp.getBoundingClientRect().height)).toBe(32);
+  await _testsClickText('order-fulfilment');
+  await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+  const row = await waitFor(() => {
+    const el = document.querySelector<HTMLElement>('.options-readfirst-inline');
+    expect(el?.querySelector('.options-readfirst-help')).toBeTruthy();
+    expect(el?.querySelector('.options-readfirst-done')).toBeTruthy();
+    return el as HTMLElement;
+  });
+  const height = (selector: string) =>
+    Math.round(row.querySelector<HTMLElement>(selector)!.getBoundingClientRect().height);
+  // the row's controls: Done, and the clear where the field has one of its own
+  const controls = ['.options-readfirst-done', '.options-readfirst-clear', '.options-readfirst-cancel'].filter(
+    (selector) => row.querySelector(selector)
+  );
+  for (const control of controls) {
+    expect(height('.options-readfirst-help'), `the (?) beside ${control}`).toBe(height(control));
+  }
+  expect(height('.options-readfirst-help')).toBe(32);
+  // it takes no more of the label column than the 26px button it replaced: more wrapped a name in a narrow column
+  const help = row.querySelector<HTMLElement>('.options-readfirst-help')!;
+  const { marginLeft, marginRight } = getComputedStyle(help);
+  expect(
+    Math.round(help.getBoundingClientRect().width + parseFloat(marginLeft) + parseFloat(marginRight))
+  ).toBe(26);
+};
+
+export const CompactEditingHelpIsTheSizeOfTheControls: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the open row with its (?) is pictured by
+    // `CompactEditingShowsDescription`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the compact form: the read row's (?) is 32px at rest, and once the field is opened it is as tall as the row's Done (32px), where it used to be 26px beside it.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactHelpSchema,
+  },
+  play: expectHelpAsTallAsTheControls,
+};
+
+export const CompactEditingHelpIsTheSizeOfTheControlsOnATouchScreen: Story = {
+  ...CompactEditingHelpIsTheSizeOfTheControls,
+  parameters: {
+    // Interaction-only: on a touch screen the (?) was already `small`; the play is the guard that it stays even.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the same form where the pointer is a finger and opens the field: the (?) and Done stay one height (32px).",
+      },
+    },
+  },
+  decorators: [withCoarsePointer],
+};
+
 export const CompactWithPanelProps: Story = {
   parameters: {
     docs: {
@@ -10145,7 +10217,7 @@ export const AnOptionsHelpIsAButton: Story = {
     docs: {
       description: {
         story:
-          "Renders the Skip when form. An option's (?) is a button (David's decision): Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is a mouse's size on a desktop, and the focus left on it shows its ring in the capture.",
+          "Renders the Skip when form. An option's (?) is a button (David's decision): Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is the size of the row's other controls (reqore's `small`, 32px), and the focus left on it shows its ring in the capture.",
       },
     },
   },
@@ -10175,8 +10247,8 @@ export const AnOptionsHelpIsAButton: Story = {
     expect(row.classList.contains('readfirst-row-editing'), 'the row stays closed').toBe(false);
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeFalsy());
-    // a mouse's size here, reqore's `tiny` (a finger's on a touch screen: On A Touch Screen)
-    expect(Math.round(help.getBoundingClientRect().height)).toBe(26);
+    // the size of the row's other controls, reqore's `small`, as on a touch screen (On A Touch Screen)
+    expect(Math.round(help.getBoundingClientRect().height)).toBe(32);
     // its focus is seen: a ring
     help.focus();
     await waitFor(() => expect(getComputedStyle(help).outlineStyle).toBe('solid'));
@@ -10544,12 +10616,39 @@ const ReadOnlyDataProviderValue = {
   },
 } as never;
 
+/** What the picker caches beside a provider when it is chosen: never part of the preview. */
+const PROVIDER_CAPABILITY_CACHE_KEYS = [
+  'transaction_management',
+  'record_requires_search_options',
+  'supports_read',
+  'supports_create',
+  'descriptions',
+];
+
+/** A provider row's preview shows the provider and its description, not the picker's cache or markdown marks. */
+const expectProviderPreview = async (row: HTMLElement, description: string) => {
+  await waitFor(() =>
+    expect(row.querySelector('.options-readfirst-structured')).toBeTruthy()
+  );
+  const preview = row.querySelector('.options-readfirst-structured') as HTMLElement;
+  expect(preview.textContent).toContain('datasource');
+  expect(preview.textContent).toContain('/bb_local');
+  for (const cached of PROVIDER_CAPABILITY_CACHE_KEYS) {
+    expect(preview.textContent).not.toContain(cached);
+  }
+  await waitFor(() =>
+    expect(preview.querySelector('.options-readfirst-provider-desc')).toHaveTextContent(description)
+  );
+  expect(preview.textContent).not.toContain('`');
+  return preview;
+};
+
 export const CompactReadOnlyDataProvider: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'A read-only row whose value is a data provider names it — "datasource · omquser · /bb_local", the kind, the name and the path as the picker shows them — instead of counting its keys ("11 fields", which read as a string that happened to say "fields"). The keys themselves sit one disclosure away in the same structured preview a hash row has. The string row beside it stays one line: the preview follows the shape of the value, not the read mode.',
+          'Renders a read-only row whose value is a data provider, in a host that draws no markdown: it names the provider ("datasource · omquser · /bb_local") and previews what it is (type, name, path) with its description as plain text ("Record-based data provider for db table public.bb_local"), no backticks, and none of the capabilities the picker cached. The string row beside it stays one line.',
       },
     },
   },
@@ -10566,13 +10665,68 @@ export const CompactReadOnlyDataProvider: Story = {
       document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement;
     // The summary names the provider; the count is gone.
     expect(row('value').textContent).not.toContain('fields');
-    // Its keys are one disclosure away, as they are for a hash.
-    await waitFor(() =>
-      expect(row('value').querySelector('.options-readfirst-structured')).toBeTruthy()
+    // The provider is one disclosure away, and its description reads as the prose it renders to.
+    const preview = await expectProviderPreview(
+      row('value'),
+      'Record-based data provider for db table public.bb_local'
     );
-    expect(row('value').textContent).toContain('bb_local');
+    expect(preview.querySelector('.options-readfirst-provider-desc code')).toBeNull();
     // The counterweight: a scalar row gets no preview.
     expect(row('name').querySelector('.options-readfirst-structured')).toBeNull();
+  },
+};
+
+/** The reported case: a Qog action's data_provider option, with the description the server gave the datasource. */
+const ReadOnlyDataProviderDescribedValue = {
+  data_provider: {
+    type: 'data-provider',
+    value: {
+      type: 'datasource',
+      name: 'omquser',
+      path: '/bb_local',
+      transaction_management: true,
+      record_requires_search_options: false,
+      supports_read: true,
+      supports_create: true,
+      descriptions: ['Data provider for database `pgsql:omquser@omquser`'],
+    },
+  },
+} as never;
+
+export const CompactReadOnlyDataProviderDescriptionDrawn: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a read-only data-provider row in a host that draws markdown: the preview shows the provider (type, name, path) and its description drawn by the host, "pgsql:omquser@omquser" as code with no backticks, and none of the capabilities the picker cached.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    name: 'action',
+    options: {
+      data_provider: {
+        type: 'data-provider',
+        ui_type: 'data-provider',
+        display_name: 'Data provider',
+      },
+    } as never,
+    value: ReadOnlyDataProviderDescribedValue,
+    markdownRenderer: defaultMarkdownRenderer,
+  } as never,
+  play: async () => {
+    await _testsWaitForText('datasource · omquser · /bb_local');
+    const preview = await expectProviderPreview(
+      document.querySelector('.readfirst-row[data-field="data_provider"]') as HTMLElement,
+      'Data provider for database pgsql:omquser@omquser'
+    );
+    await waitFor(() =>
+      expect(preview.querySelector('.options-readfirst-provider-desc code')).toHaveTextContent(
+        'pgsql:omquser@omquser'
+      )
+    );
   },
 };
 

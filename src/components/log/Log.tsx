@@ -4,6 +4,7 @@ import {
   ReqoreFonts,
   ReqoreInput,
   ReqoreParagraph,
+  useReqoreProperty,
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
@@ -13,6 +14,7 @@ import count from 'lodash/size';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useScroll } from 'react-use';
 import { READABLE_ICON } from '../../helpers/readableColors';
+import { copyText } from '../../helpers/secureContextApis';
 import { useReadableIntentShade } from '../../hooks/useReadableIntentShade';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 
@@ -35,6 +37,15 @@ export interface IReqraftLogProps extends IReqorePanelProps {
 
   allowMessageDeletion?: boolean;
   allowMessageCopy?: boolean;
+  /** Notification shown after a message was copied. @default 'Log message copied to clipboard' */
+  copyMessageNotificationContent?: string;
+  /**
+   * Notification shown when a message could not be copied (the browser refused, or offers no way to copy, as on a
+   * page served over plain http that does not allow the copy command): what failed and what to do instead. It stays
+   * until it is closed.
+   * @default 'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.'
+   */
+  copyMessageFailedNotificationContent?: string;
 
   showTimestamps?: boolean;
 
@@ -63,6 +74,8 @@ export const ReqraftLog = ({
   autoScroll,
   allowMessageDeletion,
   allowMessageCopy,
+  copyMessageNotificationContent = 'Log message copied to clipboard',
+  copyMessageFailedNotificationContent = 'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.',
   filterable,
   filterProps,
   showTimestamps,
@@ -160,6 +173,30 @@ export const ReqraftLog = ({
     onMessageClick?.(message);
   };
 
+  const addNotification = useReqoreProperty('addNotification');
+
+  // Copying can be refused (permissions, a page served over plain http): the
+  // failure is shown, and says what to do, instead of an unhandled rejection.
+  const handleCopyClick = useCallback(
+    async (text: string) => {
+      try {
+        await copyText(text);
+      } catch {
+        addNotification({
+          content: copyMessageFailedNotificationContent,
+          intent: 'danger',
+        });
+        return;
+      }
+      addNotification({
+        content: copyMessageNotificationContent,
+        intent: 'success',
+        duration: 3000,
+      });
+    },
+    [addNotification, copyMessageNotificationContent, copyMessageFailedNotificationContent]
+  );
+
   return (
     <ReqorePanel
       size={size}
@@ -247,7 +284,7 @@ export const ReqraftLog = ({
                 <ReqoreButton
                   compact
                   onClick={() => {
-                    navigator.clipboard.writeText(message);
+                    handleCopyClick(message);
                   }}
                   icon='FileCopyLine'
                   className='reqraft-log-copy-message'

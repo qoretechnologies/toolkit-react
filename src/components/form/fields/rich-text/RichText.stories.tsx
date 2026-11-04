@@ -552,6 +552,39 @@ export const AChipIsReplacedFromItsGroup: Story = {
 };
 
 /**
+ * A pick from the picker a click opened goes in at the caret and deletes nothing (qorus#646, the IDE's Sheet
+ * Contract Review): it took the word before the caret, and "SUP-" and a field picked read as the field alone.
+ */
+export const APickKeepsTheWordBeforeIt: Story = {
+  args: { value: 'SUP-', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state (text, then a chip) is already
+    // pictured by `TemplateHoverDrawsTheDescription`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the text "SUP-". Clicks after it and picks Receive order › Order ID from the picker: the chip goes ' +
+          'in after "SUP-", which stays, and the value is "SUP-$data:{receive_order.order_id}".',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await waitFor(() => expect(plainTextOf(editable)).toBe('SUP-'));
+    // the click lands right of the text, which puts the caret at its end
+    await userEvent.click(editable);
+    await userEvent.click(await pickerRow('Receive order'));
+    await userEvent.click(await pickerRow('Order ID'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('SUP-$data:{receive_order.order_id}')
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Order ID']));
+    expect(plainTextOf(editable)).toBe('SUP-');
+  },
+};
+
+/**
  * A template of any keys - a workflow's dynamic data - has its key written in the picker: what it holds is known
  * only when the workflow runs.
  */

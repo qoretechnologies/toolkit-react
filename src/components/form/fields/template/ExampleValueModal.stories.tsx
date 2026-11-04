@@ -1,5 +1,6 @@
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fireEvent, fn, waitFor } from 'storybook/test';
+import { storyCopiedTexts, withStoryClipboard } from '../../../../stories/clipboard';
 import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { ReqraftTemplateExampleValueModal } from './ExampleValueModal';
 
@@ -18,48 +19,65 @@ const meta = {
 
 export default meta;
 
+const findModal = () =>
+  waitFor(
+    () => {
+      const el = document.querySelector('.reqraft-template-example-value-modal');
+      if (!el) throw new Error('modal not rendered yet');
+      return el;
+    },
+    { timeout: 10000 }
+  );
+
+const clickCopy = async (modal: Element, label: string) => {
+  const copy = Array.from(modal.querySelectorAll('button')).find(
+    (button) => button.textContent?.trim() === label
+  );
+  await expect(copy).toBeTruthy();
+  fireEvent.click(copy);
+};
+
+const waitForNotification = (text: string) =>
+  waitFor(
+    () => {
+      const shown = Array.from(document.querySelectorAll('.reqore-notification')).map(
+        (notification) => notification.textContent || ''
+      );
+      if (!shown.some((content) => content.includes(text))) {
+        throw new Error(`no notification "${text}" yet: ${JSON.stringify(shown)}`);
+      }
+      return shown;
+    },
+    { timeout: 10000 }
+  );
+
 export const Default: StoryObj<typeof meta> = {
+  beforeEach: withStoryClipboard('clipboard-api'),
   parameters: {
     docs: {
       description: {
         story:
-          'The full example-value viewer for template items whose value is too long for the picker: the whole value in a selectable, scrollable textarea filling the modal body, with a Copy action. Copy surfaces a notification either way — success, or a danger notice when the browser denies clipboard access — never an unhandled rejection.',
+          'Renders the full example-value viewer for template items whose value is too long for the picker: the whole value in a selectable, scrollable textarea filling the modal body, with a Copy action. Clicking Copy copies the value and shows the "Example value copied to clipboard" notification.',
       },
     },
   },
   play: async () => {
-    const modal = await waitFor(
-      () => {
-        const el = document.querySelector('.reqraft-template-example-value-modal');
-        if (!el) throw new Error('modal not rendered yet');
-        return el;
-      },
-      { timeout: 10000 }
-    );
+    const modal = await findModal();
 
     // The modal holds the WHOLE value — down to the sentinel at the very end.
     const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
     await expect(textarea.value).toBe(LONG_EXAMPLE_VALUE);
     await expect(textarea.value.endsWith('THE_VERY_END')).toBe(true);
 
-    // Copy notifies (success locally, clipboard-denied danger in headless CI).
-    const copy = Array.from(modal.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Copy')
-    );
-    await expect(copy).toBeTruthy();
-    fireEvent.click(copy);
-    await waitFor(
-      () => {
-        if (!document.querySelector('.reqore-notification')) {
-          throw new Error('no notification yet');
-        }
-      },
-      { timeout: 10000 }
-    );
+    // Copy copies the whole value, and says so.
+    await clickCopy(modal, 'Copy');
+    await waitForNotification('Example value copied to clipboard');
+    await expect(storyCopiedTexts()).toEqual([LONG_EXAMPLE_VALUE]);
   },
 };
 
 export const Mobile: StoryObj<typeof meta> = {
+  beforeEach: withStoryClipboard('clipboard-api'),
   args: {
     // The overridable strings double as the prop-passthrough coverage: the
     // play below asserts THIS notification text, proving consumers (e.g.
@@ -73,42 +91,62 @@ export const Mobile: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'The phone presentation of the full-value modal — the textarea still fills the modal body at phone width, and every user-visible string (Copy label, both notifications) is prop-overridden here, which doubles as coverage that consumers can pass translated copy.',
+          'Renders the full-value modal on a phone: the textarea still fills the modal body at phone width. Every user-visible string (the Copy label and both notifications) is overridden by props, so clicking "Copy value" shows the supplied "Value copied" notification.',
       },
     },
   },
   play: async () => {
-    const modal = await waitFor(
-      () => {
-        const el = document.querySelector('.reqraft-template-example-value-modal');
-        if (!el) throw new Error('modal not rendered yet');
-        return el;
-      },
-      { timeout: 10000 }
-    );
+    const modal = await findModal();
 
     const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
     await expect(textarea.value).toBe(LONG_EXAMPLE_VALUE);
 
-    // The overridden copy label renders…
-    const copy = Array.from(modal.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Copy value')
-    );
-    await expect(copy).toBeTruthy();
+    // The overridden copy label renders, and the overridden notification is
+    // what surfaces.
+    await clickCopy(modal, 'Copy value');
+    await waitForNotification('Value copied');
+    await expect(storyCopiedTexts()).toEqual([LONG_EXAMPLE_VALUE]);
+  },
+};
 
-    // …and the overridden notification content is what surfaces (success or
-    // clipboard-denied, both prop-supplied).
-    fireEvent.click(copy);
-    await waitFor(
-      () => {
-        const notification = document.querySelector('.reqore-notification');
-        if (!notification) throw new Error('no notification yet');
-        const text = notification.textContent || '';
-        if (!text.includes('Value copied') && !text.includes('Copy was blocked')) {
-          throw new Error(`unexpected notification: ${text}`);
-        }
+export const CopyOnPlainHttp: StoryObj<typeof meta> = {
+  beforeEach: withStoryClipboard('copy-command'),
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // (the value copied, and the success notification) is pictured by `Default`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the full-value modal on a page served over plain http, which has no Clipboard API. Clicking Copy still copies the value, with the browser\'s copy command, and shows the "Example value copied to clipboard" notification.',
       },
-      { timeout: 10000 }
+    },
+  },
+  play: async () => {
+    const modal = await findModal();
+    await clickCopy(modal, 'Copy');
+    await waitForNotification('Example value copied to clipboard');
+    await expect(storyCopiedTexts()).toEqual([LONG_EXAMPLE_VALUE]);
+  },
+};
+
+export const CopyFailed: StoryObj<typeof meta> = {
+  beforeEach: withStoryClipboard('none'),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the full-value modal on a page where the browser allows no way of copying. Clicking Copy copies nothing and shows a danger notification that stays until it is closed: "Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself." No "copied" notification is shown.',
+      },
+    },
+  },
+  play: async () => {
+    const modal = await findModal();
+    await clickCopy(modal, 'Copy');
+    const shown = await waitForNotification(
+      'Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself.'
     );
+    await expect(shown.some((content) => content.includes('copied to clipboard'))).toBe(false);
+    await expect(storyCopiedTexts()).toEqual([]);
   },
 };

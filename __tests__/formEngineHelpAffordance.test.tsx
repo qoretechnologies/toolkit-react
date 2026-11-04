@@ -156,3 +156,13 @@ describe('an option keeps its help affordance when it is opened', () => {
     expect(helpIcons(container, 'plain').length).toBe(0);
   });
 });
+
+/*
+ * The `?` is one of the row's controls, and is sized as they are (qorus#646, the IDE's Sheet Contract Review): it
+ * was reqore's `tiny` (26px) on a desktop, beside the open editor's `small` (32px) clear, list and Done buttons.
+ * That is a drawn height, and jsdom draws nothing: it lays nothing out (every box is 0px high) and does not resolve
+ * the CSS variables reqore sizes its buttons with, so a height read here compares two unresolved strings. The
+ * heights are measured in a real browser instead, by the stories CompactEditingHelpIsTheSizeOfTheControls and
+ * CompactEditingHelpIsTheSizeOfTheControlsOnATouchScreen (the read row's (?) at rest, and beside the open
+ * editor's Done, clear and cancel).
+ */
