@@ -47,6 +47,7 @@ describe('qlip-build-link.sh', () => {
       [
         'build_id=20261010-104435',
         'url=https://qlip.qoretechnologies.com/builds/20261010-104435',
+        'link=🔍 [Qlip visual tests](https://qlip.qoretechnologies.com/builds/20261010-104435)',
       ].join('\n')
     );
   });
@@ -57,20 +58,25 @@ describe('qlip-build-link.sh', () => {
         '[qlip] uploaded build 20260629-123456 (12 fragments, 3 new) → https://qlip.example.com\n'
       )
     ).toBe(
-      ['build_id=20260629-123456', 'url=https://qlip.example.com/builds/20260629-123456'].join('\n')
+      [
+        'build_id=20260629-123456',
+        'url=https://qlip.example.com/builds/20260629-123456',
+        'link=🔍 [Qlip visual tests](https://qlip.example.com/builds/20260629-123456)',
+      ].join('\n')
     );
   });
 
-  it('names no build when none was uploaded, or the stories never ran', () => {
+  it('names no build, and no link, when none was uploaded (a push to develop), or the stories never ran', () => {
     expect(resolveLink('[qlip] build 20261010-121512: 635 entries … → /local/screenshots\n')).toBe(
       ''
     );
     expect(resolveLink()).toBe('');
   });
 
-  it('is what the tests workflow links', () => {
+  it('is what the tests workflow links, as the whole link so that no build means no link', () => {
     const tests = readFileSync(resolve(__dirname, '../.github/workflows/tests.yml'), 'utf8');
     expect(tests).toContain('.github/scripts/qlip-build-link.sh qlip-output.log');
-    expect(tests).toContain('[Qlip visual tests](${{ steps.qlip.outputs.url }})');
+    expect(tests).toContain('${{ steps.qlip.outputs.link }}');
+    expect(tests).not.toContain('[Qlip visual tests](${{ steps.qlip.outputs.url }})');
   });
 });
