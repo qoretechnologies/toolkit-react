@@ -25,14 +25,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The status / priority / category badge row — each value's label, intent and
- *  icon come from the shared `supportTicket/meta` vocabularies. */
+/** The status / priority / category row in the calm look (the default): words, each
+ *  with its icon, colored only when they need the person looking. */
 export const Default: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Renders the status, priority, and category badge row, each tag's label, intent, and icon drawn from the shared supportTicket/meta vocabularies.",
+          'Renders the status, priority, and category as words on one line, each with its icon from the shared supportTicket/meta vocabularies. Only what needs the person looking takes a color (ticketStatusAttention, ticketPriorityAttention): here the high priority is amber, while Open and Bug read in gray, since a category is a topic rather than a verdict.',
       },
     },
   },
@@ -41,6 +41,31 @@ export const Default: Story = {
     await expect(canvas.getByText('Open')).toBeInTheDocument();
     await expect(canvas.getByText('High')).toBeInTheDocument();
     await expect(canvas.getByText('Bug')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('.reqore-tag')).toBeNull();
+    await expect(
+      canvasElement.querySelector<HTMLElement>('.ticket-meta-priority')?.dataset.attention
+    ).toBe('warn');
+    await expect(
+      canvasElement.querySelector<HTMLElement>('.ticket-meta-category')?.dataset.attention
+    ).toBe('quiet');
+  },
+};
+
+/** The classic look: a tag per value, each in its own intent. */
+export const ClassicLook: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the same ticket with appearance='classic': a tag per value, each tinted in its own intent from the shared vocabulary, as the row looked before the calm look.",
+      },
+    },
+  },
+  args: { appearance: 'classic' },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Open')).toBeInTheDocument();
+    await expect(canvasElement.querySelectorAll('.reqore-tag').length).toBe(3);
   },
 };
 
@@ -74,7 +99,7 @@ export const CustomerAwaitingLabel: Story = {
     docs: {
       description: {
         story:
-          "Renders the same awaiting_customer status from the customer viewpoint, where it is re-labeled 'Awaiting your reply'.",
+          "Renders the same awaiting_customer status from the customer viewpoint, where it is re-labeled 'Awaiting your reply' and is the one status drawn in amber: the ticket waits on the person looking.",
       },
     },
   },
@@ -86,7 +111,7 @@ export const CustomerAwaitingLabel: Story = {
   },
 };
 
-/** `hideCategory` drops the category tag — for dense list rows. */
+/** `hideCategory` drops the category — for dense list rows. */
 export const HideCategory: Story = {
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
@@ -95,7 +120,7 @@ export const HideCategory: Story = {
     docs: {
       description: {
         story:
-          'Renders the badge row with hideCategory set, dropping the category tag for dense list rows while status and priority remain.',
+          'Renders the row with hideCategory set, dropping the category for dense list rows while status and priority remain.',
       },
     },
   },
