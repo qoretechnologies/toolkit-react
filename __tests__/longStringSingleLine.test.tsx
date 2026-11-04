@@ -60,10 +60,17 @@ describe('a single-line field', () => {
     expect(textarea().value).toBe('two words');
   });
 
-  it('does not grow, and offers no resize grip that says it can', () => {
+  /**
+   * It takes no line break, so it never grows a line of its own; a long value wraps, and the field is as tall
+   * as its text, so the whole value is read in it (an editable row shows three lines of it). It offers no resize
+   * grip: its height is its text's, and at one line the clear button covered the corner the grip is drawn in, so
+   * the grip showed and could not be dragged (David, qorus#646).
+   */
+  it('is one line tall, wraps a long value to the height of its text, and offers no resize grip', () => {
     render(<LongStringFormField type='string' value='name' onChange={() => {}} />);
     expect(textarea().getAttribute('data-rows')).toBe('1');
-    expect(textarea().getAttribute('data-scale-with-content')).toBe('false');
+    expect(textarea().getAttribute('data-scale-with-content')).toBe('true');
+    expect(textarea().style.resize).toBe('none');
   });
 });
 

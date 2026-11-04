@@ -121,17 +121,27 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   content 12px under the label (left rail) and use slightly taller inner padding. Edit cards keep
   their own surface.
 - **No horizontal overflow.** The row grid's value column is `minmax(0, 1fr)` and the value cell has
-  `min-width: 0`, so a long unbroken value (e.g. a URL) ellipsis-truncates (full value on hover via `title`)
-  instead of forcing a horizontal scrollbar.
-- **Field info: intent stripe + expandable panel** (the decided "stripe-expand" display,
-  2026-06-11 — see `COMPACT_INFO_DISPLAY.md`). Rows carrying critical (Tier 1: danger/warning)
-  messages get a 3px intent edge-stripe and their info panel **auto-opens** below the row —
-  short_desc plus all schema/validation/dependency messages as slim `ReqoreMessage` strips.
-  Fields with only Tier-2 info (info/success messages, `default_value_desc` notes, short_desc)
-  stay one line: a ⓘ toggle in the fixed info slot opens the panel on demand (the per-row
-  override sticks either way). While a row is edited inline, the editor's own schema-message
-  strip is suppressed — the panel below the editing row is the single renderer. Stories:
-  `CompactShowcase` (+`Mobile`).
+  `min-width: 0`, so a long value never forces a horizontal scrollbar.
+- **Long values wrap; addresses are links** (qorus#646, David 2026-10-22, from Foxhoundn's review of
+  qlip #383). An editable row's plain-text value wraps, breaking anywhere a long unbroken token needs it,
+  up to **three lines** (a line clamp; the full value is in the row's editor, and on hover via `title`).
+  A read-only row is the only rendering its value gets, so it wraps in full, a long text moving to the
+  inset under the row with "Show more". A value that is an `http:` or `https:` address (`webLinkOf`; no
+  other scheme) is drawn as a link in both: it opens in a new tab, a click or Enter on it follows it
+  without opening the row, it has its own accessible name ("… (opens in a new tab)") and a focus ring,
+  and its address is copied as any link's is. It was one line with an ellipsis, and an address lost its
+  end at every width. Stories: `ARowStacksOnAPhone`, `ARowStacksWhereItsValueWouldBeNarrow`.
+- **Field info: intent stripe + message strips** (the decided "stripe-expand" display,
+  2026-06-11 — see `COMPACT_INFO_DISPLAY.md`, whose first section says what is built today).
+  Rows carrying critical (Tier 1: danger/warning) messages get a 3px intent edge-stripe, and
+  the schema/validation/dependency messages show as slim `ReqoreMessage` strips under the row.
+  The per-row ⓘ toggle is gone (compact engine redesign): `short_desc` shows under the name
+  while the toolbar's ⓘ is on (and is the name's hover), and `desc` is the `?` beside the name,
+  shown when the option has a description (`desc` or `short_desc`) or a type in words; the `?` is a button in the tab order (`tiny`,
+  `small` on a touch screen). What an option takes is in its name's hover and its help, and beside
+  its name, in words ("Text"), only with "Show all field information" or "Show field types". While a row is edited inline, the editor's own
+  schema-message strip is suppressed — the strips below the editing row are the single
+  renderer. Stories: `CompactShowcase` (+`Mobile`).
 - **Accessibility.** Read-first rows are real controls (`role="button"`, `tabIndex={0}`, Enter/Space
   activate, visible focus ring), not just click handlers; the Done button and dropdowns are native buttons.
 - **The caret follows the row that opens.** An opened row moves the caret into the control it offers —
@@ -178,11 +188,107 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
 - **Dedicated layout.** Compact does **not** reuse the classic `ReqoreCollection` card-per-field layout —
   it renders its own flat rows (label | value | action, zebra blocks + spacing) so it reads like the
   IDE's restyled creator rather than a wall of cards. The classic always-expanded path is untouched.
+- **Choices, however they are written.** An `allowed_values` entry is read the same way everywhere it is
+  drawn, compared or validated (`allowedValueOf` / `allowedValueName` in `src/helpers/allowedValues.ts`): its
+  value from its envelope (`{value: {type, value}}`, what the server sends), a bare value (`{value: 'x'}`) or
+  its name (`{name: 'x'}`), and its name from `display_name`, else `name`, else the value. A picker that read
+  the envelope only drew a bare entry as an empty box no click could tick. Tests:
+  `__tests__/allowedValueShapes.test.tsx`.
+- **Code is shown as the host shows code.** A `code-editor` value's read-first preview (and a read-only form's
+  code) is drawn by the host's `codePreviewRenderer` when it gives one, else by its own code editor
+  (`componentOverrides['code-editor']`) read-only, given what the field inherits (its language,
+  `resolveInheritProps`), so it is highlighted and has its language server; a plain `<pre>` only where the host
+  gives neither (David's decision, 2026-10-22). reqraft ships no code editor. The stories use
+  `src/stories/CodeEditorStandin.tsx`, a stand-in that draws code a line per line, numbered and coloured, and
+  real Qore samples. Tests: `__tests__/readOnlyCodeUsesTheHostEditor.test.tsx`.
+- **One choice of a few is a radio, its picture beside its name.** A short list of choices (three or fewer) is
+  radios for one value and checkboxes for several; a choice with an `image` (a language's logo) has it beside its
+  name and keeps its radio (see the rules below); a collapsed row that carries an absorbed choice names it and
+  shows its picture ("Qore" with its logo, not `qore`). Story: `CompactRowAbsorbsLanguage`.
+- **A reference nothing names says so.** A chip names its reference from the catalogue. One the catalogue does
+  not list is drawn as a warning (`.reqraft-reference-unlisted`) with the host's hint on hover (FormEngine's
+  `templateReferences.unlistedHint`; the IDE: "Not a value this case captures"; else "Not one of the values
+  offered here"), on the read row and in the editor alike (`referenceStanding`). A host can name a reference it
+  knows but does not list (`templateReferences.label`), which then reads as any named chip. A reference is
+  called unlisted only against a catalogue that lists something in its context (`$._case.mode` for
+  `$._case.attempt`): a catalogue of templates says nothing of a record's fields (`$record:`) or of a context it
+  lists nothing in, and one with nothing in it tells nothing apart; a walk into a listed value is that value's. Stories: `AHostGrammarSurvivesTheEditorTheRowOpens`,
+  `AReferenceItsHostKnowsWearsItsName`; tests: `__tests__/referenceStanding.test.tsx`.
+- **Help is in the author's words.** An option's help says what it does and how to fill it in (pick a value,
+  choose a field), never a grammar, a syntax or an internal path (David's decision, 2026-10-22). The stories'
+  help follows it, and so do the IDE texts they were copied from.
+- **A pattern's refusal says why.** A value `validation_regex` refuses says what the pattern accepts:
+  "Must be <validation_regex_desc>." when the server describes it (an optional field on the option info,
+  pending on the Qore and Qorus side), else "Must match the expected form, for example <example_value>.", with
+  "Pattern: <regex>" after it as a detail (`patternMismatchReason`). It said "Value does not match validation
+  pattern". Story: `CompactAutoFocusTargetsInvalidFilledField`; tests: `__tests__/patternMismatchReason.test.ts`.
+- **Suggestions replace what is held.** A creatable field whose value does not fit a chip (rich text, long
+  text, a hash) keeps its own editor with "Saved & Suggested Values" beside it. The field takes one value: a
+  pick replaces it, and the list ticks the suggestion the field holds (`markedValue`, matched by any spelling
+  of the choice, `heldAllowedValue`) while its trigger keeps its own name, since the editor draws the value.
+  Story: `PickingARichTextChoiceShowsItsName`.
 
 Interface-specific chrome (status hero, value chips, "Edit code", the help Hint) is intentionally **not**
 in the engine — a consumer wraps `FormEngine` and supplies that around it. The **server does not define
 group display metadata** (only the bare `group` string per field; no label/icon/order), so each UI owns
 it — hence the engine takes group display via the `groups` prop rather than hardcoding it.
+
+## Rules for help, hovers and choices
+
+These are rules: every surface that shows help, a hover or a choice follows them, and a new one does too
+(qorus#646, David's review, 2026-10-23).
+
+- **Allowed values in help.** Every help or hover that presents a field's or a value's allowed values shows a bold
+  "Allowed values" heading, then a small table, a row a value: the exact value in a code chip (monospaced, the
+  chip the markdown view draws code in), its name where it has one of its own, and its description. A column no
+  value has anything in is left out. One font size for the heading, the column names, the values and what is
+  said of them, the same as the help's own text around it; every cell wraps, so the table never runs wider than
+  the help, at 390px too. A field that takes other values too heads them "Suggested values". It was a bulleted
+  list whose descriptions ran on after their values in a larger font (David: "try a table for this instead").
+  One component draws it (`AllowedValuesHelp`); it is used by an option's (?) help (`OptionsHelpDialog`) and by
+  a reference's hover where its catalogue gives the values it is one of (`allowed_values` on a catalogue item,
+  `templateTooltip`). An option's name hover is a plain-text title and lists none: its (?) does. Tests:
+  `__tests__/optionHelpSaysWhy.test.tsx`, `__tests__/descriptionTooltip.test.tsx`; stories:
+  `AnOptionsHelpListsItsAllowedValues` (+ `OnAPhone`), `AReferenceItsHostKnowsWearsItsName`.
+- **A missing description says why.** A hover or help never shows a blank where a description would be: it says
+  "No description was given for this value." (a reference), "… for this option." (an option's help, and its
+  name's hover where it has neither a short nor a long description) or "… for this field." (a record field in
+  an expression), or the host's own reason (`templateReferences.noDescription`). A host that names a reference
+  it does not list can describe it too (`templateReferences.describe`).
+- **Which choice is chosen is never only a color.** A choice with a picture (a language's logo) has the picture
+  beside its name and keeps its radio or check box, whose mark is a shape (`pictureBesideTheName`): Reqore drew
+  the picture in place of the radio, the chosen one in color and the others gray. Its native input is a radio
+  (one value) or a checkbox (several), checked as chosen, with the box's focus ring for the keyboard. Once one is
+  chosen the others' pictures are gray and the chosen one's in color: a second sign, the shape the first. The
+  picture is as far from the radio as from the name (`CHOICE_PICTURE_GAP`, 10px), so the radio's focus ring
+  keeps clear of it, and the name is centered on it (David's review: the highlight touched the picture, the gaps
+  differed and the names sat higher than the pictures). This holds in the short choice groups, the enum radio
+  group and the language picker of a code row; in the select dialog the chosen item carries a tick and the word
+  "Chosen" beside its own badge, and the others' pictures are gray. The plays measure it
+  (`src/stories/choiceLayout.ts`: gaps equal within 1px, the ring clear, the name centered within 1px). Stories:
+  `AChoiceDrawnByItsPictureSaysWhichIsChosen` (+ `OnAPhone`, `InALightTheme`).
+
+- **An option's name: its help at the column's edge, its asterisk on its line.** In a row's label column the
+  (?) is at the column's right edge, the same x in every row of the column (Foxhoundn on qlip #392: "right align
+  the question mark to get rid of the stair-case look"), on the name's first line. The required asterisk follows
+  the name's last character, held to it by a word joiner, so it is on the name's last line and never on a line of
+  its own (qlip #392). The column is the widest name plus what trails it, summed from the parts: the asterisk, the
+  help button at its real width (26px, 32px for a finger, `labelAffordanceWidth`) and the gaps, and never
+  narrower than 152px (`LABEL_COLUMN_MIN`). Stories check it (`src/stories/labelLayout.ts`):
+  `CompactOptionDependsOnOptionInRequiredGroup`, `CancelingAnEditThatMadeAnExpressionPutsBackTheValue`.
+- **One reference chip.** Every view draws a reference as the same tag (`REFERENCE_CHIP_PROPS`): the read row,
+  the read-only chip, the rich text editor and the expression editor. Never a badge: reqore's rich text editor
+  draws its chips as compact badges, rounder pills, unless told otherwise (Foxhoundn on qlip #392: "Some template
+  chips are pills, some are badges - let's unify them please"). Story: `ExpressionTypedOnValueIsOfferedWithUndo`
+  (`expectOneChipShape`).
+- **Less to read in an open row.** An open field says what it must and nothing about where it goes: it stays
+  in its box while open and moves when closed, without a note saying so (Foxhoundn on qlip #392: "Remove the
+  whole `Moves to` please"). An expression found in what was typed is offered to the right of the field, on its
+  line, and under it only where the row has no room for both. Story: `ExpressionTypedOnValueIsOfferedWithUndo`;
+  test: `__tests__/heldFieldSaysNothingOfItsMove.test.tsx`.
+- **A hover is a card.** What an editor's hover or Details says is drawn on a popover's card, the surface a
+  chip's hover is drawn on, never as glass over the page (qlip #392). Stories: `DpqlEditor · HoverSaysWhatAFunctionIs`,
+  `HoverOverAChipSaysWhatItsPathIs`.
 
 ## Where the logic lives
 
@@ -196,6 +302,17 @@ it — hence the engine takes group display via the `groups` prop rather than ha
   of the classic `ReqoreCollection`. Flat-row styling lives in module-level `styled-components`
   (`StyledCompactWrap`, `StyledGroupBody`, `StyledEditCard`) with theme-derived colours. The classic path
   is left exactly as it was.
+
+- [`readFirstColors.ts`](../src/components/form/engine/readFirstColors.ts) and
+  [`compactToolbarColors.ts`](../src/components/form/engine/compactToolbarColors.ts) — the colors the
+  read-first summary and rows draw their own words and marks in, so they stand out from what they are drawn
+  on (WCAG AA: 4.5:1 text, 3:1 icons; qorus#646). A row may be drawn on the page, a status box's tint (the
+  attention box's warning, the set box's success, both at 12%), the optional box's darker surface, or any
+  of them hovered: intent words (reasons, the required asterisk, "Ready" / "Incomplete") are a
+  shade of the intent that reads on all of them, and faded notes (size and line notes, a label's short
+  description, the type tag, an empty value's dash, the help mark) fade only as far as they still read.
+  The helpers are reqraft's own (`src/helpers/readableColors.ts`, `useReadableOpacity`) until reqraft builds
+  on the reqore release with qoretechnologies/reqore#708, which has them.
 
 ## Usage
 
@@ -250,8 +367,8 @@ const loadSchema = useCallback(() => fetchSchemaSomehow(url), [url]); // memoise
   union (grouped by family) — every renderable type plus the non-renderable/interface-reference types —
   asserting colour/file/hash read-first values and the hash "view more" sub-row reveal. Beyond the
   type families it carries one-capability-per-row groups for **field chrome** (icon / image / intent /
-  badge / actions / tags), **descriptions & messages** (short_desc behind ⓘ, desc → `?` dialog,
-  Tier-1 messages auto-open, Tier-2 behind ⓘ), and **meta** (sensitive / rules / default-value note);
+  badge / actions / tags), **descriptions & messages** (short_desc behind the toolbar's ⓘ, desc →
+  `?` dialog, messages under the row), and **meta** (sensitive / rules / default-value note);
   the combined worst-case stress form is `CompactShowcase` (the flagship "real form" story). Two everything-open variants:
   `CompactFieldTypesEditing` (every row activated — all ~70 real editors mounted at once) and
   `CompactFieldTypesEditingAllRequired` (same, but every field required and unset — each editor in

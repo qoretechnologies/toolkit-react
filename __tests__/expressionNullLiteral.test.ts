@@ -56,7 +56,7 @@ describe('an explicit null is a value', () => {
     // was never given a value, and must not be quietly accepted with it
     const missing = validate([{ type: 'any' }]);
     expect(missing.isValid).toBe(false);
-    expect(missing.reason).toContain('argument 1');
+    expect(missing.reason).toBe('Enter a value for "any"');
   });
 
   it('names the argument the catalogue actually declares', () => {

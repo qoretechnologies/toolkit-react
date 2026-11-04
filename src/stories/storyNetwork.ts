@@ -77,9 +77,17 @@ const EXPRESSIONS_CATALOGUE_MOCK_DATA = mockGet('system?action=expressions&conte
 const SERVER_STATUS_MOCK_DATA = mockGet('system/pid', {});
 
 /**
+ * The current user, with nothing stored. Reqraft loads it whenever it is initialized, which every story's
+ * decorator does: unanswered, every story file fetched it from the real instance, and stories that read the
+ * user's storage passed only while that instance answered. A story about storage gives its own user.
+ */
+const CURRENT_USER_MOCK_DATA = mockGet('users?action=current', {});
+
+/**
  * Requests components make on their own, whatever the story is about —
  * mounting a FormEngine fetches the type catalogue; allowing functions fetches
- * the expression catalogue; a reconnecting socket probes the server.
+ * the expression catalogue; a reconnecting socket probes the server; Reqraft
+ * loads the current user.
  * Registered for every story as storybook-addon-mock's `globalMockData`
  * (`.storybook/preview.tsx`, and mirrored for the Vitest run in
  * `.storybook/vitest.setup.ts`); a story's own `mockData` entry for the same
@@ -89,4 +97,5 @@ export const GLOBAL_STORY_MOCK_DATA: IStoryMockRequest[] = [
   ...QORUS_TYPE_INFO_MOCK_DATA,
   ...EXPRESSIONS_CATALOGUE_MOCK_DATA,
   ...SERVER_STATUS_MOCK_DATA,
+  ...CURRENT_USER_MOCK_DATA,
 ];

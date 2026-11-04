@@ -57,6 +57,9 @@ export const WithValue: Story = {
 
 export const TypingUpdatesValue: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -78,6 +81,9 @@ export const TypingUpdatesValue: Story = {
 
 export const UploadEncodesFileAsBase64: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

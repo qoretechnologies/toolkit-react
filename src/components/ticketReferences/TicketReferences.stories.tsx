@@ -1,13 +1,11 @@
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
+import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
 import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import { IInterfaceReference } from '../supportTicket/meta';
 import { ITicketReferenceAttachment, TicketReferences } from './TicketReferences';
-
-const NOW = Date.parse('2026-06-30T12:00:00Z');
-const ago = (mins: number) => new Date(NOW - mins * 60_000).toISOString();
 
 // The stories stand in for the authed blob-download endpoint by handing back an
 // inline SVG data-URI per image id, so thumbnails + the lightbox render offline.
@@ -175,6 +173,9 @@ export const LightboxOpens: Story = {
  *  staff reply's attachment reads "Qorus Support" — never the raw staff identity. */
 export const CustomerView: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Populated`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -339,3 +340,43 @@ export const ShowInChat: Story = {
     await expect(args.onShowInChat).toHaveBeenCalledTimes(1);
   },
 };
+
+/**
+ * A viewer that can open some references but not others: a refused row offers no Open
+ * action and says why in its metadata line, next to the kind — in the row, so it reads on
+ * a touch screen, where a tooltip never shows.
+ */
+export const MixedLinkability: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover (qorus#693).',
+      },
+    },
+  },
+  args: {
+    attachments: [],
+    onInterfaceClick: fn(),
+    isInterfaceLinkable: (reference: IInterfaceReference) => reference.interface_kind !== 'workflow',
+    unlinkableReason: (reference: IInterfaceReference) =>
+      reference.interface_kind === 'workflow' ? 'moved to another group' : undefined,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Linked interfaces')).toBeInTheDocument();
+    // the reason is in the row's text, not only a tooltip
+    await expect(canvas.getAllByText('workflow · moved to another group')).toHaveLength(2);
+    // the refused rows have no Open action; the three others do
+    await waitFor(() =>
+      expect(canvasElement.querySelectorAll('.reqore-entity-row-actions button')).toHaveLength(3)
+    );
+    await userEvent.click(canvasElement.querySelectorAll('.reqore-entity-row-actions button')[0]);
+    await waitFor(() =>
+      expect(args.onInterfaceClick).toHaveBeenCalledWith(
+        expect.objectContaining({ interface_kind: 'connection' })
+      )
+    );
+  },
+};
+

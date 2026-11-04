@@ -19,7 +19,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { BaseEditor, Editor } from 'slate';
+import { BaseEditor, BaseRange, Editor } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
@@ -88,7 +88,7 @@ export function useLspSignatureHelp(
   // fresh object).
   useEffect(() => {
     fetchSignature.current.cancel();
-    fetchSignature.current = debounce(async () => {
+    fetchSignature.current = debounce(async (at: BaseRange | null) => {
       const editor = editorRef.current;
       const client = session.client;
       if (
@@ -102,11 +102,17 @@ export function useLspSignatureHelp(
         clearSignature();
         return;
       }
-      // If the editor doesn't have a focused selection (e.g. fresh
-      // mount before user interaction), fall back to the end of the
-      // document. Without this, the hook would never fire on mount
-      // — the demo story can't ask the user to click first.
-      let selection = editor.selection;
+      /* The caret as it was when the text changed (`at`), not as it is when the request goes: a tap that put the
+         caret in a call's arguments after the editor had loaded was read by the request the load had started, if
+         it came within the debounce, and the signature showed; a tap later than that showed none, so a story's
+         frame had the pill or not from run to run (qorus#646, DpqlEditor · Details On A Chip On A Touch Screen).
+         The signature follows what is typed; a caret moved alone does not ask for it.
+
+         If the editor doesn't have a focused selection (e.g. fresh
+         mount before user interaction), fall back to the end of the
+         document. Without this, the hook would never fire on mount
+         — the demo story can't ask the user to click first. */
+      let selection = at;
       if (!selection) {
         try {
           const end = Editor.end(editor, []);
@@ -169,13 +175,8 @@ export function useLspSignatureHelp(
   ]);
 
   // Fire on document changes (text content) AND when the session
-  // becomes ready/capabilities arrive. The signature-help request
-  // itself reads the live selection from `editorRef.current` so
-  // cursor-only moves are picked up too — SmartEditor's
-  // `onSlateChangeImpl` triggers a render on every Slate change,
-  // which re-runs this effect's deps closure (plainText changes
-  // when content does) and the editor's selection is read inside
-  // the debounced fetch.
+  // becomes ready/capabilities arrive, for the caret as it is now: a
+  // caret moved alone changes none of these, and asks for nothing.
   useEffect(() => {
     if (
       !enabled ||
@@ -185,7 +186,7 @@ export function useLspSignatureHelp(
     ) {
       return;
     }
-    fetchSignature.current();
+    fetchSignature.current(editorRef.current?.selection ?? null);
   }, [
     enabled,
     session.isReady,

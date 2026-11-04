@@ -3,7 +3,7 @@
     "display_name": "Context Data",
     "short_desc": "Data from the current execution context",
     "app": "Qorus",
-    "logo": "https://hq.qoretechnologies.com:8092/api/public/apps/Qorus/qorus-logo.svg",
+    "logo": "https://hq.qoretechnologies.com:8092/api/public/apps/Qorus/logo",
     "internal": true,
     "items": [
       {

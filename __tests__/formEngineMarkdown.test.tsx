@@ -5,6 +5,7 @@ import { FormEngine } from '../src/components/form/engine/FormEngine';
 import {
   formatOptionValue,
   SUMMARY_MAX_LENGTH,
+  markdownToProse,
   summariseMarkdown,
 } from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
@@ -85,6 +86,33 @@ describe('summariseMarkdown', () => {
     // keeps its shape
     expect(summariseMarkdown('a_b_c stays')).toBe('a_b_c stays');
     expect(summariseMarkdown('snake_case_name')).toBe('snake_case_name');
+  });
+});
+
+/**
+ * A read row's description slots - a field's short description under its name, a reason under the value -
+ * hold a sentence or two in the row's own type: what the markdown says, whole (`markdownToProse`), where the
+ * one-line summary is capped.
+ */
+describe('markdownToProse', () => {
+  it('says what a description says, without its marks', () => {
+    expect(markdownToProse('Each `POST /conversations` starts a **new** thread.')).toBe(
+      'Each POST /conversations starts a new thread.'
+    );
+    expect(markdownToProse('keeps retry_count_max and 2 * 3 as they are')).toBe(
+      'keeps retry_count_max and 2 * 3 as they are'
+    );
+  });
+
+  it('keeps all of it, where the summary is capped', () => {
+    const long = `**${'word '.repeat(SUMMARY_MAX_LENGTH / 2).trim()}**`;
+    expect(markdownToProse(long)).toBe('word '.repeat(SUMMARY_MAX_LENGTH / 2).trim());
+    expect(summariseMarkdown(long).length).toBeLessThanOrEqual(SUMMARY_MAX_LENGTH + 1);
+  });
+
+  it('is empty for what is not text', () => {
+    expect(markdownToProse(undefined)).toBe('');
+    expect(markdownToProse(42)).toBe('');
   });
 });
 

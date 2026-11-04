@@ -8,6 +8,7 @@
 import {
   ExpressionBuilder,
   ExpressionField,
+  MarkdownRendererContext,
   RowOpenPickerContext,
   SavedValuesContext,
 } from '../src/components/form';
@@ -40,5 +41,17 @@ describe('form barrel — saved values', () => {
   it('exports the context a host provides its saved values through', () => {
     expect(SavedValuesContext).toBeDefined();
     expect(SavedValuesContext.Provider).toBeDefined();
+  });
+});
+
+/**
+ * A description's card is drawn with the host's markdown renderer. `FormEngine` takes it as a prop, but a
+ * template chip, a choice or a DPQL editor mounted outside a form reads it from the context alone, so a host
+ * has to be able to provide it there - through the barrel, not a deep import.
+ */
+describe('form barrel — the markdown renderer', () => {
+  it('exports the context a host provides its markdown renderer on', () => {
+    expect(MarkdownRendererContext).toBeDefined();
+    expect(MarkdownRendererContext.Provider).toBeDefined();
   });
 });

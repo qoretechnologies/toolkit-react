@@ -10,9 +10,10 @@ import {
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { isEqual, map, size } from 'lodash';
 import { recordIdentity } from '../../engine/readFirst';
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 
 export interface IArrayAutoFieldProps {
@@ -82,15 +83,39 @@ export const ArrayAutoField = memo(
     // over the local list lost what was edited since. See `EmittedValues`.
     const emitted = useEmittedValues<unknown>(isEqual);
 
+    /* What is edited and not yet reported: the pause below dies with the field, and Done closes the field
+       inside it. See `usePendingEdit`. */
+    const pending = usePendingEdit<typeof localValue>((next) => {
+      if (!isEqual(next, emitted.settled(value))) {
+        emitted.record(next);
+        onChange(name, next);
+      }
+    });
+
     useEffect(() => {
       if (emitted.isEcho(value)) {
         return;
       }
+      // the parent has a value of its own: what was edited before it is no edit to send any more
+      pending.release();
       setLocalValue(value);
     }, [JSON.stringify(value)]);
 
+    useEffect(() => {
+      if (!isEqual(localValue, emitted.settled(value))) {
+        pending.hold(localValue);
+      } else {
+        pending.release();
+      }
+    }, [JSON.stringify(localValue)]);
+
     useDebounce(
       () => {
+        pending.release();
+        // only a change is reported: an untouched list, the one it was opened with, says nothing (qorus#646)
+        if (isEqual(localValue, emitted.settled(value))) {
+          return;
+        }
         emitted.record(localValue);
         onChange(name, localValue);
       },
@@ -244,19 +269,22 @@ export const ArrayAutoField = memo(
 
           <ReqoreControlGroup fluid>
             <div style={{ flex: 1 }}>
-              {renderItem({
-                value: inputValue,
-                onChange: (v) => setInputValue(v),
-                index: -1,
-                type,
-                arg_schema,
-                allowed_values,
-                allowed_values_creatable,
-                disabled,
-                readOnly,
-                size: fieldSize,
-                key: inputKeyRef.current,
-              } as any)}
+              {/* a new key remounts the input empty once its value is added; a key goes on an element, not in
+                  the props the item is drawn from, which the field spreads into JSX (React warned) */}
+              <Fragment key={inputKeyRef.current}>
+                {renderItem({
+                  value: inputValue,
+                  onChange: (v) => setInputValue(v),
+                  index: -1,
+                  type,
+                  arg_schema,
+                  allowed_values,
+                  allowed_values_creatable,
+                  disabled,
+                  readOnly,
+                  size: fieldSize,
+                })}
+              </Fragment>
             </div>
             {!disabled && !readOnly && (
               <>

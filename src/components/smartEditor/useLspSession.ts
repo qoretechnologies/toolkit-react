@@ -41,6 +41,12 @@ export interface IUseLspSessionResult {
   /** Becomes `true` once `initialize` + `didOpen` complete. */
   isReady: boolean;
   /**
+   * `true` once connecting has FAILED: there is no language server to talk to (none configured, or it
+   * cannot be reached). A host that needs one - the expression editor's Text view - shows what works
+   * without it instead of waiting on a session that is not coming.
+   */
+  isUnavailable: boolean;
+  /**
    * Becomes `true` once any language-specific context binding the
    * wrapper requires has resolved. For the generic primitive session
    * this is always `true` (no context). Wrappers like `useDpqlSession`
@@ -93,9 +99,7 @@ export interface IUseLspSessionResult {
   format: () => Promise<string | null>;
 }
 
-export function useLspSession(
-  options: IUseLspSessionOptions
-): IUseLspSessionResult {
+export function useLspSession(options: IUseLspSessionOptions): IUseLspSessionResult {
   const { languageId, uri: uriProp, initialMetadata, url, initialText = '' } = options;
 
   const clientRef = useRef<ReqraftLspClient | null>(null);
@@ -111,11 +115,12 @@ export function useLspSession(
 
   const [client, setClient] = useState<ReqraftLspClient | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [isUnavailable, setIsUnavailable] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ILspDiagnostic[]>([]);
-  const [semanticTokensLegend, setSemanticTokensLegend] =
-    useState<ILspSemanticTokensLegend | null>(null);
-  const [capabilities, setCapabilities] =
-    useState<ILspServerCapabilities | null>(null);
+  const [semanticTokensLegend, setSemanticTokensLegend] = useState<ILspSemanticTokensLegend | null>(
+    null
+  );
+  const [capabilities, setCapabilities] = useState<ILspServerCapabilities | null>(null);
 
   useEffect(() => {
     const c = new ReqraftLspClient({
@@ -147,9 +152,7 @@ export function useLspSession(
         serverTextRef.current = editorTextRef.current;
         c.didOpen(
           editorTextRef.current,
-          initialMetadata && Object.keys(initialMetadata).length > 0
-            ? initialMetadata
-            : undefined
+          initialMetadata && Object.keys(initialMetadata).length > 0 ? initialMetadata : undefined
         );
         setIsReady(true);
       })
@@ -162,6 +165,7 @@ export function useLspSession(
         // eslint-disable-next-line no-console
         console.error('[LSP session] Connect failed:', err);
         setIsReady(false);
+        setIsUnavailable(true);
       });
 
     return () => {
@@ -217,6 +221,7 @@ export function useLspSession(
     client,
     uri: uriRef.current,
     isReady,
+    isUnavailable,
     // Generic session has no language-specific context to bind;
     // wrappers (`useDpqlSession`) override this on their returned
     // session by spreading + replacing.

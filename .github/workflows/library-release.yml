@@ -1,0 +1,502 @@
+# The consumer half of the conversation between the CIs, for the reqore
+# releases reqraft takes. (publish.yml holds the producer half: our own
+# release tells qorus-ide the same way.)
+#
+# reqore's release job sends a `library-release` dispatch the moment a
+# version is on npm. This file answers it with ONE rolling PR against develop
+# that takes the version as the devDependency the build and the stories run
+# on, bumps our own patch version so the merge publishes, lets Pull Request
+# Tests run on it, and merges it by itself when CI is green and Qlip saw
+# nothing change. The reqore PR that produced the release hears the outcome
+# either way. The peer range is not touched: raising it is a decision a
+# feature makes, not a release.
+#
+#   reqore release --dispatch--> bump: deps/reqore PR --> Pull Request Tests
+#                                                                  |
+#   comment on the reqore PR <-- merge: green + Qlip unchanged <---+
+#
+# Why: reqraft was built and tested against a reqore its consumers did not
+# run, and a reqore release reached it only when a person remembered.
+#
+# One rolling PR. `deps/reqore` is recut from develop on every release, so a
+# release that lands while the previous one is still open supersedes it
+# instead of queuing behind it.
+#
+# Never a prerelease. The version must be a plain x.y.z that npm already
+# serves: the "no pre-release pin in a consumer" rule, enforced here.
+#
+# The merge needs both: Pull Request Tests succeeded on the PR's current
+# head, and the Qlip build of that run has no changed, new or failed
+# snapshot. Anything else is held for a person, and the PR says why. A held
+# PR is merged by hand once its snapshots are reviewed; the next release
+# recuts it.
+#
+# Everything that writes goes through the qorus-github-bot App, because
+# events raised with the workflow's own GITHUB_TOKEN start no workflows: a
+# PR it opened would get no CI, and a merge it made would not publish.
+#
+# Secrets: QORUS_BOT_APP_ID and QORUS_BOT_APP_PRIVATE_KEY (the App, installed
+# on this repo and on reqore), QLIP_UPLOAD_TOKEN (a per-project token reads
+# as well as writes), DISCORD_WEBHOOK.
+#
+# To take a version by hand: Actions -> Library release -> Run workflow.
+# Issue #155. qorus-ide carries the same file for the two libraries it takes.
+
+name: Library release
+
+on:
+  repository_dispatch:
+    types: [library-release]
+  workflow_dispatch:
+    inputs:
+      package:
+        description: The npm package that was released
+        required: true
+        type: choice
+        options:
+          - '@qoretechnologies/reqore'
+      version:
+        description: The released version to take, a plain x.y.z
+        required: true
+        type: string
+  workflow_run:
+    workflows: [Pull Request Tests]
+    types: [completed]
+
+# Nothing here writes with the workflow's own token.
+permissions: {}
+
+env:
+  NODE_VERSION: 22.19.0
+  QLIP_URL: https://qlip.qoretechnologies.com
+
+jobs:
+  bump:
+    name: Open or refresh the deps PR
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Two releases of one library close together queue here instead of
+    # racing on the branch; the version check lets the newer one win in
+    # whichever order they arrive.
+    concurrency:
+      group: library-release-bump-${{ github.event.client_payload.package || inputs.package }}
+      cancel-in-progress: false
+    env:
+      PACKAGE: ${{ github.event.client_payload.package || inputs.package }}
+      RELEASED: ${{ github.event.client_payload.version || inputs.version }}
+      # The commit of the library's develop that published the version; the
+      # merge job answers on the PR behind it. Empty on a manual run.
+      SOURCE_SHA: ${{ github.event.client_payload.sha }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Name the library and check the version
+        id: lib
+        run: |
+          VERSION=$RELEASED
+          case "$PACKAGE" in
+            @qoretechnologies/reqore) short=reqore; repo=qoretechnologies/reqore ;;
+            *) echo "::error::$PACKAGE is not a library this workflow takes"; exit 1 ;;
+          esac
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not a plain release version. A consumer never pins a prerelease."
+            exit 1
+          fi
+          if [ "$(npm view "$PACKAGE@$VERSION" version 2>/dev/null)" != "$VERSION" ]; then
+            echo "::error::$PACKAGE@$VERSION is not on npm"
+            exit 1
+          fi
+          # The pin is a caret range, like every pin in package.json, and the
+          # lockfile resolves it to the newest release in that range. If npm
+          # already has one newer than the version released, the PR takes that
+          # and says so, instead of claiming a version it does not install.
+          newest=$(npm view "$PACKAGE@^$VERSION" version --json | jq -r 'if type == "array" then last else . end')
+          if [ "$newest" != "$VERSION" ]; then
+            echo "::notice::$PACKAGE $newest is already on npm and ^$VERSION resolves to it; taking $newest"
+            VERSION=$newest
+          fi
+          if [ -n "$SOURCE_SHA" ] && ! printf '%s' "$SOURCE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::'$SOURCE_SHA' is not a commit sha"
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "short=$short"
+            echo "branch=deps/$short"
+            echo "repo=$repo"
+            echo "repo_name=${repo#qoretechnologies/}"
+            echo "release_url=https://github.com/$repo/releases/tag/v$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Mint the App token
+        id: bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.QORUS_BOT_APP_ID }}
+          private-key: ${{ secrets.QORUS_BOT_APP_PRIVATE_KEY }}
+          owner: qoretechnologies
+          # The library too: its releases are listed in the PR body.
+          repositories: ${{ github.event.repository.name }},${{ steps.lib.outputs.repo_name }}
+
+      - name: Check out develop as the App
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ steps.bot.outputs.token }}
+
+      - name: See whether this version moves anything
+        id: current
+        env:
+          VERSION: ${{ steps.lib.outputs.version }}
+        run: |
+          pin() { node -p "(JSON.parse(require('fs').readFileSync(0, 'utf8')).devDependencies['$PACKAGE'] || '0.0.0').replace(/^[\^~]/, '')"; }
+          on_develop=$(pin < package.json)
+          if git fetch --quiet origin "${{ steps.lib.outputs.branch }}" 2>/dev/null \
+             && git show "origin/${{ steps.lib.outputs.branch }}:package.json" > branch-package.json 2>/dev/null; then
+            on_branch=$(pin < branch-package.json)
+          else
+            on_branch=0.0.0
+          fi
+          newest() { printf '%s\n' "$@" | sort -V | tail -1; }
+          echo "version=$on_develop" >> "$GITHUB_OUTPUT"
+          if [ "$(newest "$on_develop" "$VERSION")" = "$on_develop" ]; then
+            echo "::notice::develop already pins $PACKAGE $on_develop, which is not older than $VERSION. Nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ "$on_branch" != "$VERSION" ] && [ "$(newest "$on_branch" "$VERSION")" = "$on_branch" ]; then
+            echo "::notice::${{ steps.lib.outputs.branch }} already takes $on_branch, which is newer than $VERSION. Nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Take the version and bump ours
+        id: take
+        if: steps.current.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.lib.outputs.version }}
+        run: |
+          corepack enable
+          yarn add --dev --non-interactive --ignore-scripts "$PACKAGE@^$VERSION"
+          # Every merge to develop publishes whatever version package.json
+          # names, so the PR bumps the patch exactly once, like any other PR.
+          own=$(npm version patch --no-git-tag-version)
+          echo "own=${own#v}" >> "$GITHUB_OUTPUT"
+          git --no-pager diff --stat -- package.json yarn.lock
+
+      - name: List the releases this takes
+        if: steps.current.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          VERSION: ${{ steps.lib.outputs.version }}
+          FROM: ${{ steps.current.outputs.version }}
+        run: |
+          # Every release newer than develop's pin and not newer than the one
+          # taken, newest first, for the PR body and the commit.
+          gh api "repos/${{ steps.lib.outputs.repo }}/releases?per_page=100" --paginate \
+            --jq '.[] | select(.draft | not) | "\(.tag_name)\t\(.html_url)"' \
+          | node -e '
+              const [from, to] = process.argv.slice(1);
+              const parts = (v) => v.replace(/^v/, "").split(".").map(Number);
+              const after = (a, b) => {
+                const [x, y] = [parts(a), parts(b)];
+                for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+                return false;
+              };
+              const fs = require("fs");
+              const taken = fs.readFileSync(0, "utf8").split("\n").filter(Boolean)
+                .map((line) => line.split("\t"))
+                .filter(([tag]) => /^v?\d+\.\d+\.\d+$/.test(tag) && after(tag, from) && !after(tag, to));
+              fs.writeFileSync("releases.md", taken.map(([tag, url]) => `- [${tag}](${url})`).join("\n") + "\n");
+              fs.writeFileSync("releases.txt", taken.map(([tag]) => `- ${tag}`).join("\n") + "\n");
+            ' "$FROM" "$VERSION"
+          cat releases.md
+
+      - name: Commit and push as the App
+        if: steps.current.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          VERSION: ${{ steps.lib.outputs.version }}
+          SLUG: ${{ steps.bot.outputs.app-slug }}[bot]
+          FROM: ${{ steps.current.outputs.version }}
+          OWN: ${{ steps.take.outputs.own }}
+        run: |
+          encoded=$(printf '%s' "$SLUG" | sed 's/\[/%5B/; s/\]/%5D/')
+          git config user.name "$SLUG"
+          git config user.email "$(gh api "users/$encoded" --jq .id)+$SLUG@users.noreply.github.com"
+          git checkout -q -B "${{ steps.lib.outputs.branch }}"
+          git add package.json yarn.lock
+          {
+            echo "chore(deps): ${{ steps.lib.outputs.short }} $VERSION"
+            echo
+            echo "Opened by the Library release workflow when ${{ steps.lib.outputs.repo }} published v$VERSION."
+            echo "Bumps reqraft to $OWN so the merge publishes. Releases taken since $FROM, newest first:"
+            echo
+            cat releases.txt
+          } | git commit -q -F -
+          git push --force --quiet origin "${{ steps.lib.outputs.branch }}"
+
+      - name: Open or refresh the PR
+        if: steps.current.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          VERSION: ${{ steps.lib.outputs.version }}
+          FROM: ${{ steps.current.outputs.version }}
+          SHORT: ${{ steps.lib.outputs.short }}
+          BRANCH: ${{ steps.lib.outputs.branch }}
+          REPO: ${{ steps.lib.outputs.repo }}
+          RELEASE_URL: ${{ steps.lib.outputs.release_url }}
+          OWN: ${{ steps.take.outputs.own }}
+        run: |
+          # The marker carries what the merge job needs to answer the library
+          # and to recut the branch if develop moved underneath it.
+          marker=$(jq -cn --arg package "$PACKAGE" --arg version "$VERSION" --arg repo "$REPO" --arg sha "$SOURCE_SHA" '$ARGS.named')
+          title="chore(deps): $SHORT $VERSION"
+          {
+            echo "<!-- library-release $marker -->"
+            echo "Takes **$SHORT $VERSION** ([release]($RELEASE_URL)) as the devDependency, opened by the Library release workflow the moment it was published. Bumps reqraft to $OWN so the merge publishes; the peer range is untouched."
+            echo
+            echo "Releases since the $FROM develop pinned, newest first:"
+            echo
+            cat releases.md
+            echo
+            echo "**This PR merges itself** once Pull Request Tests is green and its Qlip build reports no changed, new or failed snapshot. Otherwise it is held and a comment below says why: review the snapshots in Qlip and merge by hand. The next release of $SHORT recuts this branch from develop and supersedes this PR."
+          } > body.md
+          number=$(gh pr list --head "$BRANCH" --base develop --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file body.md
+            echo "refreshed PR #$number"
+          else
+            gh pr create --base develop --head "$BRANCH" --title "$title" --body-file body.md
+          fi
+
+  merge:
+    name: Merge when green and visually unchanged
+    if: >-
+      github.event_name == 'workflow_run'
+      && startsWith(github.event.workflow_run.head_branch, 'deps/')
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    # One merge at a time: two deps PRs going green together would race, and
+    # the second has to see develop after the first.
+    concurrency:
+      group: library-release-merge
+      cancel-in-progress: false
+    env:
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+    steps:
+      - name: Mint the App token
+        id: bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.QORUS_BOT_APP_ID }}
+          private-key: ${{ secrets.QORUS_BOT_APP_PRIVATE_KEY }}
+          owner: qoretechnologies
+          # This repo to merge, reqore to answer on.
+          repositories: ${{ github.event.repository.name }},reqore
+
+      - name: Find the PR this run tested
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base develop --state open \
+            --json number,url,headRefOid,body --jq '.[0] // empty' > pr.json
+          if [ ! -s pr.json ]; then
+            echo "::notice::no open PR for $BRANCH; nothing to merge"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$(jq -r .headRefOid pr.json)" != "$HEAD_SHA" ]; then
+            echo "::notice::$BRANCH moved on since this run; the newer run decides"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          marker=$(jq -r .body pr.json | sed -nE 's/^<!-- library-release (\{.*\}) -->\r?$/\1/p' | head -1)
+          if [ -z "$marker" ]; then
+            echo "::error::the PR body carries no library-release marker; was it opened by hand?"
+            exit 1
+          fi
+          {
+            echo "found=true"
+            echo "number=$(jq -r .number pr.json)"
+            echo "url=$(jq -r .url pr.json)"
+            echo "short=${BRANCH#deps/}"
+            printf '%s' "$marker" | jq -r 'to_entries[] | "\(.key)=\(.value)"'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Ask Qlip whether anything changed
+        id: qlip
+        if: steps.pr.outputs.found == 'true' && env.CONCLUSION == 'success'
+        env:
+          QLIP_TOKEN: ${{ secrets.QLIP_UPLOAD_TOKEN }}
+        run: |
+          # Pull Request Tests pins its Qlip build id to its run id. A build the
+          # server named itself is found by branch and commit instead. An
+          # upload still in flight reads as `uploading`; wait for it.
+          qlip() { curl -sS -H "Authorization: Bearer $QLIP_TOKEN" "$QLIP_URL/api/$1"; }
+          branch=$(printf '%s' "$BRANCH" | jq -sRr @uri)
+          build=''
+          for attempt in $(seq 1 10); do
+            build=$(qlip "builds/$RUN_ID" | jq -c '.build // empty' 2>/dev/null || true)
+            if [ -z "$build" ]; then
+              build=$(qlip "builds?branch=$branch&pageSize=50" \
+                | jq -c --arg sha "$HEAD_SHA" '[.builds[]? | select(.commit == $sha)] | sort_by(.createdAt) | last // empty' 2>/dev/null || true)
+            fi
+            if [ -n "$build" ] && [ "$(printf '%s' "$build" | jq -r .status)" != "uploading" ]; then
+              break
+            fi
+            echo "no finished Qlip build for $HEAD_SHA yet (attempt $attempt); waiting"
+            sleep 30
+          done
+          if [ -z "$build" ] || [ "$(printf '%s' "$build" | jq -r .status)" = "uploading" ]; then
+            echo "unchanged=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Qlip has no finished build for this run, so nothing says the snapshots are unchanged" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          id=$(printf '%s' "$build" | jq -r .id)
+          read -r total changed new failed <<< "$(printf '%s' "$build" | jq -r '.statistics | "\(.total // 0) \(.changed // 0) \(.new // 0) \(.failed // 0)"')"
+          echo "url=$QLIP_URL/builds/$id" >> "$GITHUB_OUTPUT"
+          echo "Qlip build $id: $total snapshots, $changed changed, $new new, $failed failed"
+          if [ "$total" -gt 0 ] && [ "$changed" -eq 0 ] && [ "$new" -eq 0 ] && [ "$failed" -eq 0 ]; then
+            echo "unchanged=true" >> "$GITHUB_OUTPUT"
+            echo "reason=Qlip saw $total snapshots and none changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "unchanged=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Qlip reports $changed changed, $new new and $failed failed of $total snapshots" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide
+        id: decide
+        if: steps.pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          UNCHANGED: ${{ steps.qlip.outputs.unchanged }}
+          QLIP_REASON: ${{ steps.qlip.outputs.reason }}
+        run: |
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "outcome=held" >> "$GITHUB_OUTPUT"
+            echo "reason=Pull Request Tests ended with '$CONCLUSION'" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$UNCHANGED" != "true" ]; then
+            echo "outcome=held" >> "$GITHUB_OUTPUT"
+            echo "reason=$QLIP_REASON" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # GitHub works out mergeability in the background; UNKNOWN means ask again.
+          for attempt in $(seq 1 10); do
+            state=$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json mergeable --jq .mergeable)
+            [ "$state" = "UNKNOWN" ] || break
+            sleep 10
+          done
+          case "$state" in
+            MERGEABLE)
+              echo "outcome=merge" >> "$GITHUB_OUTPUT"
+              echo "reason=CI green and $QLIP_REASON" >> "$GITHUB_OUTPUT" ;;
+            CONFLICTING)
+              echo "outcome=recut" >> "$GITHUB_OUTPUT"
+              echo "reason=develop moved and the branch no longer merges; recutting it from develop" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "outcome=held" >> "$GITHUB_OUTPUT"
+              echo "reason=GitHub could not say whether this merges (mergeable: $state)" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Merge
+        if: steps.decide.outputs.outcome == 'merge'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+        run: gh pr merge "${{ steps.pr.outputs.number }}" --repo "$GITHUB_REPOSITORY" --merge --match-head-commit "$HEAD_SHA"
+
+      - name: Recut the branch from develop
+        if: steps.decide.outputs.outcome == 'recut'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+        run: |
+          jq -cn --arg package "${{ steps.pr.outputs.package }}" --arg version "${{ steps.pr.outputs.version }}" \
+            --arg repository "${{ steps.pr.outputs.repo }}" --arg sha "${{ steps.pr.outputs.sha }}" \
+            '{event_type: "library-release", client_payload: $ARGS.named}' \
+          | gh api "repos/$GITHUB_REPOSITORY/dispatches" --input -
+
+      - name: Word the outcome
+        id: word
+        if: steps.pr.outputs.found == 'true'
+        env:
+          OUTCOME: ${{ steps.decide.outputs.outcome }}
+          REASON: ${{ steps.decide.outputs.reason }}
+          TAKEN: ${{ steps.pr.outputs.short }} ${{ steps.pr.outputs.version }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          QLIP_BUILD_URL: ${{ steps.qlip.outputs.url }}
+        run: |
+          links="[Run]($RUN_URL)"
+          [ -n "$QLIP_BUILD_URL" ] && links="$links · [Qlip build]($QLIP_BUILD_URL)"
+          if [ "$OUTCOME" = "merge" ]; then
+            title="Library release: $TAKEN merged into develop"; color=0x00FF00
+          else
+            title="Library release: $TAKEN held for review"; color=0xFFA500
+          fi
+          {
+            echo "links=$links"
+            echo "title=$title"
+            echo "color=$color"
+            echo "description=$REASON. [PR]($PR_URL) · $links"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Say why on the PR
+        if: steps.decide.outputs.outcome == 'held' || steps.decide.outputs.outcome == 'recut'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          OUTCOME: ${{ steps.decide.outputs.outcome }}
+          REASON: ${{ steps.decide.outputs.reason }}
+          LINKS: ${{ steps.word.outputs.links }}
+        run: |
+          if [ "$OUTCOME" = "recut" ]; then
+            body="**Recut from develop**: $REASON. $LINKS"
+          else
+            body="**Held for a person**: $REASON. $LINKS"
+          fi
+          gh pr comment "${{ steps.pr.outputs.number }}" --repo "$GITHUB_REPOSITORY" --body "$body"
+
+      - name: Tell the library
+        if: steps.pr.outputs.found == 'true' && steps.pr.outputs.sha != '' && steps.decide.outputs.outcome != 'recut'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          REPO: ${{ steps.pr.outputs.repo }}
+          SHA: ${{ steps.pr.outputs.sha }}
+          OUTCOME: ${{ steps.decide.outputs.outcome }}
+          REASON: ${{ steps.decide.outputs.reason }}
+          LINKS: ${{ steps.word.outputs.links }}
+          PR_LINK: '[#${{ steps.pr.outputs.number }}](${{ steps.pr.outputs.url }})'
+          TAKEN: ${{ steps.pr.outputs.short }} ${{ steps.pr.outputs.version }}
+        run: |
+          consumer="${GITHUB_REPOSITORY#qoretechnologies/}"
+          if [ "$OUTCOME" = "merge" ]; then
+            body="✅ **$consumer** took $TAKEN: $PR_LINK merged into develop by itself. $REASON. $LINKS"
+          else
+            body="⏸️ **$consumer** took $TAKEN in $PR_LINK, which is held for a person: $REASON. $LINKS"
+          fi
+          # The PR behind the release commit, else the commit itself.
+          number=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty' 2>/dev/null || true)
+          if [ -n "$number" ]; then
+            gh pr comment "$number" --repo "$REPO" --body "$body"
+          else
+            gh api "repos/$REPO/commits/$SHA/comments" -f body="$body" > /dev/null
+          fi
+
+      - name: Discord
+        if: steps.pr.outputs.found == 'true' && steps.decide.outputs.outcome != 'recut'
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: ReQraft
+          avatar_url: "https://github.com/qoretechnologies/reqore/blob/ae8ce24b7f0984340bf4e6835025d203d1741b3a/public/q-symbol-small.png?raw=true"
+          color: ${{ steps.word.outputs.color }}
+          title: ${{ steps.word.outputs.title }}
+          description: ${{ steps.word.outputs.description }}

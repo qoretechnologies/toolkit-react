@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRowFocusTarget } from '../src/components/form/engine/rowFocus';
+import { findRowFocusTarget, isTypingControl } from '../src/components/form/engine/rowFocus';
 
 /**
  * Which control an open row hands the caret to.
@@ -63,6 +63,22 @@ describe('the control an open row offers the caret', () => {
     expect(findRowFocusTarget(container)?.id).toBe('one');
   });
 
+  it('is the pick-one control when its choices are native checkboxes', () => {
+    // What ReqoreCheckbox renders since reqore 0.78: a native checkbox, a switch or a radio.
+    const container = cell(
+      '<input id="one" type="checkbox" /><input id="two" type="checkbox" role="switch" />'
+    );
+    expect(findRowFocusTarget(container)?.id).toBe('one');
+  });
+
+  it('is the text box beside native choices, which take no typing', () => {
+    // A creatable pick-one draws its choices before the box a value is typed into.
+    const container = cell(
+      '<input id="choice" type="checkbox" /><input id="radio" type="radio" /><input id="text" />'
+    );
+    expect(findRowFocusTarget(container)?.id).toBe('text');
+  });
+
   it('is the selector button of a dropdown row', () => {
     const container = cell('<button id="select">Choose…</button>');
     expect(findRowFocusTarget(container)?.id).toBe('select');
@@ -111,5 +127,26 @@ describe('the control an open row offers the caret', () => {
     // The row before its editor has mounted — the caller watches for it.
     expect(findRowFocusTarget(cell(''))).toBeUndefined();
     expect(findRowFocusTarget(null)).toBeUndefined();
+  });
+});
+
+describe('isTypingControl', () => {
+  it('reads a text box, a text area and an editable region as typed into', () => {
+    expect(isTypingControl(cell('<input id="a" />').querySelector('input'))).toBe(true);
+    expect(isTypingControl(cell('<input type="email" />').querySelector('input'))).toBe(true);
+    expect(isTypingControl(cell('<textarea></textarea>').querySelector('textarea'))).toBe(true);
+    expect(isTypingControl(cell('<div contenteditable="true"></div>').querySelector('div'))).toBe(
+      true
+    );
+  });
+
+  it('does not read a checkbox, a switch, a radio or a button as typed into', () => {
+    expect(isTypingControl(cell('<input type="checkbox" />').querySelector('input'))).toBe(false);
+    expect(
+      isTypingControl(cell('<input type="checkbox" role="switch" />').querySelector('input'))
+    ).toBe(false);
+    expect(isTypingControl(cell('<input type="radio" />').querySelector('input'))).toBe(false);
+    expect(isTypingControl(cell('<button></button>').querySelector('button'))).toBe(false);
+    expect(isTypingControl(null)).toBe(false);
   });
 });

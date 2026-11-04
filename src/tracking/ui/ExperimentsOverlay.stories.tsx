@@ -130,7 +130,9 @@ const flipped: Story = {
 const FLIPPED_TEXT =
   'Renders the tested element at the foot of the window with its card open: there is no room below, so the card flips above the handle.';
 export const FlipsAboveNearTheBottom = variant(flipped, FLIPPED_TEXT, 'Dark');
-export const FlipsAboveNearTheBottomLight = variant(flipped, FLIPPED_TEXT, 'Light');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `FlipsAboveNearTheBottom`.
+export const FlipsAboveNearTheBottomLight = noSnapshot(variant(flipped, FLIPPED_TEXT, 'Light'));
 // Visually empty at phone height: runs as a test, no snapshot.
 export const FlipsAboveNearTheBottomPhone = noSnapshot(variant(flipped, FLIPPED_TEXT, 'Phone'));
 

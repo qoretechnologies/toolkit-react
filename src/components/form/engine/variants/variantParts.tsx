@@ -12,6 +12,12 @@ import {
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import {
+  getReadableFaded,
+  getReadableShade,
+  getThemeSurfaces,
+} from '../../../../helpers/readableColors';
 import React from 'react';
 import { AutoFormField } from '../../fields/auto/AutoFormField';
 import { StructuredDataView } from '../_structuredData/StructuredDataView';
@@ -26,21 +32,27 @@ import {
 
 export function useVariantColors() {
   const theme = useReqoreTheme();
-  const intents = (theme.intents || {}) as Record<string, string>;
-  return {
-    main: theme.main as string,
-    text: (theme.text?.color as string) || '#e8e8e8',
-    muted: `${(theme.text?.color as string) || '#e8e8e8'}99`,
-    faint: `${(theme.text?.color as string) || '#e8e8e8'}55`,
-    line: `${(theme.text?.color as string) || '#ffffff'}14`,
-    hover: `${(theme.text?.color as string) || '#ffffff'}0c`,
-    surface: `${(theme.text?.color as string) || '#ffffff'}08`,
-    danger: intents.danger || '#a82a2a',
-    warning: intents.warning || '#d17c29',
-    success: intents.success || '#4a7110',
-    info: intents.info || '#3b7bbf',
-    custom1: intents.custom1 || '#762f7e',
-  };
+  return React.useMemo(() => {
+    const intents = (theme.intents || {}) as Record<string, string>;
+    /* The words are drawn in colors that read on the theme's surfaces (qorus#646): the softer tiers fade the
+       text only as far as it still reads, the intents are a shade of themselves that reads. */
+    const surfaces = getThemeSurfaces(theme);
+    const text = (theme.text?.color as string) || getReadableColor(theme);
+    return {
+      main: theme.main as string,
+      text,
+      muted: getReadableFaded(text, surfaces, 0.6),
+      faint: getReadableFaded(text, surfaces, 0.33),
+      line: `${(theme.text?.color as string) || '#ffffff'}14`,
+      hover: `${(theme.text?.color as string) || '#ffffff'}0c`,
+      surface: `${(theme.text?.color as string) || '#ffffff'}08`,
+      danger: getReadableShade(intents.danger || '#a82a2a', surfaces),
+      warning: getReadableShade(intents.warning || '#d17c29', surfaces),
+      success: getReadableShade(intents.success || '#4a7110', surfaces),
+      info: getReadableShade(intents.info || '#3b7bbf', surfaces),
+      custom1: getReadableShade(intents.custom1 || '#762f7e', surfaces),
+    };
+  }, [theme]);
 }
 
 export const STATUS_COLOR = (
@@ -285,7 +297,7 @@ export const ComplexPreview = ({ value, onOpen }: { value: unknown; onOpen?: () 
 
 /** Inline editor: mounts the REAL field editor (AutoFormField) for the row's
  *  schema + value, so clicking a field edits it for real (string, number, bool,
- *  colour, file, richtext, list, date, …). Local state only — the prototype
+ *  color, file, richtext, list, date, …). Local state only — the prototype
  *  doesn't persist; in the engine this flows through handleValueChange. */
 export const InlineEdit = ({ row, onDone }: { row: IVariantRow; onDone: () => void }) => {
   const [value, setValue] = React.useState(row.field?.value);

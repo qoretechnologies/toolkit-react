@@ -8,7 +8,7 @@
 // `languageId` we serve (DPQL, Qonsole, Qore). We just decode the
 // LSP-spec int-array, map each token's `{line, character, length}`
 // to a Slate `Range` via the converter, and emit marks (`tokenType`,
-// `tokenModifiers`) that `SmartEditor`'s renderLeaf colours.
+// `tokenModifiers`) that `SmartEditor`'s renderLeaf colors.
 //
 // The decode math is pure and unit-tested separately; the hook is a
 // thin debounce + state wrapper around it.

@@ -59,6 +59,9 @@ export const DefaultValue: Story = {
 
 export const StorageValue: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `DefaultValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -76,6 +79,9 @@ export const ValueCanBeUpdated: Story = {
   ...StorageValue,
   parameters: {
     ...StorageValue.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `DefaultValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -150,6 +156,9 @@ export const ValueCanBeRemoved: Story = {
   ...StorageValue,
   parameters: {
     ...StorageValue.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `DefaultValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

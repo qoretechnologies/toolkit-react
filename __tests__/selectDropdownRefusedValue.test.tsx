@@ -1,6 +1,19 @@
+import { DEFAULT_THEME } from '@qoretechnologies/reqore/dist/constants/theme';
+import { buildTheme } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { ANCHORED_LIST_MAIN } from '../src/components/form/fields/select/Select';
+import { getUnavailableLabelOpacity } from '../src/components/form/fields/select/unavailableRow';
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+/* A refused value's name is dimmed, as far as it still reads on the list, drawn in its own color (qorus#646: 0.55
+   was 4.1:1). Only the name: the reason under it stays as reqore draws a row's description (dimming the whole row
+   took it to 3.1:1). */
+const DIMMED = getUnavailableLabelOpacity(
+  buildTheme(DEFAULT_THEME as never),
+  undefined,
+  ANCHORED_LIST_MAIN
+);
 
 /* The list is read where it is HANDED OVER, not out of an open popover: reqore
    positions its dropdown through a portal that jsdom never opens, so a test
@@ -62,7 +75,10 @@ describe('the dropdown the picker falls back to', () => {
     expect(refused.tooltip).toBe('This sandbox denies the FILESYSTEM domain.');
     expect(refused.onClick).toBeUndefined();
     expect(refused.disabled).toBeUndefined();
-    expect(refused.effect).toEqual({ opacity: 0.55 });
+    expect(refused.labelEffect).toEqual({ opacity: DIMMED });
+    /* no `effect`: reqore 0.77.2 fills a row that has one (a refused row with an intent turned solid, its reason
+       unreadable on it), where the rows beside it are drawn on the list */
+    expect(refused.effect).toBeUndefined();
     expect(refused.icon).toBe('LockLine');
 
     const offered = items.find((item) => item.label === 'Database');

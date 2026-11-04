@@ -128,6 +128,25 @@ export const shouldMarkAsExpression = (
 };
 
 /**
+ * What `handleValueChange` puts a field back to when an edit is undone (Cancel, Escape, Revert): its value, the
+ * type it is stored as, and whether it is an expression - said either way, never left as no opinion.
+ *
+ * Left as no opinion, the flag was kept only while the field still held an expression
+ * (`shouldMarkAsExpression`). An expression put back over a field that had been cleared, or replaced with a
+ * value, came back without it: its AST was stored as a literal hash, and its row read "2 fields", `exp` and
+ * `args` (qorus#646).
+ */
+export const restoredFieldChange = (field?: {
+  value?: unknown;
+  type?: string;
+  is_expression?: boolean;
+}): [value: unknown, type: string | undefined, isExpression: boolean] => [
+  field?.value,
+  field?.type,
+  !!field?.is_expression,
+];
+
+/**
  * Fill in an expression's missing arguments, leaving the supplied ones alone.
  *
  * Extracted from the builder so the decision it makes can be tested directly:

@@ -1,8 +1,11 @@
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fireEvent, fn } from 'storybook/test';
+import { expect, fireEvent, fn, waitFor } from 'storybook/test';
 import { Server } from 'mock-socket';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
+import { storyCopiedTexts, withStoryClipboard } from '../../stories/clipboard';
 import { storySocketUrl } from '../../stories/storyNetwork';
+import { withTouchScreen } from '../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../stories/tracking';
 import { StoryMeta } from '../../types';
 import { ReqraftLog } from './Log';
 
@@ -127,12 +130,65 @@ export const Filterable: Story = {
   },
 };
 
+/** Where a control sits in the title bar: present, drawn, and not cut off by the bar's edge. */
+const expectInTitleBar = (bar: Element, control: Element | null) => {
+  expect(control).toBeTruthy();
+  const box = control!.getBoundingClientRect();
+  const edge = bar.getBoundingClientRect();
+  expect(box.width).toBeGreaterThan(0);
+  expect(box.left).toBeGreaterThanOrEqual(edge.left);
+  expect(box.right).toBeLessThanOrEqual(edge.right);
+};
+
+export const FilterableOnAPhone: Story = {
+  ...Filterable,
+  tags: ['touch'],
+  // drawn at the phone's width from the start, as on a phone, not narrowed after it was laid out
+  globals: { viewport: { value: 'phone' } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: {
+          name: 'Phone',
+          styles: { width: `${PHONE_VIEWPORT.width}px`, height: `${PHONE_VIEWPORT.height}px` },
+        },
+      },
+    },
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with the filter on a phone (390 px, touch). The filter, Pause and Clear stay in the title bar, none of them folded into a menu. A finger taps the filter, and typing "error" leaves the single ERROR message.',
+      },
+    },
+  },
+  play: async (context) => {
+    await Basic.play(context);
+    await withTouchScreen(async (touch) => {
+      const bar = context.canvasElement.querySelector('.reqore-panel-title')!;
+      const filter = bar.querySelector<HTMLInputElement>('input[placeholder="Filter messages"]');
+      expectInTitleBar(bar, filter);
+      expectInTitleBar(bar, bar.querySelector('.reqraft-log-pause-resume'));
+      expectInTitleBar(bar, bar.querySelector('.reqraft-log-clear'));
+
+      await touch.tap(filter!);
+      await fireEvent.change(filter!, { target: { value: 'error' } });
+      await waitFor(() =>
+        expect(context.canvasElement.querySelectorAll('.reqraft-log-message')).toHaveLength(1)
+      );
+    });
+  },
+};
+
 export const WithTimestamps: Story = {
   ...Basic,
   args: {
     showTimestamps: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CanSendMessages`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -152,6 +208,9 @@ export const WithDefaultMessages: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CanSendMessages`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -161,8 +220,67 @@ export const WithDefaultMessages: Story = {
   },
 };
 
+const LINK_MESSAGE = 'This is a message with a link: https://www.qoretechnologies.com';
+
+/** Clicks the copy action of the message row reading `message`. */
+const clickCopyMessage = async (message: string) => {
+  // the row of a copy action is its nearest ancestor holding a message
+  const rowMessage = (button: Element) => {
+    let element = button.parentElement;
+    while (element && !element.querySelector('.reqraft-log-message')) {
+      element = element.parentElement;
+    }
+    return element?.querySelector('.reqraft-log-message')?.textContent;
+  };
+  const copy = Array.from(document.querySelectorAll('.reqraft-log-copy-message')).find(
+    (button) => rowMessage(button) === message
+  );
+  await expect(copy).toBeTruthy();
+  fireEvent.click(copy);
+};
+
+const waitForNotification = (text: string) =>
+  waitFor(
+    () => {
+      const shown = Array.from(document.querySelectorAll('.reqore-notification')).map(
+        (notification) => notification.textContent || ''
+      );
+      if (!shown.some((content) => content.includes(text))) {
+        throw new Error(`no notification "${text}" yet: ${JSON.stringify(shown)}`);
+      }
+      return shown;
+    },
+    { timeout: 10000 }
+  );
+
 export const WithCopyableMessages: Story = {
   ...Basic,
+  beforeEach: withStoryClipboard('clipboard-api'),
+  args: {
+    allowMessageCopy: true,
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard; the copy actions are
+    // pictured by `WithDeletableMessages`, and a copy notification by `CopyFailed`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with allowMessageCopy — each message row exposes a copy action next to its content. Clicking a message\'s copy action copies that message and shows the "Log message copied to clipboard" notification.',
+      },
+    },
+  },
+  play: async (args) => {
+    await Basic.play(args);
+    await clickCopyMessage(LINK_MESSAGE);
+    await waitForNotification('Log message copied to clipboard');
+    await expect(storyCopiedTexts()).toEqual([LINK_MESSAGE]);
+  },
+};
+
+export const CopyFailed: Story = {
+  ...Basic,
+  beforeEach: withStoryClipboard('none'),
   args: {
     allowMessageCopy: true,
   },
@@ -170,12 +288,18 @@ export const WithCopyableMessages: Story = {
     docs: {
       description: {
         story:
-          'Renders ReqraftLog with allowMessageCopy — each message row exposes a copy action next to its content.',
+          'Renders ReqraftLog with copyable messages on a page where the browser allows no way of copying. Clicking a message\'s copy action copies nothing and shows a danger notification that stays until it is closed: "Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself."',
       },
     },
   },
   play: async (args) => {
     await Basic.play(args);
+    await clickCopyMessage(LINK_MESSAGE);
+    const shown = await waitForNotification(
+      'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.'
+    );
+    await expect(shown.some((content) => content.includes('copied to clipboard'))).toBe(false);
+    await expect(storyCopiedTexts()).toEqual([]);
   },
 };
 
@@ -261,7 +385,7 @@ export const FormattedMessages: Story = {
     docs: {
       description: {
         story:
-          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines colour warning, ERROR lines danger and ALL-CAPS lines info.',
+          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines color warning, ERROR lines danger and ALL-CAPS lines info.',
       },
     },
   },
@@ -296,6 +420,9 @@ export const WithAutoScroll: Story = {
     style: { height: '200px' },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -315,6 +442,9 @@ export const WithAutoScrollAndManualScroll: Story = {
     style: { height: '200px' },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

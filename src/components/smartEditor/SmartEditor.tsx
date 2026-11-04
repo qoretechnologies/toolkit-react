@@ -1,23 +1,22 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
 import {
+  ReqoreButton,
   ReqoreCallout,
   ReqoreControlGroup,
-  ReqoreMenu,
-  ReqoreMenuDivider,
-  ReqoreMenuItem,
+  ReqoreFonts,
   ReqoreMessage,
   ReqorePanel,
   ReqoreSpinner,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
+import { CONTROL_TEXT_FROM_SIZE } from '@qoretechnologies/reqore/dist/constants/sizes';
 import {
   ReqoreRichTextEditor,
   TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
-import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, {
   forwardRef,
   memo,
@@ -27,23 +26,35 @@ import React, {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from 'react';
+import { useMeasure } from 'react-use';
+import styled from 'styled-components';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
 import { useEmittedValues } from '../form/fields/emittedValues';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
+import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
+import { CompletionMenu } from './CompletionMenu';
 import { MarkdownDoc } from './MarkdownDoc';
-import { COMPLETION_KIND_INTENTS, SMART_EDITOR_OVERLAY_EFFECT } from './styling';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
+import { rechipTypedReferences } from './typedReferences';
 import { ICompletionDropdownItem, useLspAutocomplete } from './useLspAutocomplete';
 import { severityToIntent, useLspDiagnosticDecorations } from './useLspDiagnosticDecorations';
 import { useLspHover } from './useLspHover';
+import { useCoarsePointer } from '../../hooks/useCoarsePointer';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
+import { templateNodeFor } from '../../helpers/templateTree';
+import { useTabCameIn } from './useTabCameIn';
+import { openLoneGroup, withServerCompletions } from '../../helpers/templateTree';
+import type { ILspCompletionItem } from '../../utils/lspClient.types';
+import { commitTypedReferences, drawRechipped } from './typedReferences';
+import { useEditingAids } from './useEditingAids';
 
 // One-Dark-ish palette keyed off the LSP semantic-token legend; absent
-// types fall through to Slate's default text colour.
+// types fall through to Slate's default text color.
 const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   keyword: '#c678dd', // purple — control flow, `in`, `not`, `between`, …
   operator: '#56b6c2', // cyan — ==, !=, &&, ||, =~, !~, …
@@ -62,56 +73,6 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   decorator: '#c678dd', // purple
   namespace: '#e5c07b', // yellow
 };
-
-// Kind chip + a Warning chip (Qonsole flags mutating verbs) for a
-// completion row; undefined when neither applies.
-function buildKindBadge(
-  item: ICompletionDropdownItem
-): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
-  const kindIntent =
-    item.metadata?.kind !== undefined ? COMPLETION_KIND_INTENTS[item.metadata.kind] : undefined;
-  const kindBadge =
-    item.kindLabel ?
-      {
-        label: item.kindLabel,
-        minimal: true as const,
-        size: 'small' as const,
-        intent: kindIntent,
-      }
-    : null;
-  const warningBadge =
-    item.warning ?
-      {
-        label: 'Warning',
-        size: 'small' as const,
-        intent: 'warning' as const,
-        tooltip: item.warning,
-      }
-    : null;
-  if (warningBadge && kindBadge) return [kindBadge, warningBadge];
-  if (warningBadge) return [warningBadge];
-  if (kindBadge) return kindBadge;
-  return undefined;
-}
-
-// Tooltip prop rendering a row's LSP `documentation` (markdown/plaintext),
-// or undefined when there is none.
-function buildDocTooltip(item: ICompletionDropdownItem) {
-  const doc = item.documentation;
-  if (!doc) return undefined;
-  const isMarkdown = typeof doc === 'object' && doc !== null && doc.kind === 'markdown';
-  const text = typeof doc === 'string' ? doc : (doc?.value ?? '');
-  if (!text) return undefined;
-  return {
-    content: <MarkdownDoc content={text} markdown={isMarkdown} />,
-    placement: 'right' as const,
-    delay: 200,
-    // The cast covers popover props missing from the older tooltip type.
-    flat: true,
-    transparent: true,
-    backgroundBlur: 20,
-  } as IReqoreTooltip;
-}
 
 // Applies the server's `textEdit` (replacing the typed partial token so
 // `-` + `--desc=` doesn't become `---desc=`), else inserts at the cursor.
@@ -157,41 +118,6 @@ const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   }
 };
 
-// Module-scoped so the reference is stable across renders — an inline
-// object would defeat ReqoreMenuItem's memoization.
-const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: 'monospace' };
-
-interface ICompletionMenuItemProps {
-  item: ICompletionDropdownItem;
-  isFocused: boolean;
-  onSelect: (item: ICompletionDropdownItem) => void;
-}
-
-// Memoized completion row so badge/tooltip derivation runs once per item,
-// not on every SmartEditor re-render.
-const CompletionMenuItem = memo(({ item, isFocused, onSelect }: ICompletionMenuItemProps) => {
-  const badge = useMemo(() => buildKindBadge(item), [item]);
-  const tooltip = useMemo(() => buildDocTooltip(item), [item]);
-  const handleClick = useCallback(() => onSelect(item), [onSelect, item]);
-
-  return (
-    <ReqoreMenuItem
-      icon={item.icon as any}
-      label={item.label}
-      description={item.description}
-      badge={badge as any}
-      tooltip={tooltip as any}
-      selected={isFocused}
-      active={isFocused}
-      minimal
-      scrollIntoView={isFocused}
-      onClick={handleClick}
-      compact
-      style={COMPLETION_ITEM_STYLE}
-    />
-  );
-});
-CompletionMenuItem.displayName = 'CompletionMenuItem';
 
 interface ISignatureHelpPillProps {
   signature: ILspSignatureHelp;
@@ -283,7 +209,7 @@ const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps
       <ReqoreCallout
         size='small'
         paddingSize='tiny'
-        style={{ fontFamily: 'monospace' }}
+        style={{ fontFamily: ReqoreFonts.mono }}
         label={label}
       />
 
@@ -296,6 +222,86 @@ const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps
   );
 });
 SignatureHelpPill.displayName = 'SignatureHelpPill';
+
+/** Distinguishes the completion lists of the editors on a page, for each editor's `aria-controls`. */
+let completionMenuCounter = 0;
+
+/* The text's box in its row: it takes the row, and gives it up to the Details button beside it on a touch
+   screen. */
+/** The width of the editor's row (Reqore's phone width) at or below which its Details button is its icon alone. */
+const DETAILS_WORD_MIN_ROW_WIDTH = 480;
+
+/**
+ * The box the text is drawn in, as a code editor draws it where asked: lines that do not wrap (`wordWrap: off`),
+ * scrolled inside the box, no wider than it; a height the text scrolls within (`maxHeight`); each line's number
+ * before it (`lineNumbers`), counted by its paragraph.
+ */
+const StyledEditorBox = styled.div<{ $wordWrap: 'on' | 'off'; $maxHeight?: string; $lineNumbers: boolean }>`
+  [data-slate-editor] {
+    ${({ $wordWrap }) =>
+      $wordWrap === 'off' ? 'white-space: pre !important; overflow-wrap: normal !important; overflow-x: auto;' : ''}
+    ${({ $maxHeight }) => ($maxHeight ? `max-height: ${$maxHeight}; overflow-y: auto;` : '')}
+    ${({ $lineNumbers }) => ($lineNumbers ? 'counter-reset: smart-editor-line; padding-left: 3em !important;' : '')}
+  }
+  ${({ $lineNumbers }) =>
+    $lineNumbers ?
+      `[data-slate-editor] > [data-slate-node='element'] {
+        position: relative;
+        counter-increment: smart-editor-line;
+      }
+      [data-slate-editor] > [data-slate-node='element']::before {
+        content: counter(smart-editor-line);
+        position: absolute;
+        left: -3em;
+        width: 2.2em;
+        text-align: right;
+        opacity: 0.45;
+        user-select: none;
+        pointer-events: none;
+      }`
+    : ''}
+`;
+
+const EDITOR_BOX_STYLE: React.CSSProperties = {
+  position: 'relative',
+  flex: '1 1 auto',
+  minWidth: 0,
+};
+
+/**
+ * The button beside the text that opens the template picker for a pick at the caret (qorus#646): where a value
+ * cannot be written after the text before the caret (`insertableAt`), it says why and cannot be pressed. Its press
+ * keeps the focus, and the caret the pick goes at, in the text.
+ */
+const TemplateButton = ({
+  size,
+  insertable,
+  notInsertable,
+  open,
+}: {
+  size?: ISmartEditorProps['size'];
+  /** A value can be written at the caret: the button can be pressed. */
+  insertable: boolean;
+  notInsertable?: string;
+  open: (rect: { left: number; bottom: number }) => void;
+}) => {
+  return (
+    <ReqoreButton
+      className='smart-editor-template-button'
+      icon='MoneyDollarCircleLine'
+      fixed
+      size={size ?? 'normal'}
+      aria-label='Insert a template'
+      tooltip={insertable ? 'Insert a template' : notInsertable}
+      disabled={!insertable}
+      onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
+      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+        const { left, bottom } = event.currentTarget.getBoundingClientRect();
+        open({ left, bottom });
+      }}
+    />
+  );
+};
 
 export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProps>(
   (
@@ -312,19 +318,38 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       completionInserter = defaultCompletionInserter,
       topActions,
       height,
+      size,
       readOnly = false,
       showDiagnostics = true,
       onBlur,
+      tags,
       loadingIndicator,
       enableHover = true,
+      hoverDelayMs,
       isLoading = false,
       enableSignatureHelp = true,
+      completeOnClick = false,
+      completionsWith,
+      emptyCompletionMessage,
+      presentDiagnostics,
+      diagnosticAction,
+      referenceNamesNothing,
+      templateRoots,
+      templateButton,
+      editingLanguage,
+      formatDocument,
+      wordWrap = 'on',
+      maxHeight,
+      lineNumbers = false,
     },
     ref
   ) => {
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
+    const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
     const lastPlainTextRef = useRef(value);
+    // what an emptied text opens (set where the picker's roots are known, below)
+    const emptiedRef = useRef<() => void>(() => undefined);
     // Cached Slate nodes, refreshed only on EXTERNAL value changes — not on
     // the typing echo. Passing a fresh ref every keystroke re-runs
     // ReqoreRichTextEditor's tokenizer mid-token (typed `@s` collapses to a
@@ -335,7 +360,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        from outside — a leading chip gains an empty text leaf before it — without
        changing its text, so `value` never changes and the cache above kept the
        tree the editor no longer had. Every offset computed from it (token
-       colours, diagnostics, signature help) then pointed one leaf off: a Text
+       colors, diagnostics, signature help) then pointed one leaf off: a Text
        view seeded with `"$local:name" == "John"` was never highlighted. */
     const [editorTreeVersion, noteEditorTree] = useReducer((count: number) => count + 1, 0);
 
@@ -348,17 +373,107 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // sessions set `isContextReady: true`, collapsing this to `isReady`.
     const lspReady = session.isReady && session.isContextReady;
 
+    /* What the list offers at the caret: the server's answer, with the host's own entries merged in where they
+       can be written (`completionsWith`). Where no server can be asked, the host's alone. */
+    const noServer = session.isUnavailable && !!completionsWith;
+    const { getCompletions: askServer } = session;
+    const getCompletions = useCallback(
+      async (plainText: string, offset: number, typedInText?: string) => {
+        const serverItems = noServer ? undefined : await askServer(plainText, offset);
+        return completionsWith ?
+            completionsWith({ plainText, offset, serverItems, typedInText })
+          : (serverItems ?? []);
+      },
+      [noServer, askServer, completionsWith]
+    );
+
+    /* What the language server completes where a value can be written (the start of the text), for the template
+       picker to offer beside the field's own templates: the record's fields, the template contexts, the functions
+       and the values (qorus#646, David: "users should be supported with all available completions in the template
+       picker"). Asked once the server is ready, again as the field's templates change, and when the picker opens. */
+    const [serverValues, setServerValues] = useState<ILspCompletionItem[]>();
+    const askedValuesRef = useRef(0);
+    const askServerValues = useCallback(async () => {
+      // only an editor of templates has a template picker to offer them in (`templateRoots`)
+      if (noServer || !lspReady || !templateRoots) return;
+      const asked = ++askedValuesRef.current;
+      // at the start of the text: a value can always be written there
+      const items = await askServer('', 0);
+      // only the latest answer, and only while the editor is there
+      if (asked === askedValuesRef.current && mountedRef.current) setServerValues(items);
+    }, [noServer, lspReady, askServer, templateRoots]);
+    const mountedRef = useRef(true);
+    useEffect(
+      () => () => {
+        mountedRef.current = false;
+      },
+      []
+    );
+    // asked when the server is ready and as the field's templates change
+    useEffect(() => {
+      void askServerValues();
+    }, [lspReady, templateRoots]);
+    const pickerRoots = useMemo(
+      // a lone group of the field's opened only where nothing is added beside it
+      () => (templateRoots ? openLoneGroup(withServerCompletions(templateRoots, serverValues)) : []),
+      [templateRoots, serverValues]
+    );
+
     const autocomplete = useLspAutocomplete({
-      getCompletions: session.getCompletions,
-      isReady: lspReady,
+      getCompletions,
+      isReady: lspReady || noServer,
       triggerCharacters,
       converter,
       inserter: completionInserter,
+      emptyMessage: emptyCompletionMessage,
+      // what to write next, above the rows, where none of them is what is written
+      noteAt: emptyCompletionMessage,
+      // Enter or Tab where nothing more is listed: what is written at the caret, a whole reference, is its chip
+      commitTyped: (editor) =>
+        commitTypedReferences(
+          editor as unknown as Editor,
+          converter,
+          referenceNamesNothing,
+          editor.selection?.anchor.path[0]
+        ),
     });
+
+    // the picker opened: what the server completes asked again, for the record and the context bound now
+    const pickerOpen = !!autocomplete.browse;
+    useEffect(() => {
+      if (pickerOpen) void askServerValues();
+    }, [pickerOpen, askServerValues]);
 
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
+      debounceMs: hoverDelayMs,
+      // a chip whose props carry a tooltip (a field the record describes) shows that, not the server's hover too
+      chipHasOwnHover: (tag) =>
+        !!(tagRenderer as ((tag: ISlateElement) => { tooltip?: unknown }) | undefined)?.(tag)
+          ?.tooltip,
     });
+    /* The hover the popover drawn in this render is of: what it dismisses when it closes, and nothing newer. */
+    const shownHoverId = hover.hoverId;
+    /* A finger cannot hover: where the pointer is one, "Details" shows what the server says of the word at the
+       caret, in the same pop-up a mouse gets by hovering. Only where the server says anything (`hoverProvider`). */
+    const coarse = useCoarsePointer();
+    /* The row the text and its Details button share, measured: in a row a phone's width or narrower, Details is its
+       icon alone - its word took the text's room (Foxhoundn on qlip #383: "The details button should be just an icon
+       on such small screen / container size"). The row, not the screen: an editor in a narrow card on a wide
+       screen is as short of room. */
+    const [rowRef, { width: rowWidth }] = useMeasure<HTMLDivElement>();
+    const detailsSaysItsWord = !rowWidth || rowWidth > DETAILS_WORD_MIN_ROW_WIDTH;
+    const showDetailsButton =
+      coarse &&
+      // Details says what the word at the caret is, and a read-only text has no caret: a tap on a read-only
+      // rendering (a collapsed row's expression) opens what holds it, where Details is
+      !readOnly &&
+      enableHover &&
+      session.isReady &&
+      !!(session.client?.capabilities as { hoverProvider?: unknown } | null | undefined)?.hoverProvider;
+    /* The hover Details showed, drawn as a card under the button rather than over the text (`showAtCaret`). */
+    const [detailsHoverId, setDetailsHoverId] = useState<number>();
+    const detailsShown = detailsHoverId !== undefined && hover.hoverId === detailsHoverId;
 
     /* What the editor has reported and the host has not handed back yet. A host can hand an emit back
        after the next key is already in the editor - one that debounces, or a render that lands between
@@ -389,7 +504,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     /* A value set from outside is a change to the document as much as typing
        is — a Text view seeded after mount, a Preview following the author. The
-       server colours and diagnoses its own copy of the text, so it must hold
+       server colors and diagnoses its own copy of the text, so it must hold
        this one; typing already sent its text, and is not resent. */
     const { didChange: syncDocument } = session;
     useEffect(() => {
@@ -402,11 +517,45 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       syncDocument(value);
     }, [syncDocument, value, emitted]);
 
-    const diagnosticDecorate = useLspDiagnosticDecorations(
-      session.diagnostics,
-      converter,
-      slateValue
-    );
+    /* The server's diagnostics as the editor says them: in the host's words for what it wrote itself
+       (`presentDiagnostics`), and without the error of a reference half-typed at the caret while its list is open
+       or on its way - a `$` typed to ask for a template is not a mistake yet (qorus#646, David's decision). It
+       is said once the list is put away. */
+    const listActive = autocomplete.isActive;
+    const shownDiagnostics = useMemo(() => {
+      const editor = editorRef.current as unknown as Editor | null;
+      const nodes = (editor?.children as unknown as ISlateElement[] | undefined) ?? slateValue;
+      const said =
+        presentDiagnostics ?
+          presentDiagnostics(session.diagnostics, converter.fromSlateNodes(nodes))
+        : session.diagnostics;
+      const at = editor?.selection;
+      if (!listActive || !converter.referenceBeingWritten || !at || !Range.isCollapsed(at)) {
+        return said;
+      }
+      const [index, child] = at.anchor.path;
+      const paragraph = nodes[index];
+      if (at.anchor.path.length !== 2 || !paragraph) {
+        return said;
+      }
+      const end = converter.selectionToOffset([paragraph], [0, child], at.anchor.offset);
+      const written = converter.referenceBeingWritten(
+        converter.fromSlateNodes([paragraph]).slice(0, end)
+      );
+      /* what is said of the reference being written, which reaches the caret: from where it starts in what is
+         being written, or a whole reference that ends at the caret (`$data:receive_order.ev`, of which only `ev`
+         is being written) */
+      return said.filter(
+        ({ range: { start, end: to } }) =>
+          !(
+            start.line === index &&
+            ((written > 0 && start.character >= end - written && start.character < end) ||
+              (start.character < end && to.line === index && to.character === end))
+          )
+      );
+    }, [session.diagnostics, presentDiagnostics, converter, slateValue, listActive]);
+
+    const diagnosticDecorate = useLspDiagnosticDecorations(shownDiagnostics, converter, slateValue);
 
     // Server-driven syntax highlighting (replaces the old client-side regex
     // highlighter — see design doc §7).
@@ -421,18 +570,46 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       { enabled: enableSignatureHelp }
     );
 
+    /* What a code editor does for what is typed (`useEditingAids`): pairs closed, a selection wrapped, the
+       bracket at the caret matched, the search (Ctrl+F) and its replace, lines moved and copied, the document
+       formatted (Shift+Alt+F), completion asked for (Ctrl+Space). */
+    // the editing aids follow every change of the editor, its caret's included (the bracket match)
+    const aidsChangeRef = useRef<() => void>(() => undefined);
+    const aids = useEditingAids({
+      editorRef,
+      converter,
+      nodes: slateValue,
+      language: editingLanguage,
+      readOnly,
+      onFormat: formatDocument,
+      onComplete: () => {
+        const editor = editorRef.current;
+        const at = editor?.selection;
+        if (!editor || !at) return;
+        try {
+          const rect = ReactEditor.toDOMRange(editor, at).getBoundingClientRect();
+          autocomplete.openAtCaret(editor as any, at.anchor, { left: rect.left, bottom: rect.bottom });
+        } catch {
+          // the caret is not drawn: nothing is asked
+        }
+      },
+    });
+
+    aidsChangeRef.current = aids.onEditorChange;
+
     const composedDecorate = useCallback(
       (entry: NodeEntry): Range[] => {
         const userRanges = decorate?.(entry) ?? [];
         const semanticRanges = semanticDecorate(entry);
+        const aidRanges = aids.decorate(entry);
         const diagRanges = showDiagnostics ? diagnosticDecorate(entry) : [];
         // Diagnostics last so the wavy underline isn't overdrawn.
-        return [...userRanges, ...semanticRanges, ...diagRanges];
+        return [...userRanges, ...semanticRanges, ...aidRanges, ...diagRanges];
       },
-      [decorate, semanticDecorate, diagnosticDecorate, showDiagnostics]
+      [decorate, semanticDecorate, diagnosticDecorate, showDiagnostics, aids.decorate]
     );
 
-    // Paints semantic-token colours and diagnostic underlines, falling
+    // Paints semantic-token colors and diagnostic underlines, falling
     // through to the consumer's `customRenderLeaf` for everything else.
     const renderLeafWithMarks = useCallback(
       (props: RenderLeafProps) => {
@@ -442,6 +619,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           severity?: number;
           tokenType?: string;
           tokenModifiers?: string[];
+          bracketMatch?: true;
+          findMatch?: true;
+          findCurrent?: true;
         };
 
         let child =
@@ -469,7 +649,30 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           }
         }
 
-        // Underline outermost so it overlays the syntax colour; hex
+        // the bracket matching the one at the caret, and the search's matches (the current one stronger)
+        if (leaf.bracketMatch || leaf.findMatch) {
+          child = (
+            <span
+              className={
+                leaf.findCurrent ? 'smart-editor-find-current'
+                : leaf.findMatch ? 'smart-editor-find-match'
+                : 'smart-editor-bracket-match'
+              }
+              style={{
+                borderRadius: 2,
+                background:
+                  leaf.findCurrent ? 'rgba(255, 200, 0, 0.55)'
+                  : leaf.findMatch ? 'rgba(255, 200, 0, 0.25)'
+                  : 'rgba(255, 255, 255, 0.12)',
+                outline: leaf.bracketMatch ? '1px solid rgba(255, 255, 255, 0.45)' : undefined,
+              }}
+            >
+              {child}
+            </span>
+          );
+        }
+
+        // Underline outermost so it overlays the syntax color; hex
         // fallbacks cover host themes that omit a diagnostic intent.
         if (leaf.error) {
           const underlineColor =
@@ -496,9 +699,91 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [customRenderLeaf, theme]
     );
 
+    /* A reference typed out in full is drawn as its chip, as one picked from the completion list is: the
+       paragraph is redrawn from its text, which the converter reads it in (`rechipTypedReferences`). The text is
+       the same, so nothing is reported for it. */
+    const drawTypedReferences = drawRechipped;
+
+    // the editor has been left: every reference typed in it is drawn as its chip
+    const handleBlur = useCallback(() => {
+      const editor = editorRef.current as unknown as Editor | null;
+      if (editor && !readOnly) {
+        commitTypedReferences(editor, converter, referenceNamesNothing);
+      }
+      onBlur?.();
+    }, [converter, readOnly, onBlur, referenceNamesNothing]);
+
+    /* A chip put in at the caret takes the place of the reference being written there, wherever it is picked
+       from (qorus#646, David's review). The completion list's inserter takes it away itself; the list the
+       editor's templates are browsed in is reqore's, which puts a chip in at the caret as it is: a `$` typed to
+       ask for a template stayed in front of the one picked, and `pos + 1 + $pos` is refused by the server. A
+       Slate plugin on the editor reqore made for this one (its `insertNodes`), so both are one step of one
+       change - one text sent, one undo. A chip put in at a place of its own (`at`: a typed reference drawn as its
+       chip, a chip replaced) is left alone. */
+    const referenceBeingWritten = readOnly ? undefined : converter.referenceBeingWritten;
+    useEffect(() => {
+      const editor = editorRef.current as unknown as Editor | null;
+      if (!editor || !referenceBeingWritten) {
+        return undefined;
+      }
+      const { insertNodes } = editor;
+      editor.insertNodes = (nodes, options) => {
+        const at = editor.selection;
+        const inserted = Array.isArray(nodes) ? nodes : [nodes];
+        const chip = inserted.length === 1 && (inserted[0] as { type?: string }).type === 'tag';
+        if (chip && !options?.at && at && Range.isCollapsed(at) && at.anchor.path.length === 2) {
+          const [index, child] = at.anchor.path;
+          const paragraph = editor.children[index] as unknown as ISlateElement | undefined;
+          if (paragraph) {
+            const before = converter
+              .fromSlateNodes([paragraph])
+              .slice(0, converter.selectionToOffset([paragraph], [0, child], at.anchor.offset));
+            const written = referenceBeingWritten(before);
+            // what is being written is typed text, in the text the caret is in
+            if (written > 0 && written <= at.anchor.offset) {
+              Transforms.delete(editor, {
+                at: {
+                  anchor: { path: at.anchor.path, offset: at.anchor.offset - written },
+                  focus: at.anchor,
+                },
+              });
+            }
+          }
+        }
+        insertNodes(nodes, options);
+      };
+      return () => {
+        editor.insertNodes = insertNodes;
+      };
+    }, [converter, referenceBeingWritten]);
+
+    /* Whether a template can be written at the caret, for the template button: asked again at every change of the
+       editor, a move of its caret included, so the button is never left as it was for a caret that has moved. */
+    const [insertableAtCaret, setInsertableAtCaret] = useState(true);
+    const insertableAt = templateButton?.insertableAt;
+    const askInsertable = useCallback(() => {
+      const editor = editorRef.current;
+      if (!editor || !insertableAt) return;
+      try {
+        const nodes = editor.children as unknown as ISlateElement[];
+        const plainText = converter.fromSlateNodes(nodes);
+        const at = editor.selection?.anchor;
+        const offset = at ? converter.selectionToOffset(nodes, at.path as number[], at.offset) : plainText.length;
+        setInsertableAtCaret(insertableAt(plainText.slice(0, offset)));
+      } catch {
+        // a selection the editor no longer has: the end of the text is asked about
+        setInsertableAtCaret(insertableAt(converter.fromSlateNodes(editor.children as unknown as ISlateElement[])));
+      }
+    }, [insertableAt, converter]);
+    useEffect(askInsertable, [askInsertable, value]);
+    const askInsertableRef = useRef(askInsertable);
+    askInsertableRef.current = askInsertable;
+
     const handleSlateChange = useCallback(
       (newNodes: ISlateElement[]) => {
         const plainText = converter.fromSlateNodes(newNodes);
+        // the text emptied by this edit (cleared, or its last character deleted): see below
+        const emptied = !!lastPlainTextRef.current?.trim() && !plainText.trim();
 
         // A selection change reports the same tree; anything else is the tree
         // the editor now holds, and the one every offset is computed against.
@@ -517,11 +802,38 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           // parameter never advances.
           onChange(plainText);
           session.didChange(plainText);
+
+          // a reference typed out in full, and left by the character just typed, is drawn as its chip
+          const editor = editorRef.current as unknown as Editor | null;
+          const at = editor?.selection;
+          if (editor && at && Range.isCollapsed(at) && !readOnly && converter.endsReference) {
+            const [index, child] = at.anchor.path;
+            const paragraph = newNodes[index];
+            const rechipped =
+              paragraph &&
+              rechipTypedReferences(
+                converter,
+                paragraph,
+                index,
+                converter.selectionToOffset([paragraph], [0, child], at.anchor.offset),
+                referenceNamesNothing
+              );
+            if (rechipped) {
+              drawTypedReferences(editor, index, rechipped);
+            }
+          }
         }
 
         if (editorRef.current && !readOnly) {
           autocomplete.onSlateChange(editorRef.current as any, newNodes);
+          /* A text emptied where the author is writing offers what an empty text offers: its templates and
+             fields, the picker at its top, as a click in it opens it - not nothing, nor a list of one row that
+             only leads there (Foxhoundn on qlip #425; David: the picker offers every completion in every
+             state). */
+          if (emptied) emptiedRef.current();
         }
+        aidsChangeRef.current();
+        askInsertableRef.current();
       },
       [onChange, session, readOnly, autocomplete, converter, emitted]
     );
@@ -529,22 +841,122 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // Replace mode: open the dropdown at the chip's DOM rect (not the
     // editor selection — clicks on a Slate VOID inline don't reliably
     // update `editor.selection`) and atomically swap the chip on select.
+    const hasBrowseList = !!tags && Object.keys(tags).length > 0;
     const handleTagClickDefault = useCallback(
       (tag: ISlateElement, editor: TReqoreRichTextEditorRef) => {
         if (readOnly) return;
+        /* An editor with a browse list (`tags`) answers a click on a chip with that list, as a click anywhere
+           in its text, and as a value's text does: one list at a time. Opening the chip's replacements beside
+           it put two lists over the text, and what was typed then reached neither (qorus#646, David: "you
+           can't type"). */
+        if (hasBrowseList) return;
         try {
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
           const rect = (domNode as HTMLElement).getBoundingClientRect();
-          autocomplete.openAtChip(editor, tagPath, {
-            left: rect.left,
-            bottom: rect.bottom,
-          });
+          /* A chip the field's templates or fields list opens the picker where it is - its group, its row the
+             keyboard's - and the pick takes its place (qorus#646). A second click on it puts the picker away. */
+          const listed =
+            templateRoots?.length && typeof tag.value === 'string' ?
+              templateNodeFor(templateRoots, tag.value)
+            : undefined;
+          if (listed) {
+            if (autocomplete.browse && autocomplete.isReplaceMode) {
+              autocomplete.close();
+              return;
+            }
+            autocomplete.openBrowse(editor as any, {
+              rect: { left: rect.left, bottom: rect.bottom },
+              replacementPath: tagPath,
+              levelId: listed.trailIds[listed.trailIds.length - 1],
+              selectedValue: tag.value as string,
+            });
+            return;
+          }
+          /* An editor that completes on a click lists what can stand in the chip's place - the fields and
+             templates the chip is one of - and the pick replaces it (qorus#646, David: a click on pos listed
+             nothing). */
+          autocomplete.openAtChip(
+            editor,
+            tagPath,
+            { left: rect.left, bottom: rect.bottom },
+            { inItsPlace: completeOnClick }
+          );
         } catch {
           // Tag may have been removed mid-render — ignore.
         }
       },
-      [readOnly, autocomplete]
+      [readOnly, autocomplete, hasBrowseList, completeOnClick, templateRoots]
+    );
+
+    /* A click, a tap or Tab into the text asks what can be written at the caret (`completeOnClick`): the caret the
+       page put there, which Slate's selection follows only later. Not a click on a chip, which is a control of
+       its own, nor anything outside the text: the list's rows are drawn elsewhere, and their clicks reach this
+       box through React. */
+    const { openAtCaret, openBrowse } = autocomplete;
+    const browsesOnClick = !!pickerRoots.length;
+    // the picker at the top of an emptied text, where it has templates and the author is in it
+    emptiedRef.current = () => {
+      const editor = editorRef.current;
+      if (!browsesOnClick || readOnly || !editor) return;
+      try {
+        if (!ReactEditor.isFocused(editor)) return;
+        const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
+        openBrowse(editor as any, {
+          rect: { left: at.left, bottom: at.bottom },
+          caret: Editor.start(editor as unknown as Editor, []),
+          arrows: true,
+        });
+      } catch {
+        // the editor is not drawn: nothing opens
+      }
+    };
+    // whether the Tab whose key comes up brought the focus into the editor (`onKeyUp` below)
+    const tabCameIn = useTabCameIn(() => {
+      const editor = editorRef.current;
+      return editor ? ReactEditor.toDOMNode(editor, editor) : null;
+    });
+    const completeAtPageCaret = useCallback(
+      (target: EventTarget | null) => {
+        const editor = editorRef.current;
+        if ((!completeOnClick && !browsesOnClick) || readOnly || !editor) return;
+        try {
+          const root = ReactEditor.toDOMNode(editor, editor);
+          if (!(target instanceof Node) || !root.contains(target)) return;
+          if (target instanceof Element && target.closest('[data-slate-void="true"]')) return;
+          const page = ReactEditor.getWindow(editor).getSelection();
+          if (!page || page.rangeCount === 0 || !page.isCollapsed) return;
+          const caret = ReactEditor.toSlateRange(editor, page, {
+            exactMatch: false,
+            suppressThrow: true,
+          });
+          if (!caret) return;
+          const box = page.getRangeAt(0).getBoundingClientRect();
+          // a caret in an empty line has no box of its own: the text's
+          const at = box.width || box.height ? box : root.getBoundingClientRect();
+          /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
+             empty field shows the templates, the record's fields among them). */
+          const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
+          /* A reference being written at the caret is completed where it is - what is listed of it, what to write
+             next and Browse all templates to put a working one in its place - not left for the picker at the top
+             (qorus#646, David's review: a click at the end of `$dynamic:` showed the picker's top silently). */
+          // what is typed in the text the caret is in: a chip before it is a value, not a reference being written
+          const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
+          const writing = /[$@][\w.:{}*-]*$/.test((leaf.text ?? '').slice(0, caret.anchor.offset));
+          if (browsesOnClick && !writing && (empty || !completeOnClick)) {
+            openBrowse(editor as any, {
+              rect: { left: at.left, bottom: at.bottom },
+              caret: caret.anchor,
+              arrows: empty,
+            });
+            return;
+          }
+          openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom });
+        } catch {
+          // the editor is not drawn, or the page's caret is not in it: nothing is asked
+        }
+      },
+      [completeOnClick, browsesOnClick, readOnly, openAtCaret, openBrowse, converter]
     );
 
     const resolvedTagClick = onTagClick ?? handleTagClickDefault;
@@ -569,15 +981,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [autocomplete]
     );
 
-    // Flatten groups into rows carrying a flat index to compare against
-    // `focusedIndex` (which is flat across all groups).
-    const completionGroups = useMemo(() => {
-      let flatIndex = 0;
-      return autocomplete.groups.map((group) => ({
-        label: group.label,
-        items: group.items.map((item) => ({ item, index: flatIndex++ })),
-      }));
-    }, [autocomplete.groups]);
 
     // Overlay shown while the session connects, a context binding resolves,
     // or the wrapper signals `isLoading` (e.g. DpqlEditor awaiting
@@ -606,186 +1009,221 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     return (
       <ReqoreControlGroup vertical fluid>
         {topActions}
-        <div style={{ position: 'relative' }}>
-          <ReqoreRichTextEditor
-            ref={editorRef}
-            value={slateValue as any}
-            onChange={handleSlateChange as any}
-            readOnly={readOnly}
-            customRenderLeaf={renderLeafWithMarks}
-            decorate={composedDecorate}
-            getTagProps={tagRenderer as any}
-            onTagClick={stableOnTagClick}
-            onBlur={onBlur}
-            panelProps={{
-              fluid: true,
-              flat: true,
-              style: {
-                // Auto-grow: the editor sizes to its content and grows
-                // as lines are added. `height` is an optional *minimum*
-                // floor (e.g. a multi-line code editor); when omitted,
-                // a single comfortable line so the empty field stays
-                // clickable and the diagnostics panel hugs the input
-                // instead of sitting below a tall reserved box.
-                minHeight: height ?? '2.4em',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-              },
+        {aids.findBar}
+        {/* The text and, on a touch screen, its Details button beside it, in one row: under the text the button
+            was far from it, and what it showed was drawn over the text (Foxhoundn, qlip #361). Always the row,
+            so the text is not remounted when the button appears. */}
+        <ReqoreControlGroup
+          ref={rowRef}
+          fluid
+          verticalAlign='flex-start'
+          className='smart-editor-row'
+          // where its completion list is: open, asked for and on its way, or neither - for a host or a test to
+          // tell "nothing can be written here" from "not answered yet"
+          data-completion={
+            autocomplete.isOpen ? 'open'
+            : autocomplete.isActive ?
+              'asking'
+            : 'idle'
+          }
+        >
+          <StyledEditorBox
+            style={EDITOR_BOX_STYLE}
+            $wordWrap={wordWrap}
+            $maxHeight={maxHeight}
+            $lineNumbers={lineNumbers}
+            className='smart-editor-box'
+            onClick={(event) => completeAtPageCaret(event.target)}
+            /* Tab's key comes up in the editor it moved the focus into. One that went down in the editor - a Tab
+               that took a completion, or moved the focus on - asks nothing: its key coming up here reopened the
+               list just taken from (qorus#646). */
+            onKeyUp={(event) => {
+              if (event.key === 'Tab' && tabCameIn()) completeAtPageCaret(event.target);
             }}
-          />
-          {showLoadingOverlay && (
-            <div
-              // Absolutely-positioned, centred panel covering the
-              // editor body. `backdrop-filter: blur` matches the
-              // 20px backdrop blur Reqore uses for drawers — keeps
-              // the editor content faintly readable underneath while
-              // signalling "this surface is paused". Pointer events
-              // pass through; the LSP-dependent paths short-circuit
-              // on `!isReady` / `!isContextReady` anyway.
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(10, 10, 10, 0.35)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
-                borderRadius: 4,
-                pointerEvents: 'none',
-                zIndex: 2,
+          >
+            <ReqoreRichTextEditor
+              ref={editorRef}
+              value={slateValue as any}
+              onChange={handleSlateChange as any}
+              readOnly={readOnly}
+              customRenderLeaf={renderLeafWithMarks}
+              decorate={composedDecorate}
+              getTagProps={tagRenderer as any}
+              onTagClick={stableOnTagClick}
+              size={size}
+              onBlur={handleBlur}
+              onKeyDown={(event: React.KeyboardEvent) => {
+                aids.onKeyDown(event);
               }}
-            >
-              {overlayContent}
-            </div>
-          )}
-          {autocomplete.isOpen &&
-            (autocomplete.items.length > 0 ||
-              autocomplete.isReplaceMode ||
-              autocomplete.isFetching) && (
+              // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
+              // drawn as the completion list is
+              tags={tags}
+              tagsListProps={{ useTargetWidth: true, ...TEMPLATE_BROWSE_LIST_PROPS }}
+              // what is typed is completed in the list at the caret: a screen reader is told it completes, and where
+              aria-autocomplete='list'
+              aria-expanded={autocomplete.isOpen}
+              aria-controls={completionMenuId}
+              panelProps={{
+                fluid: true,
+                flat: true,
+                style: {
+                  // Auto-grow: the editor sizes to its content and grows
+                  // as lines are added. `height` is an optional *minimum*
+                  // floor (e.g. a multi-line code editor); when omitted,
+                  // a single comfortable line so the empty field stays
+                  // clickable and the diagnostics panel hugs the input
+                  // instead of sitting below a tall reserved box.
+                  minHeight: height ?? '2.4em',
+                  /* reqore's mono stack, as every other code-like text: the bare generic keyword is the browser's
+                     default fixed-width font (Courier in Chrome on macOS), larger than the field's own face */
+                  fontFamily: ReqoreFonts.mono,
+                  /* the size the text is written in (the text area's, for this size), so the frame and its `em`
+                     floor are the text's: a fixed 13px was larger than a small field's text, and the panel's own
+                     size larger again, which made the frame taller than the field's other tabs */
+                  fontSize: CONTROL_TEXT_FROM_SIZE[size ?? 'normal'],
+                },
+              }}
+            />
+            {showLoadingOverlay && (
+              <div
+                // Absolutely-positioned, centred panel covering the
+                // editor body. `backdrop-filter: blur` matches the
+                // 20px backdrop blur Reqore uses for drawers — keeps
+                // the editor content faintly readable underneath while
+                // signalling "this surface is paused". Pointer events
+                // pass through; the LSP-dependent paths short-circuit
+                // on `!isReady` / `!isContextReady` anyway.
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(10, 10, 10, 0.35)',
+                  backdropFilter: 'blur(4px)',
+                  WebkitBackdropFilter: 'blur(4px)',
+                  borderRadius: 4,
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                }}
+              >
+                {overlayContent}
+              </div>
+            )}
+            <CompletionMenu
+              autocomplete={autocomplete}
+              id={completionMenuId}
+              onSelect={handleCompletionSelect}
+              templateRoots={pickerRoots}
+              pendingLabel={
+                !session.isReady ? 'Connecting to language server…'
+                : !session.isContextReady ? 'Loading schema…'
+                : undefined
+              }
+            />
+            {hover.hoverContent && hover.hoverPosition && (
+              // Non-interactive (`pointerEvents: none`) so typing/clicking
+              // doesn't dismiss it via a focus trap.
               <ReqorePopover
-                key={autocomplete.popoverKey}
+                // one popover per hover: the next one is a popover of its own, wherever it is
+                key={`hover-${hover.hoverId}`}
                 component='span'
                 wrapperStyle={{
-                  // `fixed` anchor at the cursor's screen coords — avoids
-                  // parent-offset math.
                   position: 'fixed',
-                  top: autocomplete.position.top,
-                  left: autocomplete.position.left,
+                  top: hover.hoverPosition.top,
+                  left: hover.hoverPosition.left,
                   width: '1px',
                   height: '1px',
                   pointerEvents: 'none',
                 }}
                 content={
-                  <ReqoreMenu
-                    rounded
-                    flat
-                    maxHeight='300px'
-                    width='300px'
-                    effect={SMART_EDITOR_OVERLAY_EFFECT}
-                    customTheme={{ main: '#1e0d29' }}
-                  >
-                    {autocomplete.items.length === 0 &&
-                      (autocomplete.isReplaceMode || autocomplete.isFetching) && (
-                        <ReqoreMenuItem
-                          icon='LoaderLine'
-                          label={
-                            !session.isReady ? 'Connecting to language server…'
-                            : !session.isContextReady ?
-                              'Loading schema…'
-                            : autocomplete.isFetching ?
-                              'Loading completions…'
-                            : 'No alternatives available'
-                          }
-                          disabled
-                          compact
-                        />
-                      )}
-                    {completionGroups.map((group) => (
-                      <React.Fragment key={group.label || '_default'}>
-                        {group.label && (
-                          <ReqoreMenuDivider
-                            label={group.label}
-                            // @ts-expect-error — intent type not in older Reqore
-                            intent='muted'
-                          />
-                        )}
-                        {group.items.map(({ item, index }) => (
-                          <CompletionMenuItem
-                            key={item.value}
-                            item={item}
-                            isFocused={index === autocomplete.focusedIndex}
-                            onSelect={handleCompletionSelect}
-                          />
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </ReqoreMenu>
+                  <div style={{ padding: 4 }}>
+                    <MarkdownDoc
+                      content={hover.hoverContent.value}
+                      markdown={hover.hoverContent.kind === 'markdown'}
+                    />
+                  </div>
                 }
                 openOnMount
                 noArrow
-                placement='bottom-start'
-                handler='click'
+                /* A mouse's hover is over the word it is of; what Details shows is under the button, beside the
+                   text. Both are a popover's card, the surface a chip's hover is drawn on: drawn as glass, a hover
+                   over an empty page was its words with nothing under them (Foxhoundn, qlip #392: "It looks like
+                   the background is transparent? Is it not using a ReqorePopover / the tags tooltip?"). */
+                placement={detailsShown ? 'bottom-end' : 'top'}
+                handler='hover'
                 closeOnOutsideClick
-                closeOnInsideClick={false}
-                minWidth='300px'
-                flat
-                // Transparent so the popover wrapper doesn't frame the menu.
-                transparent
-                onToggleChange={autocomplete.handleExternalClose}
+                minWidth='220px'
+                onToggleChange={(open: boolean) => {
+                  // this hover only: a popover replaced by the next hover says it closed as it goes
+                  if (!open) hover.clearHover(shownHoverId);
+                }}
               />
             )}
-          {hover.hoverContent && hover.hoverPosition && (
-            // Non-interactive (`pointerEvents: none`) so typing/clicking
-            // doesn't dismiss it via a focus trap.
-            <ReqorePopover
-              key={`hover-${hover.hoverPosition.left}-${hover.hoverPosition.top}`}
-              component='span'
-              wrapperStyle={{
-                position: 'fixed',
-                top: hover.hoverPosition.top,
-                left: hover.hoverPosition.left,
-                width: '1px',
-                height: '1px',
-                pointerEvents: 'none',
+            {signatureHelp.signature && signatureHelp.position && (
+              <SignatureHelpPill
+                signature={signatureHelp.signature}
+                position={signatureHelp.position}
+              />
+            )}
+          </StyledEditorBox>
+          {templateButton && pickerRoots.length && !readOnly ?
+            <TemplateButton
+              size={size}
+              insertable={insertableAtCaret}
+              notInsertable={templateButton.notInsertable}
+              open={(rect) => {
+                const editor = editorRef.current;
+                if (!editor) return;
+                if (autocomplete.browse && !autocomplete.isReplaceMode) {
+                  autocomplete.close();
+                  return;
+                }
+                openBrowse(editor as any, {
+                  rect,
+                  arrows: !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim(),
+                });
               }}
-              content={
-                <div style={{ padding: 4 }}>
-                  <MarkdownDoc
-                    content={hover.hoverContent.value}
-                    markdown={hover.hoverContent.kind === 'markdown'}
-                  />
-                </div>
-              }
-              openOnMount
-              noArrow
-              placement='top'
-              handler='hover'
-              closeOnOutsideClick
-              minWidth='220px'
+            />
+          : null}
+          {showDetailsButton && (
+            <ReqoreButton
+              className='smart-editor-details'
+              icon='InformationLine'
+              fixed
               flat
-              transparent
-              backgroundBlur={20}
-              onToggleChange={(open: boolean) => {
-                if (!open) hover.clearHover();
+              minimal
+              aria-label='Show what the word at the cursor is'
+              tooltip={detailsSaysItsWord ? undefined : 'Details'}
+              // the press keeps the focus, and the caret the details are of, in the text
+              onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                // anchored under the button's right edge: the card opens beside the text, not over it
+                /* Under the row, not only under the button: an editor of more than one line is taller than
+                   the button, and the card drawn under the button covered the lines below the first
+                   (DpqlEditor · Details On A Chip On A Touch Screen, at 390px). */
+                const { right, bottom } = event.currentTarget.getBoundingClientRect();
+                const row = event.currentTarget.closest('.smart-editor-row');
+                const rowBottom = row?.getBoundingClientRect().bottom ?? bottom;
+                void hover
+                  .showAtCaret({ left: right, top: Math.max(bottom, rowBottom) })
+                  .then(setDetailsHoverId);
               }}
-            />
+            >
+              {detailsSaysItsWord ? 'Details' : undefined}
+            </ReqoreButton>
           )}
-          {signatureHelp.signature && signatureHelp.position && (
-            <SignatureHelpPill
-              signature={signatureHelp.signature}
-              position={signatureHelp.position}
-            />
-          )}
-        </div>
-        {showDiagnostics && session.diagnostics.length > 0 && (
-          // One ReqoreMessage per diagnostic, severity → intent. Same
-          // `session.diagnostics` source as the inline underline above.
+        </ReqoreControlGroup>
+        {showDiagnostics && shownDiagnostics.length > 0 && (
+          // One ReqoreMessage per diagnostic, severity → intent. The same
+          // diagnostics as the inline underline above (`shownDiagnostics`).
           <ReqoreControlGroup vertical fluid size='small'>
-            {session.diagnostics.map((diag, i) => (
+            {shownDiagnostics.map((diag, i) => (
               <ReqoreMessage
                 key={`${diag.range.start.line}:${diag.range.start.character}:${i}`}
                 intent={severityToIntent(diag.severity)}
+                // what the message is - an error, a warning, a note - for a test or a host to tell apart
+                data-severity={severityToIntent(diag.severity)}
                 icon={
                   diag.severity === 2 ? 'AlertLine'
                   : diag.severity && diag.severity >= 3 ?
@@ -796,6 +1234,31 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 opaque={false}
               >
                 {diag.message}
+                {(() => {
+                  // what the host can do about it, beside what is said of it
+                  const action = diagnosticAction?.(diag);
+                  // as wide as its words, under what is said and apart from it: a message lays its children out at
+                  // its width. The size of the message's words with a pointer, a finger's on a touch screen
+                  // (Foxhoundn on qlip #425: "enormous compared to the text in the message")
+                  return action ?
+                      <ReqoreControlGroup
+                        size={coarse ? 'small' : 'tiny'}
+                        fluid={false}
+                        style={{ marginTop: 8 }}
+                      >
+                        <ReqoreButton
+                          size={coarse ? 'small' : 'tiny'}
+                          compact
+                          fixed
+                          className='smart-editor-diagnostic-action'
+                          intent={severityToIntent(diag.severity)}
+                          onClick={action.onClick}
+                        >
+                          {action.label}
+                        </ReqoreButton>
+                      </ReqoreControlGroup>
+                    : null;
+                })()}
               </ReqoreMessage>
             ))}
           </ReqoreControlGroup>

@@ -15,6 +15,7 @@ import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Eff
 import type { IReqoreEntityRowAction } from '@qoretechnologies/reqore/dist/components/EntityRow';
 import type { IReqorePanelSubAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 import timeago from 'epoch-timeago';
 import { SearchFilterBar } from '../searchFilterBar';
 import styled from 'styled-components';
@@ -23,6 +24,7 @@ import { ImageLightbox } from '../imageLightbox';
 import {
   defaultInterfaceIcon,
   IInterfaceReference,
+  interfaceReferenceKey,
   toInterfaceKindMark,
   TResolveInterfaceIcon,
   TTicketViewerRole,
@@ -73,6 +75,15 @@ export interface ITicketReferencesProps {
   onDownloadAttachment?: (attachmentId: string, filename: string) => void;
   /** open a referenced interface; reference chips are static (informational) when omitted */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /**
+   * Whether a reference can be opened right now; consulted only when `onInterfaceClick`
+   * is given. A refused row offers no Open action and carries `unlinkableReason` in its
+   * metadata line — in the row itself, so it reads on a touch screen too, where a
+   * tooltip would never show. See `InterfaceReferenceTags` for the cases.
+   */
+  isInterfaceLinkable?: (reference: IInterfaceReference) => boolean;
+  /** Why a reference is not linkable, shown in the row's metadata after its kind. */
+  unlinkableReason?: (reference: IInterfaceReference) => string | undefined;
   /** Reveal the message a reference or file came from, in the conversation.
    *  Omitted ⇒ the action is not offered. It is also omitted per-row for anything filed
    *  against the ticket itself rather than a reply, which has no message to reveal. */
@@ -106,7 +117,7 @@ interface IFileType {
   color: TReqoreEffectColor;
   label: string;
 }
-// MIME → a type icon (glyph) + a category tint, Fluent-style: colour distinguishes
+// MIME → a type icon (glyph) + a category tint, Fluent-style: color distinguishes
 // the file family, the glyph its shape. Tints stay moderate for a dark surface.
 const fileType = (contentType: string): IFileType => {
   const ct = contentType.toLowerCase();
@@ -197,7 +208,9 @@ export interface IResolvedInterfaceReference extends IInterfaceReference {
 const dedupeRefs = (refs: IResolvedInterfaceReference[]): IResolvedInterfaceReference[] => {
   const byKey = new Map<string, IResolvedInterfaceReference>();
   for (const r of refs) {
-    const key = `${r.interface_kind}:${r.interface_name}`;
+    // identity by normalized kind + name, so a `qog` cited in a reply and the `fsm` the
+    // server stored on the ticket are one row
+    const key = interfaceReferenceKey(r);
     const kept = byKey.get(key);
     if (!kept) {
       byKey.set(key, r);
@@ -214,7 +227,9 @@ const dedupeRefs = (refs: IResolvedInterfaceReference[]): IResolvedInterfaceRefe
   return Array.from(byKey.values());
 };
 
-const META_EFFECT = { textSize: 'small', opacity: 0.55 } as const;
+/* A row's kind and provenance, smaller. Not faded here: the entity row already draws its metadata softer than its
+   name, and fading it again on top took it to 2.3:1 (qorus#646). */
+const META_EFFECT = { textSize: 'small' } as const;
 
 // ---------------------------------------------------------------------------
 // image URLs — fetch every screenshot's bytes once as an object URL, cached, and
@@ -317,6 +332,8 @@ const ThumbTile = styled.div`
 `;
 
 const Thumb = styled.button`
+  /* the page's text color, not a button's default (black): the name drawn while the image loads read 1.1:1 */
+  color: inherit;
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -373,50 +390,55 @@ const Screenshot = ({
   url: string | null | undefined;
   onOpen: () => void;
   menu?: IReqorePanelSubAction[];
-}) => (
-  <ThumbTile>
-    <Thumb type='button' title={att.filename} onClick={onOpen}>
-      {url ?
-        <img src={url} alt={att.filename} />
-      : <ReqoreSpan effect={{ opacity: 0.5, textSize: 'small' }}>
-          {url === null ? att.filename : '…'}
-        </ReqoreSpan>
-      }
-      <ThumbCaption>{att.filename}</ThumbCaption>
-    </Thumb>
-    {/* One action doesn't earn a menu. With a single entry the overlay IS that
+}) => {
+  // the name drawn while the image loads, softer: as soft as it still reads
+  const placeholderOpacity = useReadableOpacity(0.5);
+
+  return (
+    <ThumbTile>
+      <Thumb type='button' title={att.filename} onClick={onOpen}>
+        {url ?
+          <img src={url} alt={att.filename} />
+        : <ReqoreSpan effect={{ opacity: placeholderOpacity, textSize: 'small' }}>
+            {url === null ? att.filename : '…'}
+          </ReqoreSpan>
+        }
+        <ThumbCaption>{att.filename}</ThumbCaption>
+      </Thumb>
+      {/* One action doesn't earn a menu. With a single entry the overlay IS that
         action, so a tile and a file row offer the same thing the same way instead of
         hiding a download behind a caret on one surface and not the other. */}
-    {menu?.length === 1 ?
-      <ReqoreButton
-        className='screenshot-menu'
-        icon={menu[0].icon}
-        tooltip={menu[0].label as string}
-        size='small'
-        flat
-        minimal
-        fixed
-        onClick={(event: React.MouseEvent<HTMLElement>) => {
-          event.stopPropagation();
-          menu[0].onClick?.(menu[0]);
-        }}
-      />
-    : menu?.length ?
-      <ReqoreDropdown
-        className='screenshot-menu'
-        icon='More2Line'
-        tooltip='More actions'
-        size='small'
-        flat
-        minimal
-        fixed
-        useTargetWidth={false}
-        items={menu}
-        onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
-      />
-    : null}
-  </ThumbTile>
-);
+      {menu?.length === 1 ?
+        <ReqoreButton
+          className='screenshot-menu'
+          icon={menu[0].icon}
+          tooltip={menu[0].label as string}
+          size='small'
+          flat
+          minimal
+          fixed
+          onClick={(event: React.MouseEvent<HTMLElement>) => {
+            event.stopPropagation();
+            menu[0].onClick?.(menu[0]);
+          }}
+        />
+      : menu?.length ?
+        <ReqoreDropdown
+          className='screenshot-menu'
+          icon='More2Line'
+          tooltip='More actions'
+          size='small'
+          flat
+          minimal
+          fixed
+          useTargetWidth={false}
+          items={menu}
+          onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
+        />
+      : null}
+    </ThumbTile>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // main
@@ -429,6 +451,8 @@ export const TicketReferences = ({
   fetchAttachmentUrl,
   onDownloadAttachment,
   onInterfaceClick,
+  isInterfaceLinkable,
+  unlinkableReason,
   onShowInChat,
   resolveInterfaceIcon,
   preferKindImage = false,
@@ -799,28 +823,28 @@ export const TicketReferences = ({
               // the same vocabulary and precedence as the reference chips: the kind's
               // font icon, and the chosen image once it has loaded
               const { icon, image } = markOf(reference);
+              // a row the consumer refuses offers no Open, and says why in its metadata
+              // line rather than in a tooltip, so the reason reads on touch as well
+              const linkable = !!onInterfaceClick && (isInterfaceLinkable?.(reference) ?? true);
+              const reason =
+                onInterfaceClick && !linkable ? unlinkableReason?.(reference) : undefined;
               return (
                 <ReqoreEntityRow
-                  key={
-                    reference.reference_id ??
-                    `${reference.interface_kind}:${reference.interface_name}`
-                  }
+                  key={reference.reference_id ?? interfaceReferenceKey(reference)}
                   icon={icon}
                   iconImage={isImageLoaded(image) ? image : undefined}
                   label={reference.interface_name}
                   metadata={
                     <ReqoreTextEffect effect={META_EFFECT}>
-                      {reference.interface_kind}
+                      {reason ? `${reference.interface_kind} · ${reason}` : reference.interface_kind}
                     </ReqoreTextEffect>
                   }
                   flat
                   tooltip={
-                    onInterfaceClick ?
-                      `Open ${reference.interface_kind} ${reference.interface_name}`
-                    : undefined
+                    linkable ? `Open ${reference.interface_kind} ${reference.interface_name}` : undefined
                   }
                   actions={rowActions(
-                    onInterfaceClick ?
+                    linkable ?
                       {
                         icon: 'ArrowRightUpLine',
                         tooltip: 'Open',

@@ -1,8 +1,10 @@
 import {
   ReqoreButton,
   ReqoreControlGroup,
+  ReqoreFonts,
   ReqoreInput,
   ReqoreParagraph,
+  useReqoreProperty,
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
@@ -11,6 +13,13 @@ import { IReqoreParagraphProps } from '@qoretechnologies/reqore/dist/components/
 import count from 'lodash/size';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useScroll } from 'react-use';
+import { READABLE_ICON } from '../../helpers/readableColors';
+import { copyText } from '../../helpers/secureContextApis';
+import { useReadableIntentShade } from '../../hooks/useReadableIntentShade';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+
+/** How faded reqore draws a panel's title icon. */
+const PANEL_TITLE_ICON_ALPHA = 0.7;
 import {
   IReqraftWebSocketMessage,
   IUseReqraftWebSocketOptions,
@@ -28,6 +37,15 @@ export interface IReqraftLogProps extends IReqorePanelProps {
 
   allowMessageDeletion?: boolean;
   allowMessageCopy?: boolean;
+  /** Notification shown after a message was copied. @default 'Log message copied to clipboard' */
+  copyMessageNotificationContent?: string;
+  /**
+   * Notification shown when a message could not be copied (the browser refused, or offers no way to copy, as on a
+   * page served over plain http that does not allow the copy command): what failed and what to do instead. It stays
+   * until it is closed.
+   * @default 'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.'
+   */
+  copyMessageFailedNotificationContent?: string;
 
   showTimestamps?: boolean;
 
@@ -56,6 +74,8 @@ export const ReqraftLog = ({
   autoScroll,
   allowMessageDeletion,
   allowMessageCopy,
+  copyMessageNotificationContent = 'Log message copied to clipboard',
+  copyMessageFailedNotificationContent = 'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.',
   filterable,
   filterProps,
   showTimestamps,
@@ -72,6 +92,8 @@ export const ReqraftLog = ({
   size = 'small',
   ...panelProps
 }: IReqraftLogProps) => {
+  // a message's time, softer than the message: as soft as it still reads (main:lighten:8 was 2.6:1; qorus#646)
+  const timestampOpacity = useReadableOpacity(0.35);
   const [query, setQuery] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [contentRef, setContentRef] = useState<HTMLDivElement | null>(null);
@@ -99,6 +121,16 @@ export const ReqraftLog = ({
       ...socketOptions,
     },
     defaultMessages
+  );
+  /* the connection's state, as a dot in the title: its intent in a shade that stands out where reqore draws a
+     panel's title icon, at 70% (the success green was 2.1:1) */
+  const statusColor = useReadableIntentShade(
+    status === 'CLOSED' ? 'danger'
+    : status === 'CONNECTING' ? 'pending'
+    : status === 'PAUSED' ? 'warning'
+    : 'success',
+    READABLE_ICON,
+    PANEL_TITLE_ICON_ALPHA
   );
 
   const filteredMessages = useMemo(
@@ -141,21 +173,42 @@ export const ReqraftLog = ({
     onMessageClick?.(message);
   };
 
+  const addNotification = useReqoreProperty('addNotification');
+
+  // Copying can be refused (permissions, a page served over plain http): the
+  // failure is shown, and says what to do, instead of an unhandled rejection.
+  const handleCopyClick = useCallback(
+    async (text: string) => {
+      try {
+        await copyText(text);
+      } catch {
+        addNotification({
+          content: copyMessageFailedNotificationContent,
+          intent: 'danger',
+        });
+        return;
+      }
+      addNotification({
+        content: copyMessageNotificationContent,
+        intent: 'success',
+        duration: 3000,
+      });
+    },
+    [addNotification, copyMessageNotificationContent, copyMessageFailedNotificationContent]
+  );
+
   return (
     <ReqorePanel
       size={size}
       flat
       getContentRef={setContentRef}
+      /* The filter, Pause and Clear stay in the title bar at every width. Responsive, the bar folded
+         whatever did not fit into a menu: on a phone that was the filter, which no one would look for
+         behind a menu button. Unfolded, the title is what gives way. */
+      responsiveActions={false}
       {...panelProps}
       icon='CheckboxBlankCircleFill'
-      iconColor={
-        status === 'CLOSED' ? 'danger'
-        : status === 'CONNECTING' ?
-          'pending'
-        : status === 'PAUSED' ?
-          'warning'
-        : 'success'
-      }
+      iconColor={statusColor}
       actions={[
         {
           icon: 'ArrowDownLine',
@@ -199,7 +252,7 @@ export const ReqraftLog = ({
     >
       <ReqoreControlGroup vertical fluid size={size}>
         {count(filteredMessages) === 0 ?
-          <ReqoreParagraph size={size} style={{ fontFamily: 'monospace' }}>
+          <ReqoreParagraph size={size} style={{ fontFamily: ReqoreFonts.mono }}>
             No messages
           </ReqoreParagraph>
         : null}
@@ -209,8 +262,8 @@ export const ReqraftLog = ({
               {showTimestamps && (
                 <ReqoreParagraph
                   size={size}
-                  style={{ fontFamily: 'monospace', flexShrink: 0 }}
-                  customTheme={{ text: { color: 'main:lighten:8' } }}
+                  style={{ fontFamily: ReqoreFonts.mono, flexShrink: 0 }}
+                  effect={{ opacity: timestampOpacity }}
                 >
                   {timestamp}
                 </ReqoreParagraph>
@@ -219,7 +272,7 @@ export const ReqraftLog = ({
                 size={size}
                 key={index}
                 onClick={onMessageClick ? () => handleMessageClick(message) : undefined}
-                style={{ fontFamily: 'monospace' }}
+                style={{ fontFamily: ReqoreFonts.mono }}
                 className='reqraft-log-message'
                 {...paragraphProps}
               >
@@ -231,7 +284,7 @@ export const ReqraftLog = ({
                 <ReqoreButton
                   compact
                   onClick={() => {
-                    navigator.clipboard.writeText(message);
+                    handleCopyClick(message);
                   }}
                   icon='FileCopyLine'
                   className='reqraft-log-copy-message'

@@ -8,10 +8,7 @@ import { IExpressionSchema } from './types';
 
 // String comparators share this arg shape: a richtext value (with the
 // operator word as `label_after`), a richtext operand, and an Ignore Case flag.
-const stringArgs = (
-  operandLabel: string,
-  operatorWord: string
-): IExpressionSchema['args'] => [
+const stringArgs = (operandLabel: string, operatorWord: string): IExpressionSchema['args'] => [
   {
     name: 'softstring',
     display_name: 'String Value',
@@ -36,6 +33,21 @@ const comparatorArgs = (operatorWord: string): IExpressionSchema['args'] => [
 ];
 
 export const mockExpressions: IExpressionSchema[] = [
+  // As the server defines it (qorus Classes/QorusExpressions.qc QO_VALUE): what a value written alone parses
+  // into, so a value the Visual view starts from is shown as itself.
+  {
+    name: 'value',
+    display_name: 'Value',
+    short_desc: 'Evaluates and returns a field reference value',
+    desc: 'Evaluates the given field reference and returns its value; this allows field references to be used as standalone expressions',
+    symbol: '',
+    type: 1,
+    subtype: 1,
+    return_type: 'any',
+    ui_return_type: 'any',
+    varargs: false,
+    args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
+  },
   {
     name: '==',
     display_name: 'Logical Equals',
@@ -82,7 +94,7 @@ export const mockExpressions: IExpressionSchema[] = [
     name: '&&',
     display_name: 'Logical And',
     short_desc: 'Returns True if all arguments are True with logic short-circuiting',
-    desc: 'Logical AND of all arguments, with short-circuiting.',
+    desc: 'Logical AND of all arguments, with short-circuiting. Each argument is read as true or false as a condition is: a number is true unless it is zero, a list or a hash unless it is empty; compare a value explicitly to say what is meant.',
     symbol: '&&',
     type: 1,
     subtype: 2,
@@ -91,13 +103,14 @@ export const mockExpressions: IExpressionSchema[] = [
     varargs: true,
     min_args: 1,
     groups: ['Logic'],
-    args: [{ name: 'bool', display_name: 'Value', ui_type: 'bool', required: true }],
+    // any value: each part is read as a condition is, not required to be a bool (qorus#646)
+    args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
   },
   {
     name: '||',
     display_name: 'Logical Or',
     short_desc: 'Returns True if at least one argument is True with logic short-circuiting',
-    desc: 'Logical OR of all arguments, with short-circuiting.',
+    desc: 'Logical OR of all arguments, with short-circuiting. Each argument is read as true or false as a condition is: a number is true unless it is zero, a list or a hash unless it is empty; compare a value explicitly to say what is meant.',
     symbol: '||',
     type: 1,
     subtype: 2,
@@ -106,7 +119,8 @@ export const mockExpressions: IExpressionSchema[] = [
     varargs: true,
     min_args: 1,
     groups: ['Logic'],
-    args: [{ name: 'bool', display_name: 'Value', ui_type: 'bool', required: true }],
+    // any value: each part is read as a condition is, not required to be a bool (qorus#646)
+    args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
   },
   {
     name: 'contains',
@@ -195,7 +209,7 @@ export const mockExpressions: IExpressionSchema[] = [
   // boolean-returning op with one operand ("Value To Convert").
   {
     name: 'convert-to-boolean',
-    display_name: 'Convert to Boolean',
+    display_name: 'Convert to true or false',
     short_desc: 'Converts the given value to a boolean',
     desc: 'Converts the given value to a boolean value.',
     symbol: 'boolean',

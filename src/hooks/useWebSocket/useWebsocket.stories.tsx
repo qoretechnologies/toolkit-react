@@ -137,6 +137,9 @@ export const Default: Story = {
 };
 export const OpenManually: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -155,6 +158,9 @@ export const OpenOnMount: Story = {
     openOnMount: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -172,6 +178,9 @@ export const CloseManually: Story = {
   ...OpenOnMount,
   parameters: {
     ...OpenOnMount.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -195,6 +204,9 @@ export const Reconnects: Story = {
     openOnMount: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -220,6 +232,9 @@ export const ReconnectFails: Story = {
     reconnectInterval: 500,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     killedServerReturns: false,
     // The server stays dead, so exhausting the attempts is the only outcome
     // available no matter how long each one takes.
@@ -249,6 +264,9 @@ export const SendMessage: Story = {
     useState: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithLogs`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -294,6 +312,9 @@ export const ClearsMessages: Story = {
   ...SendMessage,
   parameters: {
     ...SendMessage.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -510,6 +531,9 @@ export const MultipleConnectionsOpenOnMount: Story = {
   },
   parameters: {
     ...MultipleConnections.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `MultipleConnectionsCanBeDisconnectedAndReconnected`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -534,6 +558,9 @@ export const MultipleConnectionsClosedAtOnce: Story = {
   },
   parameters: {
     ...MultipleConnections.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `MultipleConnectionsCanBeDisconnectedAndReconnected`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -559,6 +586,9 @@ export const ConnectionIsClosedWhenAllUsersAreClosed: Story = {
   },
   parameters: {
     ...MultipleConnections.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `MultipleConnections`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -586,6 +616,9 @@ export const MultipleConnectionsHaveCustomHandlers: Story = {
   },
   parameters: {
     ...MultipleConnections.parameters,
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `MultipleConnectionsCanBeDisconnectedAndReconnected`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -621,6 +654,8 @@ export const MultipleConnectionsCanBeDisconnectedAndReconnected: Story = {
   ...MultipleConnectionsHaveCustomHandlers,
   parameters: {
     ...MultipleConnectionsHaveCustomHandlers.parameters,
+    // captured, unlike the story it extends: three connections open and closed, with their messages
+    qlip: { skip: false },
     docs: {
       description: {
         story:

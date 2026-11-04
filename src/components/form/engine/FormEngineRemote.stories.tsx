@@ -91,9 +91,18 @@ const ALT_SCHEMA = {
   },
 };
 
+// as the server sends its search operators: keyed by name or symbol, each with its name
 const OPERATORS_SCHEMA = {
-  like: { name: 'like', display_name: 'Like', desc: 'Substring match' },
-  eq: { name: 'eq', display_name: 'Equals', desc: 'Exact match' },
+  like: {
+    name: 'like',
+    display_name: 'like',
+    short_desc: 'Returns True if the string matches the SQL LIKE pattern',
+  },
+  '==': {
+    name: '==',
+    display_name: 'equals (==)',
+    short_desc: 'Returns True if the two arguments are logically equal',
+  },
 };
 
 const meta = {
@@ -125,6 +134,9 @@ export const SchemaFromUrl: Story = {
     url: 'sb-remote/basic',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InjectedOptionActions`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -151,7 +163,7 @@ export const SchemaFromUrl: Story = {
 
 /**
  * `operatorsUrl` fetches the operator schema and enables the per-option
- * operator UI: the operator select plus the WHERE/IS summary tags.
+ * operator UI: the operator select plus the sentence that says the comparison.
  */
 export const OperatorsFromUrl: Story = {
   args: {
@@ -166,7 +178,7 @@ export const OperatorsFromUrl: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with both url and operatorsUrl — the operator select resolves the "like" op against the fetched operator schema and the WHERE/IS summary tags appear alongside the option.',
+          'Renders FormEngine with both url and operatorsUrl — the operator select resolves the "like" op against the fetched operators, and the sentence Hostname like "qore" appears under the option: its name, the operator\'s name and the value.',
       },
     },
   },
@@ -181,14 +193,17 @@ export const OperatorsFromUrl: Story = {
 
     await waitFor(() => expect(optionCount()).toBe(1), { timeout: 10000 });
     // The operator select resolved 'like' against the fetched schema.
-    await waitFor(() => expect(canvas.getByText('Like')).toBeInTheDocument(), {
+    await waitFor(() => expect(canvas.getAllByText('like').length).toBeGreaterThan(0), {
       timeout: 10000,
     });
-    // The WHERE/IS summary tags render for the operator-carrying value.
-    await waitFor(() => expect(canvas.getByText('WHERE')).toBeInTheDocument(), {
-      timeout: 10000,
-    });
-    await expect(canvas.getByText('hostname')).toBeInTheDocument();
+    // the comparison in names: the option's, the operator's and the value
+    await waitFor(
+      () =>
+        expect(canvasElement.querySelector('.options-operator-summary')?.textContent).toBe(
+          'Hostname like "qore"'
+        ),
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -338,6 +353,9 @@ export const InjectedCompactOptionActions: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InjectedCompactOptionActionsMany`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -633,6 +651,11 @@ export const InjectedOptionActionsEditCard: Story = {
         document.querySelector('.options-readfirst-card .option-branch-action')
       ).toBeTruthy();
     });
+
+    // the card's name is centred on its actions, not above them (David's review of qorus#646)
+    const header = document.querySelector('.options-readfirst-card-header') as HTMLElement;
+    const [heading, actions] = [...header.children].map((el) => el.getBoundingClientRect());
+    await expect(Math.abs(heading.top + heading.height / 2 - (actions.top + actions.height / 2))).toBeLessThanOrEqual(2);
   },
 };
 
@@ -648,6 +671,9 @@ export const TemplatesFromContext: Story = {
     interfaceContext: 'sb-ctx',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InjectedOptionActions`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

@@ -67,7 +67,7 @@ export const ActiveMenuItemIntent: Story = {
     docs: {
       description: {
         story:
-          'Renders ReqraftMenu with the /Interfaces/mapper path and a "success" activeItemIntent — the active entry uses the success intent for its highlight colour.',
+          'Renders ReqraftMenu with the /Interfaces/mapper path and a "success" activeItemIntent — the active entry uses the success intent for its highlight color.',
       },
     },
   },
@@ -82,6 +82,9 @@ export const WithDefaultQuery: Story = {
     defaultQuery: 'mapper',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Filtered`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

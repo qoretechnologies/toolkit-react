@@ -1,3 +1,6 @@
+import { DEFAULT_THEME } from '@qoretechnologies/reqore/dist/constants/theme';
+import { buildTheme } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { getReadableTextOpacity } from '../src/helpers/readableColors';
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -17,6 +20,9 @@ import {
 import { OptionsContext } from '../src/components/form/engine/optionsContext';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
+
+/* A refused value's name is dimmed, as far as it still reads in the theme (qorus#646): 0.55 was 4.1:1. */
+const DIMMED = getReadableTextOpacity(buildTheme(DEFAULT_THEME as never), 0.55);
 
 /**
  * An offered value that cannot be picked is disabled and says why — never
@@ -298,13 +304,13 @@ describe('the picker row a value cannot be chosen from', () => {
        dimming the row would dim the reason inside it. */
     expect(
       getComputedStyle(refused.querySelector(':scope > .reqore-panel-title') as HTMLElement).opacity
-    ).toBe('0.55');
+    ).toBe(String(DIMMED));
 
     const offered = await rowFor('Value: equals');
     expect(offered.className).not.toContain(UNAVAILABLE_ITEM_CLASS);
     expect(
       getComputedStyle(offered.querySelector(':scope > .reqore-panel-title') as HTMLElement).opacity
-    ).not.toBe('0.55');
+    ).not.toBe(String(DIMMED));
   });
 
   it('opens the reason from a hover anywhere on the row', async () => {
@@ -405,12 +411,12 @@ describe('the checkbox group a short list renders as', () => {
        ReqoreCheckbox destructures `effect` out and never applies it: the row
        got the padlock and the cursor and no dimming at all, and nothing here
        noticed. It is `labelEffect` that lands, and it lands on the NAME. */
-    expect(getComputedStyle(name).opacity).toBe('0.55');
+    expect(getComputedStyle(name).opacity).toBe(String(DIMMED));
     const explanation = refused.querySelector('.reqore-checkbox-description') as HTMLElement;
     expect(explanation.textContent).toContain(CHECKBOX_REASON);
     // The reason is the one thing in the row that has to stay readable, which
     // is why the row itself is never what gets dimmed.
-    expect(getComputedStyle(explanation).opacity).not.toBe('0.55');
+    expect(getComputedStyle(explanation).opacity).not.toBe(String(DIMMED));
 
     fireEvent.click(refused);
     expect(onChange).not.toHaveBeenCalled();
@@ -487,13 +493,13 @@ describe("reqraft's own FormField picker", () => {
 
     const name = await screen.findByText('Coverage');
     const refused = name.closest('.reqore-checkbox') as HTMLElement;
-    expect(getComputedStyle(name).opacity).toBe('0.55');
+    expect(getComputedStyle(name).opacity).toBe(String(DIMMED));
     expect(getComputedStyle(refused).pointerEvents).toBe('auto');
     expect(getComputedStyle(refused).cursor).toBe('not-allowed');
 
     const explanation = refused.querySelector('.reqore-checkbox-description') as HTMLElement;
     expect(explanation.textContent).toContain(CHECKBOX_REASON);
-    expect(getComputedStyle(explanation).opacity).not.toBe('0.55');
+    expect(getComputedStyle(explanation).opacity).not.toBe(String(DIMMED));
 
     fireEvent.click(refused);
     expect(onChange).not.toHaveBeenCalled();

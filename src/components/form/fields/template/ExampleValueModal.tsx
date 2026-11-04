@@ -1,6 +1,7 @@
 import { ReqoreModal, ReqoreTextarea, useReqoreProperty } from '@qoretechnologies/reqore';
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { CSSProperties, memo, useCallback } from 'react';
+import { copyText } from '../../../../helpers/secureContextApis';
 
 export interface IReqraftTemplateExampleValueModalProps extends Partial<IReqoreModalProps> {
   /** The template field's display name — the modal heading. */
@@ -15,7 +16,12 @@ export interface IReqraftTemplateExampleValueModalProps extends Partial<IReqoreM
    * @default 'Example value copied to clipboard'
    */
   copyNotificationContent?: string;
-  /** Notification shown when the browser denies clipboard access. @default 'Could not copy to clipboard' */
+  /**
+   * Notification shown when the value could not be copied (the browser refused, or offers no way to copy, as on a
+   * page served over plain http that does not allow the copy command): what failed and what to do instead. It stays
+   * until it is closed.
+   * @default 'Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself.'
+   */
   copyFailedNotificationContent?: string;
 }
 
@@ -41,28 +47,28 @@ export const ReqraftTemplateExampleValueModal = memo(
     value,
     copyLabel = 'Copy',
     copyNotificationContent = 'Example value copied to clipboard',
-    copyFailedNotificationContent = 'Could not copy to clipboard',
+    copyFailedNotificationContent = 'Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself.',
     ...rest
   }: IReqraftTemplateExampleValueModalProps) => {
     const addNotification = useReqoreProperty('addNotification');
 
     const handleCopyClick = useCallback(async () => {
-      // Clipboard access can be denied (permissions, insecure context) — the
-      // failure surfaces as a notification instead of an unhandled rejection.
+      // Copying can be refused (permissions, a page served over plain http): the
+      // failure is shown, and says what to do, instead of an unhandled rejection.
       try {
-        await navigator.clipboard.writeText(value);
-        addNotification({
-          content: copyNotificationContent,
-          intent: 'success',
-          duration: 3000,
-        });
-      } catch (error) {
+        await copyText(value);
+      } catch {
         addNotification({
           content: copyFailedNotificationContent,
           intent: 'danger',
-          duration: 3000,
         });
+        return;
       }
+      addNotification({
+        content: copyNotificationContent,
+        intent: 'success',
+        duration: 3000,
+      });
     }, [value, addNotification, copyNotificationContent, copyFailedNotificationContent]);
 
     return (

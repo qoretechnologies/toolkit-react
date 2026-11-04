@@ -56,6 +56,8 @@ export const ReqraftFileFormField = memo(
     argSchema,
     argSchemaLoading,
     multiple,
+    // the field's own; ReqorePanel does not take it
+    readonly,
     ...rest
   }: IReqraftFileFormFieldProps) => {
     const contentStyle: React.CSSProperties = useMemo(
@@ -69,7 +71,7 @@ export const ReqraftFileFormField = memo(
     );
 
     const { acceptedFiles, getRootProps, getInputProps } = useDropzone({
-      disabled: rest.disabled || rest.readonly,
+      disabled: rest.disabled || readonly,
       maxFiles: multiple ? 0 : 1,
       multiple: !!multiple,
       ...options,

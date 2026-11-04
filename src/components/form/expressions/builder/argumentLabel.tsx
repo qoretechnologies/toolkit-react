@@ -1,9 +1,13 @@
 import { ReqoreIcon, ReqoreP, ReqoreSpan } from '@qoretechnologies/reqore';
-import { uniq } from 'lodash';
+import { compact, uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
-import { IExpression, IExpressionSchema, IExpressionSchemaArg } from '../types';
+import { useReadableIntentShade } from '../../../../hooks/useReadableIntentShade';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
+import { READABLE_ICON } from '../../../../helpers/readableColors';
+import { IExpression, IExpressionSchema, IExpressionSchemaArg, IExpressionValue } from '../types';
+import { useExpressionType } from '../useExpressionType';
 
 export interface IExpressionBuilderArgumentLabelProps {
   label: string;
@@ -20,7 +24,15 @@ export const ExpressionBuilderArgumentLabel = ({
   expressions,
   type,
 }: IExpressionBuilderArgumentLabelProps) => {
+  // the type and the hint after a name, light and softer: as soft as they still read (qorus#646)
+  const hintOpacity = useReadableOpacity(0.5);
+  // the marks beside a name - invalid, required, the wrong type, a type that fits - in shades that stand out
+  const dangerMark = useReadableIntentShade('danger', READABLE_ICON);
+  const warningMark = useReadableIntentShade('warning', READABLE_ICON);
+  const pendingMark = useReadableIntentShade('pending', READABLE_ICON);
   const types = useQorusTypes();
+  // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives
+  useExpressionType(arg?.is_expression ? (arg.value as IExpressionValue) : undefined);
 
   if (!schema) {
     return (
@@ -38,7 +50,7 @@ export const ExpressionBuilderArgumentLabel = ({
     );
   }
 
-  const matchesType = argumentMatchesType(expressions, arg, schema);
+  const matchesType = argumentMatchesType(expressions, arg, schema, types.value);
 
   const argumentType = getArgumentType(expressions, arg, schema);
   const matchesTypeExactly =
@@ -49,6 +61,10 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getExactMatches(schema.ui_type),
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
+  /** The types this argument takes, named inside a sentence: "a whole number or a number" (qorus#646). */
+  const acceptedTypeNames = uniq(compact(acceptedTypes.map((t) => types.getTypeSentenceForm(t)))).join(
+    ' or '
+  );
   /* `arg` is optional — an operand the author has not filled in yet has no
      entry at all, and a literal carried straight from a parse can be the null
      literal itself. Both were dereferenced unguarded here, which took the whole
@@ -68,7 +84,9 @@ export const ExpressionBuilderArgumentLabel = ({
         weight: 'thick',
       }}
     >
-      {!isValid && <ReqoreIcon icon='ErrorWarningLine' color='danger' size='10px' margin='right' />}
+      {!isValid && (
+        <ReqoreIcon icon='ErrorWarningLine' color={dangerMark} size='10px' margin='right' />
+      )}
       {schema.display_name && (
         <ReqoreSpan
           effect={{
@@ -78,7 +96,7 @@ export const ExpressionBuilderArgumentLabel = ({
           tooltip={
             isValid
               ? !matchesType
-                ? `This arguments type does not match the required type (${acceptedTypes.join(', ')}) and has to wrapped`
+                ? `This value is not ${acceptedTypeNames}. Put it inside an expression that converts it`
                 : undefined
               : reason
           }
@@ -86,31 +104,32 @@ export const ExpressionBuilderArgumentLabel = ({
           {schema.display_name}
         </ReqoreSpan>
       )}{' '}
-      {schema.required && <ReqoreIcon icon='Asterisk' color='danger' size='10px' />} {label}
+      {schema.required && <ReqoreIcon icon='Asterisk' color={dangerMark} size='10px' />} {label}
       <ReqoreSpan
         effect={{
           italic: true,
           weight: 'light',
-          opacity: 0.5,
+          opacity: hintOpacity,
         }}
       >
         {'['}
-        {types.getTypeDisplayName(schema.ui_type)}
+        {types.getTypeDisplayName(schema.ui_type, schema.base_type)}
       </ReqoreSpan>
       {!matchesType ? (
-        <ReqoreIcon icon='ErrorWarningLine' color='warning' size='10px' margin='both' />
+        <ReqoreIcon icon='ErrorWarningLine' color={warningMark} size='10px' margin='both' />
       ) : null}
       {(argumentType || (arg?.is_expression && arg.value?.exp)) &&
-      types.getTypeDisplayName(argumentType) !== types.getTypeDisplayName(schema.ui_type) &&
+      types.getTypeDisplayName(argumentType) !==
+        types.getTypeDisplayName(schema.ui_type, schema.base_type) &&
       !matchesTypeExactly ? (
         <>
           {matchesType ? (
             <ReqoreIcon
               icon='CheckLine'
-              color='pending'
+              color={pendingMark}
               size='10px'
               margin='both'
-              tooltip='Type matches, but a transformation may be applied'
+              tooltip='The type fits; Qorus may convert the value'
             />
           ) : null}
 
@@ -124,8 +143,12 @@ export const ExpressionBuilderArgumentLabel = ({
             intent={matchesType ? 'pending' : 'warning'}
             tooltip={
               matchesType
-                ? 'Type matches, but a transformation may be applied'
-                : `Type does not match expected type of ${acceptedTypes?.join(' or ')}`
+                ? 'The type fits; Qorus may convert the value'
+                : acceptedTypeNames
+                  ? // the sentence starts with them
+                    `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
+                  : // a place whose types are not known names none
+                    'A value of another type is needed here'
             }
           >
             {types.getTypeDisplayName(argumentType)}
@@ -136,7 +159,7 @@ export const ExpressionBuilderArgumentLabel = ({
         effect={{
           italic: true,
           weight: 'light',
-          opacity: 0.5,
+          opacity: hintOpacity,
         }}
       >
         {']'}

@@ -71,10 +71,13 @@ describe('drawing a template row’s description', () => {
     expect(out[0].label).toBe('Values this case captures');
   });
 
-  it('changes NOTHING for a host with no renderer of its own', () => {
-    // The built-in behaviour is the fallback, not a second opinion: a host that
-    // writes plain descriptions keeps exactly the strings it had.
-    expect(renderTemplateItemDescriptions(GROUPED, undefined)).toBe(GROUPED);
+  it('says a description without its marks for a host with no renderer of its own', () => {
+    // No dialect the host never chose, and no `**` either: the words, as plain text.
+    const out = renderTemplateItemDescriptions(GROUPED, undefined) as any[];
+    expect(out[0].items[0].description).toBe('Set Fixture Output to declare it.');
+    expect(out[0].items[1].description).toBeUndefined();
+    // a copy: the list it was given is left as it was
+    expect(GROUPED[0].items[0].description).toBe('Set **Fixture Output** to declare it.');
   });
 
   it('survives an empty or absent list', () => {

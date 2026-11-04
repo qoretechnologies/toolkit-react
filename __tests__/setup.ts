@@ -1,6 +1,7 @@
 // Vitest global setup for the unit-test project (jsdom).
 import React from 'react';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { _resetServerQorusTypesForTests } from '../src/helpers/qorusTypeCatalogue';
 import { ReqraftQueryClient } from '../src/providers/ReqraftProvider';
 
 // Ensure a React symbol exists on the global for any module compiled with the
@@ -58,4 +59,6 @@ afterEach(() => {
  * state has to start each test empty. */
 beforeEach(() => {
   ReqraftQueryClient.clear();
+  // and the type catalogue a server answered with: `getQorusTypes` gives reqraft's copy until one does
+  _resetServerQorusTypesForTests();
 });

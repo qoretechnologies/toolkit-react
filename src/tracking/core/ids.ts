@@ -13,7 +13,15 @@ export const randomId = (bytes = 16): string => {
   return toBase64Url(buf);
 };
 
-/** Event id (a UUID v4). */
+/**
+ * Event id (a UUID v4).
+ *
+ * `crypto.randomUUID` exists only in a secure context (https, or localhost), so on a page served over plain http it
+ * is built from `crypto.getRandomValues`, which every browser has in any context: 16 random bytes with the version
+ * (4) and the variant (10xx) bits set, as RFC 9562 defines a version 4 UUID. The rest of reqraft takes it as
+ * `randomUuid` from `src/helpers/secureContextApis.ts`; it lives here because the tracking module imports nothing
+ * outside `src/tracking/`.
+ */
 export const eventId = (): string => {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
   const b = new Uint8Array(16);

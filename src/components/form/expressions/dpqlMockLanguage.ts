@@ -9,6 +9,13 @@
 // answer here follows what the Qorus `/lsp` handler actually returned for the
 // same input, recorded in `__tests__/dpqlMockLanguage.test.ts`; only the subset
 // the stories exercise is modelled.
+import {
+  conditionBaseType,
+  conditionByTruthinessText,
+  conditionErrorText,
+} from '../../../helpers/expressions';
+import { getQorusTypes, qorusTypeSentenceForm } from '../../../hooks/useQorusTypes';
+import { readRecordReference, recordReferenceDpql } from './dpqlMockRecordPath';
 import { mockExpressions } from './mockExpressions';
 import { IExpressionSchema } from './types';
 
@@ -40,8 +47,13 @@ export interface IDpqlMockParseResult {
   auto_coercible?: boolean;
   coercion_may_fail?: boolean;
   suggested_fix?: { text: string; description: string };
+  condition_reading?: TMockConditionReading;
+  /** With `condition`: each part of `&&`, `||` and `!`, with its type and how a condition reads it. */
+  parts?: Array<{ type: string; reading: TMockConditionReading }>;
   diagnostics: IDpqlMockDiagnostic[];
 }
+
+type TMockConditionReading = 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
 
 // ─── Catalogue ───────────────────────────────────────────────────────────────
 
@@ -89,18 +101,54 @@ const NAME_BY_SYMBOL = new Map<string, string>(
 
 const DPQL_KEYWORDS = new Set(['in', 'not', 'between', 'and', 'like', 'true', 'false', 'null']);
 const DPQL_FUNCTIONS = new Set([
-  'abs', 'round', 'floor', 'ceil', 'trim', 'ltrim', 'rtrim', 'concat', 'split', 'substr',
-  'coalesce', 'nullif', 'now', 'days', 'hours', 'minutes', 'seconds', 'milliseconds',
-  'microseconds', 'years', 'months', 'weeks', 'get_year', 'get_month', 'get_day', 'get_hour',
-  'get_minute', 'get_second', 'format_date', 'format_number', 'map', 'hash_map', 'contains',
-  'ignore', 'case', 'toString', 'toInt', 'toFloat', 'toBool', 'startsWith', 'endsWith',
+  'abs',
+  'round',
+  'floor',
+  'ceil',
+  'trim',
+  'ltrim',
+  'rtrim',
+  'concat',
+  'split',
+  'substr',
+  'coalesce',
+  'nullif',
+  'now',
+  'days',
+  'hours',
+  'minutes',
+  'seconds',
+  'milliseconds',
+  'microseconds',
+  'years',
+  'months',
+  'weeks',
+  'get_year',
+  'get_month',
+  'get_day',
+  'get_hour',
+  'get_minute',
+  'get_second',
+  'format_date',
+  'format_number',
+  'map',
+  'hash_map',
+  'contains',
+  'ignore',
+  'case',
+  'toString',
+  'toInt',
+  'toFloat',
+  'toBool',
+  'startsWith',
+  'endsWith',
 ]);
 
 /**
  * `textDocument/semanticTokens/full` for `text`: the LSP delta-encoded 5-tuple
  * array, with type indices into `SEMANTIC_TOKENS_LEGEND`. It covers readable
  * renderings as well as DPQL, as the server's does — `contains` and
- * `(ignore case)` in an explanation are coloured too.
+ * `(ignore case)` in an explanation are colored too.
  */
 export function mockTokenizeDpql(text: string): number[] {
   // Longer operators must come first so `==` isn't matched as two `=`.
@@ -114,7 +162,7 @@ export function mockTokenizeDpql(text: string): number[] {
       `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|[\\w.{}]+))`, // 5: $context:value
       `(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)`, // 6: number
       `(==|!=|<=|>=|&&|\\|\\||=~|!~|[+\\-*/%<>!=])`, // 7: operator
-      // 8: punctuation — matched so it is not misread, but the server leaves it uncoloured
+      // 8: punctuation — matched so it is not misread, but the server leaves it uncolored
       `(\\.\\.|[,(){}\\[\\].])`,
       `(\\b[A-Za-z_][\\w]*\\b)`, // 9: identifier (keyword check)
     ].join('|'),
@@ -127,15 +175,22 @@ export function mockTokenizeDpql(text: string): number[] {
     let match: RegExpExecArray | null;
     while ((match = TOKEN_RE.exec(line)) !== null) {
       let type = -1;
-      if (match[1] || match[2]) type = 11; // string
-      else if (match[3]) type = 13; // regexp
-      else if (match[4]) type = 4; // variable
-      else if (match[5]) type = 2; // class (template)
-      else if (match[6]) type = 12; // number
-      else if (match[7]) type = 14; // operator
+      if (match[1] || match[2])
+        type = 11; // string
+      else if (match[3])
+        type = 13; // regexp
+      else if (match[4])
+        type = 4; // variable
+      else if (match[5])
+        type = 2; // class (template)
+      else if (match[6])
+        type = 12; // number
+      else if (match[7])
+        type = 14; // operator
       else if (match[9]) {
         const word = match[9];
-        if (DPQL_KEYWORDS.has(word.toLowerCase())) type = 8; // keyword
+        if (DPQL_KEYWORDS.has(word.toLowerCase()))
+          type = 8; // keyword
         else if (DPQL_FUNCTIONS.has(word) || DPQL_FUNCTIONS.has(word.toLowerCase())) type = 6; // function
       }
       if (type >= 0) {
@@ -165,8 +220,16 @@ type TToken =
   | { kind: 'word'; text: string; start: number }
   | { kind: 'op'; text: string; start: number };
 
+// 6: a record field (`@create`), which the server gives as the template `$record:{create}`
+/* A template is braced wherever its path holds more than a name's characters (`$record:{orders[*].id}`), as the
+   server reads it; `=~` and `!~` match a regular expression literal, read whole after them (`readRegex`). */
 const LEX_RE =
-  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:[\w.{}]+)|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|<=|>=|&&|\|\||[-+*/<>!(),]))/y;
+  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:(?:\{(?:\\.|[^{}\\])*\}|[\w.]+))|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|=~|!~|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
+
+/** A regular expression literal at the start of `text` (`/^[a-z]+@example\.com$/i`), as the server reads one after
+ *  `=~` or `!~`: what is in it is the pattern's, a `$` or an `@` in it included. */
+const readRegex = (text: string): string | undefined =>
+  /^\/(?:\\.|[^/\\\n])*\/[gimsux]*/.exec(text)?.[0];
 
 /** Binary operators, loosest first — the precedence the server parenthesises by. */
 const BINARY_PRECEDENCE: Record<string, number> = {
@@ -174,6 +237,8 @@ const BINARY_PRECEDENCE: Record<string, number> = {
   '&&': 2,
   '==': 3,
   '!=': 3,
+  '=~': 3,
+  '!~': 3,
   '<': 3,
   '>': 3,
   '<=': 3,
@@ -191,24 +256,158 @@ const RETURN_TYPES: Record<string, string> = {
   toBool: 'bool',
 };
 
+/* The server's words for what it cannot read (Qore DpqlTokenizer and DpqlParser, batch 6: plain words that say what
+   to do). Each was checked against the installed DataProvider for the same text. */
+const LONE_TEMPLATE_MARKER = 'A `$` starts a template: pick one from the list, or remove the `$`.';
+const LONE_FIELD_MARKER = 'An `@` names a field: pick one from the list, or remove the `@`.';
+const UNFINISHED_TEMPLATE =
+  "This template isn't finished: pick one from the list, or write what it refers to after the ':'.";
+const cannotFollowMarker = (char: string, marker: '$' | '@') =>
+  marker === '$' ?
+    `'${char}' can't follow a \`$\`: pick a template from the list, or remove the \`$\`.`
+  : `'${char}' can't follow an \`@\`: pick a field from the list, or remove the \`@\`.`;
+const templateNeedsColon = (template: string) =>
+  `This template needs a ':' after \`${template}\`: pick one from the list, or remove the \`$\`.`;
+const cannotBeUsedHere = (char: string) =>
+  `'${char}' can't be used here: remove it, or put it in quotes to make it text.`;
+/** What the server says of a token after a whole value (DpqlParser getTrailingTokenMessage). */
+const trailingTokenMessage = (token: string): string => {
+  switch (token.toLowerCase()) {
+    case ')':
+      return "This ')' has no '(' to close: remove it.";
+    case ',':
+      return "A ',' separates the values of a function or a list, and there's none here: remove it.";
+    case 'and':
+      return "Use && to join two conditions: 'and' only joins the two bounds of between.";
+    case 'or':
+      return "Use || to join two conditions: 'or' isn't an operator.";
+    case 'not':
+      return '\'not\' goes before in or between, as in @status not in ("closed", "lost").';
+  }
+  return 'Something follows a complete value here: join them with an operator, such as +, == or &&.';
+};
+
+/** What the server says of text it cannot read: its words, its code, and the columns (from 1) it is said of. */
 class DpqlMockSyntaxError extends Error {
   constructor(
     message: string,
-    readonly column: number
+    readonly column: number,
+    readonly code = 'DPQL-E001',
+    readonly endColumn = column
   ) {
     super(message);
   }
 }
 
+/** Everything the tokenizer could not read in a text, as the server says each. */
+class DpqlMockSyntaxErrors extends Error {
+  constructor(readonly errors: DpqlMockSyntaxError[]) {
+    super(errors[0]?.message);
+  }
+}
+
+/** What is said of text that cannot be read: each thing it says. */
+const syntaxErrorsOf = (err: unknown): DpqlMockSyntaxError[] =>
+  err instanceof DpqlMockSyntaxErrors ? err.errors
+  : err instanceof DpqlMockSyntaxError ? [err]
+  : [];
+
 const tokenize = (text: string): TToken[] => {
   const tokens: TToken[] = [];
+  // what cannot be read, each said where it is: the server reads on past it and says each (`… > …`: two)
+  const unread: DpqlMockSyntaxError[] = [];
+  // where a character named as one that cannot follow a `$` or an `@` is: not said again
+  let named = -1;
   LEX_RE.lastIndex = 0;
   while (LEX_RE.lastIndex < text.length) {
     const start = LEX_RE.lastIndex;
+    // a record field reference, with its quotes and accessors: the template the server gives it
+    const at = start + (/^\s*/.exec(text.slice(start))?.[0].length ?? 0);
+    // after `=~` or `!~`, a regular expression literal: one value, whatever it holds
+    const previous = tokens[tokens.length - 1];
+    const regex =
+      previous?.kind === 'op' && (previous.text === '=~' || previous.text === '!~') ?
+        readRegex(text.slice(at))
+      : undefined;
+    if (regex) {
+      tokens.push({ kind: 'string', text: regex, start: at });
+      LEX_RE.lastIndex = at + regex.length;
+      continue;
+    }
+    const reference = text[at] === '@' ? readRecordReference(text.slice(at)) : undefined;
+    if (reference) {
+      tokens.push({ kind: 'template', text: reference.template, start: at });
+      LEX_RE.lastIndex = at + reference.length;
+      continue;
+    }
     const m = LEX_RE.exec(text);
     if (!m) {
       if (text.slice(start).trim() === '') break;
-      throw new DpqlMockSyntaxError('Unexpected character', start + 1);
+      /* A `$` or an `@` that does not start a reference, in the server's words (Qore DpqlTokenizer): what a `$`
+         typed to ask for a template, or left in front of one picked, reads as. The character named as one that
+         cannot follow it is not said again. */
+      const char = String.fromCodePoint(text.codePointAt(at) ?? 0);
+      const next =
+        at + 1 < text.length ? String.fromCodePoint(text.codePointAt(at + 1) ?? 0) : undefined;
+      if (char === '$') {
+        // a template's context: with nothing after its `:` (DPQL-E033, what a picked `$data:` reads as), or no `:`
+        const context = /^\$[A-Za-z_][\w-]*/.exec(text.slice(at))?.[0];
+        if (context && text[at + context.length] === ':') {
+          unread.push(
+            new DpqlMockSyntaxError(
+              UNFINISHED_TEMPLATE,
+              at + 1,
+              'DPQL-E033',
+              at + 2 + context.length
+            )
+          );
+          LEX_RE.lastIndex = at + context.length + 1;
+          continue;
+        }
+        if (context) {
+          unread.push(
+            new DpqlMockSyntaxError(
+              templateNeedsColon(context),
+              at + 1,
+              'DPQL-E032',
+              at + 1 + context.length
+            )
+          );
+          named = /\S/.test(text[at + context.length] ?? '') ? at + context.length : named;
+          LEX_RE.lastIndex = at + context.length;
+          continue;
+        }
+        unread.push(
+          new DpqlMockSyntaxError(
+            next === undefined || /\s/.test(next) ?
+              LONE_TEMPLATE_MARKER
+            : cannotFollowMarker(next, '$'),
+            at + 1,
+            next === undefined ? 'DPQL-E030' : 'DPQL-E031',
+            at + 2
+          )
+        );
+        named = next !== undefined && /\S/.test(next) ? at + 1 : named;
+      } else if (char === '@') {
+        // an `@` that names no field (DPQL-E003): typed to ask for one, or left in front of one picked
+        unread.push(
+          new DpqlMockSyntaxError(
+            next === undefined || /\s/.test(next) ?
+              LONE_FIELD_MARKER
+            : cannotFollowMarker(next, '@'),
+            at + 1,
+            'DPQL-E003',
+            at + 2
+          )
+        );
+        named = next !== undefined && /\S/.test(next) ? at + 1 : named;
+      } else if (at !== named) {
+        unread.push(
+          new DpqlMockSyntaxError(cannotBeUsedHere(char), at + 1, 'DPQL-E001', at + 1 + char.length)
+        );
+      }
+      LEX_RE.lastIndex = at + char.length;
+      continue;
     }
     const tokenStart = start + m[0].length - m[0].trimStart().length;
     if (m[1]) tokens.push({ kind: 'string', text: m[1], start: tokenStart });
@@ -216,14 +415,17 @@ const tokenize = (text: string): TToken[] => {
     else if (m[3]) tokens.push({ kind: 'number', text: m[3], start: tokenStart });
     else if (m[4]) tokens.push({ kind: 'word', text: m[4], start: tokenStart });
     else if (m[5]) tokens.push({ kind: 'op', text: m[5], start: tokenStart });
+    else if (m[6]) tokens.push({ kind: 'template', text: `$record:{${m[6].slice(1)}}`, start: tokenStart });
+  }
+  if (unread.length) {
+    throw new DpqlMockSyntaxErrors(unread);
   }
   return tokens;
 };
 
-const templateArg = (raw: string): IDpqlMockNode => {
-  const [, context, value] = raw.match(/^\$([^:]+):(.*)$/) ?? [];
-  return { type: 'auto', value: { tmpl_context: context, tmpl_value: value, raw } };
-};
+// A template reference is given as its template, as the server gives it (qorus#646): a record field is
+// `$record:{name}`, any other template the template itself.
+const templateArg = (raw: string): IDpqlMockNode => ({ type: 'auto', value: raw });
 
 /** An operand: a bare argument, or a nested expression wrapped as the server wraps it. */
 const asOperand = (node: IDpqlMockNode): IDpqlMockNode =>
@@ -232,12 +434,52 @@ const asOperand = (node: IDpqlMockNode): IDpqlMockNode =>
 const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
   let pos = 0;
   const peek = () => tokens[pos];
+  /* What the server says where a value is missing (DpqlParser): before the token there, or, at the end, after the
+     last token, said where that token starts. */
+  const atTheEnd = (missing: string): never => {
+    const last = tokens[pos - 1];
+    const column = last ? last.start + 1 : endColumn;
+    throw new DpqlMockSyntaxError(
+      `Something is missing at the end: ${missing}.`,
+      column,
+      'DPQL-E001',
+      column
+    );
+  };
+  const said = (message: string, token: TToken): never => {
+    throw new DpqlMockSyntaxError(
+      message,
+      token.start + 1,
+      'DPQL-E001',
+      token.start + 1 + token.text.length
+    );
+  };
   const fail = (): never => {
     const token = peek();
-    throw new DpqlMockSyntaxError(
-      token ? `Unexpected token '${token.text}'` : 'Unexpected end of input, expected value',
-      token ? token.start + 1 : endColumn
+    if (!token) {
+      const last = tokens[pos - 1];
+      return atTheEnd(last ? `a value after '${last.text}'` : 'a value');
+    }
+    return said(
+      `Something is missing before '${token.text}': a value, such as a field or a template.`,
+      token
     );
+  };
+  /* A `(` the server expects closed: at the end, a `)` is missing; before anything else, a call's values are
+     separated with commas and a group's are joined with an operator. */
+  const closeParenthesis = (call: boolean): void => {
+    const token = peek();
+    if (!token) {
+      atTheEnd("a ')' to close the '('");
+    } else if (token.text !== ')') {
+      said(
+        call ?
+          "Something follows a complete value here: separate the values with ',', or close the '(' with ')'."
+        : "Something follows a complete value here: join them with an operator, or close the '(' with ')'.",
+        token
+      );
+    }
+    pos++;
   };
 
   const primary = (): IDpqlMockNode => {
@@ -246,11 +488,14 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
     pos++;
     switch (token.kind) {
       case 'number':
-        return token.text.includes('.')
-          ? { type: 'float', value: parseFloat(token.text) }
+        return token.text.includes('.') ?
+            { type: 'float', value: parseFloat(token.text) }
           : { type: 'int', value: parseInt(token.text, 10) };
       case 'string':
-        return { type: 'string', value: JSON.parse(token.text) };
+        // a regular expression literal (after `=~`) is the pattern as written
+        return token.text.startsWith('/') ?
+            { type: 'string', value: token.text }
+          : { type: 'string', value: JSON.parse(token.text) };
       case 'template':
         return templateArg(token.text);
       case 'word': {
@@ -265,12 +510,12 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
           const args: IDpqlMockNode[] = [];
           while (peek() && peek()!.text !== ')') {
             args.push(asOperand(binary(1)));
-            if (peek()?.text === ',') {
-              pos++;
+            if (peek()?.text !== ',') {
+              break;
             }
+            pos++;
           }
-          if (peek()?.text !== ')') return fail();
-          pos++;
+          closeParenthesis(true);
           return { exp: NAME_BY_SYMBOL.get(token.text) ?? token.text, args };
         }
         return { type: 'string', value: token.text };
@@ -278,8 +523,7 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
       case 'op':
         if (token.text === '(') {
           const inner = binary(1);
-          if (peek()?.text !== ')') return fail();
-          pos++;
+          closeParenthesis(false);
           return inner;
         }
         if (token.text === '!') {
@@ -295,12 +539,43 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
     let left = primary();
     for (;;) {
       const op = peek();
+      /* `in (…)` and `between … and …` compare as the symbol comparisons do (the server's DpqlParser): a value in
+         a list, a value between two others */
+      if (
+        op?.kind === 'word' &&
+        (op.text === 'in' || op.text === 'between') &&
+        BINARY_PRECEDENCE['=='] >= minPrecedence
+      ) {
+        pos++;
+        if (op.text === 'in') {
+          if (peek()?.text !== '(') return fail();
+          pos++;
+          const list: IDpqlMockNode[] = [];
+          while (peek() && peek()!.text !== ')') {
+            list.push(asOperand(binary(1)));
+            if (peek()?.text !== ',') break;
+            pos++;
+          }
+          closeParenthesis(true);
+          left = { exp: 'in', args: [asOperand(left), ...list] };
+        } else {
+          const low = binary(BINARY_PRECEDENCE['=='] + 1);
+          if (peek()?.text !== 'and') return fail();
+          pos++;
+          const high = binary(BINARY_PRECEDENCE['=='] + 1);
+          left = { exp: 'between', args: [asOperand(left), asOperand(low), asOperand(high)] };
+        }
+        continue;
+      }
       // A word comparison (`"a" contains "b"`) binds as the symbol comparisons do.
       const wordComparison =
-        op?.kind === 'word' && NAME_BY_SYMBOL.has(op.text) &&
-        isInfixComparison(NAME_BY_SYMBOL.get(op.text)!, 2)
-          ? NAME_BY_SYMBOL.get(op.text)
-          : undefined;
+        (
+          op?.kind === 'word' &&
+          NAME_BY_SYMBOL.has(op.text) &&
+          isInfixComparison(NAME_BY_SYMBOL.get(op.text)!, 2)
+        ) ?
+          NAME_BY_SYMBOL.get(op.text)
+        : undefined;
       const precedence =
         op?.kind === 'op' ? BINARY_PRECEDENCE[op.text]
         : wordComparison ? BINARY_PRECEDENCE['==']
@@ -315,7 +590,11 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
   };
 
   const root = binary(1);
-  if (pos < tokens.length) fail();
+  // what follows a whole expression, said as the server says it
+  const after = peek();
+  if (after) {
+    said(trailingTokenMessage(after.text), after);
+  }
   return root;
 };
 
@@ -341,6 +620,13 @@ export const inferDpqlMockType = (node: IDpqlMockNode): string => {
 
 const capitalise = (word: string) => word[0].toUpperCase() + word.slice(1);
 
+/**
+ * A type as the server names it inside what it says: its sentence form ("a whole number", qorus c6b3fb97c);
+ * "nothing" where there is no type to name.
+ */
+const typeInSentence = (type: string | undefined): string =>
+  qorusTypeSentenceForm(getQorusTypes(), conditionBaseType(type)) ?? 'nothing';
+
 /** What a successful parse says about fitting `target`, shaped as the server's answer. */
 const analyse = (
   text: string,
@@ -350,8 +636,21 @@ const analyse = (
   diagnostics: IDpqlMockDiagnostic[];
 } => {
   const base = { inferred_type: inferred, target_type: target };
-  if (inferred === 'auto' || target === 'auto' || target === 'any' || inferred === target) {
-    return { ...base, type_compatible: true, auto_coercible: true, coercion_may_fail: false, diagnostics: [] };
+  // a field with no type takes any value, as the builder reads it (`!returnType`)
+  if (
+    !target ||
+    inferred === 'auto' ||
+    target === 'auto' ||
+    target === 'any' ||
+    inferred === target
+  ) {
+    return {
+      ...base,
+      type_compatible: true,
+      auto_coercible: true,
+      coercion_may_fail: false,
+      diagnostics: [],
+    };
   }
   // Text can become anything but may not parse on the day; a number or a bool
   // always becomes text; nothing else converts implicitly.
@@ -363,20 +662,21 @@ const analyse = (
     type_compatible: false,
     auto_coercible: coercible,
     coercion_may_fail: mayFail,
-    ...(coercible
-      ? {
-          suggested_fix: {
-            text: `to${capitalise(target)}(${text})`,
-            description: `Convert ${inferred} to ${target} using to${capitalise(target)}()`,
-          },
-        }
-      : {}),
+    ...(coercible ?
+      {
+        suggested_fix: {
+          text: `to${capitalise(target)}(${text})`,
+          description: `Convert ${inferred} to ${target} using to${capitalise(target)}()`,
+        },
+      }
+    : {}),
     diagnostics: [
       {
         severity: coercible ? 'warning' : 'error',
-        message: coercible
-          ? `Expression returns '${inferred}' but target expects '${target}' (auto-coercion available)`
-          : `Expression returns '${inferred}' but target expects '${target}'`,
+        message:
+          coercible ?
+            `The expression gives ${typeInSentence(inferred)}, but this field takes ${typeInSentence(target)}. Qorus converts it when it runs.`
+          : `The expression gives ${typeInSentence(inferred)}, but this field takes ${typeInSentence(target)}, and Qorus cannot convert it.`,
         code: 'TYPE_MISMATCH',
         ...span,
       },
@@ -384,36 +684,288 @@ const analyse = (
   };
 };
 
+/**
+ * The words the mock server says its condition diagnostics in. Unset, it says what the Qorus server says (the
+ * same texts as the editor's own fallbacks, `helpers/expressions`). A story sets other words - a server that
+ * answers in another language - to show that they reach the reader as they were said, never replaced by the
+ * fallback; it puts them back when it ends.
+ */
+export const dpqlMockConditionWords: {
+  notACondition?: (type: string) => string;
+  truthiness?: (type: string) => string;
+} = {};
+
+/** The types a condition cannot give, as the server names them inside what it says: their sentence forms. */
+const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = Object.fromEntries(
+  ['string', 'date', 'time'].map((type) => [type, typeInSentence(type)])
+);
+
+/** How a condition reads a type: true or false, not a condition (text, a date or a time), unknown, or by its value. */
+const conditionReadingOf = (type: string): TMockConditionReading => {
+  const base = type.replace(/^\*/, '').replace(/^soft/, '');
+  return (
+    base === 'bool' ? 'condition'
+    : base === 'auto' || base === 'any' ? 'unknown'
+    : NOT_A_CONDITION_TYPE_NAMES[base] ? 'not_a_condition'
+    : 'truthiness'
+  );
+};
+
+/** The rank of each reading, the worst highest, as the server ranks them (QorusDpqlCondition::ReadingRank). */
+const READING_RANK: Record<TMockConditionReading, number> = {
+  condition: 0,
+  unknown: 1,
+  truthiness: 2,
+  not_a_condition: 3,
+};
+
+/** The operators whose every part is read as a condition. */
+const LOGICAL_OPERATORS = ['&&', '||', '!'];
+
+/** The type an operand gives, its fields' types known: what the server infers for it (`inferArgType`). */
+const inferWithFields = (node: IDpqlMockNode, fields: TDpqlMockFields): string => {
+  const field = fieldOf(node);
+  if (field !== undefined) {
+    const type = fields[field]?.type;
+    return typeof type === 'string' ? type : 'auto';
+  }
+  if (node.exp && ['+', '-', '*', '/'].includes(node.exp)) {
+    const operandTypes = (node.args ?? []).map((arg) => inferWithFields(nodeOf(arg), fields));
+    if (operandTypes.includes('auto')) return 'auto';
+    if (node.exp === '+' && operandTypes.includes('string')) return 'string';
+    return operandTypes.includes('float') ? 'float' : 'int';
+  }
+  return inferDpqlMockType(node);
+};
+
+/**
+ * The parts of an expression's logical operators, in the server's walk order (QorusDpqlCondition::partReadings):
+ * a logical operator's operands, left to right, a nested one standing for its own parts. A part's type is what
+ * it gives, its fields' types known.
+ */
+const conditionParts = (root: IDpqlMockNode, fields: TDpqlMockFields) => {
+  const parts: Array<{ type: string; reading: TMockConditionReading }> = [];
+  const walk = (node: IDpqlMockNode) => {
+    (node.args ?? []).forEach((arg) => {
+      const inner = nodeOf(arg);
+      if (inner.exp && LOGICAL_OPERATORS.includes(inner.exp)) {
+        walk(inner);
+        return;
+      }
+      const type = inferWithFields(inner, fields);
+      parts.push({ type, reading: conditionReadingOf(type) });
+    });
+  };
+  if (root.exp && LOGICAL_OPERATORS.includes(root.exp)) walk(root);
+  return parts;
+};
+
+/**
+ * How the server reads an expression as a condition (`condition: true`, qorus#646), shaped as its answer:
+ * true or false is a condition, text, a date or a time is not one, a type it cannot tell is unknown, and any
+ * other is read by its value - true unless it is zero or empty. Each part of `&&`, `||` and `!` is read the
+ * same way and answered in `parts`; the reading answered is the worst of the expression's and its parts', and
+ * each one that is not true or false has its own diagnostic.
+ */
+const readAsCondition = (
+  text: string,
+  inferred: string,
+  root: IDpqlMockNode,
+  fields: TDpqlMockFields = {}
+) => {
+  const parts = conditionParts(root, fields);
+  const judged = [{ type: inferred, reading: conditionReadingOf(inferred) }, ...parts];
+  const reading = judged.reduce<TMockConditionReading>(
+    (worst, part) => (READING_RANK[part.reading] > READING_RANK[worst] ? part.reading : worst),
+    judged[0].reading
+  );
+  const span = { line: 1, column: 1, end_line: 1, end_column: text.length + 1 };
+  return {
+    inferred_type: inferred,
+    target_type: 'bool',
+    condition_reading: reading,
+    type_compatible: reading === 'condition' || reading === 'unknown',
+    auto_coercible: reading !== 'not_a_condition',
+    coercion_may_fail: reading === 'truthiness',
+    parts,
+    diagnostics: judged.flatMap((part): IDpqlMockDiagnostic[] =>
+      part.reading === 'not_a_condition' ?
+        [
+          {
+            severity: 'error',
+            code: 'NOT_A_CONDITION',
+            message:
+              dpqlMockConditionWords.notACondition?.(part.type) ??
+              conditionErrorText(NOT_A_CONDITION_TYPE_NAMES[conditionBaseType(part.type)], part.type),
+            ...span,
+          },
+        ]
+      : part.reading === 'truthiness' ?
+        [
+          {
+            severity: 'warning',
+            code: 'CONDITION_BY_TRUTHINESS',
+            message:
+              dpqlMockConditionWords.truthiness?.(part.type) ?? conditionByTruthinessText(part.type),
+            ...span,
+          },
+        ]
+      : []
+    ),
+  };
+};
+
 /** `dpql/parse`: the AST for `text`, or the diagnostic the server reports. */
-export const mockParseDpql = (text: string, target?: string): IDpqlMockParseResult => {
+/** A record's fields, as `dpql/setContext` and `didOpen` give them: each field's type. */
+export type TDpqlMockFields = Record<string, { type?: string | string[] }>;
+
+/** The record field an operand names (`@create`, or `$record:{create}` as the editor writes it), if any. */
+const fieldOf = (node: IDpqlMockNode): string | undefined => {
+  if (node.exp || typeof node.value !== 'string') return undefined;
+  return /^@(.+)$/.exec(node.value)?.[1] ?? /^\$record:\{(.+)\}$/.exec(node.value)?.[1];
+};
+
+/** An operand of `+` as the server names it in DPQL-E050: a field by its reference and type, else its kind. */
+const describeOperand = (node: IDpqlMockNode, fields: TDpqlMockFields): { kind?: string; words: string } => {
+  const field = fieldOf(node);
+  if (field !== undefined) {
+    const type = fields[field]?.type;
+    const kind = typeof type === 'string' ? type : undefined;
+    return { kind, words: `'@${field}' (a ${kind ?? 'value'})` };
+  }
+  return ['int', 'float', 'number'].includes(node.type ?? '') ?
+      { kind: 'number', words: 'a number' }
+    : { kind: node.type, words: `a ${node.type}` };
+};
+
+/**
+ * What the server reports of a `+` whose operands it cannot combine (Qore DpqlParser, DPQL-E050, qorus#646):
+ * the one the stories write, a hash and a number, in the server's words. Anything else combines.
+ */
+export const mockOperandCombinationErrors = (
+  root: IDpqlMockNode,
+  fields: TDpqlMockFields = {},
+  text = ''
+): IDpqlMockDiagnostic[] => {
+  const errors: IDpqlMockDiagnostic[] = [];
+  const visit = (node: IDpqlMockNode) => {
+    const inner = node.is_expression ? (node.value as IDpqlMockNode) : node;
+    if (!inner?.exp) return;
+    if (inner.exp === '+' && inner.args?.length === 2) {
+      const [left, right] = inner.args.map((arg) => describeOperand(arg, fields));
+      const kinds = [left.kind, right.kind];
+      if (kinds.includes('hash') && kinds.includes('number')) {
+        errors.push({
+          severity: 'error',
+          code: 'DPQL-E050',
+          message: `Operator '+' cannot be applied to ${left.words} and ${right.words}: it adds numbers, or a number and a date; joins a string with a string, number, date or boolean; appends to a list; and merges two hashes or two binary values`,
+          line: 1,
+          column: 1,
+          end_line: 1,
+          end_column: text.length + 1,
+        });
+      }
+    }
+    inner.args?.forEach(visit);
+  };
+  visit(root);
+  return errors;
+};
+
+/** What the server publishes for a document's text: its DPQL-E050 errors, as LSP diagnostics. */
+export const mockPublishedDiagnostics = (text: string, fields: TDpqlMockFields = {}) => {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  try {
+    const root = parseTokens(tokenize(trimmed), trimmed.length + 1);
+    return mockOperandCombinationErrors(root, fields, trimmed).map((error) => ({
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: trimmed.length },
+      },
+      severity: 1,
+      code: error.code,
+      source: 'dpql',
+      message: error.message,
+    }));
+  } catch (err) {
+    /* Text it cannot read is published as the server publishes it, where it is (Qorus `publishDiagnostics` runs
+       `dpql-parse` and sends what it says): the stand-in published nothing, so a story's editor said nothing of
+       `pos + 1 + $pos`, which the server refuses (qorus#646, David's review). */
+    const lead = text.length - text.trimStart().length;
+    return syntaxErrorsOf(err).map((error) => ({
+      range: {
+        start: { line: 0, character: lead + error.column - 1 },
+        end: { line: 0, character: lead + error.endColumn - 1 },
+      },
+      severity: 1,
+      code: error.code,
+      source: 'dpql',
+      message: error.message,
+    }));
+  }
+};
+
+/** `dpql/parse`: the AST for `text`, or the diagnostic the server reports. */
+export const mockParseDpql = (
+  text: string,
+  target?: string,
+  condition?: boolean,
+  fields?: TDpqlMockFields
+): IDpqlMockParseResult => {
   const trimmed = text.trim();
   try {
     const tokens = tokenize(trimmed);
     const node = parseTokens(tokens, trimmed.length + 1);
+    // operands the operator cannot combine: refused, as the server refuses them (no expression)
+    const combination = mockOperandCombinationErrors(node, fields, trimmed);
+    if (combination.length) {
+      return { success: false, diagnostics: combination } as IDpqlMockParseResult;
+    }
     // A lone value is wrapped in `value(...)`, which is how the server tells a
-    // literal apart from an expression.
-    const root: IDpqlMockNode = node.exp ? node : { exp: 'value', args: [node] };
+    // literal apart from an expression; a lone template reference in `template(...)`,
+    // as the server's parser wraps one (Qore DpqlParser: DP_EXPR_TEMPLATE).
+    const isTemplate = tokens.length === 1 && tokens[0].kind === 'template';
+    const root: IDpqlMockNode =
+      node.exp ? node
+      : isTemplate ? { exp: 'template', args: [node] }
+      : { exp: 'value', args: [node] };
     const inferred = inferDpqlMockType(root);
     return {
       success: true,
       expression: { is_expression: true, value: root },
-      ...(target ? analyse(trimmed, inferred, target) : { inferred_type: inferred, diagnostics: [] }),
+      /* a condition's whole is typed by the record's fields, as its parts are and as the server types it: a
+         field's sum is judged as the number it gives, not left unknown */
+      ...(condition ? readAsCondition(trimmed, fields ? inferWithFields(root, fields) : inferred, root, fields)
+      : target ? analyse(trimmed, inferred, target)
+      : { inferred_type: inferred, diagnostics: [] }),
     } as IDpqlMockParseResult;
   } catch (err) {
-    const column = err instanceof DpqlMockSyntaxError ? err.column : 1;
+    const said = syntaxErrorsOf(err);
     return {
       success: false,
-      diagnostics: [
-        {
-          severity: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          code: 'DPQL-E001',
-          line: 1,
-          column,
-          end_line: 1,
-          end_column: column,
-        },
-      ],
+      diagnostics:
+        said.length ?
+          said.map((error) => ({
+            severity: 'error',
+            message: error.message,
+            code: error.code,
+            line: 1,
+            column: error.column,
+            end_line: 1,
+            end_column: error.endColumn,
+          }))
+        : [
+            {
+              severity: 'error',
+              message: err instanceof Error ? err.message : String(err),
+              code: 'DPQL-E001',
+              line: 1,
+              column: 1,
+              end_line: 1,
+              end_column: 1,
+            },
+          ],
     };
   }
 };
@@ -426,14 +978,20 @@ const TEMPLATE_TOKEN = /^\$[A-Za-z_-][\w-]*:[\w.{}]+$/;
 const argumentValue = (arg: IDpqlMockNode | undefined): unknown =>
   arg && !arg.exp && !arg.is_expression ? arg.value : arg;
 
-const printLiteral = (value: unknown, readable: boolean): string => {
+/** `readable`: a rendering, which keeps a reference as its template (a chip); else DPQL, as `dpql/serialize` writes it. */
+const printLiteral = (value: unknown, readable = true): string => {
   if (value && typeof value === 'object' && 'raw' in value) {
     return String((value as { raw?: string }).raw);
   }
+  // a record field is the field reference the server reads it as: @pos, @"create.order-id", @orders[*].id
+  const reference = readable ? undefined : recordReferenceDpql(value);
+  if (reference !== undefined) {
+    return reference;
+  }
   if (typeof value === 'string') {
-    // Serialized DPQL keeps a string a string; a readable rendering shows a
-    // reference the string holds as the reference, which the server's does too.
-    return readable && TEMPLATE_TOKEN.test(value) ? value : JSON.stringify(value);
+    // A value that is one template is the template, as the UI form evaluates it and as the server serializes
+    // it (qorus#646); any other string is a string.
+    return TEMPLATE_TOKEN.test(value) ? value : JSON.stringify(value);
   }
   return value === null || value === undefined ? 'null' : String(value);
 };
@@ -461,7 +1019,7 @@ const renderTemplate = (info: IExpressionSchema, args: IDpqlMockNode[]): string 
     if (n < args.length) return printArg(args[n], Infinity, true);
     // A missing argument reads as its default, or as nothing.
     const fallback = info.args?.[n]?.default_value;
-    return fallback === undefined ? '' : printLiteral(fallback, true);
+    return fallback === undefined ? '' : printLiteral(fallback);
   };
   return info
     .render_template!.split('$symbol')
@@ -505,7 +1063,9 @@ const renderNode = (args: IDpqlMockNode[], name: string): string | undefined => 
 const printNode = (node: IDpqlMockNode, readable: boolean): string => {
   const args = node.args ?? [];
   const name = node.exp ?? '';
-  if (name === 'value' && args.length === 1) return printArg(args[0], 0, readable);
+  // a lone value, or a lone template as the server parses one written alone: written as the value (`@pos`)
+  if ((name === 'value' || name === 'template') && args.length === 1)
+    return printArg(args[0], 0, readable);
   const rendered = readable ? renderNode(args, name) : undefined;
   if (rendered !== undefined) return rendered;
   const precedence = BINARY_PRECEDENCE[name];
@@ -551,6 +1111,55 @@ export const dpqlMockRichtext = (text: string) => {
   }
   if (last < text.length || !children.length) children.push({ text: text.slice(last) });
   return { type: 'richtext', value: [{ type: 'paragraph', children }] };
+};
+
+/**
+ * The type an expression gives, by the server's rules (`QorusExpressionHandler::inferArgType`) as far as the
+ * stories' catalogue can tell them: a conversion its type, a comparison or a logical operator true or false,
+ * arithmetic by its operands, and an operation of the catalogue its declared result (or its first operand's,
+ * where the catalogue says so). `auto` where the type is known only when the expression is evaluated.
+ */
+const inferDpqlMockExpressionType = (node: IDpqlMockNode): string => {
+  if (!node.exp) {
+    return node.type ?? 'auto';
+  }
+  if (node.exp === 'value') return 'auto';
+  if (RETURN_TYPES[node.exp]) return RETURN_TYPES[node.exp];
+  if (['==', '!=', '<', '>', '<=', '>=', '&&', '||', '!'].includes(node.exp)) return 'bool';
+  const operands = (node.args ?? []).map((arg) => inferDpqlMockExpressionType(nodeOf(arg)));
+  if (['+', '-', '*', '/'].includes(node.exp)) {
+    if (operands.includes('auto')) return 'auto';
+    if (node.exp === '+' && operands.includes('string')) return 'string';
+    return operands.includes('float') ? 'float' : 'int';
+  }
+  const info = CATALOGUE.get(node.exp) as (IExpressionSchema & { return_type_first_arg?: boolean }) | undefined;
+  if (info?.return_type_first_arg) {
+    return operands[0] ?? 'auto';
+  }
+  const declared = info?.return_type;
+  return !declared || declared === 'any' ? 'auto' : declared;
+};
+
+/** A type's name as the UI names it (`SystemRestClassV8::getUiType`): text is richtext, a number a number. */
+const UI_TYPES: Record<string, string> = {
+  string: 'richtext',
+  int: 'number',
+  integer: 'number',
+  float: 'number',
+  boolean: 'bool',
+  auto: 'any',
+  nothing: 'any',
+};
+
+const uiTypeOf = (type: string): string => {
+  const base = type.replace(/^\*/, '').replace(/^soft/, '');
+  return UI_TYPES[base] ?? base.replace(/<.*>$/, '');
+};
+
+/** `dpql/expressionType`: the type an expression in the UI form gives (`getExpressionTypeInfo`). */
+export const mockExpressionTypeDpql = (expression: IDpqlMockNode | undefined) => {
+  const inferred = inferDpqlMockExpressionType(rootOf(expression));
+  return { inferred_type: inferred, ui_type: uiTypeOf(inferred), known: inferred !== 'auto' };
 };
 
 /** `dpql/serialize`: DPQL text that parses back to the same expression. */

@@ -51,7 +51,7 @@ describe('a trigger typed before the session is ready', () => {
 
     hook.rerender({ isReady: true });
     await act(() => vi.advanceTimersByTimeAsync(1000));
-    expect(getCompletions).toHaveBeenCalledWith('$', 1);
+    expect(getCompletions).toHaveBeenCalledWith('$', 1, '$');
   });
 
   it('asks for what the editor holds when the session is ready, not what it held then', async () => {
@@ -65,7 +65,7 @@ describe('a trigger typed before the session is ready', () => {
     hook.rerender({ isReady: true });
     await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(getCompletions).toHaveBeenCalledTimes(1);
-    expect(getCompletions).toHaveBeenCalledWith('$da', 3);
+    expect(getCompletions).toHaveBeenCalledWith('$da', 3, '$da');
   });
 
   it('asks nothing for a caret moved before the session is ready', async () => {
@@ -84,6 +84,6 @@ describe('a trigger typed before the session is ready', () => {
     act(() => hook.result.current.onSlateChange(editor, (editor as any).children));
     await act(() => vi.advanceTimersByTimeAsync(1000));
     expect(getCompletions).toHaveBeenCalledTimes(1);
-    expect(getCompletions).toHaveBeenCalledWith('@', 1);
+    expect(getCompletions).toHaveBeenCalledWith('@', 1, '@');
   });
 });

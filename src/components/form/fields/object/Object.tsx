@@ -130,6 +130,8 @@ export const ReqraftObjectFormField = memo(
     resultDataType = dataType,
     editorProps,
     textareaProps,
+    // the field's own, for its buttons and editors; ReqoreTabs does not take it
+    disabled,
     ...rest
   }: IReqraftObjectFormFieldProps) => {
     const handleTreeDataChange = useCallback(
@@ -209,7 +211,7 @@ export const ReqraftObjectFormField = memo(
               onClick={() => handleTreeDataChange(type === 'array' ? [] : {})}
               fixed
               icon='AddLine'
-              disabled={rest.disabled}
+              disabled={disabled}
               size={rest.size}
             >
               New {type === 'array' ? 'List' : 'Object'}
@@ -217,7 +219,7 @@ export const ReqraftObjectFormField = memo(
           )}
           {treeData && (
             <ReqoreTree
-              disabled={rest.disabled}
+              disabled={disabled}
               data={treeData}
               onDataChange={handleTreeDataChange}
               editable
@@ -231,7 +233,7 @@ export const ReqraftObjectFormField = memo(
               onClick={() => handleTreeDataChange(undefined)}
               fixed
               icon='CloseLine'
-              disabled={rest.disabled}
+              disabled={disabled}
               size={rest.size}
             >
               Remove
@@ -240,7 +242,7 @@ export const ReqraftObjectFormField = memo(
         </ReqoreTabsContent>
         <ReqoreTabsContent tabId='text'>
           <ReqraftObjectFormFieldTextarea
-            disabled={rest.disabled}
+            disabled={disabled}
             size={rest.size}
             {...textareaProps}
             value={textData}

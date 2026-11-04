@@ -143,7 +143,7 @@ export const barValues = (rows: IVersionRow[]): number[] => {
   return rows.map((r) => (best > 0 && r.conversion ? Math.round((r.conversion / best) * 100) : 0));
 };
 
-/** The verdict's colour: green for a likely winner, amber for likely losers, neutral otherwise. */
+/** The verdict's color: green for a likely winner, amber for likely losers, neutral otherwise. */
 export const verdictIntent = (
   entry: IExperimentEntry | undefined
 ): 'success' | 'warning' | 'info' | 'muted' => {
@@ -168,7 +168,7 @@ export const STATUS_LABEL: Record<TExperimentStatus, string> = {
 
 export type TStatusIntent = 'success' | 'warning' | 'danger' | 'muted';
 
-/** The status tag: its words (with the phase after a removal), its icon and its colour. */
+/** The status tag: its words (with the phase after a removal), its icon and its color. */
 export const statusTag = (
   entry: IExperimentEntry | undefined,
   unreachable = false

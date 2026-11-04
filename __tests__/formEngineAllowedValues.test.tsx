@@ -85,7 +85,8 @@ describe('FormEngine fixed allowed-value fields', () => {
       </ReqoreUIProvider>
     );
 
-    const switchElement = (await screen.findByText('Yes')).closest('[tabindex="0"]');
+    // a native switch since reqore 0.78, drawn and clicked as the track around it
+    const switchElement = (await screen.findByRole('switch')).parentElement;
     expect(switchElement).toBeTruthy();
     expect(container.querySelector('[data-field="enabled"].readfirst-row-editing')).toBeTruthy();
 

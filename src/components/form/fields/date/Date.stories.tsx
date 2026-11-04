@@ -68,6 +68,9 @@ export const Disabled: Story = {
     disabled: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story: 'Renders the Date field with a value but disabled — the input is non-interactive.',

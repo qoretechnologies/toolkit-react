@@ -78,7 +78,7 @@ describe('drawing an argument that is the null literal', () => {
     await settled();
 
     expect(document.body.textContent).not.toContain('Something went wrong');
-    expect(document.body.textContent).toContain('Missing value');
+    expect(document.body.textContent).toContain('Enter a value for');
   });
 });
 

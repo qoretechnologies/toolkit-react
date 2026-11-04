@@ -20,6 +20,7 @@ import {
   useVariantColors,
   useVariantForm,
 } from './variantParts';
+import { markdownToProse } from '../../../../helpers/markdownText';
 
 const Wrap = styled.div<{ $line: string; $hover: string; $muted: string; $faint: string }>`
   display: flex;
@@ -228,7 +229,7 @@ export const VariantCalmTable = ({
                     {r.shortDesc ? <div>{r.shortDesc}</div> : null}
                     {r.longDesc ?
                       <div style={{ opacity: 0.8, marginTop: r.shortDesc ? 4 : 0 }}>
-                        {r.longDesc.replace(/[#`*]/g, '')}
+                        {markdownToProse(r.longDesc)}
                       </div>
                     : null}
                   </div>

@@ -21,12 +21,48 @@ checklist the IDE-integration PR ticks off so that can't happen.
 | **Connection management** (inline create/edit on `connection` fields) | same `componentOverrides` entry for `connection` | The IDE's connection editor (it owns the CRUD/dialog/permissions) | No inline connection actions — **silent** |
 | **App-action badges** (app logos/icons on template dropdown rows) | `buildTemplates` payload (`logo` field flows through to `image:` — templates.ts:192) | Nothing extra — feed templates from `system/getContextData` through `buildTemplates`; logos ride along for free | Templates render without app logos — **silent, cosmetic** |
 | **AI assistance** in the ExpressionBuilder | `ExpressionField` → `extraActions` (panel-action array or `({selectedExpression, value}) => actions`) — forwarded to the builder and into every operand row. *Revised 2026-09-07:* the seam was declared on `ExpressionBuilder` only, but hosts mount the `ExpressionField` shell, and the builder's two operand `TemplateField` mounts did not pass it on — so it was unreachable from the component actually used and lost again inside any operand that was itself an expression. Both hops now forward it ([#116](https://github.com/qoretechnologies/toolkit-react/issues/116)). | The IDE's AI action button | No AI action on any expression card — **silent** (this is exactly what happened when qorus-ide adopted the shell) |
+| **Markdown in descriptions** (field descriptions, the template list, and every description's card: a template chip's, a choice's, a schema section's, a DPQL reference's) | `FormEngine` → `markdownRenderer`; outside a form, `MarkdownRendererContext` (exported from the barrel) around the surface | The IDE's own markdown renderer (`renderIdeMarkdown`), so a description reads as the IDE draws markdown everywhere else | Descriptions and their cards show the markdown as written: `**`, backticks - **silent** |
 | **Server-handled expressions** (server decides field/template acceptance per function) | `ExpressionField` → `serverHandled` + `expressionsUrl` (already plumbed) | The live `expressionsUrl`; set `serverHandled` | Offline catalogue only — **silent, degraded** |
 
 ## Notes
 
 - "Silent" markers are the dangerous ones — they compile clean and only
   surface as a missing feature in the running IDE. Tick each row.
+- What a `componentOverrides` editor is handed: `value`, never its own report coming back as a change
+  (`useHostEditorValue`, `src/components/form/fields/auto/hostEditorValue.ts`). A host editor's last report,
+  or one still on its way back, is handed down as the editor reported it - the same object - with `''` and
+  `undefined` read as one empty value (`null` is a value of its own); anything else is a change from outside
+  and is handed down as it is. Its `onChange` is one function for the life of the field. A host editor that
+  replaces what it holds with any value it is handed that differs - the IDE's rich text does - otherwise lost
+  what was typed after an emptied value came back a second way (qorus#646; story *Components/Form/Auto ›
+  Host Editor Keeps What Is Typed When Its Report Comes Back*).
+- A host's own debounced field tracks its reports as reqraft's fields do: `EmittedValues` / `useEmittedValues`
+  (and the `TEmittedValuesEquals` type) are exported from the package root. `record` each report, ask
+  `isEcho` once where an incoming `value` is committed (an echo is no change; anything else is), `includes`
+  from a render, `settled` for what the parent will hold. Which values are the same is the caller's `equals`
+  (default `Object.is`, under which `''`, `undefined`, `null` and an empty document all differ); the IDE's rich
+  text passes one that reads them as one empty value (qorus-ide f1c58c2d0).
+- A host's own debounced field keeps the edit it has not reported yet for whoever closes its editor:
+  `usePendingEdit(send)` (and the `IPendingEdit` type) is exported from the package root. `hold(value)` where
+  the edit is typed, `release()` where it is reported at once, by the pause or by a clear, and where a value
+  from outside replaces it; `send` is called with what is held, and decides itself whether it is still a
+  change. A read-first row's Done (and closing the row by its label) sends it before the row closes, Cancel
+  and Escape drop it, and any other way out sends it as the field goes away. Without it, a value typed and Done
+  pressed inside the field's pause was lost: the pause's timer died with the field (qorus#646; story
+  _Form/Engine/FormEngine › Done Straight After Typing Keeps The Edit_).
+- A `value` the host changes while the form holds edits of its own is merged with them: a field the form
+  changed and the host did not keeps the form's value, and every other field takes the host's (a field both
+  changed included). A host that switches the form to a DIFFERENT record or object must therefore say so, or
+  an edit to the old record still on its way is merged into the new one: it remounts the form with a React
+  `key` (which also closes its open rows), or passes the record's id as `valueKey`, after which the form
+  takes the new `value` as it is. Before this, a host change landing in the same commit as an edit made the
+  form and the host trade the two values forever (qorus#646; the OPC UA node editor's namespace).
+- `ReferencePicker` says why a kind has no list. `error` (with `onRetry`) is a fetch that failed: a red
+  "Couldn't load <kind>" with a retry, the failure in its tooltip. `unavailable` (a string) is a kind the
+  user may not list - a refused permission, e.g. a missing AI-COLLECTION-READ: one muted item with a lock and
+  the reason as its words (and its accessible name), no danger color, nothing to retry. It wins over
+  `error` and `loading`, and like them it is about the selected `kind`: a host sets it when the kind is
+  selected (qorus#646; story _Components/ReferencePicker › Kind Unavailable_).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in

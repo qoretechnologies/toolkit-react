@@ -14,8 +14,9 @@ import type { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Butt
 import type { IReqoreEntityRowAction } from '@qoretechnologies/reqore/dist/components/EntityRow';
 import type { IReqorePanelBottomAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import type { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import type { TReqoreHexColor } from '@qoretechnologies/reqore/dist/components/Effect';
 import { RADIUS_FROM_SIZE } from '@qoretechnologies/reqore/dist/constants/sizes';
-import { getLuminance, rgba } from 'polished';
+import { getLuminance, mix, rgba } from 'polished';
 import {
   useEffect,
   useLayoutEffect,
@@ -26,6 +27,7 @@ import {
 } from 'react';
 import styled from 'styled-components';
 import { activatesRow } from './anchor';
+import { READABLE_ICON, readableShade, themeSurfaces } from './readable';
 import {
   actionOutcome,
   barValues,
@@ -59,7 +61,7 @@ export interface IExperimentCardProps {
   test?: IExperimentEntry | null;
   /** The card's title. Default: the experiment's name, else its key. */
   name?: string;
-  /** The version this page shows now: its row takes the info colour (and `aria-current`). */
+  /** The version this page shows now: its row takes the info color (and `aria-current`). */
   shown?: string;
   /** The versions the page's code renders (`data-variants`); a server version outside it cannot be shown. */
   codeVariants?: string[];
@@ -99,8 +101,12 @@ export interface IExperimentCardProps {
 
 type TTagIntent = 'success' | 'warning' | 'danger' | 'muted' | 'info';
 
-// Soft tags: an outlined pill over a wash of its colour, readable on dark and light themes.
+// Soft tags: an outlined pill over a wash of its color, readable on dark and light themes.
 const soft = (intent: TTagIntent) => ({ intent, appearance: 'soft' as const });
+
+/** A minimal reqore button is washed with its intent (20% of it over what it is on) and draws its icon at 70%. */
+const MINIMAL_WASH = 0.2;
+const ICON_ALPHA = 0.7;
 
 type THighlight = 'winner' | 'leading' | undefined;
 
@@ -113,13 +119,13 @@ const GLOW_ROOM = 6;
 /**
  * How a version's row stands out, drawn around and over the row without taking the pointer:
  *
- * - the version this page shows: an inset ring and a flat wash in the info colour (the row itself
+ * - the version this page shows: an inset ring and a flat wash in the info color (the row itself
  *   keeps no intent, so its actions stay neutral);
- * - the leading version: a ring and a soft glow in the success colour, and a wash from the left;
+ * - the leading version: a ring and a soft glow in the success color, and a wash from the left;
  * - the winner (a likely-winner verdict or an ended test's winner): the same, clearly stronger.
  *
  * Static (nothing animates, so there is nothing for reduced motion to stop), and in the theme's
- * own intent colours, so it reads on dark and light.
+ * own intent colors, so it reads on dark and light.
  */
 const StyledVersion = styled.div<{
   $highlight: THighlight;
@@ -294,16 +300,27 @@ export const ExperimentCard = ({
     return () => ro.disconnect();
   }, []);
 
-  // Minimal buttons tint their text from the intent, too pale on a light theme: a deeper shade there.
-  const quiet = (intent?: 'success' | 'warning' | 'danger' | 'info') => ({
-    minimal: true,
-    ...(light && intent ?
-      {
-        effect: { color: `${intent}:darken:2` as const, weight: 'thick' as const },
-        iconColor: `${intent}:darken:2` as const,
-      }
-    : {}),
-  });
+  /* Minimal buttons tint their text from the intent, too pale on a light theme: a deeper shade there, as deep as it
+     takes to read on the button's own wash of the intent (qorus#646: "Pause" in warning:darken:2 was 4.1:1) - its
+     icon too, which reqore draws at 70%. */
+  const quiet = (intent?: 'success' | 'warning' | 'danger' | 'info') => {
+    const color = intent && light ? theme.intents?.[intent] : undefined;
+
+    if (!color) {
+      return { minimal: true };
+    }
+
+    const washes = themeSurfaces(theme).map((surface) => mix(MINIMAL_WASH, color, surface));
+
+    return {
+      minimal: true,
+      effect: {
+        color: readableShade(color, washes) as TReqoreHexColor,
+        weight: 'thick' as const,
+      },
+      iconColor: readableShade(color, washes, READABLE_ICON, ICON_ALPHA) as TReqoreHexColor,
+    };
+  };
 
   const act = (action: TExperimentAction, variant?: string) => {
     if (!entry) return;

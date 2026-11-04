@@ -2,7 +2,7 @@ import { ReqoreButton, ReqoreControlGroup, ReqoreModal, ReqoreP } from '@qoretec
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { omit, size } from 'lodash';
 import { memo, useState } from 'react';
-import { getArgumentType } from '../../../../helpers/expressions';
+import { conversionText, getArgumentType } from '../../../../helpers/expressions';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { IExpression, IExpressionSchema } from '../types';
 
@@ -12,6 +12,22 @@ export interface IConfirmMismatchedTypesModalProps extends Omit<IReqoreModalProp
   args: IExpression[];
   onSubmit: (args: IExpression[]) => void;
 }
+
+/**
+ * How wide a type confirmation is: as wide as its title and its three buttons, not reqore's 80% of the screen, which
+ * stretched a few short lines across a wide one (Foxhoundn, qlip #400: "Please make the dialog narrower"). On a
+ * screen narrower than that, the screen's width.
+ */
+export const CONFIRM_DIALOG_WIDTH = 560;
+export const CONFIRM_DIALOG_WIDTH_CSS = `min(${CONFIRM_DIALOG_WIDTH}px, 100vw)`;
+
+/* Its three buttons are its answers: each is always there, by its name, never folded into a menu. The bar's two
+   responsive groups split its width in half, and in a dialog this narrow "Accept all" folded into the "...". */
+const ANSWER = { responsive: false } as const;
+
+/** How many arguments will be transformed, in words: "1 argument will be transformed." */
+export const transformedCountText = (count: number): string =>
+  `${count} ${count === 1 ? 'argument' : 'arguments'} will be transformed.`;
 
 export const ConfirmMismatchedTypesModal = memo(
   ({ args, expression, expressions, onSubmit, ...rest }: IConfirmMismatchedTypesModalProps) => {
@@ -32,19 +48,24 @@ export const ConfirmMismatchedTypesModal = memo(
         intent='warning'
         icon='ErrorWarningLine'
         label='Confirm type selection for mismatched arguments'
+        width={CONFIRM_DIALOG_WIDTH_CSS}
         {...rest}
         customZIndex={1000000}
         bottomActions={[
           {
             position: 'left',
+            ...ANSWER,
             label: 'Discard all',
             icon: 'CloseLine',
+            // it clears every argument's value: a discard (BRAND_DESIGN §7)
+            intent: 'danger',
             onClick: () => {
               onSubmit(args.map(() => ({})));
             },
           },
           {
             position: 'right',
+            ...ANSWER,
             label: 'Accept all',
             icon: 'CheckDoubleLine',
             onClick: () => {
@@ -56,6 +77,7 @@ export const ConfirmMismatchedTypesModal = memo(
           },
           {
             position: 'right',
+            ...ANSWER,
             label: 'Confirm selection',
             icon: 'CheckLine',
             onClick: () => {
@@ -74,15 +96,13 @@ export const ConfirmMismatchedTypesModal = memo(
           },
         ]}
       >
-        <ReqoreControlGroup vertical fluid horizontalAlign='center' gapSize='big'>
-          <ReqoreP style={{ textAlign: 'center' }}>
-            The following arguments have types that do not match the expected types, but can be used
-            and will be transformed.
+        {/* read as a dialog's text is read: from the left, as the arguments listed under it are */}
+        <ReqoreControlGroup vertical fluid gapSize='big'>
+          <ReqoreP>
+            These values have other types than expected. Qorus converts them when it runs.
           </ReqoreP>
-          <ReqoreP style={{ textAlign: 'center' }}>
-            Please deselect the arguments you do not wish to transform:
-          </ReqoreP>
-          <ReqoreControlGroup vertical fluid horizontalAlign='center'>
+          <ReqoreP>Please deselect the arguments you do not wish to transform:</ReqoreP>
+          <ReqoreControlGroup vertical fluid>
             {args.map((arg, index) => (
               <ReqoreButton
                 icon={
@@ -95,10 +115,16 @@ export const ConfirmMismatchedTypesModal = memo(
                 key={index}
                 description={
                   fixedArgs[index].types_mismatch === false
-                    ? `This argument will be transformed from ${types.getTypeDisplayName(getArgumentType(expressions, arg, expression.args[index]))} to ${types.getTypeDisplayName(expression.args[index].ui_type)}`
+                    ? // the types named inside a sentence, by their sentence forms (qorus#646)
+                      conversionText(
+                        types.getTypeSentenceForm(
+                          getArgumentType(expressions, arg, expression.args[index])
+                        ),
+                        types.getTypeSentenceForm(expression.args[index].ui_type)
+                      )
                     : fixedArgs[index].types_mismatch === true
-                      ? 'This argument will be cleared and no transformation will be applied'
-                      : 'This argument requires no transformation'
+                      ? 'Cleared, not converted'
+                      : 'No conversion needed'
                 }
                 disabled={!arg.types_mismatch}
                 onClick={() => handleArgToggle(fixedArgs[index])}
@@ -109,9 +135,8 @@ export const ConfirmMismatchedTypesModal = memo(
               </ReqoreButton>
             ))}
           </ReqoreControlGroup>
-          <ReqoreP style={{ textAlign: 'center' }} size='small' intent='muted'>
-            {size(fixedArgs.filter((a) => a.types_mismatch === false))} argument(s) will be
-            transformed.
+          <ReqoreP size='small' intent='muted'>
+            {transformedCountText(size(fixedArgs.filter((a) => a.types_mismatch === false)))}
           </ReqoreP>
         </ReqoreControlGroup>
       </ReqoreModal>

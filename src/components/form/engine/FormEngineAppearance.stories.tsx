@@ -204,13 +204,13 @@ type Story = StoryObj<typeof meta>;
 const rgbOf = (color: string): number[] =>
   (color.match(/[\d.]+/g) || []).slice(0, 3).map((channel) => Number(channel));
 
-/** Amber: red well above blue (the warning colour), as opposed to a quiet grey. */
+/** Amber: red well above blue (the warning color), as opposed to a quiet gray. */
 const isAmber = (color: string): boolean => {
   const [r, , b] = rgbOf(color);
   return r - b > 60;
 };
 
-/** A grey: no channel more than a few steps from the others. */
+/** A gray: no channel more than a few steps from the others. */
 const isGrey = (color: string): boolean => {
   const [r, g, b] = rgbOf(color);
   return Math.max(r, g, b) - Math.min(r, g, b) <= 8;
@@ -227,7 +227,7 @@ const box = (key: 'attention' | 'set' | 'optional'): HTMLElement | undefined =>
 const row = (field: string): HTMLElement | null =>
   document.querySelector<HTMLElement>(`.readfirst-row[data-field="${field}"]`);
 
-/** The section is a plain panel: a grey surface, a grey edge, and no tint. */
+/** The section is a plain panel: a gray surface, a gray edge, and no tint. */
 const expectCalmSection = (element: HTMLElement | undefined) => {
   expect(element).toBeTruthy();
   const style = getComputedStyle(element!);
@@ -248,7 +248,7 @@ const expectNoUppercase = (selector: string) => {
   }
 };
 
-/** The colour the form sits on: the first ancestor that paints a background. */
+/** The color the form sits on: the first ancestor that paints a background. */
 const hostColour = (element: HTMLElement): number[] => {
   for (let node = element.parentElement; node; node = node.parentElement) {
     const [r, g, b, alpha = 1] = (
@@ -261,9 +261,9 @@ const hostColour = (element: HTMLElement): number[] => {
   return [];
 };
 
-/** The pinned toolbar is glass in its host's own colour, not nothing: rows and a
+/** The pinned toolbar is glass in its host's own color, not nothing: rows and a
  *  box header leaving its box scroll UNDER it rather than through the meter and the
- *  search. Nearly opaque, and the host's colour, so at rest it draws no band. */
+ *  search. Nearly opaque, and the host's color, so at rest it draws no band. */
 const expectToolbarGlassOverHost = () => {
   const toolbar = document
     .querySelector('.options-readfirst-toolbar')!
@@ -311,7 +311,7 @@ export const Calm: Story = {
     docs: {
       description: {
         story:
-          'The default appearance (calm) over the same filled form, with no `appearance` passed: the sections are plain panels on the theme’s panel surface with label/value rows split by hairlines, labels grey, group headings in sentence case, the count a quiet number, no dot on a healthy row, No as a word, and a short meter whose done part is grey.',
+          'The default appearance (calm) over the same filled form, with no `appearance` passed: the sections are plain panels on the theme’s panel surface with label/value rows split by hairlines, labels gray, group headings in sentence case, the count a quiet number, no dot on a healthy row, No as a word, and a short meter whose done part is gray.',
       },
     },
   },
@@ -333,7 +333,7 @@ export const Calm: Story = {
     const second = rows[2];
     expect(Number.parseFloat(getComputedStyle(second).borderTopWidth)).toBe(1);
 
-    // Sentence case everywhere, grey labels.
+    // Sentence case everywhere, gray labels.
     expectNoUppercase('.options-readfirst-group-label');
     expect(document.querySelector('.options-readfirst-group-label')?.textContent).toBe('Info');
     const label = row('display_name')!.querySelector<HTMLElement>('.options-readfirst-label-text')!;
@@ -366,11 +366,11 @@ export const Calm: Story = {
     expect(isGrey(getComputedStyle(note).backgroundColor)).toBe(true);
     expect(isGrey(getComputedStyle(note).borderTopColor)).toBe(true);
 
-    // Yes/No is a word, not a coloured chip.
+    // Yes/No is a word, not a colored chip.
     expect(row('remote')!.textContent).toContain('No');
     expect(row('remote')!.querySelector('.reqore-tag')).toBeNull();
 
-    // The readiness line: the word in the text colour, the meter's done part grey.
+    // The readiness line: the word in the text color, the meter's done part gray.
     const status = document.querySelector<HTMLElement>('.options-readfirst-status')!;
     expect(status.textContent).toBe('Ready');
     expect(isGrey(getComputedStyle(status).color)).toBe(true);
@@ -394,7 +394,7 @@ export const CalmNeedsAttention: Story = {
     docs: {
       description: {
         story:
-          'A form after a submit attempt (`revealRequired`) in the calm look: the Needs attention section carries one amber dot and a word, each empty required field says **Required · add a value** in amber where its value would be (no red asterisk, no red message), and only the outstanding part of the meter is coloured. Opening a required field shows the same words under the editor as plain amber text.',
+          'A form after a submit attempt (`revealRequired`) in the calm look: the Needs attention section carries one amber dot and a word, each empty required field says **Required · add a value** in amber where its value would be (no red asterisk, no red message), and only the outstanding part of the meter is colored. Opening a required field shows the same words under the editor as plain amber text.',
       },
     },
   },
@@ -420,7 +420,7 @@ export const CalmNeedsAttention: Story = {
     // The amber word is the row's one signal: no dot beside it.
     expectNoDot('display_name');
 
-    // Only the outstanding part of the readiness line is coloured.
+    // Only the outstanding part of the readiness line is colored.
     const status = document.querySelector<HTMLElement>('.options-readfirst-status')!;
     expect(status.textContent).toBe('Incomplete');
     expect(isGrey(getComputedStyle(status).color)).toBe(true);
@@ -491,7 +491,7 @@ export const CalmNewForm: Story = {
     docs: {
       description: {
         story:
-          'A brand-new form in the calm look. A new form is not already wrong: its required fields are still to fill in, so the first section reads **To fill in** with no amber dot, each empty required field says **Required · add a value** in the quiet colour (under its editor too, while it is open for typing), and the readiness line says "3 to fill in". Opening a required field and leaving it empty makes it a fault: the section becomes **Needs attention**, with its amber dot, that field\'s words turn amber, and the readiness line says "1 need attention · 2 to fill in".',
+          'A brand-new form in the calm look. A new form is not already wrong: its required fields are still to fill in, so the first section reads **To fill in** with no amber dot, each empty required field says **Required · add a value** in the quiet color (under its editor too, while it is open for typing), and the readiness line says "3 to fill in". Opening a required field and leaving it empty makes it a fault: the section becomes **Needs attention**, with its amber dot, that field\'s words turn amber, and the readiness line says "1 need attention · 2 to fill in".',
       },
     },
   },
@@ -509,7 +509,7 @@ export const CalmNewForm: Story = {
     expect(isAmber(getComputedStyle(link).color)).toBe(false);
 
     // Open Name: an open field is not yet a left one, so the line under its editor
-    // says what it needs in the quiet colour (a host that opens the first empty field
+    // says what it needs in the quiet color (a host that opens the first empty field
     // on a new form must not show it as already wrong).
     await _testsClickText('Name');
     const openMessage = await waitFor(() => {
@@ -597,7 +597,7 @@ export const CalmOnAPanelSurface: Story = {
     docs: {
       description: {
         story:
-          'The calm form inside a host painted in the panel surface, as an IDE drawer is. The pinned toolbar’s glass takes the colour of whatever the form sits on, so it draws no band across the drawer at rest.',
+          'The calm form inside a host painted in the panel surface, as an IDE drawer is. The pinned toolbar’s glass takes the color of whatever the form sits on, so it draws no band across the drawer at rest.',
       },
     },
   },
@@ -605,7 +605,7 @@ export const CalmOnAPanelSurface: Story = {
   play: async () => {
     await _testsWaitForText('Supplier Payment Release');
     const host = document.querySelector<HTMLElement>('.panel-surface-host')!;
-    // The host really is another colour than what is around it…
+    // The host really is another color than what is around it…
     expect(hostColour(host)).not.toEqual(hostColour(host.firstElementChild as HTMLElement));
     // …and the toolbar follows the host, not the page.
     expectToolbarGlassOverHost();

@@ -13,6 +13,7 @@ import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import React, { memo } from 'react';
 import styled, { css } from 'styled-components';
 import { useContext } from 'use-context-selector';
+import { getCompactToolbarInks } from './compactToolbarColors';
 import { CompactToolbarContext, TCompactSort } from './compactToolbarContext';
 import { getCalmAttentionColours, useIsCalmForm } from './formAppearance';
 
@@ -191,6 +192,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const cSuccess = intents.success || '#4a7110';
   const { fault: cWarning, pending: cQuiet } = getCalmAttentionColours(theme);
   const cText = (theme.text?.color as string) || '#e8e8e8';
+  // the summary's words in shades that read (the meter keeps the intents themselves)
+  const inks = React.useMemo(() => getCompactToolbarInks(theme), [theme]);
   const cTrack = `${cText}1f`;
   // Calm: what is done is grey — finished work needs nobody — and only the
   // outstanding part (the amber run, the "need attention" link) is coloured.
@@ -228,9 +231,9 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               // by the link beside it — only the outstanding part is coloured.
               $color={
                 calm ? cText
-                : invalidCount || attentionFaultCount ? cWarning
+                : invalidCount || attentionFaultCount ? inks.warning
                 : attentionCount ? cText
-                : cSuccess
+                : inks.success
               }
               style={{ fontWeight: 600 }}
             >
@@ -245,7 +248,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   batched mode's per-row chip alone. */}
               {invalidCount || attentionCount ? 'Incomplete' : 'Ready'}
             </StyledSummary>
-            <StyledSummary style={calm ? { color: cQuiet } : { opacity: 0.5 }}>
+            <StyledSummary style={calm ? { color: cQuiet } : { opacity: inks.countOpacity }}>
               · {completion.set}/{completion.total} set
               {attentionCount ? ' ·' : ''}
             </StyledSummary>
@@ -253,7 +256,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 fill in, which is the next step, not a warning: they are counted apart,
                 in the quiet colour. */}
             {attentionFaultCount ?
-              <StyledAttentionLink $color={cWarning} {...attentionToggleProps}>
+              <StyledAttentionLink $color={calm ? cWarning : inks.warning} {...attentionToggleProps}>
                 {attentionFaultCount} need attention →
               </StyledAttentionLink>
             : null}

@@ -14,6 +14,7 @@ import { RowMenuContext } from '../src/components/form/engine/rowMenuContext';
 import {
   TemplateField,
   ITemplateFieldProps,
+  NO_TEMPLATES_ON_OFFER,
 } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
@@ -84,5 +85,33 @@ describe("what a field publishes into its row's menu", () => {
     await waitFor(() => expect(labels()).toContain('Use Custom Value'));
     // One menu per control: the row already draws a ⋮.
     expect(container.querySelector('.template-more')).toBeNull();
+  });
+});
+
+describe('a field that takes templates where none is on offer', () => {
+  it('shows the way in, not to be taken, and says why', async () => {
+    // a context whose catalogue has none: "Use Template" led to an empty, disabled list (qorus#646)
+    fieldInARow({ value: 'already typed', templates: { items: [] } as never });
+
+    await waitFor(() => expect(labels()).toContain('Use Template'));
+    const item = Object.values(published)
+      .flat()
+      .find(
+        (entry) => (entry as { label?: unknown }).label === 'Use Template'
+      ) as IReqoreDropdownItem;
+    expect(item.disabled).toBe(true);
+    expect(item.description).toBe(NO_TEMPLATES_ON_OFFER);
+  });
+
+  it('takes the way in where one is on offer', async () => {
+    fieldInARow({ value: 'already typed' });
+
+    await waitFor(() => expect(labels()).toContain('Use Template'));
+    const item = Object.values(published)
+      .flat()
+      .find(
+        (entry) => (entry as { label?: unknown }).label === 'Use Template'
+      ) as IReqoreDropdownItem;
+    expect(item.disabled).toBeFalsy();
   });
 });

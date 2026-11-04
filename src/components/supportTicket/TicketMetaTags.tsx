@@ -24,7 +24,7 @@ export interface ITicketMetaTagsProps {
   size?: TSizes;
   /** Hide the category tag (e.g. in a dense list row). */
   hideCategory?: boolean;
-  /** Reqore's subtle tag style — the intent colour as text on a faint wash,
+  /** Reqore's subtle tag style — the intent color as text on a faint wash,
    *  instead of a solid intent fill. Defaults to `true`; pass `false` for the
    *  old solid chips. */
   minimal?: boolean;

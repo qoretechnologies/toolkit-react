@@ -11,11 +11,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const editor = vi.hoisted(() => ({ props: undefined as Record<string, any> | undefined }));
 
-// Forwards a ref as the real editor does; the field hands it one.
+/* A ref-taking component, as the real one is: the field hands it a ref for its completion list. */
 vi.mock('@qoretechnologies/reqore/dist/components/RichTextEditor', async () => {
   const { forwardRef } = await import('react');
   return {
-    ReqoreRichTextEditor: forwardRef((props: Record<string, any>) => {
+    ReqoreRichTextEditor: forwardRef((props: Record<string, any>, _ref) => {
       editor.props = props;
       return null;
     }),

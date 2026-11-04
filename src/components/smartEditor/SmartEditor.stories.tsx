@@ -12,9 +12,13 @@ import { fn, userEvent, waitFor, within, expect } from 'storybook/test';
 import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';
-import { createMockLspServer, MOCK_LSP_URL } from './__fixtures__/mockLspServer';
+import { createMockLspServer, IMockLspServer, MOCK_LSP_URL } from './__fixtures__/mockLspServer';
 import { SmartEditor } from './SmartEditor';
 import { useLspSession } from './useLspSession';
+import { withCoarsePointer } from '../../stories/coarsePointer';
+import { middleOf, mouseOffThePage, restMouseOn } from '../../stories/mouse';
+import { withTouchScreen } from '../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../stories/tracking';
 
 interface IDemoArgs {
   languageId?: string;
@@ -23,6 +27,7 @@ interface IDemoArgs {
   height?: string;
   readOnly?: boolean;
   initialMetadata?: Record<string, any>;
+  hoverDelayMs?: number;
   onChange?: (v: string) => void;
 }
 
@@ -45,9 +50,28 @@ function SmartEditorPlayground(props: IDemoArgs) {
       triggerCharacters={props.triggerCharacters}
       height={props.height}
       readOnly={props.readOnly}
+      hoverDelayMs={props.hoverDelayMs}
     />
   );
 }
+
+/**
+ * Types `text` after `typed` one key at a time, each once the editor has reported the key before it.
+ *
+ * Slate leaves a single letter or space typed inside a word to the browser and applies it after the input
+ * event (its "native" path). A story's keys are synthetic: user-event edits the page itself, and a letter it
+ * sends while the one before is still pending is lost under load. CI captured `arr.for` as `ar.for`, and a run
+ * at 4x CPU throttling lost a letter in 2 of 12. A real keyboard loses nothing at 8x. Waiting for each key
+ * keeps the order a person's typing has.
+ */
+const typeEachKey = async (onChange: ((value: string) => void) | undefined, typed: string, text: string) => {
+  let value = typed;
+  for (const key of text) {
+    await userEvent.keyboard(key);
+    value += key;
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(value));
+  }
+};
 
 const meta = {
   component: SmartEditorPlayground,
@@ -73,6 +97,9 @@ export const BasicMock: Story = {
     triggerCharacters: new Set([' ', '.']),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -133,6 +160,9 @@ export const WithMarkdownDocs: Story = {
     triggerCharacters: new Set([' ', '.']),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -201,11 +231,11 @@ export const WithMarkdownDocs: Story = {
   // Open the dropdown so the story snapshot is distinct from the other
   // empty-at-rest SmartEditor stories (and to guard the markdown-item
   // render path in CI).
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, 'arr.');
+    await typeEachKey(args.onChange, '', 'arr.');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -220,7 +250,7 @@ export const WithMarkdownDocs: Story = {
     // after the last `.` (`for`), not the whole `arr.for` token —
     // otherwise every suggestion would wrongly disappear. Poll until
     // the list has settled to the narrowed state (`reduce` gone).
-    await userEvent.type(editable, 'for');
+    await typeEachKey(args.onChange, 'arr.', 'for');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -471,5 +501,355 @@ export const LiveQonsole: Story = {
       },
       { timeout: 30000 }
     );
+  },
+};
+
+/** Completions whose rows carry documentation, and a hover for whatever the caret is on: a server that explains. */
+const explainingServer = () =>
+  createMockLspServer(MOCK_LSP_URL, {
+    capabilities: { hoverProvider: true },
+    handlers: {
+      'textDocument/completion': () => ({
+        items: [
+          {
+            label: 'forEach',
+            insertText: 'forEach',
+            kind: 2,
+            documentation: {
+              kind: 'markdown',
+              value: 'Invoke a callback for **each** element in the collection.',
+            },
+          },
+          {
+            label: 'map',
+            insertText: 'map',
+            kind: 2,
+            documentation: {
+              kind: 'markdown',
+              value: 'Project each element through `fn`, returning a new array.',
+            },
+          },
+          { label: 'length', insertText: 'length', kind: 10 },
+        ],
+      }),
+      'textDocument/hover': () => ({
+        contents: { kind: 'markdown', value: '**forEach**: invoke a callback for each element.' },
+      }),
+    },
+  });
+
+const docsToggles = () => Array.from(document.querySelectorAll<HTMLElement>('.completion-docs-toggle'));
+const shownDocs = () => document.querySelector<HTMLElement>('.completion-docs');
+const rowOf = (label: string) =>
+  Array.from(document.querySelectorAll<HTMLElement>('.reqore-menu-item')).find(
+    (row) => row.textContent?.trim().startsWith(label)
+  );
+
+/** The editor's list open after "arr.", its rows listed. */
+const openTheList = async (canvasElement: HTMLElement, onChange: ((value: string) => void) | undefined) => {
+  const editable = within(canvasElement).getByRole('textbox');
+  await userEvent.click(editable);
+  await typeEachKey(onChange, '', 'arr.');
+  await waitFor(() => expect(rowOf('length')).toBeTruthy(), { timeout: 30000 });
+  return editable;
+};
+
+export const CompletionDocsFromItsInfoButton: Story = {
+  args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor with its completion list open after "arr.". The row the keyboard is on (forEach) has an ⓘ, and only that row; clicked, it shows the row\'s documentation under the row, with the focus still in the text, and Enter still takes the row. No Details button: a mouse hovers.',
+      },
+    },
+  },
+  async beforeEach() {
+    const lsp = explainingServer();
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await openTheList(canvasElement, args.onChange);
+    await waitFor(() => expect(docsToggles()).toHaveLength(1));
+    await expect(rowOf('forEach')!.parentElement!.contains(docsToggles()[0])).toBe(true);
+    await userEvent.click(docsToggles()[0]);
+    await waitFor(() => expect(shownDocs()).toHaveTextContent('Invoke a callback for each element'));
+    await expect(shownDocs()!.querySelector('strong')).toHaveTextContent('each');
+    await expect(docsToggles()[0]).toHaveAttribute('aria-expanded', 'true');
+    // the press took neither the focus from the text nor the row
+    await expect(editable.contains(document.activeElement)).toBe(true);
+    await expect(args.onChange).toHaveBeenLastCalledWith('arr.');
+    await expect(canvasElement.querySelector('.smart-editor-details')).toBeNull();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('arr.forEach'));
+  },
+};
+
+export const CompletionDocsFromTheKeyboard: Story = {
+  args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithGroupedKinds`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor with its completion list open after "arr.", the keyboard on map (↓). Ctrl+Space shows map\'s documentation under its row; pressed again it puts it away; Enter takes map.',
+      },
+    },
+  },
+  async beforeEach() {
+    const lsp = explainingServer();
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement, args }) => {
+    await openTheList(canvasElement, args.onChange);
+    await userEvent.keyboard('{ArrowDown}');
+    await userEvent.keyboard('{Control>} {/Control}');
+    await waitFor(() => expect(shownDocs()).toHaveTextContent('Project each element through fn'));
+    await expect(shownDocs()!.querySelector('code')).toHaveTextContent('fn');
+    // the space was the key's, not the text's
+    await expect(args.onChange).toHaveBeenLastCalledWith('arr.');
+    await userEvent.keyboard('{Control>} {/Control}');
+    await waitFor(() => expect(shownDocs()).toBeNull());
+    await userEvent.keyboard('{Control>} {/Control}');
+    await waitFor(() => expect(shownDocs()).toBeTruthy());
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('arr.map'));
+  },
+};
+
+export const CompletionDocsOnATouchScreen: Story = {
+  tags: ['touch'],
+  args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "Renders the SmartEditor on a phone (390 px, touch) with its completion list open after \"arr.\". Every row with documentation has an ⓘ a finger's size (a finger cannot move the keyboard's row); a tap on map's shows its documentation under it, on the screen, and takes nothing.",
+      },
+    },
+  },
+  async beforeEach() {
+    const lsp = explainingServer();
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement, args }) => {
+    await withTouchScreen(async (touch) => {
+      await openTheList(canvasElement, args.onChange);
+      await waitFor(() => expect(docsToggles()).toHaveLength(2));
+      for (const toggle of docsToggles()) {
+        const box = toggle.getBoundingClientRect();
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      }
+      const mapToggle = docsToggles().find((toggle) => toggle.getAttribute('aria-label')?.includes('map'))!;
+      await touch.tap(mapToggle);
+      await waitFor(() => expect(shownDocs()).toHaveTextContent('Project each element through fn'));
+      await expect(args.onChange).toHaveBeenLastCalledWith('arr.');
+      if (touch.narrowed) {
+        const box = shownDocs()!.getBoundingClientRect();
+        await expect(box.left).toBeGreaterThanOrEqual(0);
+        await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+      }
+    });
+  },
+};
+
+/** A server whose hover names the word at the position it is asked about, and says nothing of anything else. */
+const wordNamingServer = () =>
+  createMockLspServer(MOCK_LSP_URL, {
+    capabilities: { hoverProvider: true },
+    handlers: {
+      'textDocument/hover': (msg, lsp) => {
+        const line =
+          lsp.textOf(msg.params?.textDocument?.uri).split('\n')[msg.params?.position?.line ?? 0] ??
+          '';
+        const at = msg.params?.position?.character ?? 0;
+        const word = `${line.slice(0, at).match(/\w*$/)?.[0] ?? ''}${line.slice(at).match(/^\w*/)?.[0] ?? ''}`;
+        return word ?
+            { contents: { kind: 'markdown', value: `**${word}**: the word under the mouse.` } }
+          : null;
+      },
+    },
+  });
+
+/** The hovers shown, as their text. */
+const shownHovers = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content'))
+    .map((popover) => popover.textContent?.trim() ?? '')
+    .filter((text) => text.includes('the word under the mouse'));
+
+export const HoverFollowsTheMouseToTheNextWord: Story = {
+  args: { languageId: 'demo', initialValue: 'forEach map' },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ReadOnly`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor holding "forEach map" and rests the mouse on forEach, then on map: the hover says what the server says of forEach, then of map. A hover replaced by the next one used to take that one with it as it went - closing, it cleared whatever hover was shown - so the mouse resting on the next word showed nothing.',
+      },
+    },
+  },
+  async beforeEach() {
+    const lsp = wordNamingServer();
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    // a hover is asked for once the server is connected and its schema loaded: the overlay goes then
+    await waitFor(
+      () =>
+        expect(canvasElement.textContent).not.toMatch(
+          /Connecting to language server|Loading schema/
+        ),
+      { timeout: 10000 }
+    );
+
+    try {
+      // a mouse: its pointer events say so, as a finger's emulated mouse events do not
+      await restMouseOn(editable, middleOf(editable, 'forEach'));
+      await waitFor(() => expect(shownHovers()).toEqual(['forEach: the word under the mouse.']), {
+        timeout: 10000,
+      });
+
+      await restMouseOn(editable, middleOf(editable, 'map'));
+      await waitFor(() => expect(shownHovers()).toEqual(['map: the word under the mouse.']), {
+        timeout: 10000,
+      });
+    } finally {
+      await mouseOffThePage();
+    }
+  },
+};
+
+/** The server of the story playing now, for its play to read what it was asked. */
+let storyServer: IMockLspServer | undefined;
+
+/** The hovers the editor shows, as their text, each time one is shown. */
+const watchHoverPopovers = () => {
+  const shown: string[] = [];
+  const observer = new MutationObserver((records) =>
+    records.forEach((record) =>
+      record.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) {
+          [node, ...Array.from(node.querySelectorAll<HTMLElement>('.reqore-popover-content'))]
+            .filter((element) => element.matches('.reqore-popover-content'))
+            .forEach((popover) => shown.push(popover.textContent?.trim() ?? ''));
+        }
+      })
+    )
+  );
+  observer.observe(document.body, { childList: true, subtree: true });
+  return { shown, stop: () => observer.disconnect() };
+};
+
+export const HoverDetailsOnATouchScreen: Story = {
+  tags: ['touch'],
+  // a hover is asked for as soon as the pointer rests: one a tap had started is asked for before Details asks,
+  // on the same connection, so it is seen however soon Details is tapped
+  args: {
+    languageId: 'demo',
+    initialValue: '',
+    triggerCharacters: new Set(['.']),
+    hoverDelayMs: 0,
+  },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor on a phone (390 px, touch) with its Details button beside the text, taps the text to put the caret in it and types "forEach". The tap opens no hover - a finger cannot hover. A tap on Details shows what the server says of the word at the caret ("forEach: invoke a callback for each element.") in a card under the button, clear of the text.',
+      },
+    },
+  },
+  async beforeEach() {
+    const lsp = explainingServer();
+    storyServer = lsp;
+    return () => {
+      lsp.close();
+      storyServer = undefined;
+    };
+  },
+  play: async ({ canvasElement, args }) => {
+    const hovers = watchHoverPopovers();
+    const hoversAsked = () =>
+      (storyServer?.received ?? []).filter((message) => message.method === 'textDocument/hover');
+    try {
+      await withTouchScreen(async (touch) => {
+        const editable = within(canvasElement).getByRole('textbox');
+        // connected, its schema loaded: a hover asked for from now on is answered
+        await waitFor(
+          () =>
+            expect(canvasElement.textContent).not.toMatch(
+              /Connecting to language server|Loading schema/
+            ),
+          { timeout: 10000 }
+        );
+        // a finger puts the caret in the editor
+        await touch.tap(editable);
+        await waitFor(() => expect(editable).toHaveFocus());
+        await typeEachKey(args.onChange, '', 'forEach');
+        await userEvent.keyboard('{Escape}');
+        // the button waits for the server's `initialize` (it says whether there is a hover), a round trip.
+        // Each wait here is well inside the test's own 30s: a wait as long as the test is cut off by it,
+        // which says only that the test timed out, never which step it was on (CI, 1c78382b)
+        const details = await waitFor(
+          () => {
+            const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
+            expect(button, 'the Details button').toBeTruthy();
+            return button!;
+          },
+          { timeout: 10000 }
+        );
+        // beside the text, in its row: not under it, far from what it explains
+        const text = editable.getBoundingClientRect();
+        await expect(details.getBoundingClientRect().left).toBeGreaterThanOrEqual(text.right - 1);
+        await expect(details.getBoundingClientRect().top).toBeLessThan(text.bottom);
+        // the tap and the typing asked for no hover, and none was shown
+        await expect(hoversAsked()).toHaveLength(0);
+        await expect(hovers.shown).toEqual([]);
+
+        await touch.tap(details);
+        // the server's hover is a round trip too: as the other stories here, never a short wait
+        const shown = await waitFor(
+          () => {
+            const popover = Array.from(
+              document.querySelectorAll<HTMLElement>('.reqore-popover-content')
+            ).find((each) => each.textContent?.includes('invoke a callback for each element'));
+            expect(popover, 'the hover Details shows').toBeTruthy();
+            return popover!;
+          },
+          { timeout: 10000 }
+        );
+        await expect(shown.querySelector('strong')).toHaveTextContent('forEach');
+        // a card of its own, clear of the text it explains
+        const card = shown.getBoundingClientRect();
+        const covers =
+          card.left < text.right &&
+          card.right > text.left &&
+          card.top < text.bottom &&
+          card.bottom > text.top;
+        await expect(covers).toBe(false);
+        // asked for once, by Details, and shown once
+        await expect(hoversAsked()).toHaveLength(1);
+        await expect(hovers.shown).toHaveLength(1);
+        if (touch.narrowed) {
+          const box = shown.getBoundingClientRect();
+          await expect(box.left).toBeGreaterThanOrEqual(0);
+          await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+        }
+      });
+    } finally {
+      hovers.stop();
+    }
   },
 };

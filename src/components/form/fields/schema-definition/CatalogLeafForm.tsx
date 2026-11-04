@@ -15,6 +15,7 @@ import { ReqoreDescriptionList, ReqoreP, ReqoreTag } from '@qoretechnologies/req
 import { IReqoreDescriptionListRow } from '@qoretechnologies/reqore/dist/components/DescriptionList';
 import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit/dist/types/forms';
 import { memo, useCallback, useMemo } from 'react';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { flattenOptions, FormEngine, IOptionsSchema } from '../../engine/FormEngine';
 import {
   catalogLeafToFieldSchema,
@@ -94,6 +95,8 @@ export const CatalogLeafForm = memo(
   ({ leaves, value, onChange, readOnly, name, nameField }: ICatalogLeafFormProps) => {
     /** Contextual suggestions for reference leaves (e.g. PK / FK columns). */
     const suggestionResolver = useSuggestionResolver();
+    // "No values set", softer: as soft as it still reads (qorus#646)
+    const emptyOpacity = useReadableOpacity(0.55);
 
     /** The catalogue leaf schema, without the synthetic name field. */
     const leafSchema = useMemo(() => leavesToOptionsSchema(leaves), [leaves]);
@@ -214,7 +217,7 @@ export const CatalogLeafForm = memo(
         });
       if (rows.length === 0) {
         return (
-          <ReqoreP size='small' effect={{ opacity: 0.55 }}>
+          <ReqoreP size='small' effect={{ opacity: emptyOpacity }}>
             No values set.
           </ReqoreP>
         );

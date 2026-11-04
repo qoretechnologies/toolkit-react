@@ -1,0 +1,98 @@
+{
+  "description": "A field of a sandboxed user with no context",
+  "response": {
+    "field_context": {
+      "interface_type": "generic",
+      "sandboxed": true,
+      "mode": "read"
+    },
+    "contexts": [
+      {
+        "name": "timestamp",
+        "display_name": "Timestamp",
+        "description": "The current time, midnight, or the current time in a date format",
+        "kind": "values",
+        "sort_priority": 27,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "now|timegm|last_midnight|next_midnight|<date format>",
+        "keys": [
+          {
+            "name": "now",
+            "path": "now",
+            "template": "$timestamp:now",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Now",
+            "type": "date",
+            "description": "The current date and time with microseconds",
+            "base_type": "date"
+          },
+          {
+            "name": "timegm",
+            "path": "timegm",
+            "template": "$timestamp:timegm",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Seconds since the epoch",
+            "type": "int",
+            "description": "The current time as seconds since the epoch (GMT)",
+            "base_type": "int"
+          },
+          {
+            "name": "last_midnight",
+            "path": "last_midnight",
+            "template": "$timestamp:last_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Last midnight",
+            "type": "date",
+            "description": "The last midnight (the start of today)",
+            "base_type": "date"
+          },
+          {
+            "name": "next_midnight",
+            "path": "next_midnight",
+            "template": "$timestamp:next_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Next midnight",
+            "type": "date",
+            "description": "The next midnight (the start of tomorrow)",
+            "base_type": "date"
+          }
+        ]
+      },
+      {
+        "name": "qore-expr",
+        "display_name": "Qore expression",
+        "description": "The value of a Qore expression",
+        "kind": "expression",
+        "sort_priority": 29,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "parse-value",
+        "display_name": "Parsed value",
+        "description": "A Qore value parsed from a string",
+        "kind": "expression",
+        "sort_priority": 31,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<value>}"
+      }
+    ]
+  }
+}

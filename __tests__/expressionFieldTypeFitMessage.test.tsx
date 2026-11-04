@@ -12,19 +12,26 @@
 // Every analysis below is what the Qorus `/lsp` handler returned for the text.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { forwardRef, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 let parseResult: Record<string, unknown> = {};
 let parseCalls = 0;
+/** what each parse asked: the target type, and whether it asked about a condition */
+let parseAsked: { targetType?: string; condition?: boolean }[] = [];
 
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value, onReady }, ref) => {
+    // a session that is up: the field reads and writes its text through it from the start
+    useEffect(() => {
+      onReady?.();
+    }, []);
     useImperativeHandle(
       ref,
       () => ({
-        parse: async () => {
+        parse: async (_text: string, targetType?: string, options?: { condition?: boolean }) => {
           parseCalls++;
+          parseAsked.push({ targetType, condition: options?.condition });
           return parseResult;
         },
       }),
@@ -46,12 +53,33 @@ vi.mock('../src/components/dpqlEditor', () => ({
 
 import { ExpressionField } from '../src/components/form/expressions/ExpressionField';
 import { FetchContext } from '../src/contexts/FetchContext';
-import { emptyFetchContext } from './support/fetchContext';
+import { defaultQorusTypes } from '../src/hooks/useQorusTypes';
+import { emptyFetchContext, okResponse } from './support/fetchContext';
 
-const fetchContext = emptyFetchContext();
+/** What the form's fetches answer: by default nothing (reqraft's own type catalogue is used). */
+let fetchContext = emptyFetchContext();
 
-const analysedAs = (type: string, text: string, analysis: Record<string, unknown>) => {
+/** A server before qorus c6b3fb97c: its type catalogue gives display names (its own: "Hash"), no sentence forms. */
+const olderServer = () => {
+  const context = emptyFetchContext();
+  context.get = vi.fn(async () =>
+    okResponse(
+      defaultQorusTypes.map(({ sentence_form: _sentence, ...type }) =>
+        type.name === 'hash' ? { ...type, display_name: 'Hash' } : type
+      ) as never
+    )
+  );
+  return context;
+};
+
+const analysedAs = (
+  type: string,
+  text: string,
+  analysis: Record<string, unknown>,
+  condition?: boolean
+) => {
   parseCalls = 0;
+  parseAsked = [];
   parseResult = {
     success: true,
     expression: { is_expression: true, value: { exp: '+', args: [] } },
@@ -67,6 +95,7 @@ const analysedAs = (type: string, text: string, analysis: Record<string, unknown
             value={value}
             onChange={(v) => setValue(v)}
             type={type}
+            condition={condition}
             defaultMode='text'
             expressions={[]}
           />
@@ -77,7 +106,8 @@ const analysedAs = (type: string, text: string, analysis: Record<string, unknown
   const view = render(<Harness />);
   return {
     ...view,
-    type: async () => fireEvent.change(await screen.findByTestId('fake-dpql'), { target: { value: text } }),
+    type: async () =>
+      fireEvent.change(await screen.findByTestId('fake-dpql'), { target: { value: text } }),
   };
 };
 
@@ -123,7 +153,9 @@ describe('the type-fit message', () => {
     });
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain('This may not fit'), { timeout: 5000 });
+    await waitFor(() => expect(container.textContent).toContain('This may not fit'), {
+      timeout: 5000,
+    });
     expect(container.textContent).not.toContain('This does not fit');
     expect(container.querySelector('[data-testid="expression-type-fix"]')?.textContent).toContain(
       'toInt("a" + 1)'
@@ -131,6 +163,144 @@ describe('the type-fit message', () => {
   });
 
   it('reports a result that cannot become the field type at all', async () => {
+    const { container, type } = analysedAs('hash', '1 + 2', {
+      inferred_type: 'int',
+      target_type: 'hash',
+      type_compatible: false,
+      auto_coercible: false,
+      coercion_may_fail: false,
+    });
+    await type();
+
+    await waitFor(() => expect(container.textContent).toContain('This does not fit'), {
+      timeout: 5000,
+    });
+    // the types inside the sentence by their sentence forms (qorus#646, the server's catalogue)
+    expect(container.textContent).toContain(
+      'The expression gives a whole number, and this field takes key-value pairs (a hash).'
+    );
+    expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+  });
+
+  it('says what a server with no sentence forms calls each type, with no article built from it', async () => {
+    fetchContext = olderServer();
+    try {
+      const { container, type } = analysedAs('hash', '1 + 2', {
+        inferred_type: 'int',
+        target_type: 'hash',
+        type_compatible: false,
+        auto_coercible: false,
+        coercion_may_fail: false,
+      });
+      await type();
+      await waitFor(
+        () =>
+          expect(container.textContent).toContain(
+            'The expression gives a value of type Whole number, and this field takes a value of type Hash.'
+          ),
+        { timeout: 5000 }
+      );
+    } finally {
+      fetchContext = emptyFetchContext();
+    }
+  });
+
+  /* A condition (a field its host marks as one) is not a type to fit (qorus#646): the server reads it as
+     true unless its value is zero or empty. The field asks how the server reads it (`condition: true`, no
+     target type) and says what it answers, in the server's words when it gave them; a server that does
+     not know the question answers with the inferred type alone, which is read the same way. */
+  it('asks the server how it reads a condition, not whether it fits bool', async () => {
+    const { type } = analysedAs('bool', '1 + 2', { inferred_type: 'int' }, true);
+    await type();
+    await settle();
+    expect(parseAsked).toEqual([{ targetType: 'bool', condition: true }]);
+  });
+
+  it('says of a condition that gives a number what the server says of it', async () => {
+    const { container, type } = analysedAs(
+      'bool',
+      '1 + 2',
+      {
+        inferred_type: 'int',
+        target_type: 'bool',
+        condition_reading: 'truthiness',
+        type_compatible: false,
+        auto_coercible: true,
+        coercion_may_fail: true,
+        diagnostics: [
+          { code: 'CONDITION_BY_TRUTHINESS', message: 'Wahr, solange der Wert nicht null ist.' },
+        ],
+      },
+      true
+    );
+    await type();
+
+    await waitFor(
+      () => expect(container.textContent).toContain('Wahr, solange der Wert nicht null ist.'),
+      {
+        timeout: 5000,
+      }
+    );
+    expect(container.textContent).not.toContain('This may not fit');
+    expect(container.textContent).not.toContain('This does not fit');
+  });
+
+  it('refuses a condition that gives text, and says to compare it explicitly', async () => {
+    const { container, type } = analysedAs(
+      'bool',
+      '"a" + 1',
+      {
+        inferred_type: 'string',
+        target_type: 'bool',
+        condition_reading: 'not_a_condition',
+        type_compatible: false,
+        auto_coercible: false,
+        coercion_may_fail: false,
+        diagnostics: [],
+      },
+      true
+    );
+    await type();
+
+    await waitFor(
+      () =>
+        expect(container.textContent).toContain(
+          'The condition evaluates to text, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+        ),
+      {
+        timeout: 5000,
+      }
+    );
+    expect(container.textContent).not.toContain('This does not fit');
+  });
+
+  it('reads the inferred type as a condition when the server does not know the question', async () => {
+    const { container, type } = analysedAs('bool', '1 + 2', { inferred_type: 'int' }, true);
+    await type();
+
+    await waitFor(
+      () =>
+        expect(container.textContent).toContain(
+          'The condition evaluates to a whole number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+        ),
+      { timeout: 5000 }
+    );
+  });
+
+  it('says nothing of a condition that gives true or false', async () => {
+    const { container, type } = analysedAs(
+      'bool',
+      '1 < 2',
+      { inferred_type: 'bool', condition_reading: 'condition', type_compatible: true },
+      true
+    );
+    await type();
+    await settle();
+    expect(container.textContent).not.toContain('Qorus treats it as true');
+    expect(container.textContent).not.toContain('it must evaluate to true or false');
+  });
+
+  it('keeps the type check of a bool value that is not a condition', async () => {
     const { container, type } = analysedAs('bool', '1 + 2', {
       inferred_type: 'int',
       target_type: 'bool',
@@ -140,9 +310,10 @@ describe('the type-fit message', () => {
     });
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
-    expect(container.textContent).toContain('The expression returns int, and this field holds bool.');
-    expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+    await waitFor(() => expect(container.textContent).toContain('This does not fit'), {
+      timeout: 5000,
+    });
+    expect(parseAsked).toEqual([{ targetType: 'bool', condition: undefined }]);
   });
 
   it('says nothing when the result already fits', async () => {

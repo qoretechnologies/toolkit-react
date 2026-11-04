@@ -146,26 +146,49 @@ captured `**/list**\n\nList resources`). Currently nothing happens on
 hover.
 
 **Fix.** New helper `useLspHover(session, converter, editorRef)` that:
-- Listens for `mousemove` on the editor's contenteditable element
-- Debounces to 300ms idle
+- Listens for `pointermove` / `pointerleave` on the editor's contenteditable
+  element, and acts only for a pointer that hovers (`isHoveringPointer`,
+  `src/helpers/hoveringPointer.ts`: a mouse, or a pen held above the screen).
+  Not `mousemove`: a tap is followed by mouse events the browser emulates,
+  and they opened the hover where a finger had put the caret. A finger gets
+  the hover from the **Details** button under the editor (`showAtCaret`,
+  shown on a coarse pointer when the server has `hoverProvider`). The
+  check is per event, not per device, so a touch laptop's mouse hovers.
+- Debounces to 300ms idle (`hoverDelayMs` prop)
 - Converts mouse position → Slate point → LSP position
 - Calls `session.client.getHover(line, character)`
 - Renders a small `ReqorePopover` with the markdown content next to
-  the cursor
+  the cursor. Each hover shown has an id (`hoverId`); its popover is keyed
+  by it and dismisses that hover only (`clearHover(hoverId)`), so a popover
+  replaced by the next hover - which says it closed as it unmounts - does
+  not take the next one with it.
 
-**Surface area.** New `src/components/smartEditor/useLspHover.ts`
-(~80 lines), small wire-in inside `SmartEditor.tsx`. Opt-in via
-`enableHover?: boolean` prop (default `true`).
+**Surface area.** `src/components/smartEditor/useLspHover.ts`, a small
+wire-in inside `SmartEditor.tsx`. Opt-in via `enableHover?: boolean` prop
+(default `true`); `hoverDelayMs?: number` (default 300).
 
-**Tests.** Unit test of the position-mapping math. No play test —
-hover behaviour is hard to drive in jsdom and Playwright reliably.
+**Tests.** Unit tests of the position-mapping math
+(`__tests__/smartEditor/hover.test.ts`), the pointer filter
+(`hoverIsAMouses`, `hoveringPointer`) and the dismissal by id
+(`hoverDismissedAlone`). Stories: *Hover Follows The Mouse To The Next
+Word* (the browser's own mouse) and *Hover Details On A Touch Screen* (a
+finger: the tap that focuses the editor asks for no hover; Details shows
+it).
 
 ### 6. `dpql/toRichtext` opt-in for accurate plain-text → Slate parsing
 
 **Problem.** Our `plainTextToSlate` in `dpqlEditor/dpqlHelpers.ts` is a
-client-side regex. It handles `$prefix:value` and `@field` but misses
-nested expressions, function calls with templates inside, and quoted
-edge cases. The server's `dpql/toRichtext` does this correctly.
+client-side reader. It finds the references the server's DPQL tokenizer
+reads, as it reads them (qorus#646): `$prefix:value`, `$prefix:{value}`
+(ending where the tokenizer's does: a backslash escapes the next character,
+braces nest, a string inside is read whole), `@field` and the quoted
+`@"field"` the server writes for a name DPQL does not read bare (its chip
+labeled with the name, unescaped). A field's chip takes the accessors after
+it, as the server writes a reference with a selector back: `.name`, `[n]`,
+`[*]`, `{*}` and `{"key"}` (`@create.items[*].id` is one chip,
+`create.items[*].id`, written back exactly). A field inside a string literal is
+text; a template in one is still drawn as its chip. It does not parse the
+expression around them. The server's `dpql/toRichtext` does that.
 
 **Fix.** Add an opt-in `useServerParse?: boolean` prop on
 `DpqlEditor`. When true:

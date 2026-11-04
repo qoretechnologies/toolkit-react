@@ -7,9 +7,12 @@ import {
   getTagLabel,
   isTagCompletion,
   plainTextToSlate,
+  richtextResponseToSlate,
   slateSelectionToOffset,
   slateToPlainText,
+  withTextAroundTags,
 } from '../../src/components/dpqlEditor/dpqlHelpers';
+import { ISlateElement } from '../../src/components/smartEditor/types';
 
 describe('dpqlEditor helpers', () => {
   describe('plainTextToSlate', () => {
@@ -29,21 +32,22 @@ describe('dpqlEditor helpers', () => {
       const result = plainTextToSlate('@name == "Alice"');
       expect(result).toHaveLength(1);
       const children = result[0].children;
-      expect(children).toHaveLength(2);
-      expect(children[0]).toMatchObject({
+      expect(children).toHaveLength(3);
+      expect(children[0]).toEqual({ text: '' });
+      expect(children[1]).toMatchObject({
         type: 'tag',
         value: '@name',
         label: 'name',
       });
-      expect(children[1]).toMatchObject({ text: ' == "Alice"' });
+      expect(children[2]).toMatchObject({ text: ' == "Alice"' });
     });
 
     it('converts $prefix:{value} to a tag element', () => {
       const result = plainTextToSlate('$data:{1.field}');
       expect(result).toHaveLength(1);
       const children = result[0].children;
-      expect(children).toHaveLength(1);
-      expect(children[0]).toMatchObject({
+      expect(children).toHaveLength(3);
+      expect(children[1]).toMatchObject({
         type: 'tag',
         value: '$data:{1.field}',
         label: 'data: 1.field',
@@ -53,7 +57,7 @@ describe('dpqlEditor helpers', () => {
     it('converts $prefix:value (no braces) to a tag element', () => {
       const result = plainTextToSlate('$local:input');
       expect(result).toHaveLength(1);
-      expect(result[0].children[0]).toMatchObject({
+      expect(result[0].children[1]).toMatchObject({
         type: 'tag',
         value: '$local:input',
         label: 'local: input',
@@ -62,8 +66,8 @@ describe('dpqlEditor helpers', () => {
 
     it('keeps a dotted path in one reference', () => {
       const [paragraph] = plainTextToSlate('$local:order.id == 1');
-      expect(paragraph.children[0]).toMatchObject({ type: 'tag', value: '$local:order.id' });
-      expect(paragraph.children[1]).toMatchObject({ text: ' == 1' });
+      expect(paragraph.children[1]).toMatchObject({ type: 'tag', value: '$local:order.id' });
+      expect(paragraph.children[2]).toMatchObject({ text: ' == 1' });
     });
 
     it('ends a reference where a method is called on it', () => {
@@ -71,27 +75,28 @@ describe('dpqlEditor helpers', () => {
       // path grammar allows dots, so `.endsWith` used to join the first chip.
       const [paragraph] = plainTextToSlate('$local:str.endsWith($local:order.id, true)');
       expect(paragraph.children).toMatchObject([
+        { text: '' },
         { type: 'tag', value: '$local:str' },
         { text: '.endsWith(' },
         { type: 'tag', value: '$local:order.id' },
         { text: ', true)' },
       ]);
+      expect(paragraph.children).toHaveLength(5);
     });
 
     it('handles mixed content with tags and text', () => {
       const result = plainTextToSlate('@name == $config:min AND @age > 18');
       const children = result[0].children;
 
-      expect(children.length).toBeGreaterThanOrEqual(5);
-
-      expect(children[0]).toMatchObject({ type: 'tag', value: '@name' });
-      expect(children[1]).toMatchObject({ text: ' == ' });
-      expect(children[2]).toMatchObject({
-        type: 'tag',
-        value: '$config:min',
-      });
-      expect(children[3]).toMatchObject({ text: ' AND ' });
-      expect(children[4]).toMatchObject({ type: 'tag', value: '@age' });
+      expect(children).toMatchObject([
+        { text: '' },
+        { type: 'tag', value: '@name' },
+        { text: ' == ' },
+        { type: 'tag', value: '$config:min' },
+        { text: ' AND ' },
+        { type: 'tag', value: '@age' },
+        { text: ' > 18' },
+      ]);
     });
 
     it('consumes surrounding quotes into the tag metadata', () => {
@@ -110,14 +115,59 @@ describe('dpqlEditor helpers', () => {
     it('handles multiline text', () => {
       const result = plainTextToSlate('@name\n@age');
       expect(result).toHaveLength(2);
-      expect(result[0].children[0]).toMatchObject({
-        type: 'tag',
-        value: '@name',
+      expect(result[0].children).toMatchObject([{ text: '' }, { type: 'tag', value: '@name' }, { text: '' }]);
+      expect(result[1].children).toMatchObject([{ text: '' }, { type: 'tag', value: '@age' }, { text: '' }]);
+    });
+  });
+
+  describe('a chip always has text on both sides', () => {
+    // Slate requires an inline void to sit between text nodes. A document
+    // loaded without them is never normalised: a chip that starts or ends the
+    // line leaves the caret nowhere to go but into the chip, and Slate drops
+    // what is typed there (qorus#646, "can't type" in the Text view).
+    const isText = (node: unknown) => typeof (node as { text?: unknown }).text === 'string';
+    const wellFormed = (children: unknown[]) =>
+      isText(children[0]) &&
+      isText(children[children.length - 1]) &&
+      children.every((node, i) => isText(node) || (isText(children[i - 1]) && isText(children[i + 1])));
+
+    it.each(['@pos', '$record:{pos}', '@a@b', '@a $local:b', 'x @a', '@a == 1', '"$local:a"', '@a\n@b'])(
+      'for %s',
+      (text) => {
+        const paragraphs = plainTextToSlate(text.replace('\\n', '\n'));
+        paragraphs.forEach((paragraph) => expect(wellFormed(paragraph.children)).toBe(true));
+        expect(slateToPlainText(paragraphs)).toBe(text.replace('\\n', '\n'));
+      }
+    );
+
+    it('for what the server sends', () => {
+      const tag = { type: 'tag', value: '$record:{pos}', label: 'record: pos', children: [{ text: '' }] };
+      const result = richtextResponseToSlate({
+        type: 'richtext',
+        value: [
+          { type: 'paragraph', children: [tag] },
+          { type: 'paragraph', children: [tag, tag] },
+          { type: 'paragraph', children: [{ text: 'a ' }, tag, { text: ' b' }] },
+          { type: 'paragraph', children: [] },
+        ],
       });
-      expect(result[1].children[0]).toMatchObject({
-        type: 'tag',
-        value: '@age',
-      });
+      expect(result).not.toBeNull();
+      result!.forEach((paragraph) => expect(wellFormed(paragraph.children)).toBe(true));
+      expect(result![0].children).toMatchObject([{ text: '' }, { type: 'tag' }, { text: '' }]);
+      expect(result![1].children).toMatchObject([{ text: '' }, { type: 'tag' }, { text: '' }, { type: 'tag' }, { text: '' }]);
+      expect(result![2].children).toMatchObject([{ text: 'a ' }, { type: 'tag' }, { text: ' b' }]);
+      expect(result![3].children).toEqual([{ text: '' }]);
+      expect(slateToPlainText(result!)).toBe('$record:{pos}\n$record:{pos}$record:{pos}\na $record:{pos} b\n');
+    });
+
+    it('leaves the text beside a chip as it is', () => {
+      const chip: ISlateElement = { type: 'tag', value: '@x', children: [{ text: '' }] };
+      expect(withTextAroundTags([{ text: 'a' }, chip, { text: 'b' }])).toEqual([
+        { text: 'a' },
+        { type: 'tag', value: '@x', children: [{ text: '' }] },
+        { text: 'b' },
+      ]);
+      expect(withTextAroundTags([])).toEqual([{ text: '' }]);
     });
   });
 
@@ -126,8 +176,8 @@ describe('dpqlEditor helpers', () => {
     // user's language): a letter of any script or `_`, then letters, combining marks, digits and `_`
     it.each(['@menge_bestätigt', '@größe', '@名前', '@Çeşit.adı', '@e\u0301tat'])('makes %s one tag', (ref) => {
       const children = plainTextToSlate(`${ref} > 0`)[0].children;
-      expect(children[0]).toMatchObject({ type: 'tag', value: ref, label: ref.slice(1) });
-      expect(children[1]).toEqual({ text: ' > 0' });
+      expect(children[1]).toMatchObject({ type: 'tag', value: ref, label: ref.slice(1) });
+      expect(children[2]).toEqual({ text: ' > 0' });
     });
 
     it('keeps it bare through the round trip', () => {
@@ -261,8 +311,9 @@ describe('dpqlEditor helpers', () => {
 
     it('returns correct offset after a tag', () => {
       const elements = plainTextToSlate('@name == "Alice"');
-      // @name = 5 chars (child 0 tag), then offset 3 into the text (child 1)
-      expect(slateSelectionToOffset(elements, [0, 1], 3)).toBe(8);
+      // empty text (child 0), @name = 5 chars (child 1 tag), then offset 3
+      // into the text (child 2)
+      expect(slateSelectionToOffset(elements, [0, 2], 3)).toBe(8);
     });
 
     it('returns correct offset in second paragraph', () => {

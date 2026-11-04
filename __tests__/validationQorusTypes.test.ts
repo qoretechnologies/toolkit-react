@@ -561,6 +561,17 @@ describe('fsm-list', () => {
     expect(() => validateField('fsm-list', [null])).not.toThrow();
     expect(validateField('fsm-list', [null])).toBe(false);
   });
+
+  // users call FSMs Qogs, so the reasons a form shows say Qog, never FSM
+  it('names a Qog in what it says, never an FSM', () => {
+    const notAList = validateFieldWithResult('fsm-list', 'a');
+    expect(notAList.reason).toBe('Qog list must be an array');
+
+    const noName = validateFieldWithResult('fsm-list', [{ name: 'a' }, { name: '' }]);
+    expect(noName.isValid).toBe(false);
+    expect(noName.reason?.startsWith('Qog entry 1 name is invalid')).toBe(true);
+    expect(noName.reasons.join(' ')).not.toMatch(/FSM/);
+  });
 });
 
 // ─── api manager ──────────────────────────────────────────────────────────────
@@ -841,13 +852,14 @@ describe('isFunction', () => {
       { isFunction: true, expressions }
     );
     expect(result.isValid).toBe(false);
-    expect(result.reason).toContain('argument 2');
+    // the empty second value, by its name
+    expect(result.reason).toMatch(/^Enter a value for "/);
   });
 
   it('reports a missing operation', () => {
     const result = validateFieldWithResult('string', { args: [] }, { isFunction: true });
     expect(result.isValid).toBe(false);
-    expect(result.reason).toBe('Expression operation is required');
+    expect(result.reason).toBe('Choose what this expression does.');
   });
 
   it('accepts the option envelope a caller may still hold', () => {

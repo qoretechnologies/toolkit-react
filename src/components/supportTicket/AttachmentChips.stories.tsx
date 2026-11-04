@@ -82,6 +82,9 @@ export const WithImages: Story = {
  */
 export const RenameFromPreview: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Rename`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

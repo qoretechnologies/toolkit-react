@@ -144,7 +144,7 @@ describe('a conditional message in a rendered form', () => {
     // to decide a row's status, so a filtered-out message would still count — an
     // alert you cannot see but can count. Asserted with `danger`, because that is
     // the intent that actually moves a field into attention (`getOptionStatus`
-    // folds only `danger` into `invalid`; a warning colours the row and leaves
+    // folds only `danger` into `invalid`; a warning colors the row and leaves
     // its bucket alone).
     const { container } = renderDangerForm(false);
 

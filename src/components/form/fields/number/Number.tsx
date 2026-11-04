@@ -1,11 +1,13 @@
-import { ReqoreDropdown, ReqoreInput } from '@qoretechnologies/reqore';
+import { ReqoreInput } from '@qoretechnologies/reqore';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 // Const-only usage at render time — the cycle (Number → TemplateField → Number)
 // is safe the same way Field → AutoFormField → Field is.
+import { TemplateBrowser } from '../template/TemplateBrowser';
 import { TemplatesListProps } from '../template/TemplateField';
 
 export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
@@ -41,6 +43,14 @@ const DECIMAL_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
  * (`@qty * 2`) is taken up by the field around it, and anything else is kept as typed for the form to flag
  * as not a number. `parseInt` cut `12abc` to 12 without a word.
  */
+/**
+ * The kind of number a field of this type holds: a decimal for `float` and `number` (and their soft and
+ * nullable forms), a whole number for anything else. A field handed no kind took every number for a whole
+ * one, so a float field reported `12.5` as the text "12.5" (qorus#646).
+ */
+export const numberKindOf = (type?: string): 'int' | 'float' =>
+  /float|number/.test(type ?? '') ? 'float' : 'int';
+
 export const typedNumber = (text: string, type: 'int' | 'float'): number | string => {
   const trimmed = text.trim();
   return (type === 'int' ? WHOLE_NUMBER : DECIMAL_NUMBER).test(trimmed) ? Number(trimmed) : text;
@@ -64,11 +74,26 @@ export const NumberFormField = ({
   // The parent's echo of an emit still in flight is not a change: copying it
   // over the local value lost what was typed since. See `EmittedValues`.
   const emitted = useEmittedValues<number | string | undefined>();
+  /* What the parent holds, as the field shows it: no value is the empty text. Compared with `undefined`,
+     the empty text of a field opened without a value was a change, and the field reported '' 100 ms after
+     it opened - the form counted itself edited, and an unset field got '' (qorus#646). */
+  const held = value ?? '';
+
+  /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
+     inside it. See `usePendingEdit`. */
+  const pending = usePendingEdit<number | string>((next) => {
+    if (next !== emitted.settled(held)) {
+      emitted.record(next);
+      onChange?.(next);
+    }
+  });
 
   useEffect(() => {
     if (emitted.isEcho(value)) {
       return;
     }
+    // the parent has a value of its own: what was typed before it is no edit to send any more
+    pending.release();
     if (value !== localValue) {
       setText(value === undefined || value === null ? '' : String(value));
     }
@@ -76,7 +101,8 @@ export const NumberFormField = ({
 
   useDebounce(
     () => {
-      if (localValue !== value) {
+      pending.release();
+      if (localValue !== emitted.settled(held)) {
         emitted.record(localValue);
         onChange?.(localValue);
       }
@@ -85,19 +111,26 @@ export const NumberFormField = ({
     [localValue, onChange]
   );
 
+  /** What the field will report for this text: the number it writes, or the text when it writes none. */
+  const reportedFor = (raw: string) => (raw === '' ? '' : typedNumber(raw, type));
+
   const handleChange = useCallback(
     (rawValue: number | string): void => {
-      const nextText = String(rawValue);
-      setText(nextText);
+      setText(String(rawValue));
+      const next = reportedFor(String(rawValue));
       if (debounceMs === 0) {
-        const next = nextText === '' ? '' : typedNumber(nextText, type);
-        if (next !== value) {
+        // No pause asked for: reported at once, so a form submitted by Enter sees the last key, and nothing
+        // is held back.
+        pending.release();
+        if (next !== emitted.settled(held)) {
           emitted.record(next);
           onChange?.(next);
         }
+      } else {
+        pending.hold(next);
       }
     },
-    [debounceMs, type, value, onChange]
+    [debounceMs, pending, type, held, onChange]
   );
 
   const handleInputChange = useCallback(
@@ -109,9 +142,10 @@ export const NumberFormField = ({
 
   const handleResetClick = useCallback((): void => {
     setText('0');
+    pending.release();
     emitted.record(0);
     onChange?.(0);
-  }, [onChange]);
+  }, [onChange, pending]);
 
   const focusRules = useMemo(
     () =>
@@ -124,7 +158,13 @@ export const NumberFormField = ({
     [autoFocus]
   );
 
-  const handleItemSelect = useCallback((item) => setText(String(item.value)), []);
+  const handleItemSelect = useCallback(
+    (item) => {
+      setText(String(item.value));
+      pending.hold(reportedFor(String(item.value)));
+    },
+    [pending, type]
+  );
 
   // The schema's bounds are the form's to check (a text input has no min or max); they are named in the
   // props only to keep them off the DOM node.
@@ -135,13 +175,13 @@ export const NumberFormField = ({
   // focus-opened dropdown of the template values.
   if (templates?.items) {
     return (
-      <ReqoreDropdown<IReqoreInputProps>
+      // the list a field's templates are browsed in (`TemplateBrowser`): the input keeps the keyboard
+      <TemplateBrowser
         {...(rest as any)}
         component={ReqoreInput}
         fluid
         icon='MoneyDollarCircleLine'
-        items={templates?.items}
-        filterable
+        templates={templates}
         value={text}
         onItemSelect={handleItemSelect}
         onChange={handleInputChange}

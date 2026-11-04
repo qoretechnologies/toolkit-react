@@ -147,12 +147,15 @@ export const CompactEmpty: Story = {
     const canvas = within(canvasElement);
 
     // Should show the input field but no tags
-    await expect(canvas.queryByRole('button', { name: /add item/i })).not.toBeInTheDocument();
     await expect(document.querySelectorAll('.array-auto-compact-tag').length).toBe(0);
 
-    // Confirm button should be disabled when input is empty
-    const confirmBtn = document.querySelector('.array-auto-compact-confirm') as HTMLButtonElement;
+    // The confirm button is the one way to add an item, and it is disabled while the input is empty.
+    // reqore names an icon-only button by its tooltip, so it is the only button called "Add item".
+    const confirmBtn = canvasElement.querySelector<HTMLButtonElement>(
+      '.array-auto-compact-confirm'
+    );
     await expect(confirmBtn).toBeInTheDocument();
+    await expect(canvas.getAllByRole('button', { name: /add item/i })).toEqual([confirmBtn]);
     await expect(confirmBtn).toBeDisabled();
   },
 };
@@ -191,6 +194,9 @@ export const CompactAddItem: Story = {
     value: ['existing'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactWithValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -234,6 +240,9 @@ export const CompactEditItem: Story = {
     value: ['alpha', 'beta'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactWithValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -284,6 +293,9 @@ export const CompactRemoveItem: Story = {
     value: ['one', 'two', 'three'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactWithValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

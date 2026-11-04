@@ -81,6 +81,9 @@ export const Paging: Story = {
  */
 export const ResolvesDespiteParentReRenders: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Single`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

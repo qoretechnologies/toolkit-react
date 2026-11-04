@@ -34,7 +34,7 @@ interface IStyledMarkdownViewProps {
 }
 
 /**
- * Colours come from the active Reqore theme rather than the hardcoded
+ * Colors come from the active Reqore theme rather than the hardcoded
  * `rgba(255, 255, 255, …)` this used to carry: a form renders on whatever
  * surface the host gives it, and on a light theme white-on-white prose is
  * simply invisible.

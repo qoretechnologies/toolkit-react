@@ -14,6 +14,7 @@ import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { capitalize, isEqual, size } from 'lodash';
 import { useMemo, useState } from 'react';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import styled from 'styled-components';
 import {
   UNAVAILABLE_VALUE_FALLBACK_REASON,
@@ -85,7 +86,7 @@ export const UNAVAILABLE_ITEM_CLASS = 'reqraft-select-item-unavailable';
  * Capped at the viewport so a phone gets a dialog it can see all of rather
  * than a floor wider than its screen — reqore's own maximum is 90vw / 90vh.
  */
-const StyledSelectDialog = styled(ReqoreModal)`
+const StyledSelectDialog = styled(ReqoreModal)<{ $unavailableOpacity: number }>`
   min-width: min(${SELECT_DIALOG_MIN_WIDTH}px, 90vw) !important;
   min-height: min(${SELECT_DIALOG_MIN_HEIGHT}px, 90vh) !important;
 
@@ -109,7 +110,7 @@ const StyledSelectDialog = styled(ReqoreModal)`
   }
 
   .${UNAVAILABLE_ITEM_CLASS} > .reqore-panel-title {
-    opacity: 0.55;
+    opacity: ${({ $unavailableOpacity }) => $unavailableOpacity};
   }
 `;
 
@@ -412,6 +413,9 @@ export const buildSelectItemTooltip = (
   return { ...rest, content: <Component {...props} /> };
 };
 
+/** The mark of the item a field holds, beside its own badge: a tick and a word. */
+export const CHOSEN_BADGE = { icon: 'CheckLine', label: 'Chosen' } as const;
+
 export const SelectFieldCollection = ({
   onClose,
   items,
@@ -420,6 +424,8 @@ export const SelectFieldCollection = ({
   filters,
 }: ISelectFieldCollectionProps) => {
   const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
+  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  const unavailableOpacity = useReadableOpacity(0.55);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -433,8 +439,14 @@ export const SelectFieldCollection = ({
     });
   }, [items, appliedFilters]);
 
+  /** The item the field holds. */
+  const isTheChosenOne = (itemValue: unknown) =>
+    itemValue !== undefined && itemValue !== null && isEqual(itemValue, value);
+  const somethingChosen = items.some((item) => isTheChosenOne(item.value));
+
   return (
     <StyledSelectDialog
+      $unavailableOpacity={unavailableOpacity}
       isOpen
       // A library-owned hook for hosts and their tests to target the picker
       // (qorus-ide's helpers looked for its own `.q-select-dialog`, which
@@ -549,17 +561,24 @@ export const SelectFieldCollection = ({
             ),
             flat: false,
             minimal: true,
-            selected: item.value !== undefined && item.value !== null && isEqual(item.value, value),
-            intent:
-              item.value !== undefined && item.value !== null && isEqual(item.value, value)
-                ? 'info'
-                : item.intent,
-            badge: item.badge,
+            selected: isTheChosenOne(item.value),
+            intent: isTheChosenOne(item.value) ? 'info' : item.intent,
+            /* Which one is chosen is a tick and a word, not only the color of its card: an item with an icon or a
+               picture of its own had no other mark (qorus#646, David: "impossible to see for people with issues
+               recognizing colors"). */
+            badge:
+              isTheChosenOne(item.value) ?
+                [...(item.badge === undefined ? [] : [item.badge].flat()), CHOSEN_BADGE]
+              : item.badge,
             icon: item.icon,
             iconImage: item.image,
             iconProps: {
               size: '20px',
               rounded: true,
+              // once one is chosen, the others' pictures are gray: a second sign beside the "Chosen" mark
+              ...(somethingChosen && !isTheChosenOne(item.value) ?
+                { effect: { grayscale: true } }
+              : {}),
             },
             /* No handler is what makes an unavailable row inert, and it is
                deliberately NOT reqore's `disabled`: see the stylesheet on

@@ -17,6 +17,51 @@ import { isValueTemplate } from './templates';
 const isStructured = (value: unknown): boolean => value !== null && typeof value === 'object';
 
 /**
+ * An `allowed_values` entry's own value, in any of the three ways an entry is written (see
+ * `findAllowedValueOption`): its envelope's value (`{value: {type, value}}`), its bare value (`{value: 'x'}`) or its
+ * name (`{name: 'x'}`). A picker read the envelope only, so an entry written another way was a choice with no value
+ * and no name: two empty boxes, neither of which a click could tick (qorus#646, David's review).
+ */
+export const allowedValueOf = (item: { value?: unknown; name?: unknown } | undefined): unknown => {
+  const value = item?.value;
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    'value' in (value as Record<string, unknown>)
+  ) {
+    return (value as Record<string, unknown>).value;
+  }
+  return value === undefined ? item?.name : value;
+};
+
+/** What an `allowed_values` entry is called: its display name, else its name, else its value written out. */
+export const allowedValueName = (
+  item: { display_name?: unknown; name?: unknown; value?: unknown } | undefined
+): string => {
+  const named = [item?.display_name, item?.name].find(
+    (name): name is string => typeof name === 'string' && !!name
+  );
+  if (named) {
+    return named;
+  }
+  const value = allowedValueOf(item);
+  return typeof value === 'string' ? value : JSON.stringify(value);
+};
+
+/**
+ * The choice a field holds, by any spelling of it (see `findAllowedValueOption`): the choice's own value, as its
+ * list spells it (`allowedValueOf`). `undefined` when the field holds nothing, or a value none of its choices is.
+ */
+export const heldAllowedValue = (value: unknown, items?: unknown[]): unknown => {
+  if (value === undefined || value === null || value === '' || !items?.length) {
+    return undefined;
+  }
+  const choice = findAllowedValueOption(value, { allowed_values: items } as TQorusFormFieldSchema);
+  return choice === undefined ? undefined : allowedValueOf(choice);
+};
+
+/**
  * Prefer the matching allowed_values entry's display_name (fallback `name`)
  * over the raw stored value.
  *
@@ -77,25 +122,6 @@ export const findAllowedValueOption = (
       (isStructured(stored) &&
         (isEqual(option?.value?.value, stored) || isEqual(option?.value, stored)))
   );
-};
-
-/**
- * The value a choice stands for, whichever of the three ways its entry is
- * written (see `findAllowedValueOption`): the envelope's `value`, a bare
- * `value`, or the entry's `name`.
- *
- * The row that names a stored choice and the validator that accepts it have
- * always read all three. The pickers that WRITE a choice read only the
- * envelope, so a list written bare showed nothing selected for the stored value
- * and stored `undefined` when a choice was clicked: picking a pipeline
- * processor's class cleared the field instead of setting it.
- */
-export const allowedValueOf = (option: any): unknown => {
-  const value = option?.value;
-  if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in value) {
-    return value.value;
-  }
-  return value !== undefined ? value : option?.name;
 };
 
 /**

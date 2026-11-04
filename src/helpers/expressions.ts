@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Expression / type-compatibility helpers — ported verbatim from qorus-ide
+// Expression / type-compatibility helpers — ported from qorus-ide
 // (`src/helpers/expressions.ts` + `areQorusTypesCompatible` from
 // `src/helpers/functions.tsx`), import paths adapted to reqraft. Used by the
 // ported ExpressionBuilder.
@@ -8,18 +8,26 @@ import {
   IExpression,
   IExpressionSchema,
   IExpressionSchemaArg,
+  IExpressionValue,
 } from '../components/form/expressions/types';
-import { defaultQorusTypes, getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
+import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
+import { getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
+import { catalogueTypeName, qorusTypeEntry, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 
+/**
+ * The UI type of an argument: a value's own type, or, for an expression, the
+ * type the server gave for it (`useExpressionType`) — an expression's type is
+ * never worked out here, so it is the same as everywhere else in Qorus
+ * (qoretechnologies/qorus#713). `any`, which nothing is judged by, until the
+ * server has given it.
+ */
 export const getArgumentType = (
-  expressions: IExpressionSchema[],
+  _expressions: IExpressionSchema[],
   arg?: IExpression,
   schema?: IExpressionSchemaArg
 ) => {
   if (arg?.is_expression) {
-    return expressions?.find(
-      (exp) => exp.name === (arg.value as { exp?: string })?.exp
-    )?.ui_return_type;
+    return getCachedExpressionType(arg.value as IExpressionValue)?.ui_type ?? 'any';
   }
 
   return arg?.type || schema?.ui_type;
@@ -28,10 +36,11 @@ export const getArgumentType = (
 export const argumentMatchesType = (
   expressions: IExpressionSchema[],
   arg: IExpression | undefined,
-  schema: IExpressionSchemaArg
+  schema: IExpressionSchemaArg,
+  types: IQorusTypeObject[] = getQorusTypes()
 ) => {
-  const types = getQorusTypes();
-  const acceptedTypes = types.find((type) => type.name === schema.ui_type);
+  // a type the catalogue does not list is its base type (`qorusTypeEntry`)
+  const acceptedTypes = qorusTypeEntry(types, schema.ui_type, schema.base_type);
   const argType = getArgumentType(expressions, arg, schema);
 
   if (!acceptedTypes) {
@@ -57,21 +66,36 @@ export const argumentMatchesType = (
  * template from it, and the picker offered a group header with nothing under
  * it. The field was not "a field with no templates" — it was a field whose
  * templates had all been filtered away by a name mismatch.
+ *
+ * Qore's other names for a type (`integer`, `boolean`) are the catalogue's name for it too: the server's catalogue
+ * lists and converts each type by one name only (qorus#646).
  */
-const normalizeAnyLikeTypeName = (name: string): string => (name === 'auto' ? 'any' : name);
+const normalizeAnyLikeTypeName = (name: string): string =>
+  name === 'auto' ? 'any' : catalogueTypeName(name);
 
+/**
+ * Whether a value of `checkType` fits a place of `mainType`, by the type catalogue `types`: the server's answer
+ * (`useQorusTypes().value`, or `getQorusTypes()` outside a component), reqraft's copy until it answers. A type the
+ * catalogue does not list is its base type, `mainBaseType` for the place's and `checkBaseType` for the value's
+ * (`qorusTypeEntry`).
+ */
 export const areQorusTypesCompatible = (
   mainType: string | string[],
   checkType: string | string[],
-  fallbackTypes?: IQorusTypeObject[]
+  types: IQorusTypeObject[] = getQorusTypes(),
+  mainBaseType?: string,
+  checkBaseType?: string
 ): boolean => {
-  const types = getQorusTypes() || fallbackTypes || defaultQorusTypes;
   const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
-  const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(normalizeAnyLikeTypeName);
+  // a value's type by the name the catalogue lists it under (`*int`, `softint`: `int`), else by its base type's
+  const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(
+    (check) =>
+      qorusTypeEntry(types, check, checkBaseType)?.name ?? normalizeAnyLikeTypeName(check)
+  );
   // Get each of the main types from the types list
   for (const main of mainTypes) {
-    // Get the type object from the types
-    const mainTypeObject = types.find((type) => type.name === main);
+    // its entry: by its own name, an optional, soft or complex form of one, else its base type (`qorusTypeEntry`)
+    const mainTypeObject = qorusTypeEntry(types, main, mainBaseType);
     // If the main object does not exist
     if (!mainTypeObject) {
       return false;
@@ -110,11 +134,226 @@ export const areQorusTypesCompatible = (
 export const isTextOrDateType = (type: string): boolean =>
   /^(string|richtext|date|time)$/.test(type.replace(/^\*/, '').replace(/^soft/, ''));
 
-/** Whether a place takes a condition: its result must be true or false (`bool`, or a list of only that). */
+/**
+ * Whether a place takes a condition: its result must be true or false (`bool`, optional or soft, or a list of
+ * only that).
+ */
 export const isConditionType = (returnType: string | string[] | undefined): boolean => {
   const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
-  return types.length > 0 && types.every((type) => /^\*?(bool|boolean)$/.test(type));
+  return types.length > 0 && types.every((type) => /^\*?(soft)?(bool|boolean)$/.test(type));
 };
+
+/**
+ * What an editor says of a condition that gives this type (qorus#646): nothing for true or false or a type it
+ * cannot tell (`any`, `auto`); an error for text, a date or a time, which do not say plainly what is meant;
+ * and a warning for any other (a number, a list, a hash), which the condition reads as true unless it is
+ * zero or empty - accepted, as the Qorus server accepts it, but said, because it is seldom what was meant.
+ * qorus-ide says the same of its own condition editors.
+ */
+export const conditionVerdict = (type: string | undefined): 'error' | 'warning' | undefined => {
+  if (!type) {
+    return undefined;
+  }
+  const base = type.replace(/^\*/, '').replace(/^soft/, '').replace(/<.*$/, '');
+  if (!base || /^(bool|boolean|any|auto)$/.test(base)) {
+    return undefined;
+  }
+  return isTextOrDateType(base) ? 'error' : 'warning';
+};
+
+/**
+ * Whether a field is a condition: its schema's `metadata.condition`, the mark a host sets on the options that
+ * are conditions (a Qog transition's value, a built-in if's value, a while or for block's condition). The
+ * schema's own `type` cannot say it: a value of type bool is not a condition.
+ */
+export const isConditionOption = (field: { metadata?: Record<string, unknown> } | undefined): boolean =>
+  field?.metadata?.condition === true;
+
+/** A type as a condition reads it: without the optional mark, `soft`, or what a list or hash holds. */
+export const conditionBaseType = (type: string | undefined): string =>
+  (type ?? '').replace(/^\*/, '').replace(/^soft/, '').replace(/<.*$/, '');
+
+/** How a condition that gives this base type is made one: compare the value (qorus#646, as the server says). */
+const conditionExample = (baseType: string): string =>
+  baseType === 'date' ? '@shipped_on > @ordered_on'
+  : baseType === 'time' ? '@starts_at < @ends_at'
+  : '@status == "open"';
+
+/**
+ * What is said of a condition that gives text, a date or a time (NOT_A_CONDITION): what it gives, and how to make
+ * it one, with an example for its type. `typeInSentence` is the type named inside a sentence - its sentence form
+ * ("text"), as `qorusTypeSentenceForm` gives it - and `baseType` the type it is (`string`, `date`, `time`): the
+ * example follows it. These are the server's words: a fallback for when it said none, never a second wording of
+ * them. With no type to name, the sentence names none: "The condition must evaluate to true or false. …".
+ */
+export const conditionErrorText = (
+  typeInSentence: string | undefined,
+  baseType: string | undefined
+): string =>
+  `${typeInSentence ? `The condition evaluates to ${typeInSentence}, but it` : 'The condition'} must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+
+/**
+ * What the expression builder says of an expression whose result does not fit its place: what it gives, what the
+ * place takes, and what to do. `gives` and `takes` name the types inside the sentence - their sentence forms ("a
+ * whole number"), as `qorusTypeSentenceForm` gives them, `takes` joined with "or" where a place takes more than
+ * one - and `gives` is undefined for an expression that gives nothing yet, `takes` for a place whose type is not
+ * known: the sentence then says what it gives without naming a type it cannot name (qorus#646).
+ */
+export const expressionTypeMismatchText = (
+  gives: string | undefined,
+  takes: string | undefined
+): string =>
+  takes ?
+    `This expression gives ${gives ?? 'nothing'}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
+  : `This expression gives ${gives ?? 'nothing'}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+
+/**
+ * What the builder's conversion list says of an argument it converts: from what to what. `from` and `to` name the
+ * types inside the sentence - their sentence forms, as `qorusTypeSentenceForm` gives them - and either is undefined
+ * where the type is not known; the sentence then names only the other, or neither (qorus#646).
+ */
+export const conversionText = (from: string | undefined, to: string | undefined): string =>
+  `Converted${from ? ` from ${from}` : ''}${to ? ` to ${to}` : ''}`;
+
+/**
+ * What is said of a condition that gives a number, a list, a hash or a type that is not known
+ * (CONDITION_BY_TRUTHINESS): how Qorus reads it, and how to say it explicitly, by the type it gives - named by its
+ * sentence form ("a whole number", "key-value pairs (a hash)"), as the server names it
+ * (`QonsoleDesignI18n::conditionByTruthinessText`, qorus 04e6c502f). These are the server's words: a fallback for
+ * when it said none.
+ */
+export const conditionByTruthinessText = (type: string | undefined): string => {
+  const base = conditionBaseType(type);
+  const named = qorusTypeSentenceForm(getQorusTypes(), base);
+  if (/^(int|integer|float|number)$/.test(base)) {
+    return `The condition evaluates to ${named}; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.`;
+  }
+  if (base === 'list') {
+    return `The condition evaluates to ${named}; Qorus treats it as true unless it is empty. To make that explicit, compare its size, for example size(@items) > 0.`;
+  }
+  if (base === 'hash') {
+    return `The condition evaluates to ${named}; Qorus treats it as true unless it holds no pairs. To make that explicit, compare its size, for example size(@details) > 0.`;
+  }
+  return "The condition's value is not true or false; Qorus treats it as true unless it is 0 or empty. To make that explicit, compare it, for example @count > 0.";
+};
+
+/** The operators whose every part is read as true or false by its value: AND, OR and NOT. */
+export const LOGICAL_OPERATORS = ['&&', '||', '!'] as const;
+
+/** Whether an expression is an AND, an OR or a NOT. */
+export const isLogicalOperation = (expression: IExpression | undefined): boolean =>
+  !!expression?.is_expression &&
+  (LOGICAL_OPERATORS as readonly string[]).includes(expression.value?.exp);
+
+/** How the server reads a part of a condition (`dpql/parse` with `condition: true`, qorus#646). */
+export type TConditionReading = 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+
+/** A part of an AND, an OR or a NOT in a condition: the type it gives and how it is read. */
+export interface IConditionPart {
+  type: string;
+  reading: TConditionReading;
+  /** What the server says of it, in its words, when it says anything. */
+  message?: string;
+}
+
+/** The server's code for what it says of a condition read as this verdict. */
+const CONDITION_CODE_OF_VERDICT = { error: 'NOT_A_CONDITION', warning: 'CONDITION_BY_TRUTHINESS' } as const;
+
+/**
+ * What the server says of a whole condition, in its words: the first condition diagnostic, when the whole
+ * expression's type (`inferredType`) makes it one the server says something of and the diagnostic is that kind.
+ * Undefined when it says nothing of the whole - true or false, a type it cannot tell, or diagnostics that do not
+ * line up.
+ */
+export const conditionWholeMessage = (
+  inferredType: string | undefined,
+  diagnostics: Array<{ code?: string | number; message: string }>
+): string | undefined => {
+  const verdict = conditionVerdict(inferredType);
+  if (!verdict) {
+    return undefined;
+  }
+  const first = diagnostics.find(
+    (d) => d.code === 'NOT_A_CONDITION' || d.code === 'CONDITION_BY_TRUTHINESS'
+  );
+  return first?.code === CONDITION_CODE_OF_VERDICT[verdict] ? first.message : undefined;
+};
+
+/**
+ * The parts the server judged, each with what it said of it.
+ *
+ * The server says it in the diagnostics (NOT_A_CONDITION, CONDITION_BY_TRUTHINESS), in the order it judged:
+ * the whole expression first, then its parts - one for each that is not true or false, all over the whole
+ * text. The whole's own reading is the one its type gives (`inferredType`); the answer's `condition_reading`
+ * is the worst of all of them. A part keeps no words when the diagnostics do not line up with the readings.
+ */
+export const conditionPartsWithMessages = (
+  parts: IConditionPart[] | undefined,
+  inferredType: string | undefined,
+  diagnostics: Array<{ code?: string | number; message: string }>
+): IConditionPart[] | undefined => {
+  if (!parts) {
+    return undefined;
+  }
+  const said = diagnostics.filter(
+    (d) => d.code === 'NOT_A_CONDITION' || d.code === 'CONDITION_BY_TRUTHINESS'
+  );
+  const codeOf = (reading: TConditionReading) =>
+    reading === 'not_a_condition' ? 'NOT_A_CONDITION'
+    : reading === 'truthiness' ? 'CONDITION_BY_TRUTHINESS'
+    : undefined;
+  // the whole's diagnostic comes first, when its type gives it one (`conditionWholeMessage`)
+  const rest = conditionVerdict(inferredType) ? said.slice(1) : said;
+  const partCodes = parts.map((part) => codeOf(part.reading)).filter(Boolean);
+  if (rest.length !== partCodes.length || rest.some((d, index) => d.code !== partCodes[index])) {
+    return parts;
+  }
+  let next = 0;
+  return parts.map((part) =>
+    codeOf(part.reading) ? { ...part, message: rest[next++].message } : part
+  );
+};
+
+/**
+ * Where each part the server judged is drawn, by the path of its card in the expression (the builder's
+ * `path`; `''` for the expression itself).
+ *
+ * The server reads each part of `&&`, `||` and `!` as a condition (qorus#646) and answers `parts` in its own
+ * walk order: the operands of the expression's logical operator, left to right, a nested `&&`, `||` or `!`
+ * standing for its own parts. A part of an AND or an OR has its own card; the part a NOT reads is drawn on
+ * the NOT's card. An answer whose parts are not this expression's (a stale one, or none) places nothing.
+ */
+export const conditionPartCards = (
+  expression: IExpression | undefined,
+  parts: IConditionPart[] | undefined
+): Record<string, IConditionPart> => {
+  const cards: string[] = [];
+  const walk = (node: IExpression, path: string): void => {
+    (node.value?.args ?? []).forEach((arg: IExpression, index: number) => {
+      const argPath = `${path ? `${path}.` : ''}value.args.${index}`;
+      if (isLogicalOperation(arg)) {
+        walk(arg, argPath);
+      } else {
+        cards.push(node.value?.exp === '!' ? path : argPath);
+      }
+    });
+  };
+  if (expression && isLogicalOperation(expression)) {
+    walk(expression, '');
+  }
+  if (!parts || parts.length !== cards.length) {
+    return {};
+  }
+  return Object.fromEntries(cards.map((card, index) => [card, parts[index]]));
+};
+
+/** What is said of a part of a condition: nothing when it is true or false or cannot be told. */
+export const conditionPartVerdict = (
+  part: IConditionPart | undefined
+): 'error' | 'warning' | undefined =>
+  part?.reading === 'not_a_condition' ? 'error'
+  : part?.reading === 'truthiness' ? 'warning'
+  : undefined;
 
 /**
  * Whether an operation is offered where its result must be of `returnType`: a condition (`bool`) is

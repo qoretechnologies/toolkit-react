@@ -14,6 +14,7 @@ import {
   formatDataProviderValue,
   formatFileValue,
   formatOptionValue,
+  getDataProviderPreview,
   getAllowedValueIcon,
   getAllowedValueImage,
   getFirstAttentionOptionName,
@@ -30,6 +31,127 @@ import {
   shouldAutoCollapseCompactAllowedValueOption,
   type IFirstAttentionFieldMeta,
 } from '../src/components/form/engine/readFirst';
+
+describe('getDataProviderPreview', () => {
+  // A provider as the picker stores it: what it IS (type, name, path), what the
+  // server said it can do when it was picked, and the picker's descriptions of
+  // each step of its path, in the server's markdown.
+  const stored = {
+    type: 'datasource',
+    name: 'omquser',
+    path: '/bb_local',
+    transaction_management: true,
+    record_requires_search_options: false,
+    supports_read: true,
+    supports_update: true,
+    supports_create: true,
+    supports_delete: true,
+    supports_messages: 'NONE',
+    supports_request: false,
+    supports_observable: false,
+    up: true,
+    can_manage_fields: false,
+    is_api_call: false,
+    optionsChanged: false,
+    searchOptionsChanged: false,
+    descriptions: ['Data provider for database `pgsql:omquser@omquser`'],
+  };
+
+  it("keeps the provider's identity and leaves the capability cache out", () => {
+    const preview = getDataProviderPreview(stored)!;
+    expect(preview.identity).toEqual({ type: 'datasource', name: 'omquser', path: '/bb_local' });
+    // in the order the picker says them: kind, name, path
+    expect(Object.keys(preview.identity)).toEqual(['type', 'name', 'path']);
+    for (const cached of [
+      'transaction_management',
+      'record_requires_search_options',
+      'supports_read',
+      'supports_messages',
+      'up',
+      'descriptions',
+    ]) {
+      expect(preview.identity).not.toHaveProperty(cached);
+    }
+  });
+
+  it('keeps how the provider was set up: its subtype, options and search options', () => {
+    const options = { dbtype: { type: 'string', value: 'pgsql' } };
+    const searchOptions = { limit: { type: 'int', value: 10 } };
+    const preview = getDataProviderPreview({
+      type: 'factory',
+      name: 'db',
+      path: '/table',
+      subtype: 'request',
+      options,
+      search_options: searchOptions,
+      supports_read: true,
+    })!;
+    expect(preview.identity).toEqual({
+      type: 'factory',
+      name: 'db',
+      path: '/table',
+      subtype: 'request',
+      options,
+      search_options: searchOptions,
+    });
+  });
+
+  it('leaves out parts that are empty', () => {
+    const preview = getDataProviderPreview({
+      type: 'datasource',
+      name: 'omquser',
+      path: '',
+      subtype: undefined,
+      options: {},
+      search_options: null,
+    })!;
+    expect(preview.identity).toEqual({ type: 'datasource', name: 'omquser' });
+  });
+
+  it("describes the provider by its own description: the last step's", () => {
+    // descriptions[0] is the name's, each later entry the next path step's,
+    // and the IDE's picker shows the last one as the provider's description
+    expect(
+      getDataProviderPreview({
+        ...stored,
+        descriptions: [
+          'Data provider for database `pgsql:omquser@omquser`',
+          'The `bb_local` table',
+          '',
+        ],
+      })!.description
+    ).toBe('The `bb_local` table');
+    // the markdown is kept as written: drawing it is the renderer's job
+    expect(getDataProviderPreview(stored)!.description).toBe(
+      'Data provider for database `pgsql:omquser@omquser`'
+    );
+  });
+
+  it("falls back to the provider's desc, and has no description when there is none", () => {
+    expect(
+      getDataProviderPreview({ type: 'type', name: 'qore', desc: 'Qore **types**' })!.description
+    ).toBe('Qore **types**');
+    expect(
+      getDataProviderPreview({ type: 'type', name: 'qore', descriptions: ['  ', 7] })!.description
+    ).toBeUndefined();
+    expect(getDataProviderPreview({ type: 'type', name: 'qore' })!.description).toBeUndefined();
+  });
+
+  it('is undefined for a value that is not a provider object, or has nothing to show', () => {
+    expect(getDataProviderPreview(undefined)).toBeUndefined();
+    expect(getDataProviderPreview(null)).toBeUndefined();
+    expect(getDataProviderPreview('datasource/omquser/bb_local')).toBeUndefined();
+    expect(getDataProviderPreview([stored])).toBeUndefined();
+    expect(getDataProviderPreview({ supports_read: true, up: true })).toBeUndefined();
+  });
+
+  it('shows a description even when the provider has no identity of its own', () => {
+    expect(getDataProviderPreview({ supports_read: true, descriptions: ['A `table`'] })).toEqual({
+      identity: {},
+      description: 'A `table`',
+    });
+  });
+});
 
 describe('isOptionValueEmpty', () => {
   it('treats nullish, empty string and empty array as empty', () => {
@@ -353,14 +475,14 @@ describe('formatColorValue', () => {
 
   it('prefers rgba over an accompanying opaque hex when alpha is below 1', () => {
     // react-color emits both `hex` (opaque) and `{ r, g, b, a }`; a semi-
-    // transparent colour must render as rgba(), not the opaque hex.
+    // transparent color must render as rgba(), not the opaque hex.
     expect(formatColorValue({ hex: '#0000ff', r: 0, g: 0, b: 255, a: 0.5 })).toBe(
       'rgba(0, 0, 255, 0.5)'
     );
   });
 
-  it('returns undefined for unrecognisable colour values', () => {
-    expect(formatColorValue('not-a-colour')).toBeUndefined();
+  it('returns undefined for unrecognisable color values', () => {
+    expect(formatColorValue('not-a-color')).toBeUndefined();
     expect(formatColorValue({})).toBeUndefined();
     expect(formatColorValue(undefined)).toBeUndefined();
   });
@@ -372,9 +494,10 @@ describe('colorToCss', () => {
     expect(colorToCss({ r: 255, g: 0, b: 0, a: 0.5 })).toBe('rgba(255, 0, 0, 0.5)');
   });
 
-  it('passes through hex forms', () => {
-    expect(colorToCss({ hex: '#abcdef' })).toBe('#abcdef');
-    expect(colorToCss('#abcdef')).toBe('#abcdef');
+  // painted as reqraft's one hex reader reads it (qorus#646)
+  it('paints hex forms as the hex reader reads them', () => {
+    expect(colorToCss({ hex: '#abcdef' })).toBe('rgba(171, 205, 239, 1)');
+    expect(colorToCss('#abcdef')).toBe('rgba(171, 205, 239, 1)');
   });
 });
 

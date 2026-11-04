@@ -4,23 +4,37 @@ import {
   ReqoreButton,
   ReqoreControlGroup,
   ReqoreEmptyState,
+  ReqoreFonts,
   ReqoreIcon,
+  ReqoreNotification,
   ReqoreP,
   ReqoreSkeleton,
   ReqoreTimeAgo,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
+import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { rgba } from 'polished';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+import {
+  getReadableFaded,
+  getReadableShade,
+  getThemeSurfaces,
+  READABLE_ICON,
+} from '../../helpers/readableColors';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
 import { ImageLightbox } from '../imageLightbox';
 import {
+  dedupeInterfaceReferences,
   IInterfaceReference,
   InterfaceReferenceTags,
+  TICKET_SYSTEM_EVENT_META,
+  supportAccessEventText,
+  ticketSystemEventMeta,
   TResolveInterfaceIcon,
   TTicketMessageAuthor,
   TTicketViewerRole,
@@ -63,12 +77,31 @@ export interface ITicketThreadMessage {
   message_id: string;
   author_type: TTicketMessageAuthor;
   author_id: string;
+  /** the author's display name where the plane knows one; the id otherwise */
+  author_name?: string;
   body: string;
   internal?: boolean;
   created: string;
   attachments?: ITicketThreadAttachment[];
   /** Qorus interfaces this message references, as `{kind, name}` snapshots. */
   referenced_interfaces?: IInterfaceReference[];
+  /** For a `system` message: the event it records (`support_access.requested`, …); see
+   *  `ITicketMessage.system_event`. Decides the line's mark, and the card variant. */
+  system_event?: string;
+  /** For a `system` message: the event's structured payload, as the server wrote it. */
+  system_detail?: Record<string, unknown>;
+}
+
+/**
+ * An action a consumer attaches to a system event's card — the customer's Grant on a
+ * `support_access.requested` card. The thread renders it as the card's action; what it
+ * does (open the grant drawer, call the API) is the consumer's.
+ */
+export interface ITicketSystemEventAction {
+  label: string;
+  icon?: IReqoreIconName;
+  intent?: TReqoreIntent;
+  onClick: () => void;
 }
 
 export interface ITicketThreadProps {
@@ -97,6 +130,17 @@ export interface ITicketThreadProps {
   /** open a referenced interface; reference chips are static when omitted (e.g. the staff
    *  view, which can't reach the customer's instance, leaves this out). */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /** Whether a reference chip can be opened right now, and why not; passed through to
+   *  every message's `InterfaceReferenceTags` — see the cases there. */
+  isInterfaceLinkable?: (reference: IInterfaceReference) => boolean;
+  unlinkableReason?: (reference: IInterfaceReference) => string | undefined;
+  /**
+   * The action to offer on a system event's card, if any — asked per system message, so a
+   * consumer answers for the events and states it handles (the IDE offers Grant on a
+   * `support_access.requested` card while the request is open; the staff portal offers
+   * nothing). Omitted ⇒ cards carry no action.
+   */
+  systemEventAction?: (message: ITicketThreadMessage) => ITicketSystemEventAction | undefined;
   /** The TICKET's own references (picked when filing). Echoed as chips on the opening
    *  message so the conversation carries them too — when they lived only in the header
    *  rail + References tab, readers looked for them in the thread and concluded the
@@ -135,7 +179,7 @@ const authorLabel = (message: ITicketThreadMessage, viewerRole: TTicketViewerRol
   if (viewerRole === 'customer') {
     return message.author_type === 'customer' ? 'You' : 'Qorus Support';
   }
-  return `${message.author_type === 'staff' ? 'Support' : 'Customer'} · ${message.author_id}`;
+  return `${message.author_type === 'staff' ? 'Support' : 'Customer'} · ${message.author_name ?? message.author_id}`;
 };
 
 /**
@@ -258,9 +302,9 @@ const ConversationSkeleton = () => (
 // Debosses the empty state: washes the icon + title back with opacity (kept
 // theme-agnostic) and adds a faint light edge below, so "No messages yet" reads
 // as pressed into the surface rather than announced.
-const StyledEmpty = styled.div`
+const StyledEmpty = styled.div<{ $iconOpacity: number; $titleOpacity: number }>`
   /*
-   * Centre the placeholder in the space it's given rather than letting it sit at the
+   * Center the placeholder in the space it's given rather than letting it sit at the
    * top. Like the thread, this fills its scroll parent (min-height: 100%, which needs a
    * definite height to resolve — the drawer body provides one; where a consumer doesn't,
    * it collapses to auto and the state keeps its natural top-aligned flow).
@@ -272,7 +316,7 @@ const StyledEmpty = styled.div`
   justify-content: center;
 
   .reqore-icon {
-    opacity: 0.28;
+    opacity: ${({ $iconOpacity }) => $iconOpacity};
   }
   h1,
   h2,
@@ -280,20 +324,20 @@ const StyledEmpty = styled.div`
   h4,
   h5,
   h6 {
-    opacity: 0.4;
+    opacity: ${({ $titleOpacity }) => $titleOpacity};
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
   }
 `;
 
 // System messages read as a centered muted note between cards; the nested rule
 // flattens react-markdown's own <p> margins so it sits on one line.
-const StyledSystemRow = styled.div`
+const StyledSystemRow = styled.div<{ $opacity: number }>`
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   font-size: 11px;
-  opacity: 0.55;
+  opacity: ${({ $opacity }) => $opacity};
   text-align: center;
   p {
     margin: 0;
@@ -309,7 +353,7 @@ interface IStyledMarkdownProps {
 
 // The message body, washed a step below the bright author name in the card's
 // header so the two read as different things; in-body **bold** lifts back toward
-// full strength as emphasis. Every colour derives from the active Reqore theme
+// full strength as emphasis. Every color derives from the active Reqore theme
 // rather than a hardcoded hex, so the thread reads correctly on any host app.
 const StyledMarkdown = styled.div<IStyledMarkdownProps>`
   color: ${({ $color }) => $color};
@@ -338,7 +382,7 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
     margin: 2px 0;
   }
   code {
-    font-family: monospace;
+    font-family: ${ReqoreFonts.mono};
     background: ${({ $code }) => $code};
     padding: 1px 5px;
     border-radius: 4px;
@@ -368,10 +412,18 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
 const MessageBody = ({ children }: { children: string }) => {
   const theme = useReqoreTheme();
   const readable = getReadableColor(theme);
-  const link = theme.intents?.info ?? readable;
+  /* the links in the info intent and the text a shade softer, each as far as it still reads on the theme's
+     surfaces (qorus#646: the info blue was 3.5:1 on a bubble) */
+  const { link, text } = useMemo(() => {
+    const surfaces = getThemeSurfaces(theme);
+    return {
+      link: getReadableShade(theme.intents?.info ?? readable, surfaces),
+      text: getReadableFaded(readable, surfaces, 0.72),
+    };
+  }, [theme, readable]);
   return (
     <StyledMarkdown
-      $color={rgba(readable, 0.72)}
+      $color={text}
       $emphasis={rgba(readable, 0.95)}
       $code={rgba(readable, 0.1)}
       $link={link}
@@ -532,6 +584,101 @@ const AttachmentList = ({
   );
 };
 
+/** The anchor a "show in chat" scroll lands on; the notification itself takes no id. */
+const StyledSystemCard = styled.div`
+  width: 100%;
+`;
+
+/** A one-line access event sits centred in the thread, as the plain system lines do. */
+const StyledSystemPill = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 100%;
+`;
+
+/**
+ * A system message. The request for workspace access renders as a card — it asks the
+ * reader something, and can carry the customer's answer — while every other event stays
+ * the centred muted line, marked with its event's icon when the event is known.
+ *
+ * The card wears the notification look (Nick, 2026-10-20): the same frosted surface,
+ * icon tile and action row as a toast, because a thread message that asks the reader to
+ * act is a notification that happens to live in the thread. It never times out and
+ * cannot be dismissed; the answer is the one action on it.
+ */
+const SystemMessage = ({
+  message,
+  action,
+  opacity,
+  viewerRole,
+}: {
+  message: ITicketThreadMessage;
+  action?: ITicketSystemEventAction;
+  /** the readable opacity of a plain system line (develop's `useReadableOpacity`); a card is not dimmed */
+  opacity: number;
+  /** whose side the line is read from: the end of a grant says "by you" to the one who ended it */
+  viewerRole: TTicketViewerRole;
+}) => {
+  const meta = ticketSystemEventMeta(message.system_event);
+  if (message.system_event === 'support_access.requested') {
+    return (
+      <StyledSystemCard id={ticketMessageDomId(message.message_id)} className='reqore-ticket-system-card'>
+        <ReqoreNotification
+          fluid
+          // in the page, not over it: no drop shadow, no cast light (reqore 0.78.8)
+          lift={false}
+          icon={meta.icon}
+          intent={meta.intent}
+          title={meta.label}
+          content={<MessageBody>{message.body}</MessageBody>}
+          actions={
+            action
+              ? [
+                  {
+                    label: action.label,
+                    icon: action.icon,
+                    intent: action.intent ?? 'success',
+                    className: 'reqore-ticket-system-card-action',
+                    // a notification's actions are plain buttons that keep their label at
+                    // every width (a phone is where the customer reads this); only a panel
+                    // action folds to an icon, so nothing has to be asked for here
+                    // the card stays: the thread, not a click, decides when it goes
+                    closeOnClick: false,
+                    onClick: action.onClick,
+                  },
+                ]
+              : undefined
+          }
+        />
+      </StyledSystemCard>
+    );
+  }
+  // A delegated-access event the vocabulary knows is a compact pill in the same look as
+  // the request card, so the grant's story reads as one family: asked, granted, opened,
+  // extended, revoked, expired — the end of a grant worded from the viewer's side. Any
+  // other system line stays the plain centred line.
+  if (message.system_event && message.system_event in TICKET_SYSTEM_EVENT_META) {
+    return (
+      <StyledSystemPill id={ticketMessageDomId(message.message_id)} className='reqore-ticket-system-pill'>
+        <ReqoreNotification
+          compact
+          lift={false}
+          size='small'
+          icon={meta.icon}
+          intent={meta.intent}
+          content={<ReactMarkdown components={{ p: 'span' }}>{supportAccessEventText(message, viewerRole)}</ReactMarkdown>}
+        />
+      </StyledSystemPill>
+    );
+  }
+  return (
+    <StyledSystemRow $opacity={opacity} id={ticketMessageDomId(message.message_id)}>
+      <ReqoreIcon icon={meta.icon} size='tiny' />
+      <ReactMarkdown>{message.body}</ReactMarkdown>
+    </StyledSystemRow>
+  );
+};
+
 type TThreadSegment =
   | { kind: 'system'; message: ITicketThreadMessage }
   | { kind: 'bubbles'; messages: ITicketThreadMessage[] };
@@ -567,6 +714,9 @@ export const TicketThread = ({
   resolveInterfaceIcon,
   preferKindImage,
   onInterfaceClick,
+  isInterfaceLinkable,
+  unlinkableReason,
+  systemEventAction,
   ticketReferences,
 }: ITicketThreadProps) => {
   // Open scrolled to the newest message, and follow new arrivals down — a thread is read
@@ -576,6 +726,12 @@ export const TicketThread = ({
   // end rather than scrollIntoView on a sentinel — scrollIntoView also drags any outer scroll
   // container around and stops one bottom-padding short of the real end.
   const threadRef = useRef<HTMLDivElement>(null);
+  /* The empty state's deboss (its icon and title washed back), the system notes and the message count: as
+     faint as they still read - 3:1 the icon, 4.5:1 the text (qorus#646). */
+  const emptyIconOpacity = useReadableOpacity(0.28, READABLE_ICON);
+  const emptyTitleOpacity = useReadableOpacity(0.4);
+  const systemNoteOpacity = useReadableOpacity(0.55);
+  const countOpacity = useReadableOpacity(0.5);
   useEffect(() => {
     // Find the thread's OWN scroll container — the nearest ancestor that actually scrolls
     // (overflow-y auto/scroll), not merely the first one that currently overflows. A short
@@ -610,15 +766,7 @@ export const TicketThread = ({
       return undefined;
     }
     const opening = messages.find((m) => m.message_id === openingMessageId);
-    const seen = new Set<string>();
-    return [...ticketReferences, ...(opening?.referenced_interfaces ?? [])].filter((ref) => {
-      const key = `${ref.interface_kind}:${ref.interface_name}`;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
+    return dedupeInterfaceReferences([...ticketReferences, ...(opening?.referenced_interfaces ?? [])]);
   }, [ticketReferences, messages, openingMessageId]);
 
   const refsFor = (message: ITicketThreadMessage): IInterfaceReference[] | undefined =>
@@ -637,7 +785,7 @@ export const TicketThread = ({
 
   if (!messages.length) {
     return (
-      <StyledEmpty>
+      <StyledEmpty $iconOpacity={emptyIconOpacity} $titleOpacity={emptyTitleOpacity}>
         <ReqoreEmptyState icon='Chat3Line' title='No messages yet' flat transparent />
       </StyledEmpty>
     );
@@ -647,13 +795,13 @@ export const TicketThread = ({
     <StyledThread ref={threadRef}>
       {segments.map((segment, index) =>
         segment.kind === 'system' ? (
-          <StyledSystemRow
+          <SystemMessage
             key={segment.message.message_id}
-            id={ticketMessageDomId(segment.message.message_id)}
-          >
-            <ReqoreIcon icon='InformationLine' size='tiny' />
-            <ReactMarkdown>{segment.message.body}</ReactMarkdown>
-          </StyledSystemRow>
+            message={segment.message}
+            action={systemEventAction?.(segment.message)}
+            opacity={systemNoteOpacity}
+            viewerRole={viewerRole}
+          />
         ) : (
           <ReqoreBubbleGroup key={`group-${index}`}>
             {segment.messages.map((message) => (
@@ -690,6 +838,8 @@ export const TicketThread = ({
                       resolveInterfaceIcon={resolveInterfaceIcon}
                       preferKindImage={preferKindImage}
                       onInterfaceClick={onInterfaceClick}
+                      isInterfaceLinkable={isInterfaceLinkable}
+                      unlinkableReason={unlinkableReason}
                     />
                   </div>
                 ) : null}
@@ -698,7 +848,7 @@ export const TicketThread = ({
           </ReqoreBubbleGroup>
         )
       )}
-      <ReqoreP size='tiny' effect={{ opacity: 0.5, textAlign: 'center' }}>
+      <ReqoreP size='tiny' effect={{ opacity: countOpacity, textAlign: 'center' }}>
         {messages.length} message{messages.length === 1 ? '' : 's'}
       </ReqoreP>
     </StyledThread>

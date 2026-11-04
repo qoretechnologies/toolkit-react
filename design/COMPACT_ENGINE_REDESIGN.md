@@ -39,7 +39,8 @@ Unify the two existing description affordances:
 - **`short_desc`** → the toolbar **Descriptions toggle** (icon-only, `info`
   intent when active — exactly the prototype's button), mapped to the engine's
   existing `showAllDescriptions`. Renders inline under the field name via
-  `.options-readfirst-label-desc`. The per-field ⓘ stays as a local override.
+  `.options-readfirst-label-desc`. (As built, the per-field ⓘ was removed: the toolbar
+  toggle is the one way to show every short_desc, and each is its name's hover.)
 - **`desc` (long, markdown)** → stays where you actually read/edit the field:
   rendered by `<Description longDescriptionShownByDefault>` inside
   **FocusedEditing**, plus the quick `?` help (`.options-readfirst-help`). No

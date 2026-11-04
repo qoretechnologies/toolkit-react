@@ -19,6 +19,7 @@ import {
   useVariantColors,
   useVariantForm,
 } from './variantParts';
+import { markdownToProse } from '../../../../helpers/markdownText';
 
 const Wrap = styled.div<{ $surface: string; $line: string; $hover: string }>`
   display: flex;
@@ -186,7 +187,7 @@ export const VariantCards = ({
                         {r.shortDesc ? <div>{r.shortDesc}</div> : null}
                         {r.longDesc ?
                           <div style={{ opacity: 0.85, marginTop: r.shortDesc ? 4 : 0 }}>
-                            {r.longDesc.replace(/[#`*]/g, '')}
+                            {markdownToProse(r.longDesc)}
                           </div>
                         : null}
                       </div>

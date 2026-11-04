@@ -8,16 +8,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { useLspSession, IUseLspSessionResult } from '../smartEditor/useLspSession';
-import { IDpqlParseResult, TDpqlFields, TDpqlFsmContext } from './types';
+import { IDpqlParseOptions, IDpqlParseResult, TDpqlFields, TDpqlFsmContext } from './types';
+import type { ITemplateFieldContext } from '../../helpers/templateCatalogue';
 
 export interface IDpqlFieldMeta {
   display_name?: string;
   short_desc?: string;
   desc?: string;
-  type?: { name?: string };
+  /** Its type's name, and the fields of a field that is a record of its own (`@contact.email`). */
+  type?: { name?: string; fields?: Record<string, IDpqlFieldMeta> };
 }
 
+/** A field as the server describes it (`AbstractDataField::getInfo`), as the editor keeps it: its record's too. */
+const fieldMetaOf = (field: any): IDpqlFieldMeta => {
+  const members = field?.type?.fields ?? field?.fields;
+  return {
+    display_name: field?.display_name,
+    short_desc: field?.short_desc,
+    desc: field?.desc,
+    type:
+      field?.type ?
+        {
+          name: field.type.name ?? (typeof field.type === 'string' ? field.type : undefined),
+          ...(members && typeof members === 'object' ?
+            {
+              fields: Object.fromEntries(
+                Object.entries(members as Record<string, unknown>).map(([name, member]) => [
+                  name,
+                  fieldMetaOf(member),
+                ])
+              ),
+            }
+          : {}),
+        }
+      : undefined,
+  };
+};
+
 export interface IUseDpqlSessionOptions {
+  /** Where the field is (`field_context`), sent with each context binding (qorus#646). */
+  fieldContext?: ITemplateFieldContext;
   /** Provider spec — `@<app>/<action>`, `datasource:name`, `connection:name`, or factory string. */
   provider?: string;
   /** Record type — `'record'` (default), `'create'`, or `'update'`. */
@@ -56,7 +86,7 @@ export interface IUseDpqlSessionResult {
    * `dpql/parse` — DPQL text → expression AST, and, when `targetType` is
    * given, whether that result can satisfy the type the field declares.
    */
-  parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
+  parse: (text: string, targetType?: string, options?: IDpqlParseOptions) => Promise<IDpqlParseResult>;
   /** `dpql/serialize` — expression AST → DPQL text. */
   serialize: (expression: Record<string, any>) => Promise<string>;
   /**
@@ -78,7 +108,15 @@ export function useDpqlSession(
     initialText = '',
     alertPayloadContext = false,
     fsmContext,
+    fieldContext,
   } = opts;
+  /* Where the field is, sent with each binding (qorus#646): the server offers the templates valid there. A binding is
+     redone when it changes, by its contents, not by an object recreated with each render. */
+  const fieldContextKey = fieldContext ? JSON.stringify(fieldContext) : undefined;
+  const withFieldContext = useMemo(
+    () => (fieldContextKey ? { field_context: JSON.parse(fieldContextKey) } : {}),
+    [fieldContextKey]
+  );
 
   // Provider/recordType context and alert-payload context are
   // server-side mutually exclusive — only one binds the URI at a time.
@@ -164,6 +202,7 @@ export function useDpqlSession(
         options: ctxOptions,
         action_code: actionCode,
         ...(hasFields ? { fields } : {}),
+        ...withFieldContext,
       })
       .then((result) => {
         if (cancelled) return;
@@ -172,12 +211,7 @@ export function useDpqlSession(
           for (const [name, field] of Object.entries(
             result.fields as Record<string, any>
           )) {
-            meta[name] = {
-              display_name: field.display_name,
-              short_desc: field.short_desc,
-              desc: field.desc,
-              type: field.type ? { name: field.type.name } : undefined,
-            };
+            meta[name] = fieldMetaOf(field);
           }
           setFieldMeta(meta);
         }
@@ -205,6 +239,7 @@ export function useDpqlSession(
     ctxOptions,
     actionCode,
     fieldsKey,
+    withFieldContext,
   ]);
 
   // Alert-payload binding. On first mount it lands via
@@ -232,7 +267,7 @@ export function useDpqlSession(
     setAlertPayloadBound(false);
     let cancelled = false;
     session.client
-      .customRequest('dpql/setAlertPayloadContext', { uri: session.uri })
+      .customRequest('dpql/setAlertPayloadContext', { uri: session.uri, ...withFieldContext })
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error('[DPQL] setAlertPayloadContext failed:', err);
@@ -250,6 +285,7 @@ export function useDpqlSession(
     session.client,
     session.isReady,
     session.uri,
+    withFieldContext,
   ]);
 
   // FSM context binding. Always uses the explicit
@@ -281,7 +317,7 @@ export function useDpqlSession(
     }
     // Bind, update, or clear. Build params from the discriminated
     // union; passing no source key clears any existing FSM binding.
-    const params: Record<string, unknown> = { uri: session.uri };
+    const params: Record<string, unknown> = { uri: session.uri, ...withFieldContext };
     if (fsmContext) {
       if ('fsm' in fsmContext && fsmContext.fsm) {
         params.fsm = fsmContext.fsm;
@@ -314,6 +350,7 @@ export function useDpqlSession(
     session.isReady,
     session.uri,
     fsmContext,
+    withFieldContext,
   ]);
 
   // Wrap the underlying LSP session so consumers see the DPQL-aware
@@ -326,7 +363,11 @@ export function useDpqlSession(
   );
 
   const parse = useCallback(
-    async (text: string, targetType?: string): Promise<IDpqlParseResult> => {
+    async (
+      text: string,
+      targetType?: string,
+      options?: IDpqlParseOptions
+    ): Promise<IDpqlParseResult> => {
       if (!session.client) {
         return { success: false, expression: null, diagnostics: [] };
       }
@@ -338,8 +379,15 @@ export function useDpqlSession(
             text,
             // Only sent when the field declares one. Without it the server
             // does no type analysis at all, which is the right answer for a
-            // caller that only wants to know whether the text parses.
-            ...(targetType ? { target_type: targetType } : {}),
+            // caller that only wants to know whether the text parses. A
+            // condition is asked as one instead: the server ignores the
+            // target type then, and an older one, which does not know the
+            // question, answers with the inferred type alone.
+            ...(options?.condition
+              ? { condition: true }
+              : targetType
+                ? { target_type: targetType }
+                : {}),
           }
         );
         return {
@@ -351,6 +399,8 @@ export function useDpqlSession(
           auto_coercible: result?.auto_coercible,
           coercion_may_fail: result?.coercion_may_fail,
           suggested_fix: result?.suggested_fix,
+          condition_reading: result?.condition_reading,
+          parts: result?.parts,
           diagnostics: result?.diagnostics ?? [],
         };
       } catch {
@@ -369,8 +419,11 @@ export function useDpqlSession(
           { uri: session.uri, expression }
         );
         return result?.dpql ?? '';
-      } catch {
-        return '';
+      } catch (error) {
+        /* The server refused to write this value (DPQL-SERIALIZE-ERROR: a two-argument operator stored with
+           more arguments). Said, not answered with no text: an empty answer opened an empty Text view for the
+           author to type over, and what was typed replaced the value (qorus#646). */
+        throw new Error(String((error as { message?: unknown })?.message ?? error));
       }
     },
     [session.client, session.uri]

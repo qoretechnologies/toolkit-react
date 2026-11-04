@@ -210,6 +210,9 @@ export const Default: Story = {
 /** A picked interface can be un-picked from the list it was picked in. */
 export const DeselectsAPickedInterface: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -299,6 +302,9 @@ export const SearchMatchesDescriptions: Story = {
 /** Selecting a kind on the left swaps the right pane to that kind's interfaces. */
 export const SwitchesKind: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Default`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -485,6 +491,44 @@ export const LoadFailed: Story = {
     const retry = await canvas.findByRole('button', { name: /Couldn't load connections/ });
     await expect(retry).toBeInTheDocument();
     // the failure replaces the list rather than sitting alongside an empty one
+    await expect(canvas.queryByText(/No connections/)).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * The user may not list this kind. The pane says why, in words, as one muted item with a lock: not a
+ * failure, and nothing to retry - a refused permission is an answer, not a fetch to try again.
+ */
+export const KindUnavailable: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a kind the user may not list (a refused permission): the pane shows one muted item with a lock and the reason as its words, with no retry and no danger color, instead of a failure.',
+      },
+    },
+  },
+  decorators: [darkTheme],
+  render: () => (
+    <ReferencePicker
+      kinds={KINDS}
+      kind='connection'
+      onKindChange={fn()}
+      items={[]}
+      unavailable='Listing connections needs the CONNECTION-READ permission'
+      onAdd={fn()}
+    />
+  ),
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const reason = await canvas.findByRole('button', {
+      name: 'Listing connections needs the CONNECTION-READ permission',
+    });
+    // the reason is the item's own words, not a tooltip
+    await expect(reason).toHaveTextContent(
+      'Listing connections needs the CONNECTION-READ permission'
+    );
+    await expect(canvas.queryByText(/Couldn't load/)).not.toBeInTheDocument();
     await expect(canvas.queryByText(/No connections/)).not.toBeInTheDocument();
   },
 };

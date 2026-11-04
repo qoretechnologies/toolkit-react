@@ -75,6 +75,9 @@ export const WithValue: Story = {
 
 export const Empty: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
