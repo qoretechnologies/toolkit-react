@@ -1665,20 +1665,20 @@ const expressionWithTemplates = {
   templates: recordTemplates as any,
 };
 
-/** Opens the template picker of an expression's text with its button, at its Template contexts. */
+/**
+ * Opens the template picker of an expression's text with its button, as soon as there is one, at its Template
+ * contexts: a click as the field comes up is a click, and the editor settling did not put the picker away.
+ */
 const openTemplateContexts = async (canvasElement: HTMLElement) => {
-  // the editor first, as a person starts: its button writes at the editor's caret
-  const editor = await waitFor(
+  const button = await waitFor(
     () => {
-      const found = canvasElement.querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      const found = canvasElement.querySelector<HTMLElement>('.smart-editor-template-button');
       expect(found).toBeTruthy();
       return found!;
     },
     { timeout: 10000 }
   );
-  await userEvent.click(editor);
-  await userEvent.keyboard('{Escape}');
-  await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+  await userEvent.click(button);
   await userEvent.click(await pickerRow('Template contexts'));
 };
 

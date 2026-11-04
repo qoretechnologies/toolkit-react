@@ -98,6 +98,13 @@ const isGroup = (node: ITemplateNode) =>
   !!node.children?.length || (!!node.loadChildren && !node.children);
 
 /** Nothing can be done with it: no members to open, no value to take, nothing to write after it. */
+/** What a host's refusal to give a group's members says: its words, never its code (`failed` for no words). */
+const loadFailureReason = (error: unknown): string | undefined => {
+  const said = (error as { desc?: unknown; message?: unknown } | undefined) ?? {};
+  const text = typeof said.desc === 'string' ? said.desc : said.message;
+  return typeof text === 'string' && text.trim() ? text.trim() : undefined;
+};
+
 const isDeadEnd = (node: ITemplateNode) =>
   !!node.disabled || (!isGroup(node) && !node.writesKey && !node.continues && !node.value);
 
@@ -220,6 +227,12 @@ export const TemplatePicker = memo(
     // a host's members come when they are asked for: the rows are drawn again when they have come
     const [, membersCame] = useReducer((count: number) => count + 1, 0);
     const [loading, setLoading] = useState<string | null>(null);
+    // the group whose members could not be loaded, and why: said where they would be, with Retry
+    const [loadFailure, setLoadFailure] = useState<{ node: ITemplateNode; reason?: string } | null>(
+      null
+    );
+    const [loadAttempt, retryLoad] = useReducer((count: number) => count + 1, 0);
+    const openedByClickRef = useRef<string | null>(null);
     const [levels, setLevels] = useState<string[]>(() => levelsTo(roots, levelId));
     const [query, setQuery] = useState(initialQuery ?? '');
     const [everywhere, setEverywhere] = useState(false);
@@ -258,6 +271,7 @@ export const TemplatePicker = memo(
       if (!level || level.children || !level.loadChildren) return undefined;
       let current = true;
       setLoading(level.id);
+      setLoadFailure(null);
       loadTemplateChildren(level)
         .then(
           (members) => {
@@ -265,10 +279,13 @@ export const TemplatePicker = memo(
                value it has is what the click that opened it was for. */
             if (current && !members.length) {
               setLevels((opened) => opened.filter((id) => id !== level.id));
-              if (level.value) onPick(level);
+              // a lone group opens by itself: nothing is taken but by a click
+              if (level.value && openedByClickRef.current === level.id) onPick(level);
             }
           },
-          () => undefined
+          (error: unknown) => {
+            if (current) setLoadFailure({ node: level, reason: loadFailureReason(error) });
+          }
         )
         .finally(() => {
           if (current) {
@@ -279,7 +296,7 @@ export const TemplatePicker = memo(
       return () => {
         current = false;
       };
-    }, [level, onPick]);
+    }, [level, onPick, loadAttempt]);
 
     /* A reference typed into a group whose members come only when asked (`$data:lookup_customer.`): its members
        are asked for, so that the search can go into them. */
@@ -299,21 +316,28 @@ export const TemplatePicker = memo(
       walk(roots);
       if (!waiting.length) return undefined;
       let current = true;
-      void Promise.all(waiting.map((node) => loadTemplateChildren(node).catch(() => []))).then(
-        () => {
-          if (current) membersCame();
-        }
-      );
+      setLoadFailure(null);
+      void Promise.all(
+        waiting.map((node) =>
+          loadTemplateChildren(node).catch((error: unknown) => {
+            if (current) setLoadFailure({ node, reason: loadFailureReason(error) });
+            return [];
+          })
+        )
+      ).then(() => {
+        if (current) membersCame();
+      });
       return () => {
         current = false;
       };
-    }, [query, roots]);
+    }, [query, roots, loadAttempt]);
 
     const rows = useMemo(
       () =>
         query.trim() ?
           searchTemplateTree(roots, query, everywhere ? undefined : level)
-        : (level?.children ?? roots),
+        : level ? (level.children ?? [])
+        : roots,
       // `membersCame`: a group's members, once they have come, are its members
       [roots, query, everywhere, level, level?.children]
     );
@@ -328,6 +352,7 @@ export const TemplatePicker = memo(
     }, [levels, query, everywhere]);
 
     const open = useCallback((node: ITemplateNode) => {
+      openedByClickRef.current = node.id;
       setLevels([...node.trailIds, node.id]);
       setQuery('');
       setEverywhere(false);
@@ -482,6 +507,9 @@ export const TemplatePicker = memo(
     const crumbsShown = coarse && crumbs.length > 2 ? crumbs.slice(-1) : crumbs;
     const crumbsHidden = crumbs.length - crumbsShown.length;
     const isReference = /^[$@]/.test(query.trim());
+    // where it would be listed: at its own level, or a search that goes into it
+    const shownFailure =
+      loadFailure && (level?.id === loadFailure.node.id || isReference) ? loadFailure : null;
     const optionId = (index: number) => `${id}-option-${index}`;
 
     return (
@@ -654,6 +682,33 @@ export const TemplatePicker = memo(
             </ReqoreControlGroup>
           </ReqoreControlGroup>
         : null}
+        {shownFailure ?
+          <ReqoreControlGroup
+            vertical
+            fluid
+            size='small'
+            className='template-picker-load-failed'
+            style={{ padding: 8 }}
+          >
+            <ReqoreP size='small' role='alert'>
+              {`Could not load what is in ${shownFailure.node.label}${
+                shownFailure.reason ? `: ${shownFailure.reason}` : '.'
+              }`}
+            </ReqoreP>
+            <ReqoreButton
+              className='template-picker-retry'
+              icon='RefreshLine'
+              compact
+              fixed
+              onClick={() => {
+                setLoadFailure(null);
+                retryLoad();
+              }}
+            >
+              Retry
+            </ReqoreButton>
+          </ReqoreControlGroup>
+        : null}
         <ReqoreMenu
           id={id}
           role='listbox'
@@ -666,7 +721,7 @@ export const TemplatePicker = memo(
           effect={SMART_EDITOR_OVERLAY_EFFECT}
           customTheme={COMPLETION_LIST_THEME}
         >
-          {!visible.length ?
+          {!visible.length && !shownFailure ?
             <ReqoreMenuItem
               icon={loading ? 'LoaderLine' : 'InformationLine'}
               label={

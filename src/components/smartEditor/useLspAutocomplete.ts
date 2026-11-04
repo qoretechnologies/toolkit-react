@@ -1030,10 +1030,15 @@ export function useLspAutocomplete(
         // opened it momentarily left the selection null — clicking a
         // void inline can do that.
         if (replacingChipPathRef.current) return;
+        const contentEdit = editor.operations.some((op) => op.type !== 'set_selection');
         // a content edit before the session is ready is answered once it is (see `pendingTypingRef`)
-        if (editor.selection && editor.operations.some((op) => op.type !== 'set_selection')) {
+        if (editor.selection && contentEdit) {
           pendingTypingRef.current = editor;
         }
+        /* The picker needs no session: it lists the field's own templates. Opening it sets the caret its pick goes
+           at (`openBrowse`), and that selection change closed it again until the session was up: the template button
+           did nothing while the field came up, and for good where the language server cannot be reached. */
+        if (browseRef.current && !contentEdit) return;
         close();
         return;
       }

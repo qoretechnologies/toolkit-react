@@ -87,3 +87,39 @@ describe('a trigger typed before the session is ready', () => {
     expect(getCompletions).toHaveBeenCalledWith('@', 1, '@');
   });
 });
+
+/**
+ * The picker lists the field's own templates, and needs no session. Opening it sets the caret its pick goes at, and
+ * that selection change closed it while the session came up: the template button did nothing until then, and for
+ * good where the language server cannot be reached.
+ */
+describe('the template picker opened before the session is ready', () => {
+  const opened = () => {
+    const { hook } = setup(false);
+    const editor = editorWith('');
+    act(() => hook.result.current.openBrowse(editor as never, { rect: { left: 0, bottom: 0 } } as never));
+    return { hook };
+  };
+
+  it('stays open through the selection change that opening it makes', () => {
+    const { hook } = opened();
+    const echo = editorWith('', [{ type: 'set_selection' }]);
+    act(() => hook.result.current.onSlateChange(echo, (echo as any).children));
+    expect(hook.result.current.browse).toBeTruthy();
+    expect(hook.result.current.isOpen).toBe(true);
+  });
+
+  it('is put away by typing, which is answered once the session is ready', async () => {
+    const { hook } = opened();
+    const typed = editorWith('$');
+    act(() => hook.result.current.onSlateChange(typed, (typed as any).children));
+    expect(hook.result.current.browse).toBeFalsy();
+  });
+
+  it('leaves the list at the caret closed by a selection change: it needs the session', () => {
+    const { hook } = setup(false);
+    const echo = editorWith('', [{ type: 'set_selection' }]);
+    act(() => hook.result.current.onSlateChange(echo, (echo as any).children));
+    expect(hook.result.current.isOpen).toBe(false);
+  });
+});

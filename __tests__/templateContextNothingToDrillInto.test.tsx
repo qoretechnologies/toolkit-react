@@ -161,7 +161,17 @@ describe('the template picker', () => {
     expect(onPick).not.toHaveBeenCalled();
   });
 
+  // beside another row: a lone group is opened by itself
+  const OTHER: ITemplateNode = {
+    id: 'other',
+    label: 'Other',
+    kind: 'template',
+    value: '$local:other',
+    trail: [],
+    trailIds: [],
+  };
   const lazy = (value?: string): ITemplateNode[] => [
+    OTHER,
     {
       id: 'lazy',
       label: 'Lazy',
@@ -182,6 +192,14 @@ describe('the template picker', () => {
     expect(onPick.mock.calls[0][0].value).toBe('$data:{lazy}');
   });
 
+  it('takes nothing by itself when a lone group, opened by itself, comes empty', async () => {
+    const { onPick, row } = renderPicker(lazy('$data:{lazy}').slice(1));
+    await waitFor(() => expect(row('Lazy')).toBeTruthy());
+    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.click(row('Lazy')!);
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
   it('goes back from a group whose members come empty and that has no value, and disables it', async () => {
     const { container, onPick, row } = renderPicker(lazy());
     await act(async () => {
@@ -194,6 +212,114 @@ describe('the template picker', () => {
       true
     );
     expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
+describe('a group whose members cannot be loaded', () => {
+  const failing = (load: () => Promise<ITemplateNode[]>): ITemplateNode[] => [
+    { id: 'lazy', label: 'Order data', kind: 'group', trail: [], trailIds: [], loadChildren: load },
+    {
+      id: 'other',
+      label: 'Other',
+      kind: 'template',
+      value: '$local:other',
+      trail: [],
+      trailIds: [],
+    },
+  ];
+  const member: ITemplateNode = {
+    id: 'lazy.id',
+    label: 'Order ID',
+    value: '$data:{lazy.id}',
+    kind: 'template',
+    trail: ['Order data'],
+    trailIds: ['lazy'],
+  };
+
+  it('says what failed and why, and the picker stays usable; it never says "Nothing here"', async () => {
+    const { container, onPick, row } = renderPicker(
+      failing(() => Promise.reject(new Error('The server did not answer')))
+    );
+    await act(async () => {
+      fireEvent.click(row('Order data')!);
+    });
+    const said = await waitFor(() => {
+      const failure = container.querySelector('.template-picker-load-failed');
+      expect(failure).toBeTruthy();
+      return failure!;
+    });
+    expect(said.textContent).toContain('Order data');
+    expect(said.textContent).toContain('The server did not answer');
+    expect(container.querySelector('.template-picker-empty')).toBeNull();
+    expect(container.querySelector('.template-picker-retry')).toBeTruthy();
+    // the level it is at lists none of the levels above it
+    expect(row('Order data')).toBeNull();
+    // the way back and the search box are still there
+    expect(container.querySelector('.template-picker-back')).toBeTruthy();
+    expect(container.querySelector('.template-picker-search')).toBeTruthy();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('asks again with Retry, and lists the members that come', async () => {
+    const load = vi
+      .fn<() => Promise<ITemplateNode[]>>()
+      .mockRejectedValueOnce(new Error('The server did not answer'))
+      .mockResolvedValueOnce([member]);
+    const { container, row } = renderPicker(failing(load));
+    await act(async () => {
+      fireEvent.click(row('Order data')!);
+    });
+    const retry = await waitFor(() => {
+      const button = container.querySelector<HTMLElement>('.template-picker-retry');
+      expect(button).toBeTruthy();
+      return button!;
+    });
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+    await waitFor(() => expect(row('Order ID')).toBeTruthy());
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.template-picker-load-failed')).toBeNull();
+  });
+
+  it('says so again when Retry fails too', async () => {
+    const load = vi.fn(() => Promise.reject(new Error('Still down')));
+    const { container } = renderPicker(failing(load), 'lazy');
+    const retry = await waitFor(() => {
+      const button = container.querySelector<HTMLElement>('.template-picker-retry');
+      expect(button).toBeTruthy();
+      return button!;
+    });
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(container.querySelector('.template-picker-load-failed')?.textContent).toContain('Still down')
+    );
+  });
+
+  it('says what could not be searched when a typed reference goes into it', async () => {
+    const roots: ITemplateNode[] = [
+      {
+        id: 'lazy',
+        label: 'Order data',
+        reference: '$data:order',
+        kind: 'group',
+        trail: [],
+        trailIds: [],
+        loadChildren: () => Promise.reject(new Error('The server did not answer')),
+      },
+    ];
+    const onPick = vi.fn();
+    const { container } = render(
+      <ReqoreUIProvider>
+        <TemplatePicker id='picker' roots={roots} initialQuery='$data:order.i' onPick={onPick} />
+      </ReqoreUIProvider>
+    );
+    await waitFor(() =>
+      expect(container.querySelector('.template-picker-load-failed')?.textContent).toContain('Order data')
+    );
   });
 });
 
