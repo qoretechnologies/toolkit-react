@@ -14,6 +14,7 @@ import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'story
 import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
 import { defaultQorusTypes, IQorusTypeObject } from '../../../../hooks/useQorusTypes';
+import { storyCopiedTexts, withStoryClipboard } from '../../../../stories/clipboard';
 import { atTheCaptureSize } from '../../../../stories/mouse';
 import { storyApiUrl } from '../../../../stories/storyNetwork';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
@@ -1092,6 +1093,108 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
     // close everything, which would leave the capture showing an empty field).
     await _testsOpenTemplates();
     await _testsWaitForText('Attachment Body');
+  },
+};
+
+/* The words of a list of templates in a pseudo-locale, as a host that translates its interface passes them: every
+   text the list, its actions and its example-value window show is the host's, and none is English. */
+const PSEUDO_TEMPLATE_LIST_LABELS = {
+  exampleValue: (value: string) => `[Ëxämplé välüé → ${value}]`,
+  showFullExampleValue: '[Šhöw thé whölé éxämplé välüé]',
+  selectItem: '[Pîçk thîs rêçörd]',
+  exampleValueTitle: '[Ëxämplé välüé]',
+  copy: '[Çöpy]',
+  copied: '[Thé éxämplé välüé wäs çöpîéd]',
+  copyFailed:
+    '[Thé éxämplé välüé çöüld nöt bé çöpîéd: thé brôwsér réfüséd. Šéléçt thé téxt änd çöpy ît yöürsélf.]',
+};
+
+/** The open tooltip that says `text`, once the pointer rests on what has it. */
+const waitForTooltip = (text: string) =>
+  waitFor(
+    () => {
+      const open = Array.from(document.querySelectorAll('.reqore-popover-content')).map(
+        (popover) => popover.textContent || ''
+      );
+      if (!open.some((content) => content.includes(text))) {
+        throw new Error(`no tooltip "${text}" yet: ${JSON.stringify(open)}`);
+      }
+    },
+    { timeout: 10000 }
+  );
+
+export const TemplateListInAnotherLanguage: StoryObj<typeof meta> = {
+  decorators: [(Story) => <div style={{ width: 480 }}>{Story()}</div>],
+  // a secure page whose browser refuses the clipboard, and whose copy command does not copy either
+  beforeEach: withStoryClipboard('refused'),
+  args: {
+    component: LongStringField,
+    value: 'Some string',
+    type: 'string',
+    templates: buildTemplates(longExampleTemplates as any, PSEUDO_TEMPLATE_LIST_LABELS),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the list of templates with the words a host passes (a pseudo-locale here): each example value, the tooltips of the "?" (the whole example value) and "+" (pick this record) actions, and the example-value window, its Copy action and its notice. The browser refuses the clipboard and the copy command does not copy, so Copy shows the host\'s "could not copy" notice, and nothing is copied.',
+      },
+    },
+  },
+  play: async ({ args }) => {
+    await _testsOpenTemplates();
+    await _testsWaitForText('Attachment Body');
+
+    const popover = document.querySelector('.reqore-popover-content');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → "invoice.pdf"]');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → "JVBERi0x');
+    await expect(popover.textContent).not.toContain('Example value');
+
+    // the "?" action's tooltip, then the "+" action's
+    await userEvent.hover(popover.querySelector('.reqore-menu-item-right-action'));
+    await waitForTooltip(PSEUDO_TEMPLATE_LIST_LABELS.showFullExampleValue);
+    await userEvent.unhover(popover.querySelector('.reqore-menu-item-right-action'));
+    await userEvent.hover(popover.querySelector('.reqore-menu-item-left-action'));
+    await waitForTooltip(PSEUDO_TEMPLATE_LIST_LABELS.selectItem);
+    await userEvent.unhover(popover.querySelector('.reqore-menu-item-left-action'));
+
+    await _testsClickButton({ selector: '.reqore-menu-item-right-action' });
+    const modal = await waitFor(
+      () => {
+        const el = document.querySelector('.reqraft-template-example-value-modal');
+        if (!el) throw new Error('modal not open yet');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+    // the window is headed with the template's name, and its action says the host's word
+    await expect(modal.textContent).toContain('Attachment Body');
+    const copy = Array.from(modal.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === PSEUDO_TEMPLATE_LIST_LABELS.copy
+    );
+    await expect(copy).toBeTruthy();
+    await userEvent.click(copy);
+
+    // the copy is refused: the host's notice says so, and no "copied" notice is shown
+    const notices = await waitFor(
+      () => {
+        const shown = Array.from(document.querySelectorAll('.reqore-notification')).map(
+          (notification) => notification.textContent || ''
+        );
+        if (!shown.some((content) => content.includes(PSEUDO_TEMPLATE_LIST_LABELS.copyFailed))) {
+          throw new Error(`no "could not copy" notice yet: ${JSON.stringify(shown)}`);
+        }
+        return shown;
+      },
+      { timeout: 10000 }
+    );
+    await expect(
+      notices.some((content) => content.includes(PSEUDO_TEMPLATE_LIST_LABELS.copied))
+    ).toBe(false);
+    await expect(notices.some((content) => content.includes('Could not copy'))).toBe(false);
+    await expect(storyCopiedTexts()).toEqual([]);
+    // previewing and copying never pick a template; the capture shows the window with the host's notice
+    await expect(args.onChange).not.toHaveBeenCalled();
   },
 };
 

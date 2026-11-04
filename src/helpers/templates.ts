@@ -9,6 +9,7 @@ import {
 import { cloneDeep, size } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
+import { DEFAULT_TEMPLATE_LIST_LABELS, IReqraftTemplateListLabels } from './templateListLabels';
 import {
   describedContent,
   DESCRIPTION_TOOLTIP_MAX_WIDTH,
@@ -767,12 +768,22 @@ export interface ITemplatesPayload {
   };
 }
 
+export { DEFAULT_TEMPLATE_LIST_LABELS } from './templateListLabels';
+export type { IReqraftTemplateListLabels } from './templateListLabels';
+
+/**
+ * `labels`: the words the list is read with (its example values, its actions' tooltips, the example-value window);
+ * a host that translates its interface passes its own, and each one it leaves out stays English.
+ */
 export const buildTemplates = (
-  templates?: ITemplatesPayload
+  templates?: ITemplatesPayload,
+  labels?: Partial<IReqraftTemplateListLabels>
 ): IReqoreFormTemplates | undefined => {
   if (!templates || !Object.keys(templates).length) {
     return undefined;
   }
+
+  const words: IReqraftTemplateListLabels = { ...DEFAULT_TEMPLATE_LIST_LABELS, ...labels };
 
   const mapTemplates = (
     items: ITemplateItemPayload[] = [],
@@ -805,11 +816,11 @@ export const buildTemplates = (
         const item: TReqoreDropdownItem = {
           label: itemDisplayName,
           description: serializedExample
-            ? `Example value: ${
+            ? words.exampleValue(
                 exampleIsLong
                   ? `${serializedExample.slice(0, TEMPLATE_EXAMPLE_PREVIEW_LENGTH)}…`
                   : serializedExample
-              }`
+              )
             : undefined,
           // Ellipsize ONLY where the "?" full-value affordance exists — for a
           // short value an ellipsis would hide information with no way to
@@ -846,12 +857,15 @@ export const buildTemplates = (
           item.rightAction = {
             icon: 'QuestionLine',
             compact: true,
-            tooltip: 'Show the full example value',
+            tooltip: words.showFullExampleValue,
             onClick: () => {
               modalStore.getState().addModal(
                 createElement(ReqraftTemplateExampleValueModal, {
-                  label: itemDisplayName,
+                  label: itemDisplayName || words.exampleValueTitle,
                   value: serializedExample,
+                  copyLabel: words.copy,
+                  copyNotificationContent: words.copied,
+                  copyFailedNotificationContent: words.copyFailed,
                 })
               );
             },
@@ -873,7 +887,7 @@ export const buildTemplates = (
           item.leftAction = {
             icon: 'AddCircleLine',
             compact: true,
-            tooltip: 'Select this item',
+            tooltip: words.selectItem,
             onClick: (_event, _itemId, _closePopover, metadata) => {
               (metadata as { selectItem?: () => void })?.selectItem?.();
             },
