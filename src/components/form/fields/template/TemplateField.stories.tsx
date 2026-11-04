@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
 import { defaultQorusTypes, IQorusTypeObject } from '../../../../hooks/useQorusTypes';
 import { storyCopiedTexts, withStoryClipboard } from '../../../../stories/clipboard';
-import { atTheCaptureSize } from '../../../../stories/mouse';
+import { atTheCaptureSize, hasBrowserMouse } from '../../../../stories/mouse';
 import { storyApiUrl } from '../../../../stories/storyNetwork';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { mockExpressions } from '../../expressions/mockExpressions';
@@ -28,7 +28,8 @@ import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
 import { multiLevelTemplates, templates } from './__fixtures__/templateFixtures';
 import { QOG_FIELD_TEMPLATES } from './__fixtures__/qogTemplatePayloads';
-import { expectPickerFillsItsPopover, pickerRow } from '../../../../stories/templatePicker';
+import { expectPickerFillsItsPopover, expectRowsFit, pickerRow } from '../../../../stories/templatePicker';
+import { withTouchScreen } from '../../../../stories/touchScreen';
 
 // --- IDE leaf story components (2-arg field API over reqraft leafs) ---------
 
@@ -1695,8 +1696,30 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
       },
     },
   },
-  async play({ canvasElement }) {
+  async play({ canvasElement, parameters }) {
     await openTemplateContexts(canvasElement);
+    /* The window's width changes with the picker open: it stays at its button (Foxhoundn on qlip #456). The picture is
+       taken at this size. */
+    const buttonLeft = () =>
+      canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect().left;
+    const before = buttonLeft();
+    await atTheCaptureSize(parameters);
+    // only the test runner resizes the frame (`atTheCaptureSize`): the button moves there, before what is checked
+    if (await hasBrowserMouse()) {
+      await waitFor(() => expect(buttonLeft()).not.toBe(before));
+    }
+    await waitFor(() => {
+      const button = canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect();
+      // the fixed point the picker is drawn at, which only what follows the button moves
+      const anchor = Array.from(document.querySelectorAll('span')).find(
+        (span) => span.style.position === 'fixed' && span.style.width === '1px'
+      );
+      expect(anchor?.getBoundingClientRect().left).toBe(button.left);
+      const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
+      expect(picker.top).toBeGreaterThanOrEqual(button.bottom - 1);
+      // at its button, on the side there is room
+      expect(Math.abs(picker.right - button.left)).toBeLessThan(40);
+    });
     const local = await pickerRow('$local:');
     await expect(local.classList.contains('template-picker-group')).toBe(true);
     await expect(useOfRow(local)).toBeTruthy();
@@ -1707,6 +1730,41 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
     const rest = await pickerRow('$rest:');
     await expect(rest.classList.contains('template-picker-group')).toBe(false);
     await expect(useOfRow(rest)).toBeNull();
+  },
+};
+
+/** The same list on a phone: under the field, on the screen, its rows as big as a finger needs. */
+export const TemplateContextsOnAPhone: StoryObj<typeof meta> = {
+  tags: ['touch'],
+  args: expressionWithTemplates,
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "Renders the Template contexts of an expression on a phone (390 px, touch), opened from the template button: the picker is under the field and inside the screen, and its rows fit it.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await withTouchScreen(async (touch) => {
+      const button = await waitFor(
+        () => {
+          const found = canvasElement.querySelector<HTMLElement>('.smart-editor-template-button');
+          expect(found).toBeTruthy();
+          return found!;
+        },
+        { timeout: 10000 }
+      );
+      await touch.tap(button);
+      await touch.tap(await pickerRow('Template contexts'));
+      const whole = await pickerRow('$fsminput:*');
+      const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
+      await expect(picker.left).toBeGreaterThanOrEqual(0);
+      await expect(picker.right).toBeLessThanOrEqual(window.innerWidth);
+      await expect(picker.top).toBeGreaterThanOrEqual(button.getBoundingClientRect().bottom - 1);
+      expectRowsFit([whole]);
+    });
   },
 };
 

@@ -123,3 +123,101 @@ describe('the template picker opened before the session is ready', () => {
     expect(hook.result.current.isOpen).toBe(false);
   });
 });
+
+/**
+ * The picker is drawn at a fixed point of the window, measured when it opens. When the window's width changed, the
+ * button it was opened from moved with the layout and the picker did not (Foxhoundn on qlip #456: "Why is the popover
+ * rendered so far to the right"). It follows what it was opened from.
+ */
+describe('the template picker when the window is resized', () => {
+  const boxAt = (left: number, bottom: number) => ({ left, bottom, top: bottom - 10, right: left + 10 });
+
+  const resized = () => {
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+  };
+
+  it('stays at the element it was opened from', () => {
+    const { hook } = setup(true);
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    try {
+      const measure = vi.spyOn(button, 'getBoundingClientRect');
+      measure.mockReturnValue(boxAt(1000, 60) as DOMRect);
+      act(() =>
+        hook.result.current.openBrowse(editorWith('') as never, {
+          rect: { left: 1000, bottom: 60 },
+          anchor: button,
+        } as never)
+      );
+      expect(hook.result.current.position).toEqual({ left: 1000, top: 60 });
+
+      measure.mockReturnValue(boxAt(1500, 60) as DOMRect);
+      resized();
+      expect(hook.result.current.position).toEqual({ left: 1500, top: 60 });
+      expect(hook.result.current.browse).toBeTruthy();
+    } finally {
+      button.remove();
+    }
+  });
+
+  it('stays open and where it is when what it was opened from has been redrawn', () => {
+    const { hook } = setup(true);
+    const button = document.createElement('button');
+    act(() =>
+      hook.result.current.openBrowse(editorWith('') as never, {
+        rect: { left: 1000, bottom: 60 },
+        anchor: button,
+      } as never)
+    );
+    // never in the page, as a chip a redraw took away is not; a phone's keyboard coming up is a resize too
+    resized();
+    expect(hook.result.current.isOpen).toBe(true);
+    expect(hook.result.current.position).toEqual({ left: 1000, top: 60 });
+  });
+
+  it('does not move the list that typing put in its place, which is at the caret', () => {
+    const { hook } = setup(true);
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    try {
+      const measure = vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(boxAt(1000, 60) as DOMRect);
+      act(() =>
+        hook.result.current.openBrowse(editorWith('') as never, {
+          rect: { left: 1000, bottom: 60 },
+          anchor: button,
+        } as never)
+      );
+      const typed = editorWith('$');
+      act(() => hook.result.current.onSlateChange(typed, (typed as any).children));
+      expect(hook.result.current.browse).toBeFalsy();
+      measure.mockClear();
+      resized();
+      expect(measure).not.toHaveBeenCalled();
+    } finally {
+      button.remove();
+    }
+  });
+
+  it('stops listening once it is closed', () => {
+    const { hook } = setup(true);
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    try {
+      const measure = vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(boxAt(1, 2) as DOMRect);
+      act(() =>
+        hook.result.current.openBrowse(editorWith('') as never, {
+          rect: { left: 1, bottom: 2 },
+          anchor: button,
+        } as never)
+      );
+      act(() => hook.result.current.close());
+      measure.mockClear();
+      resized();
+      expect(measure).not.toHaveBeenCalled();
+    } finally {
+      button.remove();
+    }
+  });
+});
