@@ -914,6 +914,8 @@ export const EveryContainerIsUsedWhole: Story = {
       const row = await pickerRow(whole);
       expect(row.classList.contains('template-picker-group'), `${whole} is no submenu`).toBe(false);
       expect(row.parentElement!.querySelector('.template-picker-use'), `no Use beside ${whole}`).toBeNull();
+      // a key is typed here: the Key action is for a control that cannot be typed into
+      expect(row.parentElement!.querySelector('.template-picker-key-action'), `no Key beside ${whole}`).toBeNull();
     }
     for (const notWhole of ['$keys:', '$timestamp:', '$sensitive:', '$rest:']) {
       expect(usedWhole(notWhole), `no Use beside ${notWhole}`).toBeNull();

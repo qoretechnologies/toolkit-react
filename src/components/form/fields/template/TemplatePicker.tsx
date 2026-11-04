@@ -1,4 +1,9 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { useTemplatePickerLabels } from '../../../../helpers/templateCatalogueContext';
+import {
+  DEFAULT_TEMPLATE_PICKER_LABELS,
+  ITemplatePickerLabels,
+} from '../../../../helpers/templateListLabels';
 import { rowTitle } from '../../../smartEditor/contextTitle';
 import {
   ReqoreButton,
@@ -50,6 +55,8 @@ export const TEMPLATE_PICKER_PAGE = 50;
 export const TEMPLATE_PICKER_WIDTH = 'min(360px, calc(100vw - 32px))';
 
 export interface ITemplatePickerProps {
+  /** Its words in the host's language, over those of the fields where it is (`TemplateCatalogueProvider`). */
+  labels?: Partial<ITemplatePickerLabels>;
   /** What can be chosen: the field's templates and fields (`templateTree`). */
   roots: ITemplateNode[];
   /** The group it opens at (`ITemplateNode.id`): the group of a chip being replaced, or one chosen while typing. */
@@ -218,10 +225,16 @@ export const TemplatePicker = memo(
     fill,
     id,
     typeLabel: givenTypeLabel,
+    labels,
   }: ITemplatePickerProps) => {
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
+    const hostLabels = useTemplatePickerLabels();
+    const words = useMemo(
+      () => ({ ...DEFAULT_TEMPLATE_PICKER_LABELS, ...hostLabels, ...labels }),
+      [hostLabels, labels]
+    );
     const renderMarkdown = useMarkdownRenderer();
     const rootRef = useRef<HTMLDivElement>(null);
     // a host's members come when they are asked for: the rows are drawn again when they have come
@@ -365,21 +378,25 @@ export const TemplatePicker = memo(
       setKeyFor(null);
     }, []);
 
+    const askForKey = useCallback((node: ITemplateNode) => {
+      // drawn now, in the event that asked for it, so that its box takes the keyboard in it too
+      flushSync(() => {
+        setKeyFor(node);
+        setKeyText('');
+      });
+      keyBoxRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+    }, []);
+
     const pick = useCallback(
       (node: ITemplateNode) => {
         if (isDeadEnd(node)) return;
         if (node.writesKey) {
-          // drawn now, in the event that asked for it, so that its box takes the keyboard in it too
-          flushSync(() => {
-            setKeyFor(node);
-            setKeyText('');
-          });
-          keyBoxRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+          askForKey(node);
           return;
         }
         onPick(node);
       },
-      [onPick]
+      [onPick, askForKey]
     );
 
     /** A row taken: a group is opened, anything else chosen. */
@@ -507,6 +524,8 @@ export const TemplatePicker = memo(
     const crumbsShown = coarse && crumbs.length > 2 ? crumbs.slice(-1) : crumbs;
     const crumbsHidden = crumbs.length - crumbsShown.length;
     const isReference = /^[$@]/.test(query.trim());
+    // a context as it is written, its key after its `:`: not `$dynamic:*`, which is all of it
+    const keyName = keyFor?.catalogue ? (keyFor.reference ?? keyFor.label) : keyFor?.label;
     // where it would be listed: at its own level, or a search that goes into it
     const shownFailure =
       loadFailure && (level?.id === loadFailure.node.id || isReference) ? loadFailure : null;
@@ -643,14 +662,14 @@ export const TemplatePicker = memo(
               {
                 // a context whose argument has a format of its own says it (`$rest:` <URI path>[.<key>...])
                 keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ?
-                  `Write what ${keyFor.label} reads: ${keyFor.catalogue.arg_format}.`
-                : `${keyFor.label} holds any keys: write the key to use (a path: order.id).`
+                  `Write what ${keyName} reads: ${keyFor.catalogue.arg_format}.`
+                : `${keyName} holds any keys: write the key to use (a path: order.id).`
               }
             </ReqoreP>
             <ReqoreControlGroup fluid size='small'>
               <ReqoreInput
                 className='template-picker-key-input'
-                aria-label={`Key in ${keyFor.label}`}
+                aria-label={`Key in ${keyName}`}
                 placeholder={
                   keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ? '' : 'order.id'
                 }
@@ -776,7 +795,21 @@ export const TemplatePicker = memo(
                 onMouseDown={keysFromPage ? keepTheFocus : undefined}
                 onClick={() => take(node)}
                 rightAction={
-                  (group || node.continues) && node.takesWhole ?
+                  node.offersKey ?
+                    ({
+                      label: words.writeKey,
+                      className: 'template-picker-key-action',
+                      'aria-label': `${words.writeKey} ${node.reference ?? node.label}`,
+                      tooltip: coarse ? undefined : words.writeKeyTooltip(node.reference ?? node.label),
+                      compact: true,
+                      onMouseDown: keysFromPage ? keepTheFocus : undefined,
+                      onClick: () => askForKey(node),
+                      style: {
+                        ...USE_WHOLE_STYLE,
+                        ...(coarse ? { minWidth: 44, minHeight: 44 } : {}),
+                      },
+                    } as any)
+                  : (group || node.continues) && node.takesWhole ?
                     ({
                       label: 'Use',
                       className: 'template-picker-use',

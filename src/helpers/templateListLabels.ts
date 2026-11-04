@@ -35,3 +35,20 @@ export const DEFAULT_TEMPLATE_LIST_LABELS: IReqraftTemplateListLabels = {
   copyFailed:
     'Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself.',
 };
+
+/**
+ * The words of the template picker's actions. A host that translates its interface gives its own to the fields where
+ * they are (`TemplateCatalogueProvider`), or to a picker (`labels`); the rest stay English.
+ */
+export interface ITemplatePickerLabels {
+  /** The action beside a context of free keys, where a key cannot be typed: it asks for the key. */
+  writeKey: string;
+  /** What that action says on hover; `context` as it is written, `$dynamic:`. */
+  writeKeyTooltip: (context: string) => string;
+}
+
+/** The English words, the ones a host gets when it passes none. */
+export const DEFAULT_TEMPLATE_PICKER_LABELS: ITemplatePickerLabels = {
+  writeKey: 'Key',
+  writeKeyTooltip: (context) => `Write one key of ${context} instead of taking all of it`,
+};
