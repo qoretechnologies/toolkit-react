@@ -10,9 +10,11 @@ import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/But
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqorePanelProps, ReqorePanel } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreParagraphProps } from '@qoretechnologies/reqore/dist/components/Paragraph';
+import { SIZE_TO_PX } from '@qoretechnologies/reqore/dist/constants/sizes';
 import count from 'lodash/size';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { useScroll } from 'react-use';
+import styled from 'styled-components';
 import { READABLE_ICON } from '../../helpers/readableColors';
 import { copyText } from '../../helpers/secureContextApis';
 import { useReadableIntentShade } from '../../hooks/useReadableIntentShade';
@@ -20,6 +22,53 @@ import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 
 /** How faded reqore draws a panel's title icon. */
 const PANEL_TITLE_ICON_ALPHA = 0.7;
+
+/**
+ * A message's row. Its copy and delete actions are buttons (32 px at the log's small size) beside a line of text
+ * (14 px), so in the row's flow they made every row as high as a button, and a log whose messages could be copied
+ * read with a blank line's worth of space between its lines. With a mouse the actions are drawn over the row's end
+ * instead, out of its flow, and shown only while the pointer is on the row or a key has moved into it
+ * (`:focus-within`, so they are still reached with Tab); the row keeps the width they take free
+ * (`--reqraft-log-actions-width`), so a long message wraps before them and never runs under them. A touch screen
+ * has no hover: there the actions stay in the row, always shown, as big as a finger needs.
+ *
+ * The row's own control group, styled - not a wrapper inside it: a control group hands its size to its children.
+ */
+const StyledLogRow = styled(ReqoreControlGroup)`
+  position: relative;
+
+  > .reqraft-log-message-content {
+    padding-right: var(--reqraft-log-actions-width, 0);
+  }
+
+  > .reqraft-log-message-actions {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:hover > .reqraft-log-message-actions,
+  &:focus-within > .reqraft-log-message-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    > .reqraft-log-message-content {
+      padding-right: 0;
+    }
+
+    > .reqraft-log-message-actions {
+      position: static;
+      transform: none;
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+`;
 import {
   IReqraftWebSocketMessage,
   IUseReqraftWebSocketOptions,
@@ -174,6 +223,15 @@ export const ReqraftLog = ({
   };
 
   const addNotification = useReqoreProperty('addNotification');
+  // the actions a message's row has: the width the row keeps free for them
+  const actionCount = (allowMessageCopy ? 1 : 0) + (allowMessageDeletion ? 1 : 0);
+  const rowStyle = useMemo(
+    () =>
+      actionCount ?
+        ({ '--reqraft-log-actions-width': `${actionCount * SIZE_TO_PX[size]}px` } as CSSProperties)
+      : undefined,
+    [actionCount, size]
+  );
 
   // Copying can be refused (permissions, a page served over plain http): the
   // failure is shown, and says what to do, instead of an unhandled rejection.
@@ -257,8 +315,8 @@ export const ReqraftLog = ({
           </ReqoreParagraph>
         : null}
         {filteredMessages.map(({ message, timestamp, ...paragraphProps }, index) => (
-          <ReqoreControlGroup spaceBetween key={index}>
-            <ReqoreControlGroup>
+          <StyledLogRow spaceBetween key={index} className='reqraft-log-row' style={rowStyle}>
+            <ReqoreControlGroup className='reqraft-log-message-content'>
               {showTimestamps && (
                 <ReqoreParagraph
                   size={size}
@@ -279,35 +337,37 @@ export const ReqraftLog = ({
                 {message}
               </ReqoreParagraph>
             </ReqoreControlGroup>
-            <ReqoreControlGroup stack fixed>
-              {allowMessageCopy && (
-                <ReqoreButton
-                  compact
-                  onClick={() => {
-                    handleCopyClick(message);
-                  }}
-                  icon='FileCopyLine'
-                  className='reqraft-log-copy-message'
-                  fixed
-                  minimal
-                  size={size}
-                  flat
-                />
-              )}
-              {allowMessageDeletion && (
-                <ReqoreButton
-                  compact
-                  onClick={() => removeMessage(index)}
-                  icon='DeleteBinLine'
-                  className='reqraft-log-delete-message'
-                  fixed
-                  minimal
-                  size={size}
-                  flat
-                />
-              )}
-            </ReqoreControlGroup>
-          </ReqoreControlGroup>
+            {actionCount ?
+              <ReqoreControlGroup stack fixed className='reqraft-log-message-actions'>
+                {allowMessageCopy && (
+                  <ReqoreButton
+                    compact
+                    onClick={() => {
+                      handleCopyClick(message);
+                    }}
+                    icon='FileCopyLine'
+                    className='reqraft-log-copy-message'
+                    fixed
+                    minimal
+                    size={size}
+                    flat
+                  />
+                )}
+                {allowMessageDeletion && (
+                  <ReqoreButton
+                    compact
+                    onClick={() => removeMessage(index)}
+                    icon='DeleteBinLine'
+                    className='reqraft-log-delete-message'
+                    fixed
+                    minimal
+                    size={size}
+                    flat
+                  />
+                )}
+              </ReqoreControlGroup>
+            : null}
+          </StyledLogRow>
         ))}
         {canSendMessages && status === 'OPEN' ?
           <ReqoreControlGroup>
