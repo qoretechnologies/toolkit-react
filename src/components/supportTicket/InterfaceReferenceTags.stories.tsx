@@ -258,3 +258,59 @@ export const KindImageFailsToLoad: Story = {
     await expect(canvasElement.querySelector('.reqore-tag .reqore-icon')).toBeTruthy();
   },
 };
+
+/**
+ * A viewer that can open SOME references: the IDE under a support grant, or any viewer
+ * after an interface moved group or was deleted since it was cited. `isInterfaceLinkable`
+ * keeps the refused chips in place — they are still what was cited — but without the
+ * click, with an unlink glyph, and with `unlinkableReason` in the tooltip.
+ */
+export const MixedLinkability: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders four chips of which two can be opened: the refused ones keep their place and look but carry an unlink glyph and no click, with the reason in their tooltip (qorus#693).',
+      },
+    },
+  },
+  args: {
+    onInterfaceClick: fn(),
+    isInterfaceLinkable: (reference: IInterfaceReference) => reference.interface_kind !== 'workflow',
+    unlinkableReason: (reference: IInterfaceReference) =>
+      reference.interface_kind === 'workflow' ? 'not covered by the support grant' : undefined,
+  },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByText('order-sync:1.2'));
+    await expect(args.onInterfaceClick).not.toHaveBeenCalled();
+    await userEvent.click(canvas.getByText('notification-svc'));
+    await waitFor(() =>
+      expect(args.onInterfaceClick).toHaveBeenCalledWith(
+        expect.objectContaining({ interface_kind: 'service', interface_name: 'notification-svc' })
+      )
+    );
+    await expect(args.onInterfaceClick).toHaveBeenCalledTimes(1);
+  },
+};
+
+/** The same mixed chips at phone width: the glyph is what tells the two apart on a
+ *  screen with no hover, so it has to survive the wrap. */
+export const MixedLinkabilityMobile: Story = {
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the mixed linkable and unlinkable chips at 390px: they wrap, and the refused ones still carry the unlink glyph, which is the only cue on a screen without hover.',
+      },
+    },
+  },
+  args: MixedLinkability.args,
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('order-sync:1.2')).toBeInTheDocument();
+    await expect(canvas.getByText('nightly-cleanup')).toBeInTheDocument();
+  },
+};
+

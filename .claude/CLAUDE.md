@@ -112,6 +112,7 @@ Status enum: `OPEN | CLOSED | CONNECTING | PAUSED`
 - Backed by `ReqraftStorageContext` → `StorageProvider` → persisted to server via user storage API
 - `includeAppPrefix` namespaces the key under the current `appName` from context
 - Storage loads from `currentUserStore` (user's `storage` field from `/users?action=current`)
+- A user the server marks `storage_writable: false` (an interactive support session, qorus#693) gets memory-only writes: the value updates for the page's lifetime and no `PUT users/_current_/` is sent (`storageIsWritable` in `StorageProvider.tsx`)
 
 ### Current User Store (`src/stores/currentUser/currentUser.tsx`)
 
