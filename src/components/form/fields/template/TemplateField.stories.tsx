@@ -28,7 +28,7 @@ import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
 import { multiLevelTemplates, templates } from './__fixtures__/templateFixtures';
 import { QOG_FIELD_TEMPLATES } from './__fixtures__/qogTemplatePayloads';
-import { expectPickerFillsItsPopover } from '../../../../stories/templatePicker';
+import { expectPickerFillsItsPopover, pickerRow } from '../../../../stories/templatePicker';
 
 // --- IDE leaf story components (2-arg field API over reqraft leafs) ---------
 
@@ -1652,6 +1652,94 @@ export const ExpressionOpensOnText: StoryObj<typeof meta> = {
     expect(buttons).toEqual(['Text', 'Visual']);
     await waitFor(() => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeTruthy());
     expect(canvasElement.textContent).not.toContain('Choose what this expression does');
+  },
+};
+
+const expressionWithTemplates = {
+  type: 'bool',
+  defaultType: 'bool',
+  allowFunctions: true,
+  allowTextExpressions: true,
+  isFunction: true,
+  expressions: storyExpressions as any,
+  templates: recordTemplates as any,
+};
+
+/** Opens the template picker of an expression's text with its button, at its Template contexts. */
+const openTemplateContexts = async (canvasElement: HTMLElement) => {
+  // the editor first, as a person starts: its button writes at the editor's caret
+  const editor = await waitFor(
+    () => {
+      const found = canvasElement.querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      expect(found).toBeTruthy();
+      return found!;
+    },
+    { timeout: 10000 }
+  );
+  await userEvent.click(editor);
+  await userEvent.keyboard('{Escape}');
+  await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+  await userEvent.click(await pickerRow('Template contexts'));
+};
+
+/** A row's action, where it has one, beside the row in the list. */
+const useOfRow = (row: HTMLElement) => row.parentElement!.querySelector('.template-picker-use');
+
+export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
+  args: expressionWithTemplates,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Template contexts of an expression, open. A context with keys to choose from ($local:) opens on them and has Use, to take it whole. One with none to choose from is shown as what it gives ($fsminput:*), with no arrow and no Use. One that reads an argument ($rest:) says so, with no arrow, as there is no list to open.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await openTemplateContexts(canvasElement);
+    const local = await pickerRow('$local:');
+    await expect(local.classList.contains('template-picker-group')).toBe(true);
+    await expect(useOfRow(local)).toBeTruthy();
+    const whole = await pickerRow('$fsminput:*');
+    await expect(whole.classList.contains('template-picker-group')).toBe(false);
+    await expect(useOfRow(whole)).toBeNull();
+    await expect(document.querySelector('.template-picker-row[data-label="$fsminput:"]')).toBeNull();
+    const rest = await pickerRow('$rest:');
+    await expect(rest.classList.contains('template-picker-group')).toBe(false);
+    await expect(useOfRow(rest)).toBeNull();
+  },
+};
+
+export const AContextWithNothingInItIsTakenByAClick: StoryObj<typeof meta> = {
+  // a value of any type: the whole of a context is no yes/no, and only what parses is the field's value
+  args: { ...expressionWithTemplates, type: 'any', defaultType: 'any' },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the list is pictured by `TemplateContextsOfferWhatCanBeTaken`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the Template contexts of an expression and clicks $fsminput:*. The field holds the value, the picker closes, and no box asks for a key.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    await openTemplateContexts(canvasElement);
+    await userEvent.click(await pickerRow('$fsminput:*'));
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
+    await expect(document.querySelector('.template-picker-key')).toBeNull();
+    // the field holds it, as its chip and as its value
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('.expression-field [data-slate-editor]')?.textContent
+      ).toContain('fsminput')
+    );
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(
+      () => expect(JSON.stringify((args.onChange as any).mock.lastCall ?? null)).toContain('$fsminput:*'),
+      { timeout: 10000 }
+    );
+    await expect(canvasElement.textContent).not.toContain("isn't finished");
   },
 };
 

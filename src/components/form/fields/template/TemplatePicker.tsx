@@ -93,7 +93,13 @@ const kindIcon = (node: ITemplateNode, isGroup: boolean): IReqoreIconName =>
   : node.kind === 'field' ? 'Database2Line'
   : 'ExchangeDollarLine';
 
-const isGroup = (node: ITemplateNode) => !!node.children?.length || !!node.loadChildren;
+// a group whose members have come and are none is no group: it opens on nothing
+const isGroup = (node: ITemplateNode) =>
+  !!node.children?.length || (!!node.loadChildren && !node.children);
+
+/** Nothing can be done with it: no members to open, no value to take, nothing to write after it. */
+const isDeadEnd = (node: ITemplateNode) =>
+  !!node.disabled || (!isGroup(node) && !node.writesKey && !node.continues && !node.value);
 
 /** The press is not a move out of the text the picker was opened from: the caret stays where the pick goes. */
 const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
@@ -253,7 +259,17 @@ export const TemplatePicker = memo(
       let current = true;
       setLoading(level.id);
       loadTemplateChildren(level)
-        .catch(() => [])
+        .then(
+          (members) => {
+            /* Nothing in it after all: it is not opened on nothing. Its row is what it is now (`isGroup`), and a
+               value it has is what the click that opened it was for. */
+            if (current && !members.length) {
+              setLevels((opened) => opened.filter((id) => id !== level.id));
+              if (level.value) onPick(level);
+            }
+          },
+          () => undefined
+        )
         .finally(() => {
           if (current) {
             setLoading(null);
@@ -263,7 +279,7 @@ export const TemplatePicker = memo(
       return () => {
         current = false;
       };
-    }, [level]);
+    }, [level, onPick]);
 
     /* A reference typed into a group whose members come only when asked (`$data:lookup_customer.`): its members
        are asked for, so that the search can go into them. */
@@ -326,7 +342,7 @@ export const TemplatePicker = memo(
 
     const pick = useCallback(
       (node: ITemplateNode) => {
-        if (node.disabled) return;
+        if (isDeadEnd(node)) return;
         if (node.writesKey) {
           // drawn now, in the event that asked for it, so that its box takes the keyboard in it too
           flushSync(() => {
@@ -692,11 +708,12 @@ export const TemplatePicker = memo(
                   />
                 }
                 badge={rowBadges(node, typeLabel) as any}
-                // a group opens; a context only the server knows goes on into what is in it as it is typed
-                rightIcon={group || node.continues ? 'ArrowRightSLine' : undefined}
+                /* a group opens; a context only the server knows goes on into what is in it as it is typed. One whose
+                   catalogue lists nothing in it is no submenu: what follows it is written (`$rest:`) */
+                rightIcon={group || (node.continues && !node.catalogue) ? 'ArrowRightSLine' : undefined}
                 selected={index === focused}
                 active={index === focused}
-                disabled={node.disabled}
+                disabled={isDeadEnd(node)}
                 scrollIntoView={index === focused}
                 minimal
                 compact

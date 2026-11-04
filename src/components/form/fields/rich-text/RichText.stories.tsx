@@ -892,8 +892,9 @@ export const EveryContainerIsUsedWhole: Story = {
       description: {
         story:
           'A workflow field, its catalog Qorus\'s: a click in the text opens the picker; Template contexts lists ' +
-          'the workflow\'s contexts, each container with Use ($local:, $static:, $dynamic:, $info:, ...) and none ' +
-          'for $keys:, $timestamp: or $sensitive:; no $transient:. Use beside $info: writes the chip for $info:*.',
+          'the workflow\'s contexts: each container with keys to choose has Use ($local:, $static:, $info:, ...); one ' +
+          'with none is its whole value, with no Use ($dynamic:*, $temp:*, $pstate:*); none for $keys:, $timestamp: ' +
+          'or $sensitive:; no $transient:. Use beside $info: writes the chip for $info:*.',
       },
     },
   },
@@ -905,8 +906,14 @@ export const EveryContainerIsUsedWhole: Story = {
     // in the picker too: `$info:…`, the whole of it its Use
     expect((await pickerRow('$info:')).querySelector('.template-context-needs-value')?.textContent).toBe('…');
     expect(pickerLabels()).not.toContain('$transient:');
-    for (const container of ['$local:', '$static:', '$dynamic:', '$temp:', '$info:', '$pstate:', '$env:']) {
+    for (const container of ['$local:', '$static:', '$info:', '$env:']) {
       expect(usedWhole(container), `Use beside ${container}`).toBeTruthy();
+    }
+    // no key to choose: the row is the whole value (David's review: no submenu, no Use)
+    for (const whole of ['$dynamic:*', '$temp:*', '$pstate:*']) {
+      const row = await pickerRow(whole);
+      expect(row.classList.contains('template-picker-group'), `${whole} is no submenu`).toBe(false);
+      expect(row.parentElement!.querySelector('.template-picker-use'), `no Use beside ${whole}`).toBeNull();
     }
     for (const notWhole of ['$keys:', '$timestamp:', '$sensitive:', '$rest:']) {
       expect(usedWhole(notWhole), `no Use beside ${notWhole}`).toBeNull();

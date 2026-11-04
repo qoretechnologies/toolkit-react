@@ -763,7 +763,11 @@ export const referenceNamesNothing = (roots: ITemplateNode[], written: string): 
       node.reference?.startsWith(context) ||
       (typeof node.value === 'string' && node.value.startsWith(context))
   );
-  if (!inContext.length || inContext.some((node) => node.writesKey)) {
+  // keys written freely: a template of any keys, or a context of the catalogue that says it holds them
+  if (
+    !inContext.length ||
+    inContext.some((node) => node.writesKey || node.catalogue?.free_form_keys)
+  ) {
     return false;
   }
   if (templateNodeFor(roots, written)) {
