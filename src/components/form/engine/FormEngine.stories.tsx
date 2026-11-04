@@ -8425,7 +8425,7 @@ export const CompactRequiredFieldLoadedLateOpensByItself: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form whose fields are loaded after it is drawn, as a host loads them from a server. One of them, Field Mappings, needs an answer that the value does not hold yet: when the fields arrive, its row opens by itself under Needs attention, with "This field is required", and Processor Class, already set, stays closed under Set.',
+          'Renders a compact form whose fields are loaded after it is drawn, as a host loads them from a server. One of them, Field Mappings, needs an answer that the value does not hold yet: when the fields arrive, its row opens by itself under To fill in, saying "Required · add a value", and Processor Class, already set, stays closed under Set.',
       },
     },
   },
@@ -8453,7 +8453,7 @@ export const CompactRequiredFieldLoadedLateOpensByItself: Story = {
     ).toBe(true);
     // what the open row says: the field needs an answer
     await expect(document.querySelector('[data-field="mappings"]')!).toHaveTextContent(
-      'This field is required'
+      CALM_REQUIRED_LABEL
     );
   },
 };

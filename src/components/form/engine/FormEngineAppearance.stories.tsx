@@ -355,10 +355,15 @@ export const Calm: Story = {
       )
     ).toBeLessThanOrEqual(1);
 
-    // No dot on a filled row, no asterisk on a required one.
+    // No dot on a filled row, no asterisk on a required one: its help `?` is the only mark it carries.
     expectNoDot('display_name');
     expectNoDot('version');
-    expect(row('display_name')!.querySelectorAll('svg').length).toBe(0);
+    expect(row('display_name')!.querySelector('.options-readfirst-required')).toBeNull();
+    expect(
+      [...row('display_name')!.querySelectorAll('svg')].filter(
+        (svg) => !svg.closest('.options-readfirst-help')
+      ).length
+    ).toBe(0);
 
     // A note that only informs is not blue.
     const note = row('lang')!.querySelector<HTMLElement>('.options-readfirst-info-panel .reqore-message')!;
