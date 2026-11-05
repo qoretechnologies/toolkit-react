@@ -11040,7 +11040,7 @@ export const ToolSelectorsAreNotJudgedAsChoices: Story = {
     docs: {
       description: {
         story:
-          "An AI endpoint's Tools field holds the server's default, `*` (all tools), and needs no attention: its tool-catalog editor stores selectors, and the catalog sources listed beside it are not choices the value must be one of. The Channel field below has fixed choices and a value that is none of them, so it alone needs attention.",
+          "An AI endpoint's Tools field holds the server's default, `*` (all tools), and needs no attention: its tool-catalog editor stores selectors, and the catalog sources listed beside it are not choices the value must be one of. The Channel field below has fixed choices and a value that is none of them, so it alone needs attention, and says to pick one from the list.",
       },
     },
   },
@@ -11056,9 +11056,9 @@ export const ToolSelectorsAreNotJudgedAsChoices: Story = {
   play: async ({ args }) => {
     await _testsWaitForText('Tools');
     // The closed-choice field still flags its value...
-    await _testsWaitForText('"gone" is not one of the choices');
+    await _testsWaitForText('"gone" is not one of the choices · pick one from the list');
     // ...and the selector is never reported as a value that is not a choice.
-    await _testsWaitForTextToNotExist('"*" is not one of the choices');
+    await _testsWaitForTextToNotExist('"*" is not one of the choices · pick one from the list');
     await waitFor(() => {
       const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
       expect(calls.length).toBeGreaterThan(0);

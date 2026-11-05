@@ -24,7 +24,12 @@ import {
   getRequiredOptionMessage,
 } from '../../../helpers/options';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
-import { allowedValueName, allowedValueOf } from '../../../helpers/allowedValues';
+import {
+  allowedValueName,
+  allowedValueOf,
+  getUnlistedChoiceReason,
+  UNLISTED_CHOICE_NEXT_STEP,
+} from '../../../helpers/allowedValues';
 import {
   hasAllDependenciesFullfilled,
   parseDependency,
@@ -444,8 +449,19 @@ export const getOptionFieldMessages = ({
       }
     );
     if (!validationData.isValid) {
+      const reason = validationData.reason || 'Field value is not valid';
+      /* A value that is not one of the choices says what to do about it where the author can: an
+         editable form adds "pick one from the list"; a read view only states it. */
+      const isUnlistedChoice =
+        !readOnly &&
+        reason ===
+          getUnlistedChoiceReason(option.value, {
+            ...(optionSchema as object),
+            isFunction: option.is_expression,
+            hasOwnEditor: !!isRendererOnly?.(optionSchema?.ui_type),
+          });
       result.push({
-        label: validationData.reason || 'Field value is not valid',
+        label: isUnlistedChoice ? `${reason} · ${UNLISTED_CHOICE_NEXT_STEP}` : reason,
         intent: 'danger',
       });
     }
