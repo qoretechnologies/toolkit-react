@@ -1354,6 +1354,16 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * them. Only a remount re-arms it. No-op in classic (non-compact) mode.
    */
   initialExpandedOptions?: string[];
+  /**
+   * Rows to open now, while the form is drawn: each new `key` opens the named rows, alongside those already open.
+   *
+   * `initialExpandedOptions` names where a form starts and is spent once; this is for a host that must take the
+   * reader to a row later - a save refused for a field inside a row the reader has since closed - without
+   * drawing the form again, which would throw away what is open and typed in its other rows. A key seen before
+   * opens nothing again, so a host re-rendering with the same request does not reopen what the reader closed.
+   * No-op in classic (non-compact) mode.
+   */
+  expandOptionsRequest?: { options: string[]; key: string | number };
 
   /**
    * Which record or object `value` belongs to. When it changes, the form takes the new `value` as it is: an
@@ -1452,6 +1462,7 @@ const FormEngineImpl = ({
   autoFocusFirstRequired,
   expandFirstRequired,
   initialExpandedOptions,
+  expandOptionsRequest,
   valueKey,
   maxFieldsShown,
   // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
@@ -3016,6 +3027,27 @@ const FormEngineImpl = ({
     hasAppliedInitialExpansionRef.current = true;
     setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
   }, [initialExpandedOptions, compact, availableOptions]);
+
+  // --- Host-requested rows (opt-in) ----------------------------------------
+  // Each new key opens the rows it names; a key already answered is not answered again. Waits, as the starting
+  // rows do, for a schema that does not yet hold a named row.
+  const answeredExpandRequestRef = useRef<string | number | undefined>(undefined);
+  useEffect(() => {
+    if (!expandOptionsRequest || !compact) {
+      return;
+    }
+    const { options: requested, key } = expandOptionsRequest;
+    if (answeredExpandRequestRef.current === key) {
+      return;
+    }
+    const names = Object.keys(availableOptions);
+    const toExpand = requested.filter((name) => names.includes(name));
+    if (!toExpand.length) {
+      return;
+    }
+    answeredExpandRequestRef.current = key;
+    setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
+  }, [expandOptionsRequest, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
   /** The first row (of `names`, in order: every row by default) that needs an answer and can take one, if any: what
