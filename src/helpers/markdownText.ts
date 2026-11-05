@@ -85,6 +85,8 @@ const stripInline = (line: string): string => {
       // images before links - an image's `!` prefix would otherwise survive
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // reference links, full and collapsed: [Simple Notification Service][sns] and [SNS][] read as their words
+      .replace(/!?\[([^\]]+)\]\[[^\]]*\]/g, '$1')
       // autolinks: <https://example.com> -> https://example.com
       .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
       .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
@@ -104,6 +106,8 @@ const BLOCK_MARKER = /^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/;
 const LIST_ITEM = /^\s{0,3}(?:[-*+]|\d+[.)])\s+/;
 /** A setext underline or a thematic break: no words. */
 const RULE = /^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/;
+/** A link reference definition (`[sns]: https://…`): where a reference link points, never words. */
+const LINK_DEFINITION = /^\s{0,3}\[[^\]]+\]:\s*\S/;
 
 /**
  * Markdown as plain text: its words, with no marks, a blank line between its paragraphs and a line of its own for
@@ -123,7 +127,7 @@ export const markdownToPlainText = (value: unknown): string => {
     }
     const lines: string[] = [];
     for (const line of block.split('\n')) {
-      if (RULE.test(line)) {
+      if (RULE.test(line) || LINK_DEFINITION.test(line)) {
         continue;
       }
       const text = stripInline(line.replace(BLOCK_MARKER, '')).replace(/\s+/g, ' ').trim();
