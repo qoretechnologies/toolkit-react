@@ -444,7 +444,10 @@ export interface ICompletionMenuProps {
 
 /** The completion list at an editor's caret, or the template picker in its place. */
 export const CompletionMenu = memo(
-  ({ autocomplete, id, onSelect, pendingLabel, templateRoots }: ICompletionMenuProps) => (
+  ({ autocomplete, id, onSelect, pendingLabel, templateRoots }: ICompletionMenuProps) => {
+    const editorWords = useReqraftLabels().editor;
+
+    return (
     <>
       {autocomplete.isOpen && autocomplete.browse && templateRoots?.length ?
         <ReqorePopover
@@ -516,8 +519,8 @@ export const CompletionMenu = memo(
                   : autocomplete.isReplaceMode || autocomplete.isFetching ?
                     (pendingLabel ??
                     (autocomplete.isFetching ?
-                      reqraftLabels().editor.loadingCompletions
-                    : reqraftLabels().editor.noAlternatives))
+                      editorWords.loadingCompletions
+                    : editorWords.noAlternatives))
                   : undefined
                 }
               />
@@ -533,6 +536,7 @@ export const CompletionMenu = memo(
           />
         )}
     </>
-  )
+    );
+  }
 );
 CompletionMenu.displayName = 'CompletionMenu';

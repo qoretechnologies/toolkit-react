@@ -9,6 +9,7 @@
 //
 // Seams: `IField`/`IFieldChange` types folded in locally; the IDE's debug
 // `console.log`s removed; `StyledPairField` return-type annotation dropped.
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -65,6 +66,7 @@ export const ArrayAuto = ({
   display_name,
   ...rest
 }: IArrayAutoProps): any => {
+  const ffWords = useReqraftLabels().formFields;
   const confirmAction = useReqoreProperty('confirmAction');
   const [localValue, setLocalValue] = useState(value);
   // The row this component just created, so its sub-form can open the field it
@@ -211,7 +213,7 @@ export const ArrayAuto = ({
               icon: 'DeleteBinLine',
               intent: 'danger',
               className: 'array-auto-item-remove',
-              tooltip: 'Remove item',
+              tooltip: ffWords.removeItem,
               onClick: () =>
                 confirmAction({
                   onConfirm: () => handleRemoveClick(Number(idx)),
@@ -254,7 +256,7 @@ export const ArrayAuto = ({
           size={rest.size}
           disabled={rest.disabled || rest.readOnly}
         >
-          Add new item {display_name || name ? `for "${display_name || name}"` : null}
+          {display_name || name ? ffWords.addNewItemFor(display_name || name) : `${ffWords.addNewItem} `}
         </ReqoreButton>
       </ReqoreControlGroup>
     </ReqoreControlGroup>

@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -60,6 +61,7 @@ export const ReqraftFileFormField = memo(
     readonly,
     ...rest
   }: IReqraftFileFormFieldProps) => {
+    const ffWords = useReqraftLabels().formFields;
     const contentStyle: React.CSSProperties = useMemo(
       (): React.CSSProperties => ({
         display: 'flex',
@@ -143,10 +145,10 @@ export const ReqraftFileFormField = memo(
 
     const tabs = useMemo(
       (): IReqoreTabsProps['tabs'] => [
-        { label: 'Upload a File', id: 'upload', icon: 'FileUploadLine', compact: true },
-        { label: 'Build a File', id: 'build', icon: 'FileAddLine', compact: true },
+        { label: ffWords.uploadFile, id: 'upload', icon: 'FileUploadLine', compact: true },
+        { label: ffWords.buildFile, id: 'build', icon: 'FileAddLine', compact: true },
       ],
-      []
+      [ffWords]
     );
 
     const renderUploader = useCallback(() => {
@@ -160,7 +162,7 @@ export const ReqraftFileFormField = memo(
             {typeof value.content === 'string' && value.content.startsWith('data:image') ? (
               <img
                 src={value.content}
-                alt={value.name || 'Uploaded file'}
+                alt={value.name || ffWords.uploadedFile}
                 style={{ maxWidth: '100%', maxHeight: 60 }}
               />
             ) : null}
@@ -171,7 +173,7 @@ export const ReqraftFileFormField = memo(
               icon='FileLine'
               rightIcon='FileUploadLine'
               badge={filesize(value.size || 0)}
-              description={`Click here to upload a different ${renderExtensions(true)} file`}
+              description={ffWords.uploadDifferentFile(String(renderExtensions(true)))}
               {...valueButtonProps}
               {...getRootProps()}
             />
@@ -184,13 +186,13 @@ export const ReqraftFileFormField = memo(
           <input {...getInputProps()} />
           <ReqoreControlGroup vertical horizontalAlign='center'>
             <ReqoreH4 size='small'>
-              <ReqoreIcon icon='FileAddLine' size='small' /> Click or drop files here to upload
+              <ReqoreIcon icon='FileAddLine' size='small' /> {ffWords.dropFilesHere}
             </ReqoreH4>
             {renderExtensions()}
           </ReqoreControlGroup>
         </ReqorePanel>
       );
-    }, [value, rest, valueButtonProps, getInputProps, getRootProps, renderExtensions, contentStyle, multiple]);
+    }, [value, rest, valueButtonProps, getInputProps, getRootProps, renderExtensions, contentStyle, multiple, ffWords]);
 
     if (!argSchema && !argSchemaLoading) {
       return renderUploader();

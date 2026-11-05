@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -41,6 +42,7 @@ const positionItems = (index: number, from: number, count: number) =>
  */
 export const ExpressionMoveToPositionStrip = memo(
   ({ index, count, onMoveTo }: IExpressionMoveToPositionStripProps) => {
+    const exprWords = useReqraftLabels().expression;
     const [draft, setDraft] = useState('');
     const target = Number(draft);
     const canGo =
@@ -55,7 +57,7 @@ export const ExpressionMoveToPositionStrip = memo(
     const label = (
       <ReqoreMenuItem
         icon='ListOrdered'
-        label='Move to position'
+        label={exprWords.moveToPosition}
         readOnly
         fluid={false}
         style={{ cursor: 'default' }}
@@ -105,7 +107,7 @@ export const ExpressionMoveToPositionStrip = memo(
                 active={to === index}
                 disabled={to === index}
                 label={String(to + 1)}
-                tooltip={to === index ? 'Current position' : `Move to ${ordinal(to + 1)}`}
+                tooltip={to === index ? exprWords.currentPosition : exprWords.moveToOrdinal(ordinal(to + 1))}
                 onClick={() => onMoveTo(to)}
               />
             ))}
@@ -131,7 +133,7 @@ export const ExpressionMoveToPositionStrip = memo(
                   compact
                   className='expression-arg-move-to-go'
                   icon='ArrowRightLine'
-                  tooltip='Move to that position'
+                  tooltip={exprWords.moveToThatPosition}
                   disabled={!canGo}
                   onClick={go}
                 />
@@ -139,7 +141,7 @@ export const ExpressionMoveToPositionStrip = memo(
               <ReqoreDropdown
                 compact
                 className='expression-arg-move-to-more'
-                label='More'
+                label={exprWords.more}
                 caretPosition='right'
                 filterable={count - QUICK_POSITIONS > 8}
                 items={positionItems(index, QUICK_POSITIONS, count).map((item) => ({

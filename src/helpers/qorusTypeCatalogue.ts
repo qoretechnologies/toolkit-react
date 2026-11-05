@@ -2,6 +2,7 @@
 // The Qorus server's type catalogue as reqraft keeps it (qorus#646): what each type is called as a label (its
 // display name) and inside a sentence (its sentence form). No React here: the form's validation names types too,
 // and the hook (`useQorusTypes`) that answers with the server's catalogue builds on it.
+import { reqraftLabels } from './reqraftLabels';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
 
@@ -478,9 +479,14 @@ export const qorusTypeSentenceForm = (
   }
   const entry = qorusTypeEntry(types, typeName, baseType);
   if (entry) {
-    return entry.sentence_form || `a value of type ${entry.display_name}`;
+    const words = reqraftLabels().typeCatalogue;
+    /* a form the server gave is in its language; a form of the built-in catalogue, the host's where it gives one */
+    const hostForm = types === defaultQorusTypes ? words.sentenceForms[entry.name] : undefined;
+    return hostForm || entry.sentence_form || words.valueOfType(entry.display_name);
   }
-  return typeName.includes('/') ? `a value of type ${typeName}` : 'a value of an unknown type';
+  return typeName.includes('/') ?
+      reqraftLabels().typeCatalogue.valueOfType(typeName)
+    : reqraftLabels().typeCatalogue.unknownType;
 };
 
 /** What a type is called inside a sentence ("a whole number"), by a catalogue: `useQorusTypes().getTypeSentenceForm`. */

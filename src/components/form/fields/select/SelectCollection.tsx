@@ -1,3 +1,4 @@
+import { DEFAULT_REQRAFT_LABELS, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreCollection,
@@ -414,7 +415,10 @@ export const buildSelectItemTooltip = (
 };
 
 /** The mark of the item a field holds, beside its own badge: a tick and a word. */
-export const CHOSEN_BADGE = { icon: 'CheckLine', label: 'Chosen' } as const;
+export const CHOSEN_BADGE = {
+  icon: 'CheckLine',
+  label: DEFAULT_REQRAFT_LABELS.formFields.chosen,
+} as const;
 
 export const SelectFieldCollection = ({
   onClose,
@@ -423,6 +427,7 @@ export const SelectFieldCollection = ({
   onItemSelect,
   filters,
 }: ISelectFieldCollectionProps) => {
+  const ffWords = useReqraftLabels().formFields;
   const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
   // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
   const unavailableOpacity = useReadableOpacity(0.55);
@@ -454,7 +459,7 @@ export const SelectFieldCollection = ({
       className='reqraft-select-dialog'
       icon='ListOrdered'
       onClose={onClose}
-      label='Select from items'
+      label={ffWords.selectFromItems}
       badge={size(items)}
       width='700px'
       customTheme={{ main: '#010811' }}
@@ -568,7 +573,7 @@ export const SelectFieldCollection = ({
                recognizing colors"). */
             badge:
               isTheChosenOne(item.value) ?
-                [...(item.badge === undefined ? [] : [item.badge].flat()), CHOSEN_BADGE]
+                [...(item.badge === undefined ? [] : [item.badge].flat()), { ...CHOSEN_BADGE, label: ffWords.chosen }]
               : item.badge,
             icon: item.icon,
             iconImage: item.image,

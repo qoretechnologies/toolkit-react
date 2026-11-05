@@ -2,6 +2,7 @@
 // the documented seams (leaf-API `onChange` adaptation, `query()`/`FormEngine`
 // swaps) so it stays in sync with the IDE. Intentionally-unported IDE types
 // and the full seam list live in `.tasks/FIELD_STACK_REPORT.md`.
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -261,6 +262,7 @@ function AutoField<T = any>({
   expandFirstRequired,
   ...rest
 }: IAutoFieldProps & T) {
+  const ffWords = useReqraftLabels().formFields;
   // drawn as declared from the first render; see `resolveAutoFieldTypes`
   const [mountTypes] = useState(() =>
     resolveAutoFieldTypes(defaultType, defaultInternalType, value)
@@ -333,7 +335,7 @@ function AutoField<T = any>({
             setError(undefined);
             setFinalArgSchema(schema.data);
           } else {
-            setError(schema.error ?? `The schema "${arg_schema}" could not be loaded.`);
+            setError(schema.error ?? ffWords.schemaNotLoaded(arg_schema));
           }
         } catch (fetchError) {
           // abandoned (the query cache was cleared mid-flight), not refused:
@@ -344,7 +346,7 @@ function AutoField<T = any>({
           setError(
             fetchError instanceof Error ?
               fetchError.message
-            : `The schema "${arg_schema}" could not be loaded.`
+            : ffWords.schemaNotLoaded(arg_schema)
           );
         }
       })();
@@ -352,7 +354,7 @@ function AutoField<T = any>({
       setError(undefined);
       setFinalArgSchema(arg_schema);
     }
-  }, [JSON.stringify(arg_schema)]);
+  }, [JSON.stringify(arg_schema), ffWords]);
 
   useMount(() => {
     const defType = mountTypes.type;
@@ -731,7 +733,7 @@ function AutoField<T = any>({
               placeholder={
                 currentType === 'binary' ?
                   ((rest as { placeholder?: string }).placeholder ??
-                  'Base64, 0x hex, or data: URL')
+                  ffWords.binaryPlaceholder)
                 : (rest as { placeholder?: string }).placeholder
               }
               type={currentType}
@@ -1128,7 +1130,7 @@ function AutoField<T = any>({
           if (baseType && baseType !== currentType) {
             return renderField(baseType);
           }
-          return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
+          return <ReqoreTag intent='danger' icon='SpamLine' label={ffWords.unknownType} />;
         }
       }
     };
@@ -1221,7 +1223,7 @@ function AutoField<T = any>({
             onClick={handleNullToggle}
             fixed
           >
-            {isSetToNull ? 'Unset null' : 'Set as null'}
+            {isSetToNull ? ffWords.unsetNull : ffWords.setAsNull}
           </ReqoreButton>
         )}
       </ReqoreControlGroup>

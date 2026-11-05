@@ -9,7 +9,8 @@ import { CSSProperties, HTMLAttributes, memo } from 'react';
 import styled, { css } from 'styled-components';
 import { htmlElementProps } from '../../helpers/domProps';
 import { describeColorValue } from './colorValue';
-import { DEFAULT_COLOR_VALUE_LABELS, IReqraftColorValueLabels } from './labels';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import { IReqraftColorValueLabels } from './labels';
 
 export {
   colorToCss,
@@ -98,7 +99,7 @@ export const ReqraftColorValue = memo(
     ...rest
   }: IReqraftColorValueProps) => {
     const theme = useReqoreTheme();
-    const words = { ...DEFAULT_COLOR_VALUE_LABELS, ...labels };
+    const words = { ...useReqraftLabels().colorValue, ...labels };
     const description = describeColorValue(value);
     // a control group hands its own size (small, big, ...) to what it holds: any size but compact is normal
     const size: TReqraftColorValueSize = (askedSize as string) === 'compact' ? 'compact' : 'normal';

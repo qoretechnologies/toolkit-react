@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreButton, useReqoreTheme } from '@qoretechnologies/reqore';
 import { memo } from 'react';
 import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
@@ -45,6 +46,7 @@ export const ExpressionBuilderAddArgumentSlot = memo(
     onDragOver,
     onDrop,
   }: IExpressionBuilderAddArgumentSlotProps) => {
+    const exprWords = useReqraftLabels().expression;
     const theme = useReqoreTheme();
     const isMobile = usePhoneViewport();
     const name = (argumentName || 'argument').toLowerCase();
@@ -60,9 +62,9 @@ export const ExpressionBuilderAddArgumentSlot = memo(
         size='small'
         className='expression-add-arg'
         icon='AddLine'
-        label={`Add ${name}`}
+        label={exprWords.addArgument(name)}
         tooltip={
-          disabled ? 'Fill in the current values first' : `Add another ${name} after the last one`
+          disabled ? exprWords.fillInCurrentFirst : exprWords.addAnother(name)
         }
         disabled={disabled}
         onClick={onClick}

@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreModal } from '@qoretechnologies/reqore';
 import {
   IReqorePanelAction,
@@ -44,6 +45,7 @@ export const ExpressionItem = ({
   readOnly,
   ...props
 }: IExpressionItemProps) => {
+  const exprWords = useReqraftLabels().expression;
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const handleFullscreenToggle = useCallback(() => {
@@ -65,7 +67,7 @@ export const ExpressionItem = ({
           {
             show: focused || readOnly ? false : 'hover',
             icon: 'FullscreenLine',
-            tooltip: 'Focused Editing',
+            tooltip: exprWords.focusedEditing,
             className: 'expression-item-fullscreen',
             size: 'tiny',
             onClick: handleFullscreenToggle,
@@ -85,7 +87,7 @@ export const ExpressionItem = ({
       {isFullscreen && (
         <ReqoreModal
           isOpen
-          label='Focused Editing'
+          label={exprWords.focusedEditing}
           icon='FullscreenFill'
           blur={15}
           customTheme={{ main: '#111111' }}

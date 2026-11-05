@@ -1,5 +1,10 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { useSyncExternalStore } from 'react';
+import { DEFAULT_COLOR_VALUE_LABELS, IReqraftColorValueLabels } from '../components/colorValue/labels';
+import {
+  DEFAULT_COLOR_FORM_FIELD_LABELS,
+  IColorFormFieldLabels,
+} from '../components/form/fields/color/labels';
 import {
   DEFAULT_TEMPLATE_LIST_LABELS,
   DEFAULT_TEMPLATE_PICKER_LABELS,
@@ -303,6 +308,200 @@ export interface IFormEngineLabels {
   expression: string;
   yes: string;
   no: string;
+  /** A timeout in its row: `45 seconds`. */
+  timeoutValue: (amount: number, unit: string) => string;
+  timeoutUnits: Record<'ms' | 'seconds' | 'minutes' | 'hours', string>;
+}
+
+/** The words of a form's field types. */
+export interface IFormFieldLabels {
+  selectOneOrMore: string;
+  selectOne: string;
+  savedAndSuggested: string;
+  removeItem: string;
+  addNewItem: string;
+  addNewItemFor: (name: string) => string;
+  edit: string;
+  remove: string;
+  saveChanges: string;
+  addItem: string;
+  cancelEditing: string;
+  schemaNotLoaded: (schema: string) => string;
+  binaryPlaceholder: string;
+  unknownType: string;
+  unsetNull: string;
+  setAsNull: string;
+  cronFields: [string, string, string, string, string];
+  uploadFile: string;
+  buildFile: string;
+  uploadedFile: string;
+  uploadDifferentFile: (extensions: string) => string;
+  dropFilesHere: string;
+  save: string;
+  discard: string;
+  notValid: (format: string) => string;
+  editor: string;
+  text: string;
+  newList: string;
+  newObject: string;
+  noData: string;
+  pleaseSelect: string;
+  chosen: string;
+  selectFromItems: string;
+}
+
+/** The words of the buttons that switch an expression between its text and its visual form. */
+export interface IExpressionModeLabels {
+  text: string;
+  visual: string;
+  /** The Text button's hover when there is no language server to write the expression with. */
+  textUnavailable: string;
+}
+
+/** The words of an expression's field and builder. */
+export interface IExpressionLabels {
+  notRendered: string;
+  textCannotBeRead: string;
+  mayNotFit: string;
+  doesNotFit: string;
+  typeMismatch: (inferred: string | undefined, target: string | undefined) => string;
+  convertedWhenItRuns: string;
+  preview: string;
+  cannotBeShownAsText: string;
+  textNeedsServer: string;
+  notAcceptedType: (types: string) => string;
+  typeFitsMayConvert: string;
+  typeNeededHere: (types: string) => string;
+  otherTypeNeeded: string;
+  addArgument: (name: string) => string;
+  fillInCurrentFirst: string;
+  addAnother: (name: string) => string;
+  dragToReorder: string;
+  positionTooltip: string;
+  removeArgument: string;
+  transformedCount: (count: number) => string;
+  confirmMismatched: string;
+  discardAll: string;
+  acceptAll: string;
+  confirmSelection: string;
+  typesDiffer: string;
+  deselectToKeep: string;
+  clearedNotConverted: string;
+  noConversionNeeded: string;
+  confirmTypeSelection: string;
+  needsOneOfTypes: string;
+  useTypeAnyway: string;
+  dontShowAgain: string;
+  moveBefore: string;
+  moveAfter: string;
+  moveToStart: string;
+  moveToEnd: string;
+  moveArgument: string;
+  removeNamed: (name: string) => string;
+  runsOutside: string;
+  selectOperation: string;
+  wrap: string;
+  wrapTooltip: string;
+  remove: string;
+  unwrapTooltip: string;
+  explain: string;
+  hideExplanation: string;
+  showExplanationTooltip: string;
+  hideExplanationTooltip: string;
+  removeTooltip: string;
+  cancel: string;
+  confirm: string;
+  selectTemplateOrField: string;
+  selectField: string;
+  selectTemplate: string;
+  couldNotCheck: string;
+  choosePart: (takes?: string) => string;
+  chooseExpression: (takes?: string) => string;
+  loading: string;
+  atLeastOne: string;
+  allOfThese: string;
+  ifCondition: string;
+  addCondition: string;
+  focusedEditing: string;
+  moveToPosition: string;
+  currentPosition: string;
+  moveToOrdinal: (ordinal: string) => string;
+  moveToThatPosition: string;
+  more: string;
+  invalidSummary: string;
+  /** An argument's position: 1st, 2nd, 3rd. */
+  ordinal: (position: number) => string;
+}
+
+/**
+ * The words of the schema editor. A hint is written with `**` around what is drawn in bold. A section's name comes from
+ * the catalogue that defines it, in that catalogue's language.
+ */
+export interface ISchemaDefinitionLabels {
+  uniqueNameShort: string;
+  uniqueNameLong: string;
+  noValuesSet: string;
+  removeNoun: (noun: string) => string;
+  removeNounConfirm: (noun: string, title: string) => string;
+  name: string;
+  noneDefined: (section: string) => string;
+  addSingular: (singular: string) => string;
+  nameInUse: string;
+  nameInUseContent: (singular: string, name: string) => string;
+  order: string;
+  moveUp: string;
+  moveDown: string;
+  numbered: (singular: string, position: number) => string;
+  nameMismatch: string;
+  nameMismatchContent: (schemaName: string, wrapperName: string) => string;
+  syncName: string;
+  structureChanged: string;
+  structureChangedContent: (version: string) => string;
+  addMigrationBlock: string;
+  saveRejected: string;
+  loading: string;
+  removeMigrationBlock: string;
+  removeMigrationBlockConfirm: (version: string) => string;
+  removeBlock: string;
+  noMigrationsReadOnly: string;
+  noMigrations: string;
+  migrationsHintTitle: string;
+  migrationsHint: string;
+  noVersion: string;
+  stepCount: (count: number) => string;
+  moveEarlier: string;
+  moveLater: string;
+  table: string;
+  tableName: string;
+  removeTable: string;
+  removeTableConfirm: (table: string, columns: number) => string;
+  noTablesReadOnly: string;
+  noTables: string;
+  addTable: string;
+  tablesHintTitle: string;
+  tablesHint: string;
+  columnCount: (count: number) => string;
+  catalogNotLoaded: string;
+  sectionSchema: string;
+  sectionTables: string;
+  sectionSequences: string;
+  sectionReferenceData: string;
+  sectionMigrations: string;
+  sectionAdvanced: string;
+  editorHintTitle: string;
+  editorHint: string;
+  referenceHintTitle: string;
+  referenceHint: string;
+  loadingEditor: string;
+  optionsNotLoaded: string;
+}
+
+/** The words a type is named with inside a sentence, where the server's catalogue has not said. */
+export interface ITypeCatalogueLabels {
+  valueOfType: (type: string) => string;
+  unknownType: string;
+  /** The built-in catalogue's sentence forms, by type name; those of the server's are in its language already. */
+  sentenceForms: Record<string, string>;
 }
 
 /** Every word Reqraft draws that a host can give in its own language, by where it is drawn. */
@@ -316,6 +515,13 @@ export interface IReqraftLabels {
   templateBrowser: ITemplateBrowserLabels;
   editor: IEditorLabels;
   formEngine: IFormEngineLabels;
+  formFields: IFormFieldLabels;
+  colorField: IColorFormFieldLabels;
+  colorValue: IReqraftColorValueLabels;
+  expressionMode: IExpressionModeLabels;
+  expression: IExpressionLabels;
+  schemaDefinition: ISchemaDefinitionLabels;
+  typeCatalogue: ITypeCatalogueLabels;
 }
 
 /** What a host gives: any of the words of any part, and one or more entries of a part's maps. */
@@ -323,6 +529,7 @@ export type TReqraftLabelOverrides = {
   [Part in keyof IReqraftLabels]?: {
     [Word in keyof IReqraftLabels[Part]]?: IReqraftLabels[Part][Word] extends (...args: never[]) => unknown ?
       IReqraftLabels[Part][Word]
+    : IReqraftLabels[Part][Word] extends readonly unknown[] ? IReqraftLabels[Part][Word]
     : IReqraftLabels[Part][Word] extends object ? Partial<IReqraftLabels[Part][Word]>
     : IReqraftLabels[Part][Word];
   };
@@ -330,6 +537,25 @@ export type TReqraftLabelOverrides = {
 
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
+
+const ordinalInEnglish = (n: number): string => {
+  const mod100 = n % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${n}th`;
+  }
+
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+};
 
 /** The English words: what a host gets for any word it does not give. */
 export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
@@ -648,6 +874,202 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     expression: 'Expression',
     yes: 'Yes',
     no: 'No',
+    timeoutValue: (amount, unit) => `${amount} ${unit}`,
+    timeoutUnits: { ms: 'ms', seconds: 'seconds', minutes: 'minutes', hours: 'hours' },
+  },
+  formFields: {
+    selectOneOrMore: 'Select one or more:',
+    selectOne: 'Select one:',
+    savedAndSuggested: 'Saved & Suggested Values',
+    removeItem: 'Remove item',
+    addNewItem: 'Add new item',
+    addNewItemFor: (name) => `Add new item for "${name}"`,
+    edit: 'Edit',
+    remove: 'Remove',
+    saveChanges: 'Save changes',
+    addItem: 'Add item',
+    cancelEditing: 'Cancel editing',
+    schemaNotLoaded: (schema) => `The schema "${schema}" could not be loaded.`,
+    binaryPlaceholder: 'Base64, 0x hex, or data: URL',
+    unknownType: 'Unknown type!',
+    unsetNull: 'Unset null',
+    setAsNull: 'Set as null',
+    cronFields: ['Minute', 'Hour', 'Day', 'Month', 'Weekday'],
+    uploadFile: 'Upload a File',
+    buildFile: 'Build a File',
+    uploadedFile: 'Uploaded file',
+    uploadDifferentFile: (extensions) => `Click here to upload a different ${extensions} file`,
+    dropFilesHere: 'Click or drop files here to upload',
+    save: 'Save',
+    discard: 'Discard',
+    notValid: (format) => `Not a valid ${format}`,
+    editor: 'Editor',
+    text: 'Text',
+    newList: 'New List',
+    newObject: 'New Object',
+    noData: 'No data available',
+    pleaseSelect: 'Please select',
+    chosen: 'Chosen',
+    selectFromItems: 'Select from items',
+  },
+  colorField: DEFAULT_COLOR_FORM_FIELD_LABELS,
+  colorValue: DEFAULT_COLOR_VALUE_LABELS,
+  expressionMode: {
+    text: 'Text',
+    visual: 'Visual',
+    textUnavailable: 'The expression language server is not available',
+  },
+  expression: {
+    notRendered: 'This expression could not be rendered.',
+    textCannotBeRead:
+      'The expression language server is not available, so this text cannot be read yet. It is kept as you typed it; the Visual view builds the expression without the server.',
+    mayNotFit: 'This may not fit',
+    doesNotFit: 'This does not fit',
+    typeMismatch: (inferred, target) =>
+      `The expression gives ${inferred}, and this field takes ${target}.`,
+    convertedWhenItRuns: ' Qorus converts the value when it runs, and checks it then.',
+    preview: 'Preview',
+    cannotBeShownAsText: 'This expression cannot be shown as text, so it is built here:',
+    textNeedsServer:
+      'The Text view needs the expression language server, which is not available: the expression is built here instead.',
+    notAcceptedType: (types) =>
+      `This value is not ${types}. Put it inside an expression that converts it`,
+    typeFitsMayConvert: 'The type fits; Qorus may convert the value',
+    typeNeededHere: (types) => `${types.charAt(0).toUpperCase()}${types.slice(1)} is needed here`,
+    otherTypeNeeded: 'A value of another type is needed here',
+    addArgument: (name) => `Add ${name}`,
+    fillInCurrentFirst: 'Fill in the current values first',
+    addAnother: (name) => `Add another ${name} after the last one`,
+    dragToReorder: 'Drag to reorder',
+    positionTooltip: 'Position — pick a new one to move this argument',
+    removeArgument: 'Remove argument',
+    transformedCount: (count) =>
+      `${count} ${count === 1 ? 'argument' : 'arguments'} will be transformed.`,
+    confirmMismatched: 'Confirm type selection for mismatched arguments',
+    discardAll: 'Discard all',
+    acceptAll: 'Accept all',
+    confirmSelection: 'Confirm selection',
+    typesDiffer: 'These values have other types than expected. Qorus converts them when it runs.',
+    deselectToKeep: 'Please deselect the arguments you do not wish to transform:',
+    clearedNotConverted: 'Cleared, not converted',
+    noConversionNeeded: 'No conversion needed',
+    confirmTypeSelection: 'Confirm type selection',
+    needsOneOfTypes: 'This value needs one of these types:',
+    useTypeAnyway: 'Use this type anyway?',
+    dontShowAgain: "Don't show again",
+    moveBefore: 'Move before',
+    moveAfter: 'Move after',
+    moveToStart: 'Move to start',
+    moveToEnd: 'Move to end',
+    moveArgument: 'Move Argument',
+    removeNamed: (name) => `Remove ${name}`,
+    runsOutside: 'This expression runs outside Qorus',
+    selectOperation: 'Select operation',
+    wrap: 'Wrap',
+    wrapTooltip: 'Put this expression inside another one',
+    remove: 'Remove',
+    unwrapTooltip: 'Remove this expression and keep what is inside it',
+    explain: 'Explain',
+    hideExplanation: 'Hide Explanation',
+    showExplanationTooltip: 'Show explanation of this expression',
+    hideExplanationTooltip: 'Hide explanation of this expression',
+    removeTooltip: 'Remove this expression and everything inside it',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    selectTemplateOrField: 'Select Template Or Field',
+    selectField: 'Select Field',
+    selectTemplate: 'Select Template',
+    couldNotCheck: 'Qorus could not check this expression.',
+    choosePart: (takes) => `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`,
+    chooseExpression: (takes) =>
+      `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`,
+    loading: 'Loading...',
+    atLeastOne: 'At least one of these is true (OR)',
+    allOfThese: 'All of these are true (AND)',
+    ifCondition: 'If',
+    addCondition: 'Add a condition',
+    focusedEditing: 'Focused Editing',
+    moveToPosition: 'Move to position',
+    currentPosition: 'Current position',
+    moveToOrdinal: (ordinal) => `Move to ${ordinal}`,
+    moveToThatPosition: 'Move to that position',
+    more: 'More',
+    invalidSummary: 'Expression is invalid, unable to render summary',
+    ordinal: ordinalInEnglish,
+  },
+  schemaDefinition: {
+    uniqueNameShort: 'Unique name within the schema',
+    uniqueNameLong: 'The unique name identifying this entry.',
+    noValuesSet: 'No values set.',
+    removeNoun: (noun) => `Remove ${noun}`,
+    removeNounConfirm: (noun, title) =>
+      `Remove the ${noun} "${title}"? This cannot be undone from inside the editor — re-add or revert the form to restore it.`,
+    name: 'Name',
+    noneDefined: (section) => `No ${section} defined yet.`,
+    addSingular: (singular) => `Add ${singular}`,
+    nameInUse: 'Name already in use',
+    nameInUseContent: (singular, name) =>
+      `A ${singular} named "${name}" already exists in this section.`,
+    order: 'Order',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+    numbered: (singular, position) => `${singular} ${position}`,
+    nameMismatch: 'Schema name does not match the interface name',
+    nameMismatchContent: (schemaName, wrapperName) =>
+      `The DataSchema name is "${schemaName}" but the schema object is named "${wrapperName}". The server requires them to match.`,
+    syncName: 'Sync name',
+    structureChanged: 'Structure changed — bump the schema version',
+    structureChangedContent: (version) =>
+      `Tables, sequences, or reference data changed but schema.version is still "${version}". Bump the version and add a migration block so existing databases can be aligned.`,
+    addMigrationBlock: 'Add migration block',
+    saveRejected: 'The last save was rejected',
+    loading: 'Loading…',
+    removeMigrationBlock: 'Remove migration block',
+    removeMigrationBlockConfirm: (version) =>
+      `Remove migration block "v${version}" and any steps it contains?`,
+    removeBlock: 'Remove block',
+    noMigrationsReadOnly: 'This schema defines no migrations.',
+    noMigrations:
+      'No migrations yet. Add a migration block when a schema change needs to be applied to existing databases.',
+    migrationsHintTitle: 'When to add a migration',
+    migrationsHint:
+      'Aligning a schema to an empty datasource just creates everything. A datasource already running an older version needs **upgrading** — that is what migrations are for. When you change tables, columns, or reference data, bump **schema.version** and add a migration block: an ordered list of steps (add column, rename, …) run before and after alignment. Each block targets one version.',
+    noVersion: '(no version)',
+    stepCount: (count) => plural(count, 'step'),
+    moveEarlier: 'Move earlier',
+    moveLater: 'Move later',
+    table: 'Table',
+    tableName: 'Table name',
+    removeTable: 'Remove table',
+    removeTableConfirm: (table, columns) =>
+      `Remove the table "${table}"${columns > 0 ? ` and its ${plural(columns, 'column')}` : ''}?`,
+    noTablesReadOnly: 'This schema defines no tables.',
+    noTables: 'No tables yet. Add the first table to start building the schema.',
+    addTable: 'Add table',
+    tablesHintTitle: 'Working with tables',
+    tablesHint:
+      'Each row is a database table. Expand one to reach its columns, primary key, indexes, and constraints — each on its own sub-tab. **Click a column row to edit it in a side panel** where you set its full definition.',
+    columnCount: (count) => plural(count, 'column'),
+    catalogNotLoaded: 'The schema option catalog could not be loaded.',
+    sectionSchema: 'Schema',
+    sectionTables: 'Tables',
+    sectionSequences: 'Sequences',
+    sectionReferenceData: 'Reference data',
+    sectionMigrations: 'Migrations',
+    sectionAdvanced: 'Advanced',
+    editorHintTitle: 'Building a database schema',
+    editorHint:
+      'This editor builds a **DataSchema document** — the definition of the tables, sequences, and reference data this schema manages. Each tab is one section: lay out your tables and their columns, add sequences, seed reference data, and record migrations so databases on an older version can be upgraded. **Click any row to edit it in a side panel.** Once saved, the schema can be aligned to a datasource to create or update those objects.',
+    referenceHintTitle: 'Reference data modes',
+    referenceHint:
+      'Reference data is the set of rows the schema guarantees exist in a table — lookup values, enums, seed records. The **mode** decides how an align treats rows already in the database: **strict** removes any row not in the schema, **normal** inserts and updates, **create_only** only inserts missing rows, and **insert_only** inserts but never updates existing rows.',
+    loadingEditor: 'Loading schema editor…',
+    optionsNotLoaded: 'Could not load schema options',
+  },
+  typeCatalogue: {
+    valueOfType: (type) => `a value of type ${type}`,
+    unknownType: 'a value of an unknown type',
+    sentenceForms: {},
   },
 };
 
@@ -663,7 +1085,7 @@ const merged = (given: TReqraftLabelOverrides): IReqraftLabels => {
       }
       // a map's entries are given one by one: what a row says a node is, a completion's kind
       out[word] =
-        fallback && typeof fallback === 'object' ? { ...fallback, ...(value as object) } : value;
+        fallback && typeof fallback === 'object' && !Array.isArray(fallback) ? { ...fallback, ...(value as object) } : value;
     }
     labels[part] = out;
   }

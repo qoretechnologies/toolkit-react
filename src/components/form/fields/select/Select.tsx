@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreDropdown,
@@ -112,6 +113,7 @@ export const SelectFormField = memo(
     size: componentSize,
     ...rest
   }: ISelectFormFieldProps) => {
+    const ffWords = useReqraftLabels().formFields;
     // the name of an item that cannot be picked is dimmed, as far as it still reads (qorus#646)
     const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
@@ -492,7 +494,7 @@ export const SelectFormField = memo(
         <ReqoreTag
           {...(rest as any)}
           intent='muted'
-          label='No data available'
+          label={ffWords.noData}
           icon='ForbidLine'
           fixed
           size={componentSize}
@@ -595,7 +597,7 @@ export const SelectFormField = memo(
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || ffWords.pleaseSelect
             : undefined}
           </ReqoreButton>
         : <ReqoreDropdown
@@ -640,7 +642,7 @@ export const SelectFormField = memo(
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || ffWords.pleaseSelect
             : undefined}
           </ReqoreDropdown>
         }

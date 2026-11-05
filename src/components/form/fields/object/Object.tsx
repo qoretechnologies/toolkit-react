@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -34,6 +35,7 @@ export const ReqraftObjectFormFieldTextarea = ({
   ...rest
 }: Partial<ILongStringFormFieldProps> &
   Pick<IReqraftObjectFormFieldProps, 'dataType'> & { resultDataType: 'json' | 'yaml' }) => {
+    const ffWords = useReqraftLabels().formFields;
   const [localValue, setValue] = useState(value);
 
   const handleChange = useCallback((newValue: string) => {
@@ -80,7 +82,7 @@ export const ReqraftObjectFormFieldTextarea = ({
       <ReqoreControlGroup stack>
         <ReqoreButton
           size={rest.size}
-          label='Save'
+          label={ffWords.save}
           icon='CheckLine'
           compact
           fluid
@@ -104,7 +106,7 @@ export const ReqraftObjectFormFieldTextarea = ({
         />
         <ReqoreButton
           size={rest.size}
-          label='Discard'
+          label={ffWords.discard}
           icon='HistoryLine'
           compact
           fixed
@@ -114,7 +116,7 @@ export const ReqraftObjectFormFieldTextarea = ({
       </ReqoreControlGroup>
       {!isValid && (
         <ReqoreSpan intent='danger' size='small'>
-          Not a valid {resultDataType.toUpperCase()}
+          {ffWords.notValid(resultDataType.toUpperCase())}
         </ReqoreSpan>
       )}
     </ReqoreControlGroup>
@@ -134,6 +136,7 @@ export const ReqraftObjectFormField = memo(
     disabled,
     ...rest
   }: IReqraftObjectFormFieldProps) => {
+    const ffWords = useReqraftLabels().formFields;
     const handleTreeDataChange = useCallback(
       (data: IReqoreTreeProps['data']) => {
         switch (resultDataType) {
@@ -191,13 +194,13 @@ export const ReqraftObjectFormField = memo(
         {...rest}
         tabs={[
           {
-            label: 'Editor',
+            label: ffWords.editor,
             icon: 'NodeTree',
             id: 'editor',
             size: rest.size,
           },
           {
-            label: 'Text',
+            label: ffWords.text,
             icon: 'Text',
             id: 'text',
             show: resultDataType !== 'native',
@@ -214,7 +217,7 @@ export const ReqraftObjectFormField = memo(
               disabled={disabled}
               size={rest.size}
             >
-              New {type === 'array' ? 'List' : 'Object'}
+              {type === 'array' ? ffWords.newList : ffWords.newObject}
             </ReqoreButton>
           )}
           {treeData && (
@@ -236,7 +239,7 @@ export const ReqraftObjectFormField = memo(
               disabled={disabled}
               size={rest.size}
             >
-              Remove
+              {ffWords.remove}
             </ReqoreButton>
           )}
         </ReqoreTabsContent>

@@ -7,6 +7,7 @@
  * a nested `ReqoreTabs` — one tab per child section — with each tab
  * delegating to the generic `CatalogNodeEditor`.
  */
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreControlGroup,
   ReqoreTabs,
@@ -59,6 +60,7 @@ export const TableEditor = memo(
     onChange,
     readOnly,
   }: ITableEditorProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
     const sections = useMemo(
@@ -73,7 +75,7 @@ export const TableEditor = memo(
       <ReqoreControlGroup vertical fluid gapSize='normal'>
         {readOnly ? (
           <ReqoreControlGroup verticalAlign='center' gapSize='small'>
-            <ReqoreTag fixed minimal size='small' icon='Table2' label='Table' />
+            <ReqoreTag fixed minimal size='small' icon='Table2' label={schemaWords.table} />
             <ReqoreTag size='small' label={tableName} />
           </ReqoreControlGroup>
         ) : (
@@ -81,7 +83,7 @@ export const TableEditor = memo(
             value={tableName}
             taken={taken}
             onRename={onRename}
-            label='Table name'
+            label={schemaWords.tableName}
           />
         )}
 

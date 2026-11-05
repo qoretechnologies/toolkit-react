@@ -1,3 +1,4 @@
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreControlGroup,
   ReqoreErrorBoundary,
@@ -199,6 +200,7 @@ export const Expression = ({
   conditionMessage,
   ...props
 }: IExpressionProps) => {
+  const exprWords = useReqraftLabels().expression;
   const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
@@ -584,14 +586,14 @@ export const Expression = ({
     }
 
     const moves: [string, string, IReqoreIconName, (index: number) => number][] = [
-      ['before', 'Move before', 'ArrowGoBackLine', (index) => index - 1],
-      ['after', 'Move after', 'ArrowGoForwardLine', (index) => index + 1],
-      ['start', 'Move to start', 'SkipBackLine', () => 0],
-      ['end', 'Move to end', 'SkipForwardLine', () => argCount - 1],
+      ['before', exprWords.moveBefore, 'ArrowGoBackLine', (index) => index - 1],
+      ['after', exprWords.moveAfter, 'ArrowGoForwardLine', (index) => index + 1],
+      ['start', exprWords.moveToStart, 'SkipBackLine', () => 0],
+      ['end', exprWords.moveToEnd, 'SkipForwardLine', () => argCount - 1],
     ];
 
     return Array.from({ length: argCount }, (_, index) => ({
-      label: 'Move Argument',
+      label: exprWords.moveArgument,
       icon: 'ArrowLeftRightLine',
       items: [
         ...moves.map(([key, label, icon, target]) => {
@@ -621,7 +623,7 @@ export const Expression = ({
         },
       ],
     }));
-  }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg]);
+  }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg, exprWords]);
 
   if (selectedExpression?.varargs) {
     restOfArgs = [
@@ -793,14 +795,14 @@ export const Expression = ({
 
     return Array.from({ length: argCount }, (_, index) => [
       {
-        label: `Remove ${name}`,
+        label: exprWords.removeNamed(name),
         icon: 'DeleteBinLine',
         intent: 'danger',
         className: 'expression-remove-arg',
         onClick: () => removeVarArg(index),
       },
     ]);
-  }, [canRemoveArgs, phone, argCount, removeVarArg, JSON.stringify(selectedExpression?.args[0])]);
+  }, [canRemoveArgs, phone, argCount, removeVarArg, JSON.stringify(selectedExpression?.args[0]), exprWords]);
   const isSlotDropTarget = canReorderArgs && reorderSurfaces.includes('dragHandle');
   // The slot is indexed one past the last operand, so its drag-over state
   // never lights an operand and vice versa.
@@ -935,7 +937,7 @@ export const Expression = ({
       as={ReqorePanel}
       intent={validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted' : 'danger'}
       description={
-        isExpressionServerHandled ? 'This expression runs outside Qorus' : ''
+        isExpressionServerHandled ? exprWords.runsOutside : ''
       }
       flat
       readOnly={readOnly}
@@ -953,7 +955,7 @@ export const Expression = ({
           className='expression-operator-selector'
           value={value?.value?.exp}
           icon='Functions'
-          placeholder='Select operation'
+          placeholder={exprWords.selectOperation}
           fluid={false}
           // shrinks with a narrow panel, its name shortened, rather than holding the panel open
           fixed={false}
@@ -1000,7 +1002,7 @@ export const Expression = ({
           props: {
             className: 'expression-wrap',
             id: 'expression-builder-wrap',
-            placeholder: 'Wrap',
+            placeholder: exprWords.wrap,
             icon: 'Functions',
             showRightIcon: false,
             fluid: false,
@@ -1014,29 +1016,29 @@ export const Expression = ({
             hideItemCount: true,
             onChange: handleWrapExpressionClick,
             showDescription: 'tooltip',
-            tooltip: 'Put this expression inside another one',
+            tooltip: exprWords.wrapTooltip,
             size: 'tiny',
           },
         },
         {
           className: 'expression-unwrap',
-          label: 'Remove',
+          label: exprWords.remove,
           textAlign: 'center',
           icon: 'CloseLine',
-          tooltip: 'Remove this expression and keep what is inside it',
+          tooltip: exprWords.unwrapTooltip,
           fixed: true,
           onClick: unwrapExpression,
           show: value.value?.args?.[0]?.is_expression === true && !readOnly ? 'hover' : false,
         },
         {
           className: 'expression-explain',
-          label: showSummary ? 'Hide Explanation' : 'Explain',
+          label: showSummary ? exprWords.hideExplanation : exprWords.explain,
           show: level === 0,
           onClick: () => setShowSummary(!showSummary),
           icon: 'InformationLine',
           tooltip: showSummary
-            ? 'Hide explanation of this expression'
-            : 'Show explanation of this expression',
+            ? exprWords.hideExplanationTooltip
+            : exprWords.showExplanationTooltip,
           fixed: true,
         },
         {
@@ -1044,7 +1046,7 @@ export const Expression = ({
           intent: 'danger',
           textAlign: 'center',
           icon: 'DeleteBinLine',
-          tooltip: 'Remove this expression and everything inside it',
+          tooltip: exprWords.removeTooltip,
           fixed: true,
           minimal: true,
           show: readOnly ? false : 'hover',
@@ -1105,7 +1107,7 @@ export const Expression = ({
           maxSize='550px'
           bottomActions={[
             {
-              label: confirmDialogData?.cancelText || 'Cancel',
+              label: confirmDialogData?.cancelText || exprWords.cancel,
               onClick: () => {
                 confirmDialogData?.onCancel?.();
                 setConfirmDialogData(undefined);
@@ -1114,7 +1116,7 @@ export const Expression = ({
               minimal: true,
             },
             {
-              label: confirmDialogData?.confirmText || 'Confirm',
+              label: confirmDialogData?.confirmText || exprWords.confirm,
               intent: 'warning',
               icon: 'CheckFill',
               minimal: true,
@@ -1189,12 +1191,12 @@ export const Expression = ({
               minimal
               label={
                 serverAndQorusExpression
-                  ? 'Select Template Or Field'
+                  ? exprWords.selectTemplateOrField
                   : serverExpression
-                    ? 'Select Field'
+                    ? exprWords.selectField
                     : qorusExpression
-                      ? 'Select Template'
-                      : 'Select Template Or Field'
+                      ? exprWords.selectTemplate
+                      : exprWords.selectTemplateOrField
               }
               allowFunctions={
                 !serverExpression &&
@@ -1466,7 +1468,7 @@ export const Expression = ({
             intent='danger'
             size='tiny'
             wrap
-            label={validationData.reason || 'Qorus could not check this expression.'}
+            label={validationData.reason || exprWords.couldNotCheck}
           />
         </>
       ) : null}
@@ -1494,8 +1496,8 @@ export const Expression = ({
  */
 export const noOperationYetText = (part: boolean, takes: string | undefined): string =>
   part ?
-    `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`
-  : `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`;
+    reqraftLabels().expression.choosePart(takes)
+  : reqraftLabels().expression.chooseExpression(takes);
 
 export const ExpressionBuilder = ({
   localTemplates,
@@ -1522,6 +1524,7 @@ export const ExpressionBuilder = ({
   conditionPartCards: givenPartCards,
   conditionMessage,
 }: IExpressionBuilderProps) => {
+  const exprWords = useReqraftLabels().expression;
   const templates = useTemplates(!isChild, localTemplates);
   /* The top builder places what the server says of each part of the condition on that part's card; a nested
      one is handed the placement. */
@@ -1599,7 +1602,7 @@ export const ExpressionBuilder = ({
   if (templates.loading) {
     return (
       <ReqoreSpinner type={5} size='normal'>
-        Loading...
+        {exprWords.loading}
       </ReqoreSpinner>
     );
   }
@@ -1626,9 +1629,9 @@ export const ExpressionBuilder = ({
           label={
             isChild ?
               value.value.exp === '||' ?
-                'At least one of these is true (OR)'
-              : 'All of these are true (AND)'
-            : 'If'
+                exprWords.atLeastOne
+              : exprWords.allOfThese
+            : exprWords.ifCondition
           }
           style={{
             marginLeft: isChild ? 10 : 0,
@@ -1646,17 +1649,17 @@ export const ExpressionBuilder = ({
                   `${path ? `${path}.` : ''}value.args.${size(value.value.args)}`
                 );
               },
-              tooltip: 'Add a condition',
+              tooltip: exprWords.addCondition,
             },
             {
               className: 'expression-explain',
-              label: showSummary ? 'Hide Explanation' : 'Explain',
+              label: showSummary ? exprWords.hideExplanation : exprWords.explain,
               show: level === 0,
               onClick: () => setShowSummary(!showSummary),
               icon: 'InformationLine',
               tooltip: showSummary
-                ? 'Hide explanation of this expression'
-                : 'Show explanation of this expression',
+                ? exprWords.hideExplanationTooltip
+                : exprWords.showExplanationTooltip,
               fixed: true,
             },
           ]}

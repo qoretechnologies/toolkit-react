@@ -8,6 +8,8 @@
  * `post_align` step lists. Blocks can be reordered so the timeline
  * always reads oldest-to-newest.
  */
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { renderBoldWords } from './boldWords';
 import {
   ReqoreButton,
   ReqoreCallout,
@@ -36,6 +38,7 @@ export const createMigrationBlock = (
 
 export const MigrationsTab = memo(
   ({ node, value, onChange, readOnly }: IMigrationsTabProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     const blocks = value ?? [];
     const confirmAction = useReqoreProperty('confirmAction');
 
@@ -51,15 +54,15 @@ export const MigrationsTab = memo(
             ? block.version
             : `#${index + 1}`;
         confirmAction({
-          title: 'Remove migration block',
-          description: `Remove migration block "v${version}" and any steps it contains?`,
-          confirmLabel: 'Remove block',
+          title: schemaWords.removeMigrationBlock,
+          description: schemaWords.removeMigrationBlockConfirm(version),
+          confirmLabel: schemaWords.removeBlock,
           intent: 'danger',
           onConfirm: () =>
             onChange(blocks.filter((_, i) => i !== index)),
         });
       },
-      [blocks, onChange, confirmAction]
+      [blocks, onChange, confirmAction, schemaWords]
     );
 
     if (blocks.length === 0) {
@@ -67,8 +70,8 @@ export const MigrationsTab = memo(
         <ReqoreControlGroup vertical fluid gapSize='normal'>
           <ReqoreCallout intent='info' flat icon='GitBranchLine'>
             {readOnly
-              ? 'This schema defines no migrations.'
-              : 'No migrations yet. Add a migration block when a schema change needs to be applied to existing databases.'}
+              ? schemaWords.noMigrationsReadOnly
+              : schemaWords.noMigrations}
           </ReqoreCallout>
           {!readOnly ? (
             <ReqoreButton
@@ -78,7 +81,7 @@ export const MigrationsTab = memo(
               fixed
               onClick={addBlock}
             >
-              Add migration block
+              {schemaWords.addMigrationBlock}
             </ReqoreButton>
           ) : null}
         </ReqoreControlGroup>
@@ -90,23 +93,17 @@ export const MigrationsTab = memo(
         {!readOnly ? (
           <Hint
             id='hint.schema-migrations'
-            title='When to add a migration'
+            title={schemaWords.migrationsHintTitle}
             icon='GitBranchLine'
           >
-            Aligning a schema to an empty datasource just creates
-            everything. A datasource already running an older version
-            needs <b>upgrading</b> — that is what migrations are for.
-            When you change tables, columns, or reference data, bump{' '}
-            <b>schema.version</b> and add a migration block: an ordered
-            list of steps (add column, rename, …) run before and after
-            alignment. Each block targets one version.
+            {renderBoldWords(schemaWords.migrationsHint)}
           </Hint>
         ) : null}
         {blocks.map((block, index) => {
           const version =
             typeof block.version === 'string' && block.version
               ? block.version
-              : '(no version)';
+              : schemaWords.noVersion;
           const description =
             typeof block.description === 'string'
               ? block.description
@@ -126,7 +123,7 @@ export const MigrationsTab = memo(
               label={`v${version}`}
               description={description}
               badge={[
-                `${totalSteps} step${totalSteps === 1 ? '' : 's'}`,
+                schemaWords.stepCount(totalSteps),
               ]}
               actions={
                 readOnly
@@ -137,7 +134,7 @@ export const MigrationsTab = memo(
                         minimal: true,
                         flat: true,
                         size: 'small',
-                        tooltip: 'Move earlier',
+                        tooltip: schemaWords.moveEarlier,
                         disabled: index === 0,
                         onClick: () =>
                           onChange(moveItem(blocks, index, index - 1)),
@@ -147,7 +144,7 @@ export const MigrationsTab = memo(
                         minimal: true,
                         flat: true,
                         size: 'small',
-                        tooltip: 'Move later',
+                        tooltip: schemaWords.moveLater,
                         disabled: index === blocks.length - 1,
                         onClick: () =>
                           onChange(moveItem(blocks, index, index + 1)),
@@ -158,7 +155,7 @@ export const MigrationsTab = memo(
                         flat: true,
                         intent: 'danger',
                         size: 'small',
-                        tooltip: 'Remove migration block',
+                        tooltip: schemaWords.removeMigrationBlock,
                         onClick: () => confirmRemoveBlock(index),
                       },
                     ]
@@ -178,7 +175,7 @@ export const MigrationsTab = memo(
         })}
         {!readOnly ? (
           <ReqoreButton icon='AddLine' intent='info' minimal fixed onClick={addBlock}>
-            Add migration block
+            {schemaWords.addMigrationBlock}
           </ReqoreButton>
         ) : null}
       </ReqoreControlGroup>

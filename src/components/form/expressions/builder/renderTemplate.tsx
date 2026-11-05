@@ -6,6 +6,7 @@
 // the language server, template references as chips.
 // The component name/shape is kept identical so `index.tsx`'s usage is
 // unchanged.
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreMessage } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { validateField } from '../../../../helpers/validations';
@@ -24,10 +25,11 @@ export const ExpressionRenderTemplate = ({
   expressions,
   templates,
 }: IExpressionRenderTemplateProps) => {
+  const exprWords = useReqraftLabels().expression;
   if (!validateField('expression', exp, { expressions })) {
     return (
       <ReqoreMessage size='small' intent='muted' flat opaque={false}>
-        Expression is invalid, unable to render summary
+        {exprWords.invalidSummary}
       </ReqoreMessage>
     );
   }

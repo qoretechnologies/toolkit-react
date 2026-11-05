@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -25,6 +26,7 @@ export const CronFormField = ({
   inputProps,
   size,
 }: ICronFormFieldProps) => {
+  const ffWords = useReqraftLabels().formFields;
   const { message, isError } = useMemo(() => {
     try {
       return { message: cronstrue.toString(value, {}) };
@@ -39,7 +41,7 @@ export const CronFormField = ({
   return (
     <ReqoreControlGroup fluid stack={false} vertical gapSize='big' size={size} {...wrapperProps}>
       <ReqoreControlGroup fluid stack size={size}>
-        {['Minute', 'Hour', 'Day', 'Month', 'Weekday'].map((label, index) => {
+        {ffWords.cronFields.map((label, index) => {
           return (
             <ReqoreInput
               {...(inputProps?.[index] ?? {})}

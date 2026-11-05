@@ -4,7 +4,7 @@
  * `{type, value}` UI envelope, the embedded YAML/JSON string parser, and the
  * Qorus date parsing/formatting. Renders flat/minimal so it slots into rows.
  */
-import { reqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreDataView, type IReqoreDataViewEnvelope } from '@qoretechnologies/reqore';
 import { memo } from 'react';
 import {
@@ -51,10 +51,13 @@ export const StructuredDataView = memo(
     showTypes,
     defaultExpandDepth,
     onItemClick,
-  }: IStructuredDataViewProps) => (
+  }: IStructuredDataViewProps) => {
+    const feWords = useReqraftLabels().formEngine;
+
+    return (
     <ReqoreDataView
       data={value}
-      emptyText={emptyText ?? reqraftLabels().formEngine.noStructuredData}
+      emptyText={emptyText ?? feWords.noStructuredData}
       collapsibleRoot={collapsibleRoot}
       envelope={QORUS_ENVELOPE}
       parseEmbedded={parseSerializedStructuredText}
@@ -70,7 +73,8 @@ export const StructuredDataView = memo(
       rounded
       fluid={!fitContent}
     />
-  )
+    );
+  }
 );
 
 StructuredDataView.displayName = 'StructuredDataView';

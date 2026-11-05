@@ -1,3 +1,4 @@
+import { reqraftLabels } from './reqraftLabels';
 import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { TQorusFormFieldSchema, TQorusFormOperatorValue } from '@qoretechnologies/ts-toolkit';
 import yaml from 'js-yaml';
@@ -244,7 +245,8 @@ export const getLargestExactTimeoutUnit = (value?: number): TTimeoutUnit => {
  * that represents the millisecond count exactly (90500 → `"90500 ms"`). */
 export const formatTimeoutValue = (ms: number): string => {
   const unit = getLargestExactTimeoutUnit(ms);
-  return `${ms / timeoutUnitToMs(unit)} ${unit}`;
+  const words = reqraftLabels().formEngine;
+  return words.timeoutValue(ms / timeoutUnitToMs(unit), words.timeoutUnits[unit]);
 };
 
 /** Human-readable file size, e.g. `"12.3 KB"` — whole bytes below 1 KiB, one
@@ -306,21 +308,4 @@ export const moveItem = <T>(list: T[], from: number, to: number): T[] => {
 };
 
 /** `1` → `1st`, `2` → `2nd`, `11` → `11th`. */
-export const ordinal = (n: number): string => {
-  const mod100 = n % 100;
-
-  if (mod100 >= 11 && mod100 <= 13) {
-    return `${n}th`;
-  }
-
-  switch (n % 10) {
-    case 1:
-      return `${n}st`;
-    case 2:
-      return `${n}nd`;
-    case 3:
-      return `${n}rd`;
-    default:
-      return `${n}th`;
-  }
-};
+export const ordinal = (n: number): string => reqraftLabels().expression.ordinal(n);

@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreIcon, ReqoreP, ReqoreSpan } from '@qoretechnologies/reqore';
 import { compact, uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
@@ -24,6 +25,7 @@ export const ExpressionBuilderArgumentLabel = ({
   expressions,
   type,
 }: IExpressionBuilderArgumentLabelProps) => {
+  const exprWords = useReqraftLabels().expression;
   // the type and the hint after a name, light and softer: as soft as they still read (qorus#646)
   const hintOpacity = useReadableOpacity(0.5);
   // the marks beside a name - invalid, required, the wrong type, a type that fits - in shades that stand out
@@ -96,7 +98,7 @@ export const ExpressionBuilderArgumentLabel = ({
           tooltip={
             isValid
               ? !matchesType
-                ? `This value is not ${acceptedTypeNames}. Put it inside an expression that converts it`
+                ? exprWords.notAcceptedType(acceptedTypeNames)
                 : undefined
               : reason
           }
@@ -129,7 +131,7 @@ export const ExpressionBuilderArgumentLabel = ({
               color={pendingMark}
               size='10px'
               margin='both'
-              tooltip='The type fits; Qorus may convert the value'
+              tooltip={exprWords.typeFitsMayConvert}
             />
           ) : null}
 
@@ -143,12 +145,12 @@ export const ExpressionBuilderArgumentLabel = ({
             intent={matchesType ? 'pending' : 'warning'}
             tooltip={
               matchesType
-                ? 'The type fits; Qorus may convert the value'
+                ? exprWords.typeFitsMayConvert
                 : acceptedTypeNames
                   ? // the sentence starts with them
-                    `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
+                    exprWords.typeNeededHere(acceptedTypeNames)
                   : // a place whose types are not known names none
-                    'A value of another type is needed here'
+                    exprWords.otherTypeNeeded
             }
           >
             {types.getTypeDisplayName(argumentType)}

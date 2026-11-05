@@ -11,6 +11,7 @@
  * same form as the first field, so the operator edits the name and the
  * fields on one unified surface — no separate "isolated" name input.
  */
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreDescriptionList, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
 import { IReqoreDescriptionListRow } from '@qoretechnologies/reqore/dist/components/DescriptionList';
 import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit/dist/types/forms';
@@ -93,6 +94,7 @@ const renderReadOnlyValue = (
 
 export const CatalogLeafForm = memo(
   ({ leaves, value, onChange, readOnly, name, nameField }: ICatalogLeafFormProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     /** Contextual suggestions for reference leaves (e.g. PK / FK columns). */
     const suggestionResolver = useSuggestionResolver();
     // "No values set", softer: as soft as it still reads (qorus#646)
@@ -114,8 +116,8 @@ export const CatalogLeafForm = memo(
         ? {
             [NAME_KEY]: catalogLeafToFieldSchema({
               display_name: nameField.label,
-              short_desc: 'Unique name within the schema',
-              desc: 'The unique name identifying this entry.',
+              short_desc: schemaWords.uniqueNameShort,
+              desc: schemaWords.uniqueNameLong,
               type: 'string',
               required: true,
             }),
@@ -150,7 +152,7 @@ export const CatalogLeafForm = memo(
         }
       });
       return enhanced;
-    }, [leafSchema, nameField, suggestionResolver, value]);
+    }, [leafSchema, nameField, suggestionResolver, value, schemaWords]);
 
     const optionsValue = useMemo(() => {
       const wrapped = hashToOptionsValue(value, leafSchema);
@@ -218,7 +220,7 @@ export const CatalogLeafForm = memo(
       if (rows.length === 0) {
         return (
           <ReqoreP size='small' effect={{ opacity: emptyOpacity }}>
-            No values set.
+            {schemaWords.noValuesSet}
           </ReqoreP>
         );
       }

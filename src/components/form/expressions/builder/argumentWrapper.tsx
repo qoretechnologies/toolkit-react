@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -83,6 +84,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
     onArgDrop,
     onArgDragEnd,
   }: IExpressionBuilderArgumentWrapperProps) => {
+    const exprWords = useReqraftLabels().expression;
     const theme = useReqoreTheme();
     const type = arg?.type || schema?.ui_type || 'context';
     const draggable = !!reorder?.includes('dragHandle');
@@ -126,7 +128,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
             transparent
             className='expression-arg-drag-handle'
             icon='Draggable'
-            tooltip='Drag to reorder'
+            tooltip={exprWords.dragToReorder}
             // As tight as the field's `⋮` button next to it.
             style={{ cursor: 'grab', paddingLeft: 0, paddingRight: 0, minWidth: '10px' }}
             draggable
@@ -150,7 +152,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
             flat
             className='expression-arg-position'
             label={ordinal(argIndex + 1)}
-            tooltip='Position — pick a new one to move this argument'
+            tooltip={exprWords.positionTooltip}
             items={Array.from({ length: argCount }, (_, target) => ({
               label: ordinal(target + 1),
               selected: target === argIndex,
@@ -233,7 +235,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
               icon='DeleteBinLine'
               flat
               transparent
-              tooltip='Remove argument'
+              tooltip={exprWords.removeArgument}
               onClick={onRemoveArgClick}
               disabled={readOnly}
             />

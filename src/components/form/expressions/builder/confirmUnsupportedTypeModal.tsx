@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreCheckbox,
   ReqoreControlGroup,
@@ -24,6 +25,7 @@ export const ConfirmUnsupportedTypeModal = memo(
     exactMatch, // eslint-disable-line @typescript-eslint/no-unused-vars
     ...rest
   }: IConfirmUnsupportedTypeModalProps) => {
+    const exprWords = useReqraftLabels().expression;
     const types = useQorusTypes();
     const [doNotShowTypeConfirmation, setDoNotShowTypeConfirmation] = useReqraftStorage<boolean>(
       'doNotShowTypeExpressionConfirmation',
@@ -36,7 +38,7 @@ export const ConfirmUnsupportedTypeModal = memo(
         isOpen
         intent='warning'
         icon='ErrorWarningLine'
-        label='Confirm type selection'
+        label={exprWords.confirmTypeSelection}
         {...rest}
         customZIndex={1000000}
       >
@@ -45,15 +47,15 @@ export const ConfirmUnsupportedTypeModal = memo(
         ) : (
           // read from the left, as a dialog's text is (the mismatched-types dialog reads the same)
           <ReqoreControlGroup vertical fluid gapSize='big'>
-            <ReqoreP>This value needs one of these types:</ReqoreP>
+            <ReqoreP>{exprWords.needsOneOfTypes}</ReqoreP>
             <ReqoreTagGroup size='small'>
               {acceptedTypes?.map((t) => (
                 <ReqoreTag key={t} label={types.getTypeDisplayName(t)} />
               ))}
             </ReqoreTagGroup>
-            <ReqoreP>Use this type anyway?</ReqoreP>
+            <ReqoreP>{exprWords.useTypeAnyway}</ReqoreP>
             <ReqoreCheckbox
-              label="Don't show again"
+              label={exprWords.dontShowAgain}
               size='small'
               asSwitch
               intent={doNotShowTypeConfirmation ? 'info' : undefined}

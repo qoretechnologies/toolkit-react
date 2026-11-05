@@ -4,6 +4,8 @@
  * collapses to a one-line summary and expands in place to reveal the
  * full `TableEditor`.
  */
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { renderBoldWords } from './boldWords';
 import {
   ReqoreButton,
   ReqoreCallout,
@@ -27,6 +29,7 @@ export interface ITablesTabProps {
 
 export const TablesTab = memo(
   ({ node, value, onChange, readOnly }: ITablesTabProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     const tables = Object.entries(value ?? {});
     const confirmAction = useReqoreProperty('confirmAction');
 
@@ -38,18 +41,14 @@ export const TablesTab = memo(
       (tableName: string) => {
         const colCount = sectionCount(value[tableName]?.columns);
         confirmAction({
-          title: 'Remove table',
-          description: `Remove the table "${tableName}"${
-            colCount > 0
-              ? ` and its ${colCount} column${colCount === 1 ? '' : 's'}`
-              : ''
-          }?`,
-          confirmLabel: 'Remove table',
+          title: schemaWords.removeTable,
+          description: schemaWords.removeTableConfirm(tableName, colCount),
+          confirmLabel: schemaWords.removeTable,
           intent: 'danger',
           onConfirm: () => onChange(removeKey(value, tableName)),
         });
       },
-      [value, onChange, confirmAction]
+      [value, onChange, confirmAction, schemaWords]
     );
 
     if (tables.length === 0) {
@@ -57,12 +56,12 @@ export const TablesTab = memo(
         <ReqoreControlGroup vertical fluid gapSize='normal'>
           <ReqoreCallout intent='info' flat icon='Table2'>
             {readOnly
-              ? 'This schema defines no tables.'
-              : 'No tables yet. Add the first table to start building the schema.'}
+              ? schemaWords.noTablesReadOnly
+              : schemaWords.noTables}
           </ReqoreCallout>
           {!readOnly ? (
             <ReqoreButton icon='AddLine' intent='info' minimal fixed onClick={addTable}>
-              Add table
+              {schemaWords.addTable}
             </ReqoreButton>
           ) : null}
         </ReqoreControlGroup>
@@ -74,13 +73,10 @@ export const TablesTab = memo(
         {!readOnly ? (
           <Hint
             id='hint.schema-tables'
-            title='Working with tables'
+            title={schemaWords.tablesHintTitle}
             icon='Table2'
           >
-            Each row is a database table. Expand one to reach its
-            columns, primary key, indexes, and constraints — each on its
-            own sub-tab. <b>Click a column row to edit it in a side
-            panel</b> where you set its full definition.
+            {renderBoldWords(schemaWords.tablesHint)}
           </Hint>
         ) : null}
         {tables.map(([tableName, tableValue]) => {
@@ -94,7 +90,7 @@ export const TablesTab = memo(
               icon='Table2'
               label={tableName}
               badge={[
-                `${columnCount} column${columnCount === 1 ? '' : 's'}`,
+                schemaWords.columnCount(columnCount),
               ]}
               actions={
                 readOnly
@@ -106,7 +102,7 @@ export const TablesTab = memo(
                         flat: true,
                         intent: 'danger',
                         size: 'small',
-                        tooltip: 'Remove table',
+                        tooltip: schemaWords.removeTable,
                         onClick: () => confirmRemoveTable(tableName),
                       },
                     ]
@@ -129,7 +125,7 @@ export const TablesTab = memo(
         })}
         {!readOnly ? (
           <ReqoreButton icon='AddLine' intent='info' minimal fixed onClick={addTable}>
-            Add table
+            {schemaWords.addTable}
           </ReqoreButton>
         ) : null}
       </ReqoreControlGroup>

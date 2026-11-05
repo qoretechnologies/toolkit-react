@@ -18,6 +18,7 @@
  * vocabulary: the operator scans the overview, drills into one entry
  * at a time on a focused surface.
  */
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -346,20 +347,21 @@ const CatalogEntryDrawer = memo(
     onRemove,
     onRename,
   }: ICatalogEntryDrawerProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     const confirmAction = useReqoreProperty('confirmAction');
     const handleRemove = useCallback(() => {
       if (!onRemove) return;
       confirmAction({
-        title: `Remove ${noun}`,
-        description: `Remove the ${noun} "${title}"? This cannot be undone from inside the editor — re-add or revert the form to restore it.`,
-        confirmLabel: `Remove ${noun}`,
+        title: schemaWords.removeNoun(noun),
+        description: schemaWords.removeNounConfirm(noun, title),
+        confirmLabel: schemaWords.removeNoun(noun),
         intent: 'danger',
         onConfirm: () => {
           onRemove();
           onClose();
         },
       });
-    }, [confirmAction, noun, title, onRemove, onClose]);
+    }, [confirmAction, noun, title, onRemove, onClose, schemaWords]);
 
     return (
     <ReqoreDrawer
@@ -395,7 +397,7 @@ const CatalogEntryDrawer = memo(
             fixed
             onClick={handleRemove}
           >
-            Remove {noun}
+            {schemaWords.removeNoun(noun)}
           </ReqoreButton>
         ) : null}
       </ReqoreControlGroup>
@@ -420,6 +422,7 @@ interface ICatalogMapEditorProps {
  */
 const CatalogMapEditor = memo(
   ({ name, title, options, value, onChange, readOnly }: ICatalogMapEditorProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     const singular = singularize(title);
     const { leaves } = partitionCatalogOptions(options);
     const addNotification = useReqoreProperty('addNotification');
@@ -466,7 +469,7 @@ const CatalogMapEditor = memo(
       () => [
         {
           dataId: '_name',
-          header: { label: 'Name' },
+          header: { label: schemaWords.name },
           grow: 2,
           minWidth: 160,
           sortable: true,
@@ -489,7 +492,7 @@ const CatalogMapEditor = memo(
           };
         }),
       ],
-      [columnKeys, leaves, mono]
+      [columnKeys, leaves, mono, schemaWords]
     );
 
     const openEntry =
@@ -499,7 +502,7 @@ const CatalogMapEditor = memo(
       <ReqoreControlGroup vertical fluid gapSize='normal'>
         {rows.length === 0 ? (
           <ReqoreP size='small' effect={{ opacity: mono.soft }}>
-            No {title.toLowerCase()} defined yet.
+            {schemaWords.noneDefined(title.toLowerCase())}
           </ReqoreP>
         ) : (
           <ReqoreTable
@@ -522,7 +525,7 @@ const CatalogMapEditor = memo(
             fixed
             onClick={addEntry}
           >
-            Add {singular.toLowerCase()}
+            {schemaWords.addSingular(singular.toLowerCase())}
           </ReqoreButton>
         ) : null}
 
@@ -543,8 +546,8 @@ const CatalogMapEditor = memo(
               if (value[next] !== undefined) {
                 addNotification({
                   intent: 'warning',
-                  title: 'Name already in use',
-                  content: `A ${singular.toLowerCase()} named "${next}" already exists in this section.`,
+                  title: schemaWords.nameInUse,
+                  content: schemaWords.nameInUseContent(singular.toLowerCase(), next),
                   id: `schema-rename-collision-${next}`,
                   duration: 4000,
                 });
@@ -575,6 +578,7 @@ interface ICatalogListEditorProps {
  */
 const CatalogListEditor = memo(
   ({ name, title, options, value, onChange, readOnly }: ICatalogListEditorProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     const singular = singularize(title);
     const { leaves } = partitionCatalogOptions(options);
     const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -641,7 +645,7 @@ const CatalogListEditor = memo(
       if (!readOnly) {
         cols.push({
           dataId: '_actions',
-          header: { label: 'Order' },
+          header: { label: schemaWords.order },
           width: 84,
           align: 'right',
           cell: {
@@ -653,7 +657,7 @@ const CatalogListEditor = memo(
                   minimal: true,
                   flat: true,
                   size: 'small',
-                  tooltip: 'Move up',
+                  tooltip: schemaWords.moveUp,
                   disabled: i === 0,
                   onClick: () => onChange(moveItem(value, i, i - 1)),
                 },
@@ -662,7 +666,7 @@ const CatalogListEditor = memo(
                   minimal: true,
                   flat: true,
                   size: 'small',
-                  tooltip: 'Move down',
+                  tooltip: schemaWords.moveDown,
                   disabled: i === value.length - 1,
                   onClick: () => onChange(moveItem(value, i, i + 1)),
                 },
@@ -672,13 +676,13 @@ const CatalogListEditor = memo(
         });
       }
       return cols;
-    }, [columnKeys, leaves, readOnly, onChange, value, mono]);
+    }, [columnKeys, leaves, readOnly, onChange, value, mono, schemaWords]);
 
     return (
       <ReqoreControlGroup vertical fluid gapSize='normal'>
         {rows.length === 0 ? (
           <ReqoreP size='small' effect={{ opacity: mono.soft }}>
-            No {title.toLowerCase()} defined yet.
+            {schemaWords.noneDefined(title.toLowerCase())}
           </ReqoreP>
         ) : (
           <ReqoreTable
@@ -701,7 +705,7 @@ const CatalogListEditor = memo(
             fixed
             onClick={addItem}
           >
-            Add {singular.toLowerCase()}
+            {schemaWords.addSingular(singular.toLowerCase())}
           </ReqoreButton>
         ) : null}
 
@@ -710,7 +714,7 @@ const CatalogListEditor = memo(
             isOpen
             onClose={() => setOpenIndex(null)}
             name={`${name}-${openIndex}`}
-            title={`${singular} ${openIndex + 1}`}
+            title={schemaWords.numbered(singular, openIndex + 1)}
             noun={singular.toLowerCase()}
             options={options}
             value={value[openIndex]}
@@ -742,7 +746,9 @@ export interface IRenameFieldProps {
  * renaming the key on every keystroke would yank focus mid-type.
  */
 export const RenameField = memo(
-  ({ value, taken, onRename, label = 'Name' }: IRenameFieldProps) => {
+  ({ value, taken, onRename, label: givenLabel }: IRenameFieldProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
+    const label = givenLabel ?? schemaWords.name;
     const [draft, setDraft] = useState(value);
     useEffect(() => setDraft(value), [value]);
 

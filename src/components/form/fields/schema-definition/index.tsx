@@ -10,6 +10,8 @@
  * The same component is the read-only viewer the schema detail page
  * reuses: `readOnly` flips every input to a typeset display row.
  */
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { renderBoldWords } from './boldWords';
 import {
   ReqoreCallout,
   ReqoreControlGroup,
@@ -73,13 +75,13 @@ const PRIMARY_SECTIONS = [
 
 /** Extracts a human-readable message from a catalogue fetch error. */
 const errorMessage = (error: unknown): string => {
-  if (!error) return 'The schema option catalog could not be loaded.';
+  if (!error) return reqraftLabels().schemaDefinition.catalogNotLoaded;
   if (typeof error === 'string') return error;
   const e = error as { desc?: string; message?: string };
   return (
     e.desc ??
     e.message ??
-    'The schema option catalog could not be loaded.'
+    reqraftLabels().schemaDefinition.catalogNotLoaded
   );
 };
 
@@ -99,6 +101,7 @@ const SchemaEditorBody = memo(
     wrapperName,
     saveError,
   }: ISchemaEditorBodyProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
     const definition = useMemo<IDataSchemaDefinition>(
@@ -182,27 +185,27 @@ const SchemaEditorBody = memo(
         icon: (typeof SECTION_ICONS)[string];
         badge?: number;
       }> = [
-        { id: 'schema', label: 'Schema', icon: SECTION_ICONS.schema },
+        { id: 'schema', label: schemaWords.sectionSchema, icon: SECTION_ICONS.schema },
         {
           id: 'tables',
-          label: 'Tables',
+          label: schemaWords.sectionTables,
           icon: SECTION_ICONS.tables,
           badge: sectionCount(definition.tables) || undefined,
         },
         {
           id: 'sequences',
-          label: 'Sequences',
+          label: schemaWords.sectionSequences,
           icon: SECTION_ICONS.sequences,
           badge: sectionCount(definition.sequences) || undefined,
         },
         {
           id: 'reference_data',
-          label: 'Reference data',
+          label: schemaWords.sectionReferenceData,
           icon: SECTION_ICONS.reference_data,
         },
         {
           id: 'migrations',
-          label: 'Migrations',
+          label: schemaWords.sectionMigrations,
           icon: SECTION_ICONS.migrations,
           badge: definition.migrations?.length || undefined,
         },
@@ -210,12 +213,12 @@ const SchemaEditorBody = memo(
       if (showAdvanced) {
         list.push({
           id: 'advanced',
-          label: 'Advanced',
+          label: schemaWords.sectionAdvanced,
           icon: SECTION_ICONS.advanced,
         });
       }
       return list;
-    }, [definition, showAdvanced]);
+    }, [definition, showAdvanced, schemaWords]);
 
     return (
       <SchemaDefinitionProvider value={definition}>
@@ -234,17 +237,10 @@ const SchemaEditorBody = memo(
           {!readOnly ? (
             <Hint
               id='hint.schema-editor'
-              title='Building a database schema'
+              title={schemaWords.editorHintTitle}
               icon='Database2Line'
             >
-              This editor builds a <b>DataSchema document</b> — the
-              definition of the tables, sequences, and reference data this
-              schema manages. Each tab is one section: lay out your tables
-              and their columns, add sequences, seed reference data, and
-              record migrations so databases on an older version can be
-              upgraded. <b>Click any row to edit it in a side panel.</b>{' '}
-              Once saved, the schema can be aligned to a datasource to
-              create or update those objects.
+              {renderBoldWords(schemaWords.editorHint)}
             </Hint>
           ) : null}
 
@@ -307,17 +303,10 @@ const SchemaEditorBody = memo(
                   {!readOnly ? (
                     <Hint
                       id='hint.schema-reference-data'
-                      title='Reference data modes'
+                      title={schemaWords.referenceHintTitle}
                       icon='SeedlingLine'
                     >
-                      Reference data is the set of rows the schema
-                      guarantees exist in a table — lookup values, enums,
-                      seed records. The <b>mode</b> decides how an align
-                      treats rows already in the database:{' '}
-                      <b>strict</b> removes any row not in the schema,{' '}
-                      <b>normal</b> inserts and updates, <b>create_only</b>{' '}
-                      only inserts missing rows, and <b>insert_only</b>{' '}
-                      inserts but never updates existing rows.
+                      {renderBoldWords(schemaWords.referenceHint)}
                     </Hint>
                   ) : null}
                   <CatalogNodeEditor
@@ -393,13 +382,14 @@ export const SchemaDefinitionEditor = memo(
     catalogError,
     ...rest
   }: ISchemaDefinitionEditorProps) => {
+    const schemaWords = useReqraftLabels().schemaDefinition;
     const { catalog, loading, error } = useSchemaOptionCatalog(
       catalogOverride,
       catalogError
     );
 
     if (loading) {
-      return <Loader text='Loading schema editor…' />;
+      return <Loader text={schemaWords.loadingEditor} />;
     }
 
     if (error || !catalog) {
@@ -408,7 +398,7 @@ export const SchemaDefinitionEditor = memo(
           intent='danger'
           icon='ErrorWarningLine'
           flat
-          label='Could not load schema options'
+          label={schemaWords.optionsNotLoaded}
           description={errorMessage(error)}
         />
       );

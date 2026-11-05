@@ -8,6 +8,7 @@
 // - `ConnectionManagement` per-item actions — dropped (actions omitted).
 // - `Select` → reqraft `SelectFormField` (`items` instead of `defaultItems`,
 //   single-arg `onChange`; `type`/`closeCollectionOnUnMount` not forwarded).
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   allowedValueName,
   allowedValueOf,
@@ -106,6 +107,7 @@ export const FieldAllowedValuesCheckGroup = memo(
      */
     label?: string;
   }) => {
+    const ffWords = useReqraftLabels().formFields;
     // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
     const unavailableOpacity = useReadableOpacity(0.55);
     // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
@@ -123,8 +125,8 @@ export const FieldAllowedValuesCheckGroup = memo(
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
           {label ? `${label}:`
-          : multiSelect ? 'Select one or more:'
-          : 'Select one:'}
+          : multiSelect ? ffWords.selectOneOrMore
+          : ffWords.selectOne}
         </ReqoreSpan>
         {items?.map((item, index) => {
           const unavailable = getSelectItemUnavailability(item);
@@ -228,6 +230,7 @@ export const FieldAllowedValues = memo(
     readOnly,
     label,
   }: IFieldAllowedValuesProps) => {
+    const ffWords = useReqraftLabels().formFields;
     /* Resolved against the form this field stands in — the value's own
        `depends_on`, and a refusal the server had already decided. Both end up
        as one state on the item: no click handler, and a reason to read. */
@@ -330,7 +333,7 @@ export const FieldAllowedValues = memo(
         forceDropdown={forceDropdown}
         style={style}
         minimal
-        placeholder={'Saved & Suggested Values'}
+        placeholder={ffWords.savedAndSuggested}
         size={size}
         disabled={disabled}
         icon='SaveFill'

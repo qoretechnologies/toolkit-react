@@ -9,6 +9,7 @@
 // expression could be highlighted in one place, plain proportional text in the
 // next and a bare `<code>` in a third, depending only on which component
 // happened to draw it.
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 import { ReqoreMessage } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useAsync } from 'react-use';
@@ -66,6 +67,7 @@ export const ExpressionRendering = ({
   templates,
   'data-testid': testId,
 }: IExpressionRenderingProps) => {
+  const exprWords = useReqraftLabels().expression;
   const { renderRich } = useRenderExpression();
   const rendering = useAsync(() => renderRich(expression), [JSON.stringify(expression)]);
 
@@ -76,7 +78,7 @@ export const ExpressionRendering = ({
   if (!rendering.value) {
     return (
       <ReqoreMessage size='small' intent='muted' flat opaque={false} data-testid={testId}>
-        This expression could not be rendered.
+        {exprWords.notRendered}
       </ReqoreMessage>
     );
   }
