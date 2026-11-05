@@ -797,9 +797,13 @@ function AutoField<T = any>({
         case 'bool':
         case 'boolean':
           return (
+            /* An empty yes / no with a default opens on that default: the folded row reads "Yes"
+               for it, and the switch opened on No (later on no answer at all), as if looking at the
+               field had changed it. Without a default it stays unanswered (qorus#646). */
             <BooleanFormField
               {...rest}
-              checked={yesNoShown(value)}
+              checked={yesNoShown(getValueOrDefaultValue(value, default_value))}
+              isDefault={yesNoShown(value) === undefined && yesNoShown(default_value) !== undefined}
               onChange={(checked) => handleChange(name, checked)}
             />
           );

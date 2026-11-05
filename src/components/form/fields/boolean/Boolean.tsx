@@ -3,6 +3,11 @@ import { IReqoreCheckboxProps } from '@qoretechnologies/reqore/dist/components/C
 
 export interface IBooleanFormFieldProps extends Omit<IReqoreCheckboxProps, 'onChange'> {
   onChange?(checked: boolean): void;
+  /**
+   * What `checked` shows is the field's default: nothing has been chosen yet. The switch says so ("Yes · default")
+   * until it is changed, as the folded row shows the default rather than an answer.
+   */
+  isDefault?: boolean;
 }
 
 /**
@@ -16,6 +21,7 @@ export const BooleanFormField = ({
   checked,
   onChange,
   onClick,
+  isDefault,
   ...rest
 }: IBooleanFormFieldProps) => {
   const toggle: IReqoreCheckboxProps['onClick'] = (event) => {
@@ -28,8 +34,8 @@ export const BooleanFormField = ({
       checked={checked}
       onClick={toggle}
       asSwitch
-      onText='Yes'
-      offText='No'
+      onText={isDefault && checked ? 'Yes · default' : 'Yes'}
+      offText={isDefault && checked === false ? 'No · default' : 'No'}
       checkedIcon='CheckLine'
       uncheckedIcon='CloseLine'
       margin='none'
