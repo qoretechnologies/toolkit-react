@@ -11,7 +11,8 @@
  * (`withTemplateCatalogue`): every container has its Use, every key its row.
  */
 import type { ITemplateNode } from './templateTree';
-import { TEMPLATE_CONTEXTS_LABEL, templateNodeKindOf, unbracedReference } from './templateTree';
+import { reqraftLabels } from './reqraftLabels';
+import { templateNodeKindOf, unbracedReference } from './templateTree';
 
 /** What a context is: a container of keys, a set of values, or an argument written in a format of its own. */
 export type TTemplateCatalogueContextKind = 'container' | 'values' | 'formatted' | 'expression';
@@ -151,7 +152,7 @@ export const catalogueContextNode = (
   context: ITemplateCatalogueContext,
   wholeRecords?: boolean,
   parentId = TEMPLATE_CONTEXTS_GROUP_ID,
-  trail: string[] = [TEMPLATE_CONTEXTS_LABEL]
+  trail: string[] = [reqraftLabels().templateTree.templateContexts]
 ): ITemplateNode => {
   const reference = catalogueContextReference(context);
   const id = `${parentId}.${reference}`;
@@ -205,9 +206,9 @@ export const withTemplateCatalogue = (
   }
   const group: ITemplateNode = {
     id: TEMPLATE_CONTEXTS_GROUP_ID,
-    label: TEMPLATE_CONTEXTS_LABEL,
+    label: reqraftLabels().templateTree.templateContexts,
     kind: 'context',
-    description: 'Each context, to pick what is in it or to take it whole',
+    description: reqraftLabels().templateTree.templateContextsDescription,
     trail: [],
     trailIds: [],
     // in the order Qorus means them to be read (`sort_priority`), as it lists them where it gives none

@@ -13,7 +13,16 @@
 // a picker beside the text browses them as their catalogue nests them
 // (`TemplateBrowser`), as a Qog field's are.
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { SmartEditor } from '../smartEditor/SmartEditor';
 import { ISlateConverter, ISlateElement } from '../smartEditor/types';
 import { dpqlReferencesIn, dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
@@ -23,7 +32,6 @@ import {
   dpqlCompletionsWith,
   dpqlEmptyCompletionMessage,
   dpqlExpectsValue,
-  NO_VALUE_AT_THE_END,
   presentDpqlDiagnostics,
 } from './dpqlCompletions';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
@@ -87,6 +95,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     },
     ref
   ) => {
+    const editorWords = useReqraftLabels().editor;
     // where the field is: its own, or where the host says its fields are (`TemplateCatalogueProvider`)
     const hostFieldContext = useTemplateFieldContext();
     const fieldContext = ownFieldContext ?? hostFieldContext;
@@ -258,7 +267,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
           catalogue,
           true
         ),
-      [templates, dpql.fieldMeta, catalogue]
+      [templates, dpql.fieldMeta, catalogue, editorWords]
     );
     /* A reference that names none of the field's templates says so where it is written, and stays the text it
        was typed as (qorus#646, David's review: a half-typed reference was taken as it was). */
@@ -347,9 +356,9 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     const templateButton = useMemo(
       () =>
         browseTemplates && !readOnly && templates?.items?.length ?
-          { insertableAt: dpqlExpectsValue, notInsertable: NO_VALUE_AT_THE_END }
+          { insertableAt: dpqlExpectsValue, notInsertable: editorWords.noValueAtTheEnd }
         : undefined,
-      [browseTemplates, readOnly, templates]
+      [browseTemplates, readOnly, templates, editorWords]
     );
 
     const editor = (

@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { ReactNode } from 'react';
 
 /** A template context written to go on into it (`$foreach:`): a row's title for one needs a value after it. */
@@ -16,7 +17,7 @@ export const rowTitle = (title: string): ReactNode =>
   titleNeedsAValue(title) ?
     <span className='template-context-title'>
       {title}
-      <em className='template-context-needs-value' title='a value is written after it'>
+      <em className='template-context-needs-value' title={reqraftLabels().editor.valueAfterIt}>
         …
       </em>
     </span>

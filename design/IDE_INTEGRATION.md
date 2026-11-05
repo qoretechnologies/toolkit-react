@@ -98,3 +98,12 @@ checklist the IDE-integration PR ticks off so that can't happen.
   `useQorusStorage` exactly), so it's ~1 day if wanted — but the seam
   above already keeps the IDE whole, so native is a scope question, not a
   blocker.
+
+## A host's language
+
+`setReqraftLabels()` gives Reqraft's words in the host's language: the template list (`buildTemplates`), tree and picker, a template field's controls and value tabs, the editors (DPQL and the rest) and FormEngine. What it gives is merged over `DEFAULT_REQRAFT_LABELS`, part by part and word by word, so a host that gives nothing has the English it always had; each call replaces what the last one gave.
+
+It is one setting for the page, not a prop, because the words are read where no component is: the trees and completions built outside React, and lists kept between forms. A component reads `useReqraftLabels()` and is drawn again when a host gives others; code outside a component reads `reqraftLabels()`, and a hook that memoizes what it builds lists the words among its dependencies. A list kept in `TemplatesCache` is built again from what the server said, without asking again.
+
+A word a component or provider is given itself (`buildTemplates`' `labels`, `TemplatePicker`'s `labels`, `TemplateCatalogueProvider`'s `pickerLabels`, `valueTabsLabels`, `compactBoxLabels`) comes before the host's. Code does not compare a word to decide what to do: a row says what it is with a flag (`isTemplateContext`), and the label is only drawn.
+

@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels, useReqraftLabels } from '../../helpers/reqraftLabels';
 import { rowTitle } from './contextTitle';
 import { ReqoreMenu, ReqoreMenuDivider, ReqoreMenuItem } from '@qoretechnologies/reqore';
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
@@ -34,6 +35,7 @@ import {
 function buildKindBadge(
   item: ICompletionDropdownItem
 ): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
+  const editorWords = reqraftLabels().editor;
   /* A template row says what it is (State data, Context, Field) and its type, named: not the LSP kind it is sent
      as, which called every template a Variable (qorus#646, David's review). */
   const marks = (item.raw?.data ?? {}) as {
@@ -70,7 +72,7 @@ function buildKindBadge(
   const warningBadge =
     item.warning ?
       {
-        label: 'Warning',
+        label: editorWords.warning,
         size: 'small' as const,
         intent: 'warning' as const,
         tooltip: item.warning,
@@ -145,6 +147,8 @@ const CompletionMenuItem = memo(
     onToggleDocs,
     docsId,
   }: ICompletionMenuItemProps) => {
+    const browserWords = useReqraftLabels().templateBrowser;
+    const editorWords = useReqraftLabels().editor;
     const badge = useMemo(() => buildKindBadge(item), [item]);
     const marks = (item.raw?.data ?? {}) as {
       opens?: boolean;
@@ -186,7 +190,10 @@ const CompletionMenuItem = memo(
           {
             icon: 'InformationLine' as const,
             className: 'completion-docs-toggle',
-            'aria-label': docsShown ? `Hide what ${item.label} is` : `Show what ${item.label} is`,
+            'aria-label':
+              docsShown ?
+                editorWords.hideWhatItIs(item.label)
+              : editorWords.showWhatItIs(item.label),
             'aria-expanded': docsShown,
             'aria-controls': docsId,
             onMouseDown: keepTheFocus,
@@ -194,16 +201,26 @@ const CompletionMenuItem = memo(
             ...(coarse ? { style: { minWidth: 44, minHeight: 44 } } : {}),
           }
         : undefined,
-      [hasDocs, onToggleDocs, isFocused, coarse, docsShown, docsId, item.label, item.value]
+      [
+        hasDocs,
+        onToggleDocs,
+        isFocused,
+        coarse,
+        docsShown,
+        docsId,
+        item.label,
+        item.value,
+        editorWords,
+      ]
     );
 
     const useWhole = useMemo(
       () =>
         marks.takesWhole ?
           {
-            label: 'Use',
+            label: browserWords.use,
             className: 'completion-use',
-            'aria-label': `Use ${item.label}`,
+            'aria-label': browserWords.useNamed(item.label),
             tooltip: coarse ? undefined : useWholeSays(item.label),
             compact: true,
             onMouseDown: keepTheFocus,
@@ -211,7 +228,7 @@ const CompletionMenuItem = memo(
             style: { ...USE_WHOLE_STYLE, ...(coarse ? { minWidth: 44, minHeight: 44 } : {}) },
           }
         : undefined,
-      [marks.takesWhole, item.label, takeWhole, coarse]
+      [marks.takesWhole, item.label, takeWhole, coarse, browserWords]
     );
     return (
       <ReqoreMenuItem
@@ -266,13 +283,14 @@ CompletionMenuItem.displayName = 'CompletionMenuItem';
 
 /** A row's documentation, under the row: what its ⓘ or Ctrl+Space shows. */
 const CompletionDocs = memo(({ item, id }: { item: ICompletionDropdownItem; id: string }) => {
+  const editorWords = useReqraftLabels().editor;
   const doc = docOf(item);
   return doc ?
       <div
         id={id}
         className='completion-docs'
         role='note'
-        aria-label={`What ${item.label} is`}
+        aria-label={editorWords.whatItIs(item.label)}
         style={{ padding: '4px 8px 8px' }}
       >
         <MarkdownDoc content={doc.text} markdown={doc.markdown} maxWidth={284} maxHeight={220} />
@@ -497,9 +515,9 @@ export const CompletionMenu = memo(
                   autocomplete.emptyMessage && !autocomplete.isFetching ? autocomplete.emptyMessage
                   : autocomplete.isReplaceMode || autocomplete.isFetching ?
                     (pendingLabel ??
-                    (autocomplete.isFetching ? 'Loading completions…' : (
-                      'No alternatives available'
-                    )))
+                    (autocomplete.isFetching ?
+                      reqraftLabels().editor.loadingCompletions
+                    : reqraftLabels().editor.noAlternatives))
                   : undefined
                 }
               />

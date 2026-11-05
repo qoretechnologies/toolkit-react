@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { ReqoreButton, ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/reqore';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Editor, Element, NodeEntry, Range, Text, Transforms } from 'slate';
@@ -62,6 +63,7 @@ export const useEditingAids = ({
   onFormat,
   onComplete,
 }: IUseEditingAidsOptions) => {
+  const editorWords = useReqraftLabels().editor;
   const editorOf = () => editorRef.current as TEditor | null;
 
   /* A key whose pair is closed, stepped over or taken back whole is not done in its keydown: it is marked here and
@@ -432,7 +434,7 @@ export const useEditingAids = ({
           fluid
           wrap
           role='search'
-          aria-label='Find in the text'
+          aria-label={editorWords.findInText}
           onKeyDown={(event: React.KeyboardEvent) => {
             if (event.key === 'Escape') {
               event.preventDefault();
@@ -444,8 +446,8 @@ export const useEditingAids = ({
           <ReqoreInput
             className='smart-editor-find-input'
             icon='SearchLine'
-            placeholder='Find'
-            aria-label='Find'
+            placeholder={editorWords.find}
+            aria-label={editorWords.find}
             value={find.query}
             focusRules={{ type: 'auto' }}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
@@ -465,10 +467,10 @@ export const useEditingAids = ({
             size='small'
             minimal
             label={
-              !find.query ? 'No search'
+              !find.query ? editorWords.noSearch
               : matches.length ?
-                `${current + 1} of ${matches.length}`
-              : 'No results'
+                editorWords.matchOf(current + 1, matches.length)
+              : editorWords.noResults
             }
           />
           <ReqoreButton
@@ -478,8 +480,8 @@ export const useEditingAids = ({
             minimal
             active={find.caseSensitive}
             aria-pressed={find.caseSensitive}
-            aria-label='Match case'
-            tooltip='Match case'
+            aria-label={editorWords.matchCase}
+            tooltip={editorWords.matchCase}
             onClick={() =>
               setFind((state) => ({ ...state, caseSensitive: !state.caseSensitive, current: 0 }))
             }
@@ -492,8 +494,8 @@ export const useEditingAids = ({
             compact
             minimal
             icon='ArrowUpSLine'
-            aria-label='Previous match'
-            tooltip='Previous match (Shift+Enter)'
+            aria-label={editorWords.previousMatch}
+            tooltip={editorWords.previousMatchTooltip}
             disabled={!matches.length}
             onClick={() => step(-1)}
           />
@@ -503,8 +505,8 @@ export const useEditingAids = ({
             compact
             minimal
             icon='ArrowDownSLine'
-            aria-label='Next match'
-            tooltip='Next match (Enter)'
+            aria-label={editorWords.nextMatch}
+            tooltip={editorWords.nextMatchTooltip}
             disabled={!matches.length}
             onClick={() => step(1)}
           />
@@ -515,8 +517,8 @@ export const useEditingAids = ({
               compact
               minimal
               icon={find.replace ? 'ArrowUpSLine' : 'ArrowDownSLine'}
-              aria-label={find.replace ? 'Hide replace' : 'Replace'}
-              tooltip={find.replace ? 'Hide replace' : 'Replace'}
+              aria-label={find.replace ? editorWords.hideReplace : editorWords.replace}
+              tooltip={find.replace ? editorWords.hideReplace : editorWords.replace}
               onClick={() => setFind((state) => ({ ...state, replace: !state.replace }))}
             />
           : null}
@@ -526,8 +528,8 @@ export const useEditingAids = ({
             compact
             minimal
             icon='CloseLine'
-            aria-label='Close the search'
-            tooltip='Close (Escape)'
+            aria-label={editorWords.closeSearch}
+            tooltip={editorWords.closeSearchTooltip}
             onClick={closeFind}
           />
           {find.replace && !readOnly ?
@@ -535,8 +537,8 @@ export const useEditingAids = ({
               <ReqoreInput
                 className='smart-editor-replace-input'
                 icon='EditLine'
-                placeholder='Replace with'
-                aria-label='Replace with'
+                placeholder={editorWords.replaceWith}
+                aria-label={editorWords.replaceWith}
                 value={find.replacement}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setFind((state) => ({ ...state, replacement: event.target.value }))
@@ -557,7 +559,7 @@ export const useEditingAids = ({
                 disabled={current < 0}
                 onClick={() => replaceSpans([matches[current]])}
               >
-                Replace
+                {editorWords.replace}
               </ReqoreButton>
               <ReqoreButton
                 className='smart-editor-replace-all'
@@ -566,7 +568,7 @@ export const useEditingAids = ({
                 disabled={!matches.length}
                 onClick={() => replaceSpans(matches)}
               >
-                Replace all
+                {editorWords.replaceAll}
               </ReqoreButton>
             </ReqoreControlGroup>
           : null}
