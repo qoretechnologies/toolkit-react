@@ -25,9 +25,13 @@ jobs:
     env:
       QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
       REACT_APP_QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
-      # Upload token for qlip visual snapshots (Storybook interaction tests).
+      # Upload token for qlip visual snapshots (Storybook interaction tests),
+      # for a pull request only. A push to develop runs the same suite but
+      # uploads nothing: the Qlip server promotes a merged PR's accepted
+      # baselines onto develop itself, so a develop build only ever added an
+      # unowned pending build whose accepts moved a flaky capture onto trunk.
       # When unset, qlip still captures snapshots but skips the upload.
-      QLIP_UPLOAD_TOKEN: ${{ secrets.QLIP_UPLOAD_TOKEN }}
+      QLIP_UPLOAD_TOKEN: ${{ github.event_name == 'pull_request' && secrets.QLIP_UPLOAD_TOKEN || '' }}
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Get current time for the commit
@@ -98,10 +102,11 @@ jobs:
         with:
           node-version: 22.19.0
 
-      # Notify Discord to not restart server
+      # Notify Discord to not restart server. The normal channel, like every other notification here:
+      # through the development channel's webhook this and "safe to restart" were a constant ping in the chat.
       - name: Discord Warning
         env:
-          DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK_DEV}}
+          DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
           # Mention someone in the embeds
           DISCORD_EMBEDS: '[{ "color":16711680, "description": ":exclamation: Tests started, **please do not restart Qorus on Rippy** for the next 30 minutes." }]'
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
@@ -139,6 +144,7 @@ jobs:
 
       # The qlip build this run uploaded, for the Discord message's link (qlip-build-link.sh reads it from
       # qlip's upload line). Runs even on test failure (qlip captures-on-error, so the build still exists).
+      # A push to develop uploads no build, and its message carries no link.
       - name: Resolve qlip build link
         id: qlip
         if: always()
@@ -168,7 +174,7 @@ jobs:
       - name: Discord notification success
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
-          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "${{ steps.published.outputs.field }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🔍 [Qlip visual tests](${{ steps.qlip.outputs.url }})"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
+          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "${{ steps.published.outputs.field }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) ${{ steps.qlip.outputs.link }}"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
         with:
@@ -181,7 +187,7 @@ jobs:
       - name: Discord notification failure
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
-          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "${{ steps.published.outputs.field }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🔍 [Qlip visual tests](${{ steps.qlip.outputs.url }})"}],"color":16711680,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
+          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "${{ steps.published.outputs.field }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) ${{ steps.qlip.outputs.link }}"}],"color":16711680,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
         with:
@@ -190,7 +196,7 @@ jobs:
 
       - name: Discord notification safe to restart
         env:
-          DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK_DEV}}
+          DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
           DISCORD_EMBEDS: '[{ "color":65280, "description": ":white_check_mark: Tests action finished. It is now safe to restart Qorus on Rippy." }]'
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
