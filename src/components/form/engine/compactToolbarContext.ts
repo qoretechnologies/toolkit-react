@@ -43,7 +43,7 @@ export interface ICompactToolbarContext {
   outsideAttentionCount?: number;
   /** Takes the reader to those, when no field needs anything. */
   onRevealOutside?: () => void;
-  completion: { set: number; done: number; total: number; pct: number };
+  completion: { set: number; done: number; total: number; pct: number; shown?: number };
   // Invalid-fields banner (pinned in the sticky header)
   showInvalidOnly: boolean;
   onToggleInvalidOnly: () => void;

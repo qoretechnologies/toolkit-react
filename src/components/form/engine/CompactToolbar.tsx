@@ -221,7 +221,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           form nobody can fill in is a progress report on somebody else's
           work. The read view lists what is set, and that is the whole
           answer. */}
-      {parts.completion && completion.total && !readOnly ?
+      {parts.completion && (completion.total || completion.shown) && !readOnly ?
         <StyledCompletion className='options-readfirst-completion' $calm={calm}>
           <StyledCompletionLine>
             <StyledSummary
@@ -248,10 +248,17 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   batched mode's per-row chip alone. */}
               {invalidCount || attentionCount ? 'Incomplete' : 'Ready'}
             </StyledSummary>
-            <StyledSummary style={calm ? { color: cQuiet } : { opacity: inks.countOpacity }}>
-              · {completion.set}/{completion.total} set
-              {attentionCount ? ' ·' : ''}
-            </StyledSummary>
+            {/* "set" counts what the Set box holds: a value nothing flags. A flagged value is in
+                the attention count instead, so the line adds up ("1/7 set · 6 need attention ·
+                14%") where it used to count it twice ("3/7 set · 6 need attention · 14%"). */}
+            {/* A form of empty optional fields counts nothing: it is Ready, with no "0/0 set"
+                and no meter that reads as nothing done. */}
+            {completion.total ?
+              <StyledSummary style={calm ? { color: cQuiet } : { opacity: inks.countOpacity }}>
+                · {completion.done}/{completion.total} set
+                {attentionCount ? ' ·' : ''}
+              </StyledSummary>
+            : null}
             {/* Amber only for what is a fault. A new form's required fields are still to
                 fill in, which is the next step, not a warning: they are counted apart,
                 in the quiet colour. */}
@@ -271,21 +278,24 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
             : null}
             {/* Calm: the percentage is one more quiet figure on the line, not
                 a large bold number pinned to the far edge. */}
-            {calm ?
+            {!completion.total ? null
+            : calm ?
               <StyledSummary className='options-readfirst-pct' style={{ color: cQuiet }}>
                 · {completion.pct}%
               </StyledSummary>
             : <StyledPct className='options-readfirst-pct'>{completion.pct}%</StyledPct>}
           </StyledCompletionLine>
-          <StyledMeter
-            className='options-readfirst-completion-bar'
-            $set={setPct}
-            $attention={attentionPct}
-            $track={cTrack}
-            $set_c={cDone}
-            $att_c={cWarning}
-            $calm={calm}
-          />
+          {completion.total ?
+            <StyledMeter
+              className='options-readfirst-completion-bar'
+              $set={setPct}
+              $attention={attentionPct}
+              $track={cTrack}
+              $set_c={cDone}
+              $att_c={cWarning}
+              $calm={calm}
+            />
+          : null}
         </StyledCompletion>
       : null}
 

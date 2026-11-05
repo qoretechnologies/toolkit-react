@@ -885,9 +885,18 @@ export const getOptionGroupLabel = (
 
 /** Completion summary for the read-first progress meter. */
 export interface IReadFirstCompletion {
+  /**
+   * What the form is made of for this count: every field holding a value and every one the form says still needs
+   * attention. An empty optional field is not part of what is left to do, so it is not counted (with a verdict).
+   */
   total: number;
   /** Fields holding a value, whether or not anything is wrong with it. */
   set: number;
+  /**
+   * Every field the form shows, counted or not: a form of empty optional fields counts nothing (`total` 0) and
+   * is still a form, which reads Ready.
+   */
+  shown: number;
   /** Fields holding a value that nothing is flagging — what the meter fills. */
   done: number;
   pct: number;
@@ -949,9 +958,16 @@ export const getReadFirstCompletion = (
    */
   needsAttention?: (name: string) => boolean
 ): IReadFirstCompletion => {
-  const names = Object.keys(shownOptions);
-  const total = names.length;
   const hasValue = (name: string) => !isOptionValueEmpty(shownOptions[name]?.value);
+  /* An empty optional field is nothing left to do. Counted, a form with nothing outstanding read
+     "Ready · 2/6 set · 33%": the word and the figure disagreed, because four optional fields nobody
+     needed to fill sat in the denominator. Only a verdict says which empty fields are needed, so a
+     caller without one keeps counting every shown field. */
+  const shown = Object.keys(shownOptions).length;
+  const names = Object.keys(shownOptions).filter(
+    (name) => !needsAttention || hasValue(name) || needsAttention(name)
+  );
+  const total = names.length;
   const set = names.filter(hasValue).length;
   /* "Set" and "needs attention" are not opposites. A field can hold a value and
      still be wrong — one that fails validation, or one the host has flagged
@@ -967,7 +983,7 @@ export const getReadFirstCompletion = (
     needsAttention ? names.filter((name) => hasValue(name) && !needsAttention(name)).length : set;
   const pct = total ? Math.round((done / total) * 100) : 0;
 
-  return { total, set, done, pct };
+  return { total, set, done, pct, shown };
 };
 
 /** What the "first field to fix" selector needs to know about one field.
