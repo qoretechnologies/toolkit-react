@@ -1,4 +1,9 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { useTemplatePickerLabels } from '../../../../helpers/templateCatalogueContext';
+import {
+  DEFAULT_TEMPLATE_PICKER_LABELS,
+  ITemplatePickerLabels,
+} from '../../../../helpers/templateListLabels';
 import { rowTitle } from '../../../smartEditor/contextTitle';
 import {
   ReqoreButton,
@@ -50,6 +55,8 @@ export const TEMPLATE_PICKER_PAGE = 50;
 export const TEMPLATE_PICKER_WIDTH = 'min(360px, calc(100vw - 32px))';
 
 export interface ITemplatePickerProps {
+  /** Its words in the host's language, over those of the fields where it is (`TemplateCatalogueProvider`). */
+  labels?: Partial<ITemplatePickerLabels>;
   /** What can be chosen: the field's templates and fields (`templateTree`). */
   roots: ITemplateNode[];
   /** The group it opens at (`ITemplateNode.id`): the group of a chip being replaced, or one chosen while typing. */
@@ -93,7 +100,20 @@ const kindIcon = (node: ITemplateNode, isGroup: boolean): IReqoreIconName =>
   : node.kind === 'field' ? 'Database2Line'
   : 'ExchangeDollarLine';
 
-const isGroup = (node: ITemplateNode) => !!node.children?.length || !!node.loadChildren;
+// a group whose members have come and are none is no group: it opens on nothing
+const isGroup = (node: ITemplateNode) =>
+  !!node.children?.length || (!!node.loadChildren && !node.children);
+
+/** Nothing can be done with it: no members to open, no value to take, nothing to write after it. */
+/** What a host's refusal to give a group's members says: its words, never its code (`failed` for no words). */
+const loadFailureReason = (error: unknown): string | undefined => {
+  const said = (error as { desc?: unknown; message?: unknown } | undefined) ?? {};
+  const text = typeof said.desc === 'string' ? said.desc : said.message;
+  return typeof text === 'string' && text.trim() ? text.trim() : undefined;
+};
+
+const isDeadEnd = (node: ITemplateNode) =>
+  !!node.disabled || (!isGroup(node) && !node.writesKey && !node.continues && !node.value);
 
 /** The press is not a move out of the text the picker was opened from: the caret stays where the pick goes. */
 const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
@@ -205,15 +225,27 @@ export const TemplatePicker = memo(
     fill,
     id,
     typeLabel: givenTypeLabel,
+    labels,
   }: ITemplatePickerProps) => {
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
+    const hostLabels = useTemplatePickerLabels();
+    const words = useMemo(
+      () => ({ ...DEFAULT_TEMPLATE_PICKER_LABELS, ...hostLabels, ...labels }),
+      [hostLabels, labels]
+    );
     const renderMarkdown = useMarkdownRenderer();
     const rootRef = useRef<HTMLDivElement>(null);
     // a host's members come when they are asked for: the rows are drawn again when they have come
     const [, membersCame] = useReducer((count: number) => count + 1, 0);
     const [loading, setLoading] = useState<string | null>(null);
+    // the group whose members could not be loaded, and why: said where they would be, with Retry
+    const [loadFailure, setLoadFailure] = useState<{ node: ITemplateNode; reason?: string } | null>(
+      null
+    );
+    const [loadAttempt, retryLoad] = useReducer((count: number) => count + 1, 0);
+    const openedByClickRef = useRef<string | null>(null);
     const [levels, setLevels] = useState<string[]>(() => levelsTo(roots, levelId));
     const [query, setQuery] = useState(initialQuery ?? '');
     const [everywhere, setEverywhere] = useState(false);
@@ -252,8 +284,22 @@ export const TemplatePicker = memo(
       if (!level || level.children || !level.loadChildren) return undefined;
       let current = true;
       setLoading(level.id);
+      setLoadFailure(null);
       loadTemplateChildren(level)
-        .catch(() => [])
+        .then(
+          (members) => {
+            /* Nothing in it after all: it is not opened on nothing. Its row is what it is now (`isGroup`), and a
+               value it has is what the click that opened it was for. */
+            if (current && !members.length) {
+              setLevels((opened) => opened.filter((id) => id !== level.id));
+              // a lone group opens by itself: nothing is taken but by a click
+              if (level.value && openedByClickRef.current === level.id) onPick(level);
+            }
+          },
+          (error: unknown) => {
+            if (current) setLoadFailure({ node: level, reason: loadFailureReason(error) });
+          }
+        )
         .finally(() => {
           if (current) {
             setLoading(null);
@@ -263,7 +309,7 @@ export const TemplatePicker = memo(
       return () => {
         current = false;
       };
-    }, [level]);
+    }, [level, onPick, loadAttempt]);
 
     /* A reference typed into a group whose members come only when asked (`$data:lookup_customer.`): its members
        are asked for, so that the search can go into them. */
@@ -283,21 +329,28 @@ export const TemplatePicker = memo(
       walk(roots);
       if (!waiting.length) return undefined;
       let current = true;
-      void Promise.all(waiting.map((node) => loadTemplateChildren(node).catch(() => []))).then(
-        () => {
-          if (current) membersCame();
-        }
-      );
+      setLoadFailure(null);
+      void Promise.all(
+        waiting.map((node) =>
+          loadTemplateChildren(node).catch((error: unknown) => {
+            if (current) setLoadFailure({ node, reason: loadFailureReason(error) });
+            return [];
+          })
+        )
+      ).then(() => {
+        if (current) membersCame();
+      });
       return () => {
         current = false;
       };
-    }, [query, roots]);
+    }, [query, roots, loadAttempt]);
 
     const rows = useMemo(
       () =>
         query.trim() ?
           searchTemplateTree(roots, query, everywhere ? undefined : level)
-        : (level?.children ?? roots),
+        : level ? (level.children ?? [])
+        : roots,
       // `membersCame`: a group's members, once they have come, are its members
       [roots, query, everywhere, level, level?.children]
     );
@@ -312,6 +365,7 @@ export const TemplatePicker = memo(
     }, [levels, query, everywhere]);
 
     const open = useCallback((node: ITemplateNode) => {
+      openedByClickRef.current = node.id;
       setLevels([...node.trailIds, node.id]);
       setQuery('');
       setEverywhere(false);
@@ -324,21 +378,25 @@ export const TemplatePicker = memo(
       setKeyFor(null);
     }, []);
 
+    const askForKey = useCallback((node: ITemplateNode) => {
+      // drawn now, in the event that asked for it, so that its box takes the keyboard in it too
+      flushSync(() => {
+        setKeyFor(node);
+        setKeyText('');
+      });
+      keyBoxRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+    }, []);
+
     const pick = useCallback(
       (node: ITemplateNode) => {
-        if (node.disabled) return;
+        if (isDeadEnd(node)) return;
         if (node.writesKey) {
-          // drawn now, in the event that asked for it, so that its box takes the keyboard in it too
-          flushSync(() => {
-            setKeyFor(node);
-            setKeyText('');
-          });
-          keyBoxRef.current?.querySelector<HTMLInputElement>('input')?.focus();
+          askForKey(node);
           return;
         }
         onPick(node);
       },
-      [onPick]
+      [onPick, askForKey]
     );
 
     /** A row taken: a group is opened, anything else chosen. */
@@ -466,6 +524,11 @@ export const TemplatePicker = memo(
     const crumbsShown = coarse && crumbs.length > 2 ? crumbs.slice(-1) : crumbs;
     const crumbsHidden = crumbs.length - crumbsShown.length;
     const isReference = /^[$@]/.test(query.trim());
+    // a context as it is written, its key after its `:`: not `$dynamic:*`, which is all of it
+    const keyName = keyFor?.catalogue ? (keyFor.reference ?? keyFor.label) : keyFor?.label;
+    // where it would be listed: at its own level, or a search that goes into it
+    const shownFailure =
+      loadFailure && (level?.id === loadFailure.node.id || isReference) ? loadFailure : null;
     const optionId = (index: number) => `${id}-option-${index}`;
 
     return (
@@ -599,14 +662,14 @@ export const TemplatePicker = memo(
               {
                 // a context whose argument has a format of its own says it (`$rest:` <URI path>[.<key>...])
                 keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ?
-                  `Write what ${keyFor.label} reads: ${keyFor.catalogue.arg_format}.`
-                : `${keyFor.label} holds any keys: write the key to use (a path: order.id).`
+                  `Write what ${keyName} reads: ${keyFor.catalogue.arg_format}.`
+                : `${keyName} holds any keys: write the key to use (a path: order.id).`
               }
             </ReqoreP>
             <ReqoreControlGroup fluid size='small'>
               <ReqoreInput
                 className='template-picker-key-input'
-                aria-label={`Key in ${keyFor.label}`}
+                aria-label={`Key in ${keyName}`}
                 placeholder={
                   keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ? '' : 'order.id'
                 }
@@ -638,6 +701,33 @@ export const TemplatePicker = memo(
             </ReqoreControlGroup>
           </ReqoreControlGroup>
         : null}
+        {shownFailure ?
+          <ReqoreControlGroup
+            vertical
+            fluid
+            size='small'
+            className='template-picker-load-failed'
+            style={{ padding: 8 }}
+          >
+            <ReqoreP size='small' role='alert'>
+              {`Could not load what is in ${shownFailure.node.label}${
+                shownFailure.reason ? `: ${shownFailure.reason}` : '.'
+              }`}
+            </ReqoreP>
+            <ReqoreButton
+              className='template-picker-retry'
+              icon='RefreshLine'
+              compact
+              fixed
+              onClick={() => {
+                setLoadFailure(null);
+                retryLoad();
+              }}
+            >
+              Retry
+            </ReqoreButton>
+          </ReqoreControlGroup>
+        : null}
         <ReqoreMenu
           id={id}
           role='listbox'
@@ -650,7 +740,7 @@ export const TemplatePicker = memo(
           effect={SMART_EDITOR_OVERLAY_EFFECT}
           customTheme={COMPLETION_LIST_THEME}
         >
-          {!visible.length ?
+          {!visible.length && !shownFailure ?
             <ReqoreMenuItem
               icon={loading ? 'LoaderLine' : 'InformationLine'}
               label={
@@ -692,11 +782,12 @@ export const TemplatePicker = memo(
                   />
                 }
                 badge={rowBadges(node, typeLabel) as any}
-                // a group opens; a context only the server knows goes on into what is in it as it is typed
-                rightIcon={group || node.continues ? 'ArrowRightSLine' : undefined}
+                /* a group opens; a context only the server knows goes on into what is in it as it is typed. One whose
+                   catalogue lists nothing in it is no submenu: what follows it is written (`$rest:`) */
+                rightIcon={group || (node.continues && !node.catalogue) ? 'ArrowRightSLine' : undefined}
                 selected={index === focused}
                 active={index === focused}
-                disabled={node.disabled}
+                disabled={isDeadEnd(node)}
                 scrollIntoView={index === focused}
                 minimal
                 compact
@@ -704,7 +795,21 @@ export const TemplatePicker = memo(
                 onMouseDown={keysFromPage ? keepTheFocus : undefined}
                 onClick={() => take(node)}
                 rightAction={
-                  (group || node.continues) && node.takesWhole ?
+                  node.offersKey ?
+                    ({
+                      label: words.writeKey,
+                      className: 'template-picker-key-action',
+                      'aria-label': `${words.writeKey} ${node.reference ?? node.label}`,
+                      tooltip: coarse ? undefined : words.writeKeyTooltip(node.reference ?? node.label),
+                      compact: true,
+                      onMouseDown: keysFromPage ? keepTheFocus : undefined,
+                      onClick: () => askForKey(node),
+                      style: {
+                        ...USE_WHOLE_STYLE,
+                        ...(coarse ? { minWidth: 44, minHeight: 44 } : {}),
+                      },
+                    } as any)
+                  : (group || node.continues) && node.takesWhole ?
                     ({
                       label: 'Use',
                       className: 'template-picker-use',

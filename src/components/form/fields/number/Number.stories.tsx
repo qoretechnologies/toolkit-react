@@ -2,6 +2,9 @@ import { ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
+import { TemplateCatalogueProvider } from '../../../../helpers/templateCatalogueContext';
+import { templateCatalogueFixture } from '../../../../stories/templateCatalogueMock';
+import { pickerRow, typeAsAPerson } from '../../../../stories/templatePicker';
 import { StoryMeta } from '../../../../types';
 import { NumberFormField } from './Number';
 
@@ -162,5 +165,98 @@ export const TypedFreely: Story = {
     await userEvent.clear(input);
     await userEvent.type(input, '10.');
     await expect(input).toHaveValue('10.');
+  },
+};
+
+/** Clicks on the number's template list, through Template contexts, to the row of `$dynamic:`. */
+const openDynamicRow = async (canvasElement: HTMLElement) => {
+  await userEvent.click(within(canvasElement).getByRole('textbox'));
+  await userEvent.click(await pickerRow('Template contexts'));
+  return pickerRow('$dynamic:*');
+};
+
+const WITH_TEMPLATE_CONTEXTS: Pick<Story, 'args' | 'decorators'> = {
+  args: {
+    templates: { items: [{ label: 'Quantity', value: '$local:quantity' }] } as never,
+  },
+  decorators: [
+    (Story) => (
+      <TemplateCatalogueProvider catalogue={templateCatalogueFixture('workflow-untyped-static')}>
+        <Story />
+      </TemplateCatalogueProvider>
+    ),
+  ],
+};
+
+/**
+ * A number's input takes a template from its list: `$dynamic:*`, a context of free keys, is taken whole by its row, and
+ * one of its keys is written with its Key action (David's decision), which a finger reaches as a mouse does.
+ */
+export const TemplateContextsWithAKeyAction: Story = {
+  ...WITH_TEMPLATE_CONTEXTS,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a number's input with its template list open at Template contexts: $dynamic:* is a row that takes all of it, with a Key action beside it, always shown; a context with keys to choose keeps its arrow and Use.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const row = await openDynamicRow(canvasElement);
+    await expect(row.parentElement!.querySelector('.template-picker-key-action')).toBeTruthy();
+  },
+};
+
+export const AKeyOfATemplateContext: Story = {
+  ...WITH_TEMPLATE_CONTEXTS,
+  parameters: {
+    // Interaction-only: the play assertions are the guard; the action is pictured by `TemplateContextsWithAKeyAction`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders a number's input with its template list, at Template contexts. The row $dynamic:* has a Key action. " +
+          'Clicking Key asks for the key, without taking anything; `order.id` typed there and Enter pressed make the value $dynamic:order.id.',
+      },
+    },
+  },
+  async play({ args, canvasElement }) {
+    const row = await openDynamicRow(canvasElement);
+    const key = row.parentElement!.querySelector<HTMLElement>('.template-picker-key-action');
+    await expect(key).toBeTruthy();
+    await expect(key!.textContent).toBe('Key');
+    await expect(row.parentElement!.querySelector('.template-picker-use')).toBeNull();
+    await userEvent.click(key!);
+    await expect(args.onChange).not.toHaveBeenCalled();
+    const input = await waitFor(() => {
+      const found = document.querySelector<HTMLInputElement>('.template-picker-key input');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    await typeAsAPerson(userEvent, 'order.id');
+    await expect(input.value).toBe('order.id');
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id'));
+  },
+};
+
+/** The row itself, beside the Key action: all of the context, with no key asked for. */
+export const ATemplateContextTakenWhole: Story = {
+  ...WITH_TEMPLATE_CONTEXTS,
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the list is pictured by `TemplateContextsWithAKeyAction`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story: "Clicks the row $dynamic:* in a number's template list: the value is $dynamic:*, and no key is asked for.",
+      },
+    },
+  },
+  async play({ args, canvasElement }) {
+    await userEvent.click(await openDynamicRow(canvasElement));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:*'));
+    await expect(document.querySelector('.template-picker-key')).toBeNull();
   },
 };

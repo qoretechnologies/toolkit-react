@@ -4,6 +4,8 @@ export * from './helpers/templateTree';
 export * from './components/log/Log';
 export * from './helpers/templateCatalogue';
 export * from './helpers/templateCatalogueContext';
+// the words a list of templates is read with, which a host that translates its interface passes to `buildTemplates`
+export * from './helpers/templateListLabels';
 export {
   validateField,
   validateFieldWithResult,
@@ -40,6 +42,7 @@ export { currentUserStore as ReqraftCurrentUserStore } from './stores/currentUse
 export type {
   ICurrentUser,
   ICurrentUserStore,
+  ICurrentUserSupportSession,
 } from './stores/currentUser/currentUser';
 export {
   fetchConfig,

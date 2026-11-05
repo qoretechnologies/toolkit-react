@@ -93,6 +93,11 @@ export interface ITemplateNode {
    */
   writesKey?: boolean;
   /**
+   * Taken whole by its row, in a control that cannot be typed into, where the only other way to write one of its
+   * free keys is to ask for it: its Key action (`TemplateBrowser`).
+   */
+  offersKey?: boolean;
+  /**
    * A group that is a value of its own - a record, a Qog state's data - and can be taken whole where the field it is
    * picked for takes one (a field of any type, a hash): its "Use". Never a scalar field's: its catalogue marks the
    * groups whose value does not fit it (`filterTemplatesByType` takes their "select whole" away).
@@ -763,7 +768,11 @@ export const referenceNamesNothing = (roots: ITemplateNode[], written: string): 
       node.reference?.startsWith(context) ||
       (typeof node.value === 'string' && node.value.startsWith(context))
   );
-  if (!inContext.length || inContext.some((node) => node.writesKey)) {
+  // keys written freely: a template of any keys, or a context of the catalogue that says it holds them
+  if (
+    !inContext.length ||
+    inContext.some((node) => node.writesKey || node.catalogue?.free_form_keys)
+  ) {
     return false;
   }
   if (templateNodeFor(roots, written)) {

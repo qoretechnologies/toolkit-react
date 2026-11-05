@@ -69,13 +69,12 @@ describe('a field with a template catalogue', () => {
     expect(contextNamed('qog-loops', '$local:')!.children!.find((key) => key.reference === '$local:input')?.type).toBe('any');
   });
 
-  it('goes on into a context of free keys, or of an argument of its own format, that lists no key', () => {
-    expect(contextNamed('workflow-untyped-static', '$dynamic:')).toMatchObject({
-      continues: true,
-      writesKey: true,
-      value: '$dynamic:*',
-      takesWhole: true,
-    });
+  it('takes whole a context of free keys that lists no key; one of an argument of its own format goes on', () => {
+    const dynamic = contextNamed('workflow-untyped-static', '$dynamic:');
+    expect(dynamic).toMatchObject({ label: '$dynamic:*', value: '$dynamic:*' });
+    expect(dynamic?.continues).toBeFalsy();
+    expect(dynamic?.writesKey).toBeFalsy();
+    expect(dynamic?.takesWhole).toBeFalsy();
     expect(contextNamed('qog-loops', '$rest:')).toMatchObject({ continues: true });
     expect(contextNamed('qog-loops', '$rest:')?.value).toBeUndefined();
   });

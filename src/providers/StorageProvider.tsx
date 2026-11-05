@@ -6,7 +6,7 @@ import { ReqraftStorageContext, TReqraftStorage } from '../contexts/StorageConte
 import { useFetch } from '../hooks/useFetch/useFetch';
 import { useReqraftProperty } from '../hooks/useReqraftProperty';
 import { TReqraftStorageValue } from '../hooks/useStorage/useStorage';
-import { currentUserStore } from '../stores/currentUser/currentUser';
+import { currentUserStore, ICurrentUser } from '../stores/currentUser/currentUser';
 import { isQueryCancelled } from '../utils/fetch';
 import { IReqraftProviderProps } from './ReqraftProvider';
 
@@ -26,6 +26,18 @@ export const applyStorageWrite = (
   path: string,
   value: unknown
 ): TReqraftStorage => set(cloneDeep(storage) ?? {}, path, value);
+
+/**
+ * Whether the current user's storage may be persisted. The server answers
+ * `storage_writable: false` for an identity whose storage is not its own to keep — a
+ * staff member in an interactive support session reads a customer's workspace as the
+ * workspace's reader principal, and a preference they flip must not land in that
+ * principal's storage (qorus#693). A write for such a user is applied in memory only,
+ * so the page behaves as it always does, and nothing is sent. A user the flag is
+ * absent for is writable: that is every server from before the flag existed.
+ */
+export const storageIsWritable = (user?: Pick<ICurrentUser, 'storage_writable'>): boolean =>
+  user?.storage_writable !== false;
 
 export interface IReqraftStorageProviderProps
   extends Pick<IReqraftProviderProps, 'waitForStorage'> {
@@ -95,7 +107,10 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
 
       updateCurrentUserStorage(updatedStorage);
 
-      load({ body: { storage: updatedStorage } });
+      // in memory only for a user whose storage is not theirs to keep
+      if (storageIsWritable(currentUserStore.getState().currentUser)) {
+        load({ body: { storage: updatedStorage } });
+      }
     },
     [appName, load, updateCurrentUserStorage]
   );
@@ -111,7 +126,9 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
 
       updateCurrentUserStorage(updatedStorage);
 
-      load({ body: { storage_path: _path } });
+      if (storageIsWritable(currentUserStore.getState().currentUser)) {
+        load({ body: { storage_path: _path } });
+      }
     },
     [appName, load, updateCurrentUserStorage]
   );

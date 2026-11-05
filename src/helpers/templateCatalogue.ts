@@ -159,9 +159,17 @@ export const catalogueContextNode = (
     keyNode(key, `${id}.${index}`, [...trail, reference], [parentId, id], wholeRecords)
   );
   const whole = wholeRecords !== false && !!context.use_whole && !!context.whole_template;
+  const keyed = !!children?.length;
+  /* A row does what it shows (David's review: "if there are no choices in the submenu, then it should not be
+     presented as a submenu, and there should be no 'Use' control"). With no key to choose:
+     - where Qorus reads it whole (`use_whole`, for a value that takes a record), it is the whole value, `$fsminput:*`;
+     - with free keys or an argument of its own format (`$rest:`), what follows the `:` is written;
+     - otherwise (a fixed set of keys, none of them here; a whole value this field cannot take) nothing can be
+       written that Qorus would read: `$for:*` is no template, so it is offered as nothing to take. */
+  const takenWhole = whole && !keyed;
   return {
     id,
-    label: reference,
+    label: takenWhole ? context.whole_template! : reference,
     reference,
     kind: 'context',
     description: [context.display_name, context.description, context.arg_format]
@@ -172,9 +180,12 @@ export const catalogueContextNode = (
     trailIds: [parentId],
     catalogue: context,
     // keys written freely are not offered as one row each: what is written after the `:` is the key
-    writesKey: !!context.free_form_keys,
-    ...(children?.length ? { children } : { continues: true }),
-    ...(whole ? { value: context.whole_template, takesWhole: true } : {}),
+    writesKey: !!context.free_form_keys && !takenWhole,
+    ...(keyed ? { children }
+    : takenWhole ? {}
+    : context.free_form_keys || context.arg_format ? { continues: true }
+    : { disabled: true }),
+    ...(whole ? { value: context.whole_template, ...(keyed ? { takesWhole: true } : {}) } : {}),
   };
 };
 
