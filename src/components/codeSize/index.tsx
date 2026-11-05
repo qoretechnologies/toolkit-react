@@ -41,6 +41,9 @@ export function formatCodeChars(chars: number): string {
   return `${chars} ${chars === 1 ? 'char' : 'chars'}`;
 }
 
+/** How strongly the size reads: the soft shade of the text, as metadata does beside a title. */
+const CODE_SIZE_OPACITY = 0.6;
+
 /**
  * The chip as plain `ReqoreTag` props. Needed wherever a host takes tag
  * *props* rather than an element — a `ReqorePanel` `badge`, a button badge —
@@ -48,8 +51,9 @@ export function formatCodeChars(chars: number): string {
  *
  * Neutral words, not a colored chip: how much code there is is metadata, and
  * a blue tag reads as a state or a filter (it used to be `info`, and the IDE
- * had to undo it at every call site). `text` paints only the label and icon,
- * in the muted shade that reads on the theme's surface.
+ * had to undo it at every call site). `text` with no color draws no chip
+ * (only the faint wash Reqore keeps behind a key), and the words and icon are
+ * set in a soft shade of the text, at normal weight.
  */
 export function codeSizeTagProps(code: string): IReqoreTagProps {
   const { lines, chars } = describeCodeSize(code);
@@ -57,8 +61,10 @@ export function codeSizeTagProps(code: string): IReqoreTagProps {
   return {
     size: 'small',
     appearance: 'text',
-    intent: 'muted',
     icon: 'CodeLine',
+    leftIconProps: { effect: { opacity: CODE_SIZE_OPACITY } },
+    labelEffect: { weight: 'normal', opacity: CODE_SIZE_OPACITY },
+    labelKeyEffect: { weight: 'normal', opacity: CODE_SIZE_OPACITY },
     label: formatCodeLines(lines),
     labelKey: formatCodeChars(chars),
   };

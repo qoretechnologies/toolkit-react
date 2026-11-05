@@ -94,6 +94,9 @@ describe('codeSizeTagProps', () => {
 
   it('reads as neutral words, never a colored chip', () => {
     // a size is metadata; a blue chip read as a state, and every host undid it
-    expect(codeSizeTagProps('a')).toEqual(expect.objectContaining({ appearance: 'text', intent: 'muted' }));
+    const props = codeSizeTagProps('a');
+    expect(props).toEqual(expect.objectContaining({ appearance: 'text' }));
+    expect(props.intent).toBeUndefined();
+    expect(props.labelEffect).toEqual(expect.objectContaining({ weight: 'normal' }));
   });
 });
