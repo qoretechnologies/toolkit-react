@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreColumn,
   ReqoreColumns,
@@ -44,6 +45,7 @@ const StyledPreviewWrapper = styled(ReqoreMessage)<IReqoreMessageProps>`
 `;
 
 export const MarkdownFormField = ({ hidePreview, ...rest }: IMarkdownFormFieldProps) => {
+  const compWords = useReqraftLabels().components;
   // The shared context is empty unless a host supplied a renderer. The row
   // inset deliberately draws nothing in that case; the field's live preview
   // cannot — a blank preview beside the editor is worse than reqraft's own
@@ -70,7 +72,7 @@ export const MarkdownFormField = ({ hidePreview, ...rest }: IMarkdownFormFieldPr
     <StyledWrapper columnsGap='10px'>
       {editor}
       <StyledPreviewColumn>
-        <StyledPreviewWrapper size='small' aria-label='Preview' flat fluid>
+        <StyledPreviewWrapper size='small' aria-label={compWords.preview} flat fluid>
           {renderMarkdown({ value: rest.value ?? '', compact: true })}
         </StyledPreviewWrapper>
       </StyledPreviewColumn>

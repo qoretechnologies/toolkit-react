@@ -446,7 +446,7 @@ export const browseAllTemplatesItem = (): ILspCompletionItem => ({
   filterText: '',
   documentation: {
     kind: 'markdown',
-    value: 'Every template and field this value can use, by group.',
+    value: reqraftLabels().components.browseAllDocumentation,
   },
   data: { browseAll: true, section: '' } as Record<string, unknown>,
 });

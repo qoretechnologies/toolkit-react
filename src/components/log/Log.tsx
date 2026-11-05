@@ -1,3 +1,4 @@
+import { reqraftLabels, useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -137,8 +138,8 @@ export const ReqraftLog = ({
   autoScroll,
   allowMessageDeletion,
   allowMessageCopy,
-  copyMessageNotificationContent = 'Log message copied to clipboard',
-  copyMessageFailedNotificationContent = 'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.',
+  copyMessageNotificationContent = reqraftLabels().components.logMessageCopiedToClipboard,
+  copyMessageFailedNotificationContent = reqraftLabels().components.couldNotCopyTheLogMessage,
   filterable,
   filterProps,
   showTimestamps,
@@ -155,6 +156,7 @@ export const ReqraftLog = ({
   size = 'small',
   ...panelProps
 }: IReqraftLogProps) => {
+  const compWords = useReqraftLabels().components;
   // a message's time, softer than the message: as soft as it still reads (main:lighten:8 was 2.6:1; qorus#646)
   const timestampOpacity = useReadableOpacity(0.35);
   const [query, setQuery] = useState<string>('');
@@ -296,7 +298,7 @@ export const ReqraftLog = ({
           show:
             contentRef &&
             contentRef.scrollHeight - contentRef.scrollTop !== contentRef.clientHeight,
-          tooltip: 'Scroll to bottom',
+          tooltip: compWords.scrollToBottom,
           className: 'reqraft-log-scroll-to-bottom',
         },
         {
@@ -304,7 +306,7 @@ export const ReqraftLog = ({
           show: !!filterable,
           props: {
             icon: 'SearchLine',
-            placeholder: 'Filter messages',
+            placeholder: compWords.filterMessages,
             ...filterProps,
             value: query,
             onChange: (e) => setQuery(e.target.value),
@@ -315,14 +317,14 @@ export const ReqraftLog = ({
         {
           icon: status === 'PAUSED' ? 'PlayLine' : 'PauseFill',
           onClick: status === 'PAUSED' ? resume : pause,
-          tooltip: status === 'PAUSED' ? 'Resume' : 'Pause',
+          tooltip: status === 'PAUSED' ? compWords.resume : compWords.pause,
           intent: status === 'PAUSED' ? 'warning' : 'success',
           className: 'reqraft-log-pause-resume',
         },
         {
           icon: 'DeleteBinLine',
           onClick: clear,
-          tooltip: 'Clear log',
+          tooltip: compWords.clearLog,
           className: 'reqraft-log-clear',
         },
       ]}
@@ -330,7 +332,7 @@ export const ReqraftLog = ({
       <StyledLogList vertical fluid size={size} style={listStyle}>
         {count(filteredMessages) === 0 ?
           <ReqoreParagraph size={size} style={{ fontFamily: ReqoreFonts.mono }}>
-            No messages
+            {compWords.noMessages}
           </ReqoreParagraph>
         : null}
         {filteredMessages.map(({ message, timestamp, ...paragraphProps }, index) => (
@@ -392,7 +394,7 @@ export const ReqraftLog = ({
           <ReqoreControlGroup>
             <ReqoreInput
               size={size}
-              placeholder='Send a message'
+              placeholder={compWords.sendAMessage}
               icon='SendPlaneLine'
               {...sendMessageProps}
               value={message}

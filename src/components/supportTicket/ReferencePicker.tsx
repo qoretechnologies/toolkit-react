@@ -1,3 +1,4 @@
+import { reqraftLabels, useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   ReqoreInput,
   ReqoreMenu,
@@ -320,10 +321,11 @@ export const ReferencePicker = ({
   accent = DEFAULT_ACCENT,
   header,
   onClose,
-  title = 'Reference interfaces',
+  title = reqraftLabels().tickets.referenceInterfaces,
   layout = 'auto',
   presentation = 'auto',
 }: IReferencePickerProps) => {
+  const ticketWords = useReqraftLabels().tickets;
   const [query, setQuery] = useState<string>('');
   // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1; qorus#646)
   const noteOpacity = useReadableOpacity(0.4);
@@ -420,12 +422,12 @@ export const ReferencePicker = ({
 
   const emptyNote = () => {
     if (!needle) {
-      return `No ${label.toLowerCase()} on this instance`;
+      return ticketWords.noXOnThisInstance(label.toLowerCase());
     }
 
     return otherKindsMatch
-      ? `No ${label.toLowerCase()} match “${query.trim()}” — other types do`
-      : `Nothing matches “${query.trim()}”`;
+      ? ticketWords.noXMatchXOtherTypes(label.toLowerCase(), query.trim())
+      : ticketWords.nothingMatchesX(query.trim());
   };
 
   /* Both panes are `ReqoreMenu`s of `ReqoreMenuItem`s — a vertical selectable list is
@@ -487,7 +489,7 @@ export const ReferencePicker = ({
             icon='ErrorWarningLine'
             rightIcon={onRetry ? 'RefreshLine' : undefined}
             intent='danger'
-            label={`Couldn't load ${label.toLowerCase()}`}
+            label={ticketWords.couldnTLoadX(label.toLowerCase())}
             /* the specific failure is the tooltip — the pane states the outcome */
             tooltip={error}
             onClick={onRetry}
@@ -499,7 +501,7 @@ export const ReferencePicker = ({
     if (loading) {
       return (
         <ReqoreSpinner iconColor='info' size='small' centered>
-          Loading {label.toLowerCase()}…
+          {ticketWords.loading} {label.toLowerCase()}…
         </ReqoreSpinner>
       );
     }
@@ -527,9 +529,9 @@ export const ReferencePicker = ({
               tooltip={
                 isPicked
                   ? removable
-                    ? `Remove “${name}”`
-                    : `“${name}” is already referenced`
-                  : `Reference “${name}”`
+                    ? ticketWords.removeX(name)
+                    : ticketWords.xIsAlreadyReferenced(name)
+                  : ticketWords.referenceX(name)
               }
               onClick={!isPicked || removable ? () => toggle(name) : undefined}
               {...pickedItemProps(isPicked)}
@@ -559,7 +561,7 @@ export const ReferencePicker = ({
         <ReqoreInput
           value={query}
           onChange={(event) => setQuery((event.target as HTMLInputElement).value)}
-          placeholder='Search types and interfaces…'
+          placeholder={ticketWords.searchTypesAndInterfaces}
           icon='SearchLine'
           minimal
           flat

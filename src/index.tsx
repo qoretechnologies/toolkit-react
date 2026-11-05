@@ -5,6 +5,9 @@ export * from './components/log/Log';
 export * from './helpers/templateCatalogue';
 export * from './helpers/templateCatalogueContext';
 // the words a list of templates is read with, which a host that translates its interface passes to `buildTemplates`
+export * from './helpers/labels/componentLabels';
+export * from './helpers/labels/ticketLabels';
+export * from './helpers/labels/validationLabels';
 export * from './helpers/reqraftLabels';
 export * from './helpers/templateListLabels';
 export {

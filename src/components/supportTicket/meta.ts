@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 
@@ -63,31 +64,113 @@ export interface ITicketEnumMeta {
 }
 
 export const TICKET_STATUS_META: Record<TTicketStatus, ITicketEnumMeta> = {
-  new: { label: 'New', intent: 'info', icon: 'SparklingLine' },
-  open: { label: 'Open', intent: 'pending', icon: 'Chat3Line' },
+  new: {
+    get label() {
+      return reqraftLabels().tickets.new;
+    },
+    intent: 'info',
+    icon: 'SparklingLine',
+  },
+  open: {
+    get label() {
+      return reqraftLabels().tickets.open;
+    },
+    intent: 'pending',
+    icon: 'Chat3Line',
+  },
   awaiting_customer: {
-    label: 'Awaiting customer',
-    customerLabel: 'Awaiting your reply',
+    get label() {
+      return reqraftLabels().tickets.awaitingCustomer;
+    },
+    get customerLabel() {
+      return reqraftLabels().tickets.awaitingYourReply;
+    },
     intent: 'warning',
     icon: 'UserReceivedLine',
   },
-  resolved: { label: 'Resolved', intent: 'success', icon: 'CheckLine' },
-  closed: { label: 'Closed', intent: 'muted', icon: 'CloseCircleLine' },
+  resolved: {
+    get label() {
+      return reqraftLabels().tickets.resolved;
+    },
+    intent: 'success',
+    icon: 'CheckLine',
+  },
+  closed: {
+    get label() {
+      return reqraftLabels().tickets.closed;
+    },
+    intent: 'muted',
+    icon: 'CloseCircleLine',
+  },
 };
 
 export const TICKET_PRIORITY_META: Record<TTicketPriority, ITicketEnumMeta> = {
-  low: { label: 'Low', intent: 'muted', icon: 'ArrowDownLine' },
-  normal: { label: 'Normal', intent: 'info', icon: 'SubtractLine' },
-  high: { label: 'High', intent: 'warning', icon: 'ArrowUpLine' },
-  urgent: { label: 'Urgent', intent: 'danger', icon: 'AlarmWarningLine' },
+  low: {
+    get label() {
+      return reqraftLabels().tickets.low;
+    },
+    intent: 'muted',
+    icon: 'ArrowDownLine',
+  },
+  normal: {
+    get label() {
+      return reqraftLabels().tickets.normal;
+    },
+    intent: 'info',
+    icon: 'SubtractLine',
+  },
+  high: {
+    get label() {
+      return reqraftLabels().tickets.high;
+    },
+    intent: 'warning',
+    icon: 'ArrowUpLine',
+  },
+  urgent: {
+    get label() {
+      return reqraftLabels().tickets.urgent;
+    },
+    intent: 'danger',
+    icon: 'AlarmWarningLine',
+  },
 };
 
 export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketEnumMeta> = {
-  bug: { label: 'Bug', intent: 'danger', icon: 'BugLine' },
-  question: { label: 'Question', intent: 'info', icon: 'QuestionLine' },
-  billing: { label: 'Billing', intent: 'warning', icon: 'BankCardLine' },
-  feature: { label: 'Feature request', intent: 'success', icon: 'LightbulbLine' },
-  other: { label: 'Other', intent: 'muted', icon: 'MoreLine' },
+  bug: {
+    get label() {
+      return reqraftLabels().tickets.bug;
+    },
+    intent: 'danger',
+    icon: 'BugLine',
+  },
+  question: {
+    get label() {
+      return reqraftLabels().tickets.question;
+    },
+    intent: 'info',
+    icon: 'QuestionLine',
+  },
+  billing: {
+    get label() {
+      return reqraftLabels().tickets.billing;
+    },
+    intent: 'warning',
+    icon: 'BankCardLine',
+  },
+  feature: {
+    get label() {
+      return reqraftLabels().tickets.featureRequest;
+    },
+    intent: 'success',
+    icon: 'LightbulbLine',
+  },
+  other: {
+    get label() {
+      return reqraftLabels().tickets.other;
+    },
+    intent: 'muted',
+    icon: 'MoreLine',
+  },
 };
 
 /** Staff-only audit trail vocabulary (used by the admin-portal staff surface).
@@ -95,20 +178,104 @@ export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketEnumMeta> = {
  *  `QorusSaasTicketStore::insertAudit`): a public reply, an internal note, a
  *  status change, an assignment, or `updated` (a priority/category change). */
 export const TICKET_AUDIT_ACTION_META: Record<TTicketAuditAction, ITicketEnumMeta> = {
-  replied: { label: 'Replied', intent: 'success', icon: 'ReplyLine' },
-  noted: { label: 'Internal note', intent: 'info', icon: 'StickyNoteLine' },
-  status_changed: { label: 'Status changed', intent: 'warning', icon: 'ExchangeLine' },
-  assigned: { label: 'Assigned', intent: 'pending', icon: 'UserFollowLine' },
-  updated: { label: 'Updated', intent: 'muted', icon: 'Edit2Line' },
-  viewed: { label: 'Viewed', intent: 'muted', icon: 'EyeLine' },
-  attachment_downloaded: { label: 'Attachment downloaded', intent: 'muted', icon: 'Download2Line' },
-  workspace_viewed: { label: 'Workspace viewed', intent: 'info', icon: 'Search2Line' },
-  access_requested: { label: 'Access requested', intent: 'pending', icon: 'ShieldUserLine' },
-  access_granted: { label: 'Access granted', intent: 'success', icon: 'ShieldCheckLine' },
-  access_extended: { label: 'Access extended', intent: 'info', icon: 'TimerLine' },
-  access_revoked: { label: 'Access revoked', intent: 'danger', icon: 'ShieldCrossLine' },
-  access_expired: { label: 'Access expired', intent: 'muted', icon: 'HourglassLine' },
-  session_launched: { label: 'IDE session launched', intent: 'info', icon: 'ExternalLinkLine' },
+  replied: {
+    get label() {
+      return reqraftLabels().tickets.replied;
+    },
+    intent: 'success',
+    icon: 'ReplyLine',
+  },
+  noted: {
+    get label() {
+      return reqraftLabels().tickets.internalNote;
+    },
+    intent: 'info',
+    icon: 'StickyNoteLine',
+  },
+  status_changed: {
+    get label() {
+      return reqraftLabels().tickets.statusChanged;
+    },
+    intent: 'warning',
+    icon: 'ExchangeLine',
+  },
+  assigned: {
+    get label() {
+      return reqraftLabels().tickets.assigned;
+    },
+    intent: 'pending',
+    icon: 'UserFollowLine',
+  },
+  updated: {
+    get label() {
+      return reqraftLabels().tickets.updated;
+    },
+    intent: 'muted',
+    icon: 'Edit2Line',
+  },
+  viewed: {
+    get label() {
+      return reqraftLabels().tickets.viewed;
+    },
+    intent: 'muted',
+    icon: 'EyeLine',
+  },
+  attachment_downloaded: {
+    get label() {
+      return reqraftLabels().tickets.attachmentDownloaded;
+    },
+    intent: 'muted',
+    icon: 'Download2Line',
+  },
+  workspace_viewed: {
+    get label() {
+      return reqraftLabels().tickets.workspaceViewed;
+    },
+    intent: 'info',
+    icon: 'Search2Line',
+  },
+  access_requested: {
+    get label() {
+      return reqraftLabels().tickets.accessRequested;
+    },
+    intent: 'pending',
+    icon: 'ShieldUserLine',
+  },
+  access_granted: {
+    get label() {
+      return reqraftLabels().tickets.accessGranted;
+    },
+    intent: 'success',
+    icon: 'ShieldCheckLine',
+  },
+  access_extended: {
+    get label() {
+      return reqraftLabels().tickets.accessExtended;
+    },
+    intent: 'info',
+    icon: 'TimerLine',
+  },
+  access_revoked: {
+    get label() {
+      return reqraftLabels().tickets.accessRevoked;
+    },
+    intent: 'danger',
+    icon: 'ShieldCrossLine',
+  },
+  access_expired: {
+    get label() {
+      return reqraftLabels().tickets.accessExpired;
+    },
+    intent: 'muted',
+    icon: 'HourglassLine',
+  },
+  session_launched: {
+    get label() {
+      return reqraftLabels().tickets.ideSessionLaunched;
+    },
+    intent: 'info',
+    icon: 'ExternalLinkLine',
+  },
 };
 
 /** The mark for an audit action the server writes but this vocabulary has not caught up
@@ -116,7 +283,9 @@ export const TICKET_AUDIT_ACTION_META: Record<TTicketAuditAction, ITicketEnumMet
  *  audit tab used to index `TICKET_AUDIT_ACTION_META` directly, and one unknown action
  *  took the whole tab down (qorus#693). */
 export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketEnumMeta = {
-  label: 'Activity',
+  get label() {
+    return reqraftLabels().tickets.activity;
+  },
   intent: 'muted',
   icon: 'HistoryLine',
 };
@@ -142,21 +311,55 @@ export const ticketAuditActionMeta = (action: string): ITicketEnumMeta =>
 /** How each delegated-access thread event renders: the mark on its system line or card. */
 export const TICKET_SYSTEM_EVENT_META: Record<TTicketSystemEvent, ITicketEnumMeta> = {
   'support_access.requested': {
-    label: 'Workspace access requested',
+    get label() {
+      return reqraftLabels().tickets.workspaceAccessRequested;
+    },
     intent: 'info',
     icon: 'ShieldUserLine',
   },
-  'support_access.granted': { label: 'Workspace access granted', intent: 'success', icon: 'ShieldCheckLine' },
-  'support_access.extended': { label: 'Workspace access extended', intent: 'info', icon: 'TimerLine' },
-  'support_access.first_used': { label: 'Workspace opened by support', intent: 'info', icon: 'EyeLine' },
-  'support_access.revoked': { label: 'Workspace access revoked', intent: 'danger', icon: 'ShieldCrossLine' },
-  'support_access.expired': { label: 'Workspace access expired', intent: 'muted', icon: 'HourglassLine' },
+  'support_access.granted': {
+    get label() {
+      return reqraftLabels().tickets.workspaceAccessGranted;
+    },
+    intent: 'success',
+    icon: 'ShieldCheckLine',
+  },
+  'support_access.extended': {
+    get label() {
+      return reqraftLabels().tickets.workspaceAccessExtended;
+    },
+    intent: 'info',
+    icon: 'TimerLine',
+  },
+  'support_access.first_used': {
+    get label() {
+      return reqraftLabels().tickets.workspaceOpenedBySupport;
+    },
+    intent: 'info',
+    icon: 'EyeLine',
+  },
+  'support_access.revoked': {
+    get label() {
+      return reqraftLabels().tickets.workspaceAccessRevoked;
+    },
+    intent: 'danger',
+    icon: 'ShieldCrossLine',
+  },
+  'support_access.expired': {
+    get label() {
+      return reqraftLabels().tickets.workspaceAccessExpired;
+    },
+    intent: 'muted',
+    icon: 'HourglassLine',
+  },
 };
 
 /** The generic mark for a system message with no event, or an event this vocabulary
  *  does not know: the plain informational line every system message used to be. */
 export const DEFAULT_TICKET_SYSTEM_EVENT_META: ITicketEnumMeta = {
-  label: 'System',
+  get label() {
+    return reqraftLabels().tickets.system;
+  },
   intent: 'muted',
   icon: 'InformationLine',
 };
@@ -177,12 +380,7 @@ export const ticketStatusLabel = (
 };
 
 /** A reply may be sent while a ticket is in any state except `closed`. */
-export const REPLYABLE_STATUSES: TTicketStatus[] = [
-  'new',
-  'open',
-  'awaiting_customer',
-  'resolved',
-];
+export const REPLYABLE_STATUSES: TTicketStatus[] = ['new', 'open', 'awaiting_customer', 'resolved'];
 
 /** Whether a ticket can still be replied to (closed ⇒ no). */
 export const isTicketReplyable = (status: TTicketStatus): boolean => status !== 'closed';
@@ -324,18 +522,42 @@ export const toInterfaceKindMark = (icon: TInterfaceKindIcon): IInterfaceKindMar
 // category the user picks from, not a single interface. `fsm` maps to "Qogs" like every
 // other user-facing surface; the id stays `fsm` wherever a host still uses it.
 const DEFAULT_INTERFACE_KIND_LABELS: Record<string, string> = {
-  workflow: 'Workflows',
-  service: 'Services',
-  job: 'Jobs',
-  fsm: 'Qogs',
-  qog: 'Qogs',
-  connection: 'Connections',
-  mapper: 'Mappers',
-  class: 'Classes',
-  'value-map': 'Value maps',
-  'ai-collection': 'AI collections',
-  'ai-endpoint': 'AI endpoints',
-  'ai-guardrail': 'AI guardrails',
+  get workflow() {
+    return reqraftLabels().tickets.workflows;
+  },
+  get service() {
+    return reqraftLabels().tickets.services;
+  },
+  get job() {
+    return reqraftLabels().tickets.jobs;
+  },
+  get fsm() {
+    return reqraftLabels().tickets.qogs;
+  },
+  get qog() {
+    return reqraftLabels().tickets.qogs;
+  },
+  get connection() {
+    return reqraftLabels().tickets.connections;
+  },
+  get mapper() {
+    return reqraftLabels().tickets.mappers;
+  },
+  get class() {
+    return reqraftLabels().tickets.classes;
+  },
+  get 'value-map'() {
+    return reqraftLabels().tickets.valueMaps;
+  },
+  get 'ai-collection'() {
+    return reqraftLabels().tickets.aiCollections;
+  },
+  get 'ai-endpoint'() {
+    return reqraftLabels().tickets.aiEndpoints;
+  },
+  get 'ai-guardrail'() {
+    return reqraftLabels().tickets.aiGuardrails;
+  },
 };
 
 /**

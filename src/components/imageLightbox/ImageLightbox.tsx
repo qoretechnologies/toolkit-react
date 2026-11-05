@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   ReqoreInput,
   ReqoreModal,
@@ -77,6 +78,7 @@ export const ImageLightbox = ({
   onDownload,
   onRename,
 }: IImageLightboxProps) => {
+  const compWords = useReqraftLabels().components;
   const [zoom, setZoom] = useState<boolean>(false);
   // inline rename state: editing toggles the input row; draftName is the working value
   const [editing, setEditing] = useState<boolean>(false);
@@ -185,18 +187,18 @@ export const ImageLightbox = ({
       label={image.filename}
       badge={multiple ? `${index + 1} / ${images.length}` : undefined}
       actions={[
-        { icon: 'ArrowLeftSLine', tooltip: 'Previous', onClick: () => step(-1), show: multiple },
-        { icon: 'ArrowRightSLine', tooltip: 'Next', onClick: () => step(1), show: multiple },
+        { icon: 'ArrowLeftSLine', tooltip: compWords.previous, onClick: () => step(-1), show: multiple },
+        { icon: 'ArrowRightSLine', tooltip: compWords.next, onClick: () => step(1), show: multiple },
         {
           icon: 'Edit2Line',
-          tooltip: 'Rename',
+          tooltip: compWords.rename,
           className: 'imagelightbox-rename',
           onClick: startRename,
           show: !!onRename && !editing,
         },
         {
           icon: 'DownloadLine',
-          tooltip: 'Download',
+          tooltip: compWords.download,
           onClick: () => onDownload?.(image.attachment_id, image.filename),
           show: !!onDownload,
         },
@@ -237,10 +239,10 @@ export const ImageLightbox = ({
         {url ? (
           <img src={url} alt={image.filename} onClick={() => setZoom((z) => !z)} />
         ) : url === null ? (
-          <ReqoreSpan effect={{ opacity: 0.6 }}>Preview unavailable — use Download.</ReqoreSpan>
+          <ReqoreSpan effect={{ opacity: 0.6 }}>{compWords.previewUnavailableUseDownload}</ReqoreSpan>
         ) : (
           <ReqoreSpinner iconColor='info' size='big'>
-            Loading…
+            {compWords.loading}
           </ReqoreSpinner>
         )}
       </Stage>

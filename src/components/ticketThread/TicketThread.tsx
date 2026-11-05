@@ -1,3 +1,4 @@
+import { reqraftLabels, useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   ReqoreBubble,
   ReqoreBubbleGroup,
@@ -173,12 +174,12 @@ const authorIcon = (message: ITicketThreadMessage): IReqoreIconName =>
  *  notes always label as "Internal note" regardless of viewer. */
 const authorLabel = (message: ITicketThreadMessage, viewerRole: TTicketViewerRole): string => {
   if (message.internal) {
-    return 'Internal note';
+    return reqraftLabels().tickets.internalNote;
   }
   if (viewerRole === 'customer') {
-    return message.author_type === 'customer' ? 'You' : 'Qorus Support';
+    return message.author_type === 'customer' ? reqraftLabels().tickets.you : reqraftLabels().tickets.qorusSupport;
   }
-  return `${message.author_type === 'staff' ? 'Support' : 'Customer'} · ${message.author_name ?? message.author_id}`;
+  return `${message.author_type === 'staff' ? reqraftLabels().tickets.support : reqraftLabels().tickets.customer} · ${message.author_name ?? message.author_id}`;
 };
 
 /**
@@ -275,7 +276,7 @@ const StyledSkeletonLines = styled.div`
 `;
 
 const ConversationSkeleton = () => (
-  <StyledSkeletonThread aria-busy='true' aria-label='Loading conversation'>
+  <StyledSkeletonThread aria-busy='true' aria-label={reqraftLabels().tickets.loadingConversation}>
     {SKELETON_BUBBLES.map((bubble, index) => {
       const avatar = <ReqoreSkeleton circle width='30px' height='30px' />;
       return (
@@ -446,7 +447,7 @@ const AttachmentChip = ({
     size='small'
     flat
     badge={formatBytes(attachment.size_bytes)}
-    tooltip={`${attachment.content_type} · download`}
+    tooltip={reqraftLabels().tickets.xDownload(attachment.content_type)}
     onClick={() => onDownloadAttachment?.(attachment.attachment_id, attachment.filename)}
   >
     {attachment.filename}
@@ -490,6 +491,7 @@ const ImageThumb = ({
   onOpen: () => void;
   onDownloadAttachment?: (attachmentId: string, filename: string) => void;
 }) => {
+  const ticketWords = useReqraftLabels().tickets;
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState<boolean>(false);
 
@@ -510,7 +512,7 @@ const ImageThumb = ({
     return <ReqoreSkeleton width='180px' height='120px' />;
   }
   return (
-    <StyledThumb type='button' title={`${attachment.filename} — click to enlarge`} onClick={onOpen}>
+    <StyledThumb type='button' title={ticketWords.xClickToEnlarge(attachment.filename)} onClick={onOpen}>
       <img src={url} alt={attachment.filename} />
     </StyledThumb>
   );
@@ -717,6 +719,7 @@ export const TicketThread = ({
   systemEventAction,
   ticketReferences,
 }: ITicketThreadProps) => {
+  const ticketWords = useReqraftLabels().tickets;
   // Open scrolled to the newest message, and follow new arrivals down — a thread is read
   // from the bottom, like any chat. Keyed on the message COUNT so it fires on open and when
   // a reply lands, not on every re-render (which would fight a user who has scrolled up to
@@ -784,7 +787,7 @@ export const TicketThread = ({
   if (!messages.length) {
     return (
       <StyledEmpty $iconOpacity={emptyIconOpacity} $titleOpacity={emptyTitleOpacity}>
-        <ReqoreEmptyState icon='Chat3Line' title='No messages yet' flat transparent />
+        <ReqoreEmptyState icon='Chat3Line' title={ticketWords.noMessagesYet} flat transparent />
       </StyledEmpty>
     );
   }

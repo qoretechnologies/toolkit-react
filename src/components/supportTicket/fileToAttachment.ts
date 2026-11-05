@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { IAttachmentUpload } from './meta';
 
 /**
@@ -9,7 +10,7 @@ import { IAttachmentUpload } from './meta';
 export const fileToAttachment = (file: File): Promise<IAttachmentUpload> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.onerror = () => reject(new Error(reqraftLabels().tickets.couldNotReadX(file.name)));
     reader.onload = () => {
       // reader.result is a data URL: "data:<type>;base64,<content>"
       const result = String(reader.result);

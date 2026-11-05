@@ -1,3 +1,4 @@
+import { reqraftLabels, useReqraftLabels } from '../../helpers/reqraftLabels';
 import type { TReqoreDropdownItems } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { ReactNode } from 'react';
 import { Composer, IComposerSendAction, TComposerEditor } from '../composer/Composer';
@@ -71,8 +72,8 @@ export const TicketReplyBox = ({
   fileToAttachment = defaultFileToAttachment,
   sending,
   disabled,
-  disabledReason = 'This ticket is closed. Open a new ticket to continue the conversation.',
-  placeholder = 'Write a reply…',
+  disabledReason = reqraftLabels().tickets.thisTicketIsClosedOpenA,
+  placeholder = reqraftLabels().tickets.writeAReply,
   sendLabel,
   allowInternalNote,
   attachMenuItems,
@@ -83,6 +84,7 @@ export const TicketReplyBox = ({
   defaultText,
   defaultFiles,
 }: ITicketReplyBoxProps) => {
+  const ticketWords = useReqraftLabels().tickets;
   const resolvedPlaceholder =
     typeof placeholder === 'function' ? placeholder(false) : placeholder;
   // Label for a given send mode: `false` = public reply, `true` = internal note.
@@ -92,8 +94,8 @@ export const TicketReplyBox = ({
         ? sendLabel(note)
         : sendLabel
       : note
-        ? 'Add internal note'
-        : 'Send reply';
+        ? ticketWords.addInternalNote
+        : ticketWords.sendReply;
 
   // Staff surface splits the send button; customer surface is a single "Send reply".
   // Both use the Qonsole-style minimal `custom1` accent (the Composer default); the

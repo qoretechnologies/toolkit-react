@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreControlGroup, ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { ChangeEvent, memo, useCallback, useEffect, useState } from 'react';
@@ -29,6 +30,7 @@ const stripDataUrlPrefix = (dataUrl: string): string => {
  */
 export const ReqraftBinaryFormField = memo(
   ({ value, onChange, ...rest }: IReqraftBinaryFormFieldProps) => {
+    const compWords = useReqraftLabels().components;
     const [localValue, setLocalValue] = useState<string>(value ?? '');
     // The parent's echo of an emit still in flight is not a change: copying it
     // over the local value lost what was typed since. See `EmittedValues`.
@@ -103,7 +105,7 @@ export const ReqraftBinaryFormField = memo(
             emitted.record('');
             onChange?.('');
           }}
-          placeholder='Base64-encoded binary value'
+          placeholder={compWords.base64EncodedBinaryValue}
           {...rest}
         />
         <ReqraftFileFormField disabled={rest.disabled} onChange={handleFileChange} />

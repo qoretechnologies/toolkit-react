@@ -7,6 +7,7 @@
  * how values were lost: a value the row could name was erased by a narrower
  * test, and the emptied form was then saved.
  */
+import { reqraftLabels } from './reqraftLabels';
 import { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import isEqual from 'lodash/isEqual';
 import { isRendererOnlyUiType } from '../components/form/engine/rendererTypes';
@@ -288,7 +289,7 @@ export const getUnlistedChoiceReason = (
   }
   const names = unlisted.map((item) => `"${describeChoiceValue(item)}"`);
   if (names.length === 1) {
-    return `${names[0]} is not one of the choices`;
+    return reqraftLabels().validation.xIsNotOneOfThe(names[0]);
   }
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are not among the choices`;
+  return reqraftLabels().validation.xAndXAreNotAmong(names.slice(0, -1).join(', '), names[names.length - 1]);
 };

@@ -1,3 +1,4 @@
+import { DEFAULT_VALIDATION_LABELS } from './labels/validationLabels';
 import { DEFAULT_REQRAFT_LABELS } from './reqraftLabels';
 
 // Copyright 2026 Qore Technologies, s.r.o.
@@ -6,6 +7,6 @@ import { DEFAULT_REQRAFT_LABELS } from './reqraftLabels';
  * blank (qorus#646, David: "in such cases there should be a reason given why there is no description in the
  * hover"). A host can say it in its own words (`ITemplateReferenceNames.noDescription`).
  */
-export const NO_VALUE_DESCRIPTION = 'No description was given for this value.';
+export const NO_VALUE_DESCRIPTION = DEFAULT_VALIDATION_LABELS.noValueDescription;
 export const NO_OPTION_DESCRIPTION = DEFAULT_REQRAFT_LABELS.formEngine.noDescription;
-export const NO_FIELD_DESCRIPTION = 'No description was given for this field.';
+export const NO_FIELD_DESCRIPTION = DEFAULT_VALIDATION_LABELS.noFieldDescription;

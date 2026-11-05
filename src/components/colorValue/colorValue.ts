@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 // Copyright 2026 Qore Technologies, s.r.o.
 // What a stored color is: the one reader for every read-only view of a color (qorus#646).
 //
@@ -214,13 +215,13 @@ const isOpacity = (n: unknown): boolean =>
 const listChannels = (channels: string[]): string =>
   channels.length < 2 ?
     channels.join('')
-  : `${channels.slice(0, -1).join(', ')} and ${channels[channels.length - 1]}`;
+  : reqraftLabels().validation.xAndX(channels.slice(0, -1).join(', '), channels[channels.length - 1]);
 
 /** The fields a stored color has: its channels and its opacity. */
 const STORED_FIELDS = ['r', 'g', 'b', 'a'];
 
 /** The stored shape, said where a value is not in it at all. */
-const STORED_AS = 'A color is stored as its red, green and blue values (r, g, b)';
+const storedAs = () => reqraftLabels().validation.colorStoredAs;
 
 /**
  * What is wrong with a value stored as an `rgbcolor`, in plain words; undefined when it is a stored color (qorus#646,
@@ -234,44 +235,44 @@ const STORED_AS = 'A color is stored as its red, green and blue values (r, g, b)
  */
 export const storedColorProblem = (value: unknown): string | undefined => {
   if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
-    return 'No color is set.';
+    return reqraftLabels().validation.noColorIsSet;
   }
   if (typeof value === 'string') {
     const hex = hexCode(value);
-    return `${STORED_AS}, not as ${hex ? `the hex code ${showValue(value)}` : showValue(value)}.`;
+    return reqraftLabels().validation.xNotAsX(storedAs(), hex ? reqraftLabels().validation.theHexCodeX(showValue(value)) : showValue(value));
   }
   if (typeof value !== 'object' || Array.isArray(value)) {
-    return `${STORED_AS}, not as ${showValue(value)}.`;
+    return reqraftLabels().validation.xNotAsX(storedAs(), showValue(value));
   }
   const color = value as Record<string, unknown>;
   const missing = STORED_CHANNELS.filter(
     ([key]) => color[key] === undefined || color[key] === null
   );
   if (missing.length === STORED_CHANNELS.length && typeof color.hex === 'string') {
-    return `${STORED_AS}, not as the hex code ${showValue(color.hex)}.`;
+    return reqraftLabels().validation.xNotAsTheHexCode(storedAs(), showValue(color.hex));
   }
   const problems: string[] = [];
   if (missing.length) {
     const names = missing.map(([key, name]) => `${name} (${key})`);
-    problems.push(`${listChannels(names)} ${missing.length === 1 ? 'is' : 'are'} missing`);
+    problems.push(reqraftLabels().validation.xXMissing(listChannels(names), missing.length === 1 ? 'is' : 'are'));
   }
   for (const [key, name] of STORED_CHANNELS) {
     const channel = color[key];
     if (channel !== undefined && channel !== null && !isWholeChannel(channel)) {
       problems.push(
-        `${name} (${key}) must be a whole number from 0 to 255, not ${showValue(channel)}`
+        reqraftLabels().validation.xXMustBeAWhole(name, key, showValue(channel))
       );
     }
   }
   // an opacity that is not given is a color that is opaque
   if (color.a !== undefined && color.a !== null && !isOpacity(color.a)) {
-    problems.push(`opacity (a) must be a number from 0 to 1, not ${showValue(color.a)}`);
+    problems.push(reqraftLabels().validation.opacityAMustBeANumber(showValue(color.a)));
   }
   // a field beside its own, which the server refuses
   const extra = Object.keys(color).filter((key) => !STORED_FIELDS.includes(key));
   if (extra.length) {
     problems.push(
-      `the color also has ${listChannels(extra.map((key) => showValue(key)))}, which a stored color can't have`
+      reqraftLabels().validation.theColorAlsoHasXWhich(listChannels(extra.map((key) => showValue(key))))
     );
   }
   if (!problems.length) {

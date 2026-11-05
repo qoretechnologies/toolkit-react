@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 import { allowedValueName, allowedValueOf, heldAllowedValue } from '../../../helpers/allowedValues';
 import { choicePictureState, pictureBesideTheName } from './allowed-values/choicePicture';
 import {
@@ -157,6 +158,7 @@ export const FormField = <T extends TFormFieldType>({
   options, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...rest
 }: IFormFieldProps<T>) => {
+  const compWords = useReqraftLabels().components;
   // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
   const unavailableOpacity = useReadableOpacity(0.55);
   const id = useId();
@@ -659,7 +661,7 @@ export const FormField = <T extends TFormFieldType>({
           // a pick replaces what the field holds, and the list ticks the suggestion it holds (qorus#646)
           markedValue={heldAllowedValue(value, allowed_values)}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
-          placeholder='Saved & Suggested Values'
+          placeholder={compWords.savedSuggestedValues}
           minimal
           icon='SaveFill'
           fluid
@@ -679,7 +681,7 @@ export const FormField = <T extends TFormFieldType>({
           <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
             {/* Headed by the field's own name; "Select one:" only when it has
                 none. Same rule as FieldAllowedValuesCheckGroup. */}
-            {display_name ? `${display_name}:` : 'Select one:'}
+            {display_name ? `${display_name}:` : compWords.selectOne}
           </ReqoreSpan>
           {allowed_values.map((item, index) => {
             // its value and its name however the entry is written: an envelope, a bare value or a name

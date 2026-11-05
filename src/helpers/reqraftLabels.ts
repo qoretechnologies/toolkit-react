@@ -5,6 +5,9 @@ import {
   DEFAULT_COLOR_FORM_FIELD_LABELS,
   IColorFormFieldLabels,
 } from '../components/form/fields/color/labels';
+import { DEFAULT_COMPONENT_LABELS, IComponentLabels } from './labels/componentLabels';
+import { DEFAULT_TICKET_LABELS, ITicketLabels } from './labels/ticketLabels';
+import { DEFAULT_VALIDATION_LABELS, IValidationLabels } from './labels/validationLabels';
 import {
   DEFAULT_TEMPLATE_LIST_LABELS,
   DEFAULT_TEMPLATE_PICKER_LABELS,
@@ -522,6 +525,9 @@ export interface IReqraftLabels {
   expression: IExpressionLabels;
   schemaDefinition: ISchemaDefinitionLabels;
   typeCatalogue: ITypeCatalogueLabels;
+  validation: IValidationLabels;
+  components: IComponentLabels;
+  tickets: ITicketLabels;
 }
 
 /** What a host gives: any of the words of any part, and one or more entries of a part's maps. */
@@ -1071,6 +1077,9 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     unknownType: 'a value of an unknown type',
     sentenceForms: {},
   },
+  validation: DEFAULT_VALIDATION_LABELS,
+  components: DEFAULT_COMPONENT_LABELS,
+  tickets: DEFAULT_TICKET_LABELS,
 };
 
 const merged = (given: TReqraftLabelOverrides): IReqraftLabels => {
@@ -1093,6 +1102,7 @@ const merged = (given: TReqraftLabelOverrides): IReqraftLabels => {
 };
 
 let current: IReqraftLabels = DEFAULT_REQRAFT_LABELS;
+let version = 0;
 const listeners = new Set<() => void>();
 
 /**
@@ -1103,8 +1113,12 @@ const listeners = new Set<() => void>();
  */
 export const setReqraftLabels = (labels: TReqraftLabelOverrides = {}): void => {
   current = merged(labels);
+  version += 1;
   listeners.forEach((listener) => listener());
 };
+
+/** How many times a host has given words: part of the key of what is cached with words in it. */
+export const reqraftLabelsVersion = (): number => version;
 
 /** The words now: for code outside a component. A component reads `useReqraftLabels`, to be drawn again with new ones. */
 export const reqraftLabels = (): IReqraftLabels => current;

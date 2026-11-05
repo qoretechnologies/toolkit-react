@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels } from './reqraftLabels';
 
 /**
  * Browser APIs that exist only in a secure context (https, or localhost), with what to do where they do not.
@@ -22,7 +23,7 @@ export { eventId as randomUuid } from '../tracking/core/ids';
 /** Thrown when no way of copying worked, so a caller can show that the copy did not happen. */
 export class ClipboardUnavailableError extends Error {
   constructor() {
-    super('The browser did not allow copying to the clipboard.');
+    super(reqraftLabels().components.clipboardRefused);
     this.name = 'ClipboardUnavailableError';
   }
 }

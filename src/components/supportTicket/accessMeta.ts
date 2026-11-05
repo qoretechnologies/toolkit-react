@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { ITicketEnumMeta, humaniseWireValue } from './meta';
@@ -19,7 +20,8 @@ export type TSupportAccessPolicy = 'auto' | 'ask' | 'never';
 
 /** Where the governing setting came from. `default` when the customer never chose;
  *  `owner` when the workspace's billing owner's stricter setting governs the ticket. */
-export type TSupportAccessPolicySource = 'default' | 'signup' | 'prompt' | 'settings' | 'admin' | 'owner';
+export type TSupportAccessPolicySource =
+  'default' | 'signup' | 'prompt' | 'settings' | 'admin' | 'owner';
 
 export type TSupportGrantState = 'active' | 'revoked' | 'expired';
 
@@ -57,102 +59,249 @@ export interface ISupportAccessMeta extends ITicketEnumMeta {
 
 /** `idle_paused` → "Idle paused": a wire value as words. */
 
-const UNKNOWN: ISupportAccessMeta = { label: 'Unknown', intent: 'muted', icon: 'QuestionLine' };
+const UNKNOWN: ISupportAccessMeta = {
+  get label() {
+    return reqraftLabels().tickets.unknown;
+  },
+  intent: 'muted',
+  icon: 'QuestionLine',
+};
 
 const lookup =
   <K extends string>(table: Record<K, ISupportAccessMeta>) =>
   (value: string | undefined): ISupportAccessMeta =>
-    value === undefined
-      ? UNKNOWN
-      : ((table as Record<string, ISupportAccessMeta>)[value] ?? { ...UNKNOWN, label: humaniseWireValue(value) });
+    value === undefined ? UNKNOWN : (
+      ((table as Record<string, ISupportAccessMeta>)[value] ?? {
+        ...UNKNOWN,
+        label: humaniseWireValue(value),
+      })
+    );
 
 export const SUPPORT_ACCESS_POLICY_META: Record<TSupportAccessPolicy, ISupportAccessMeta> = {
   auto: {
-    label: 'Granted automatically',
+    get label() {
+      return reqraftLabels().tickets.grantedAutomatically;
+    },
     intent: 'success',
     icon: 'ShieldCheckLine',
-    description: 'Read-only access for Qorus Support is granted automatically on every ticket filed.',
+    get description() {
+      return reqraftLabels().tickets.readOnlyAccessForQorusSupport;
+    },
   },
   ask: {
-    label: 'Ask the customer',
+    get label() {
+      return reqraftLabels().tickets.askTheCustomer;
+    },
     intent: 'info',
     icon: 'QuestionAnswerLine',
-    description: 'Support asks on each ticket; the customer decides whether to grant access.',
+    get description() {
+      return reqraftLabels().tickets.supportAsksOnEachTicketThe;
+    },
   },
   never: {
-    label: 'Never',
+    get label() {
+      return reqraftLabels().tickets.never;
+    },
     intent: 'danger',
     icon: 'ShieldCrossLine',
-    description: 'No workspace access for Qorus Support. Support asks for information in the thread instead.',
+    get description() {
+      return reqraftLabels().tickets.noWorkspaceAccessForQorusSupport;
+    },
   },
 };
 /** The setting's mark; an unknown value still reads as words. */
 export const supportAccessPolicyMeta = lookup(SUPPORT_ACCESS_POLICY_META);
 
 export const SUPPORT_ACCESS_POLICY_SOURCE_LABEL: Record<TSupportAccessPolicySource, string> = {
-  default: 'the default, never chosen',
-  signup: 'chosen at sign-up',
-  prompt: 'chosen when first asked',
-  settings: 'chosen in the account settings',
-  admin: 'set by Qorus staff',
-  owner: "the workspace owner's stricter setting",
+  get default() {
+    return reqraftLabels().tickets.theDefaultNeverChosen;
+  },
+  get signup() {
+    return reqraftLabels().tickets.chosenAtSignUp;
+  },
+  get prompt() {
+    return reqraftLabels().tickets.chosenWhenFirstAsked;
+  },
+  get settings() {
+    return reqraftLabels().tickets.chosenInTheAccountSettings;
+  },
+  get admin() {
+    return reqraftLabels().tickets.setByQorusStaff;
+  },
+  get owner() {
+    return reqraftLabels().tickets.theWorkspaceOwnerSStricterSetting;
+  },
 };
 export const supportAccessPolicySourceLabel = (source: string | undefined): string =>
   (source && (SUPPORT_ACCESS_POLICY_SOURCE_LABEL as Record<string, string>)[source]) ||
   humaniseWireValue(source ?? '');
 
 export const SUPPORT_GRANT_STATE_META: Record<TSupportGrantState, ISupportAccessMeta> = {
-  active: { label: 'Active', intent: 'success', icon: 'ShieldCheckLine' },
-  revoked: { label: 'Revoked', intent: 'danger', icon: 'ShieldCrossLine' },
-  expired: { label: 'Expired', intent: 'muted', icon: 'HourglassLine' },
+  active: {
+    get label() {
+      return reqraftLabels().tickets.active;
+    },
+    intent: 'success',
+    icon: 'ShieldCheckLine',
+  },
+  revoked: {
+    get label() {
+      return reqraftLabels().tickets.revoked;
+    },
+    intent: 'danger',
+    icon: 'ShieldCrossLine',
+  },
+  expired: {
+    get label() {
+      return reqraftLabels().tickets.expired;
+    },
+    intent: 'muted',
+    icon: 'HourglassLine',
+  },
 };
 export const supportGrantStateMeta = lookup(SUPPORT_GRANT_STATE_META);
 
 /** How a grant ended, as what follows "Access": "ended by the customer", "ran out". */
 export const SUPPORT_GRANT_END_CAUSE_LABEL: Record<TSupportGrantEndCause, string> = {
-  customer_revoked: 'ended by the customer',
-  staff_revoked: 'ended by support',
-  superseded: 'extended into a new grant',
-  ticket_resolved: 'ended when the ticket was resolved',
-  ticket_closed: 'ended when the ticket was closed',
-  policy_changed: "ended when the account's setting changed",
-  account_erased: 'ended when the account was erased',
-  workspace_deleted: 'ended when the workspace was deleted',
-  expired: 'ran out',
+  get customer_revoked() {
+    return reqraftLabels().tickets.endedByTheCustomer;
+  },
+  get staff_revoked() {
+    return reqraftLabels().tickets.endedBySupport;
+  },
+  get superseded() {
+    return reqraftLabels().tickets.extendedIntoANewGrant;
+  },
+  get ticket_resolved() {
+    return reqraftLabels().tickets.endedWhenTheTicketWasResolved;
+  },
+  get ticket_closed() {
+    return reqraftLabels().tickets.endedWhenTheTicketWasClosed;
+  },
+  get policy_changed() {
+    return reqraftLabels().tickets.endedWhenTheAccountSSetting;
+  },
+  get account_erased() {
+    return reqraftLabels().tickets.endedWhenTheAccountWasErased;
+  },
+  get workspace_deleted() {
+    return reqraftLabels().tickets.endedWhenTheWorkspaceWasDeleted;
+  },
+  get expired() {
+    return reqraftLabels().tickets.ranOut;
+  },
 };
 /**
  * The cause as the viewer reads it: the customer who ended it reads "ended by you", and
  * reads staff as "Qorus Support", as everywhere on the customer surface.
  */
-export const supportGrantEndCauseLabel = (cause?: string, viewerRole?: TTicketViewerRole): string | undefined => {
+export const supportGrantEndCauseLabel = (
+  cause?: string,
+  viewerRole?: TTicketViewerRole
+): string | undefined => {
   if (!cause) return undefined;
-  if (viewerRole === 'customer' && cause === 'customer_revoked') return 'ended by you';
-  if (viewerRole === 'customer' && cause === 'staff_revoked') return 'ended by Qorus Support';
-  return (SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseWireValue(cause);
+  if (viewerRole === 'customer' && cause === 'customer_revoked')
+    return reqraftLabels().tickets.endedByYou;
+  if (viewerRole === 'customer' && cause === 'staff_revoked')
+    return reqraftLabels().tickets.endedByQorusSupport;
+  return (
+    (SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseWireValue(cause)
+  );
 };
 
 export const SUPPORT_ACCESS_DURATION_LABEL: Record<TSupportAccessDuration, string> = {
-  '24h': '24 hours',
-  '72h': '3 days',
-  '7d': '7 days',
-  until_resolved: 'until the ticket is resolved',
+  get '24h'() {
+    return reqraftLabels().tickets.t24Hours;
+  },
+  get '72h'() {
+    return reqraftLabels().tickets.t3Days;
+  },
+  get '7d'() {
+    return reqraftLabels().tickets.t7Days;
+  },
+  get until_resolved() {
+    return reqraftLabels().tickets.untilTheTicketIsResolved;
+  },
 };
 export const supportAccessDurationLabel = (duration: string | undefined): string =>
   (duration && (SUPPORT_ACCESS_DURATION_LABEL as Record<string, string>)[duration]) ||
   humaniseWireValue(duration ?? '');
 
 /** The grant's own trail, as a customer's access log or a staff access view lists it. */
-export const SUPPORT_ACCESS_AUDIT_ACTION_META: Record<TSupportAccessAuditAction, ISupportAccessMeta> = {
-  policy_set: { label: 'Setting changed', intent: 'info', icon: 'Settings3Line' },
-  access_requested: { label: 'Access requested', intent: 'pending', icon: 'ShieldUserLine' },
-  granted: { label: 'Access granted', intent: 'success', icon: 'ShieldCheckLine' },
-  extended: { label: 'Access extended', intent: 'info', icon: 'TimerLine' },
-  revoked: { label: 'Access ended', intent: 'danger', icon: 'ShieldCrossLine' },
-  expired: { label: 'Access expired', intent: 'muted', icon: 'HourglassLine' },
-  used: { label: 'Workspace read', intent: 'info', icon: 'EyeLine' },
-  use_refused: { label: 'Read refused', intent: 'warning', icon: 'ForbidLine' },
-  session_started: { label: 'IDE session started', intent: 'info', icon: 'ExternalLinkLine' },
-  session_ended: { label: 'IDE session ended', intent: 'muted', icon: 'LogoutBoxLine' },
+export const SUPPORT_ACCESS_AUDIT_ACTION_META: Record<
+  TSupportAccessAuditAction,
+  ISupportAccessMeta
+> = {
+  policy_set: {
+    get label() {
+      return reqraftLabels().tickets.settingChanged;
+    },
+    intent: 'info',
+    icon: 'Settings3Line',
+  },
+  access_requested: {
+    get label() {
+      return reqraftLabels().tickets.accessRequested;
+    },
+    intent: 'pending',
+    icon: 'ShieldUserLine',
+  },
+  granted: {
+    get label() {
+      return reqraftLabels().tickets.accessGranted;
+    },
+    intent: 'success',
+    icon: 'ShieldCheckLine',
+  },
+  extended: {
+    get label() {
+      return reqraftLabels().tickets.accessExtended;
+    },
+    intent: 'info',
+    icon: 'TimerLine',
+  },
+  revoked: {
+    get label() {
+      return reqraftLabels().tickets.accessEnded;
+    },
+    intent: 'danger',
+    icon: 'ShieldCrossLine',
+  },
+  expired: {
+    get label() {
+      return reqraftLabels().tickets.accessExpired;
+    },
+    intent: 'muted',
+    icon: 'HourglassLine',
+  },
+  used: {
+    get label() {
+      return reqraftLabels().tickets.workspaceRead;
+    },
+    intent: 'info',
+    icon: 'EyeLine',
+  },
+  use_refused: {
+    get label() {
+      return reqraftLabels().tickets.readRefused;
+    },
+    intent: 'warning',
+    icon: 'ForbidLine',
+  },
+  session_started: {
+    get label() {
+      return reqraftLabels().tickets.ideSessionStarted;
+    },
+    intent: 'info',
+    icon: 'ExternalLinkLine',
+  },
+  session_ended: {
+    get label() {
+      return reqraftLabels().tickets.ideSessionEnded;
+    },
+    intent: 'muted',
+    icon: 'LogoutBoxLine',
+  },
 };
 /** An action the plane writes that this vocabulary has not caught up with still renders. */
 export const supportAccessAuditActionMeta = (action: string): ISupportAccessMeta =>
@@ -195,8 +344,8 @@ export const formatRelativeTime = (iso: string | undefined, now: number, locale 
   if (Number.isNaN(then)) return '';
   const seconds = Math.round((then - now) / 1000);
   if (seconds >= 0 && seconds < CLOCK_TICK_SECONDS) {
-    return locale === 'en'
-      ? 'just now'
+    return locale === 'en' ?
+        reqraftLabels().tickets.justNow
       : new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(0, 'second');
   }
   for (const [unit, secondsInUnit] of RELATIVE_UNITS) {
@@ -204,7 +353,10 @@ export const formatRelativeTime = (iso: string | undefined, now: number, locale 
       // "tomorrow" and "yesterday" read well; "next month" does not say when a grant ends, and a week
       // is not a unit here so seven days read "in 7 days", not "next week"
       const numeric = secondsInUnit > 60 * 60 * 24 ? 'always' : 'auto';
-      return new Intl.RelativeTimeFormat(locale, { numeric }).format(Math.round(seconds / secondsInUnit), unit);
+      return new Intl.RelativeTimeFormat(locale, { numeric }).format(
+        Math.round(seconds / secondsInUnit),
+        unit
+      );
     }
   }
   return '';
@@ -214,9 +366,9 @@ export const formatRelativeTime = (iso: string | undefined, now: number, locale 
 export const formatInstant = (iso: string | undefined, locale = 'en-GB'): string => {
   if (!iso) return '';
   const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+  return Number.isNaN(date.getTime()) ? iso : (
+      date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })
+    );
 };
 
 /** Milliseconds until an instant; negative once it passed; NaN for nothing. */
@@ -233,7 +385,7 @@ export const grantTimeIntent = (expiresAt: string | undefined, now: number): TRe
 };
 
 /** The grantee, as every surface names the support team. */
-const GRANTEE = 'Qorus Support';
+const grantee = () => reqraftLabels().tickets.qorusSupport;
 
 /**
  * The line of a delegated-access event in a thread, read from the viewer's side. The plane records
@@ -249,7 +401,13 @@ export const supportAccessEventText = (
   viewerRole?: TTicketViewerRole
 ): string => {
   const cause = message.system_detail?.end_cause;
-  const ended = message.system_event === 'support_access.revoked' || message.system_event === 'support_access.expired';
-  if (!ended || typeof cause !== 'string' || !(cause in SUPPORT_GRANT_END_CAUSE_LABEL)) return message.body;
-  return `${GRANTEE}'s read-only access to this workspace ${supportGrantEndCauseLabel(cause, viewerRole)}.`;
+  const ended =
+    message.system_event === 'support_access.revoked' ||
+    message.system_event === 'support_access.expired';
+  if (!ended || typeof cause !== 'string' || !(cause in SUPPORT_GRANT_END_CAUSE_LABEL))
+    return message.body;
+  return reqraftLabels().tickets.xSReadOnlyAccessTo(
+    grantee(),
+    supportGrantEndCauseLabel(cause, viewerRole)
+  );
 };

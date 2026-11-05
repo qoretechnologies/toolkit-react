@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../../../helpers/reqraftLabels';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   IReqoreRichTextEditorProps,
@@ -43,7 +44,6 @@ import {
 import { TEMPLATE_BROWSE_LIST_PROPS } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
-import { NO_VALUE_DESCRIPTION } from '../../../../helpers/noDescription';
 import {
   hostSaysOf,
   referenceStanding,
@@ -770,7 +770,7 @@ export const RichTextFormField = memo(({
               listed ?
                 // its whole path heads the card, as every view's hover of a listed template says it
                 templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm)
-              : descriptionTooltip(descriptionByValue[tagValue] || NO_VALUE_DESCRIPTION, descriptions),
+              : descriptionTooltip(descriptionByValue[tagValue] || reqraftLabels().validation.noValueDescription, descriptions),
             // The same chip the read summary and the read-only tag draw.
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(tag.metadata),

@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 /*
  * Authed attachment byte-fetching, shared by every ticket surface.
  *
@@ -42,8 +43,6 @@ export interface ITicketAttachmentAccess {
   download: (ticketId: string, attachmentId: string, filename: string) => Promise<void>;
 }
 
-const DEFAULT_DOWNLOAD_FAILURE = 'Could not download the attachment';
-const DEFAULT_LOAD_FAILURE = 'Could not load the attachment';
 
 /**
  * Save a blob to disk under `filename`, via a temporary anchor.
@@ -74,7 +73,7 @@ export const createTicketAttachmentAccess = ({
   const fetchBlob = async (
     ticketId: string,
     attachmentId: string,
-    failure: string = DEFAULT_LOAD_FAILURE
+    failure: string = reqraftLabels().tickets.couldNotLoadAttachment
   ): Promise<Blob> => {
     const response = await fetch(attachmentUrl(ticketId, attachmentId), {
       headers: headers?.() ?? {},
@@ -90,8 +89,8 @@ export const createTicketAttachmentAccess = ({
   return {
     fetchBlob,
     fetchBlobUrl: async (ticketId, attachmentId) =>
-      URL.createObjectURL(await fetchBlob(ticketId, attachmentId, DEFAULT_LOAD_FAILURE)),
+      URL.createObjectURL(await fetchBlob(ticketId, attachmentId, reqraftLabels().tickets.couldNotLoadAttachment)),
     download: async (ticketId, attachmentId, filename) =>
-      saveBlobAs(await fetchBlob(ticketId, attachmentId, DEFAULT_DOWNLOAD_FAILURE), filename),
+      saveBlobAs(await fetchBlob(ticketId, attachmentId, reqraftLabels().tickets.couldNotDownloadAttachment), filename),
   };
 };

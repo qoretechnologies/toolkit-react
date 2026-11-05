@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { ReqoreButton, ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
@@ -7,7 +8,7 @@ import { cloneElement, Key, memo, ReactElement } from 'react';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
 
 /** What the ⓘ is called, for a screen reader: the thing it explains. */
-export const describedControlInfoLabel = (name: string) => `About ${name}`;
+export const describedControlInfoLabel = (name: string) => reqraftLabels().components.aboutX(name);
 
 export interface IDescriptionInfoButtonProps {
   /** The description it opens: the server's markdown, drawn as every description card is. */

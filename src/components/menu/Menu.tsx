@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -143,6 +144,7 @@ export const ReqraftMenu = ({
   bottomChildren,
   ...rest
 }: IReqraftMenuProps) => {
+  const compWords = useReqraftLabels().components;
   // text from the start, empty with no query: a filter with no value became controlled at the first key
   const [query, setQuery] = useState<string>(defaultQuery ?? '');
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -270,7 +272,7 @@ export const ReqraftMenu = ({
           icon='Search2Line'
           minimal={false}
           flat={false}
-          placeholder={`Filter menu "${inputFocusShortcut}"`}
+          placeholder={compWords.filterMenuX(inputFocusShortcut)}
           intent={query ? 'info' : undefined}
           leftIconProps={{ size: 'small' }}
           iconColor={query ? 'info' : 'muted'}

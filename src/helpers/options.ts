@@ -1,3 +1,5 @@
+import { reqraftLabels } from './reqraftLabels';
+import { DEFAULT_VALIDATION_LABELS } from './labels/validationLabels';
 import { IQorusFormSchema, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 
 export const getOptionsFromRequiredGroups = (
@@ -20,14 +22,14 @@ export const getRequiredOptionMessage = (
   currentField: string
 ): string => {
   if ((schema[currentField] as TQorusFormFieldSchema).required) {
-    return 'This field is required';
+    return reqraftLabels().validation.thisFieldIsRequired;
   }
 
   const requiredOptions = getOptionsFromRequiredGroups(schema, groups, currentField)
     .map((option) => (schema[option] as TQorusFormFieldSchema).display_name)
     .join(' or ');
 
-  return `This field or ${requiredOptions} is required`;
+  return reqraftLabels().validation.thisFieldOrXIsRequired(requiredOptions);
 };
 
 /**
@@ -131,7 +133,7 @@ export interface ISchemaMessage {
 }
 
 /** The sentence a refusal with no reason of its own falls back to. */
-export const UNAVAILABLE_VALUE_FALLBACK_REASON = 'This value is not available';
+export const UNAVAILABLE_VALUE_FALLBACK_REASON = DEFAULT_VALIDATION_LABELS.thisValueIsNotAvailable;
 
 /**
  * Which of a refused value's messages is the REASON it was refused.

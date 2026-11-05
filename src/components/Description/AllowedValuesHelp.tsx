@@ -1,4 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import { DEFAULT_COMPONENT_LABELS } from '../../helpers/labels/componentLabels';
 import { useReqoreTheme } from '@qoretechnologies/reqore';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import styled from 'styled-components';
@@ -6,9 +8,9 @@ import { allowedValueName, allowedValueOf } from '../../helpers/allowedValues';
 import { markdownToProse } from '../../helpers/markdownText';
 
 /** What help says to head the values a field holds one of. */
-export const ALLOWED_VALUES_HEADING = 'Allowed values';
+export const ALLOWED_VALUES_HEADING = DEFAULT_COMPONENT_LABELS.allowedValues;
 /** What help says to head the values a field offers, where it takes others too. */
-export const SUGGESTED_VALUES_HEADING = 'Suggested values';
+export const SUGGESTED_VALUES_HEADING = DEFAULT_COMPONENT_LABELS.suggestedValues;
 
 const StyledAllowedValues = styled.div<{
   $text: string;
@@ -105,6 +107,7 @@ const rowOf = (entry: unknown) => {
  * this instead"). "Suggested values" heads the values of a field that takes others too.
  */
 export const AllowedValuesHelp = ({ values, suggested, compact }: IAllowedValuesHelpProps) => {
+  const compWords = useReqraftLabels().components;
   const theme = useReqoreTheme();
   const text = getReadableColor(theme);
   if (!values.length) {
@@ -123,17 +126,17 @@ export const AllowedValuesHelp = ({ values, suggested, compact }: IAllowedValues
       $compact={compact}
     >
       <div className='allowed-values-heading'>
-        {suggested ? SUGGESTED_VALUES_HEADING : ALLOWED_VALUES_HEADING}
+        {suggested ? compWords.suggestedValues : compWords.allowedValues}
       </div>
       <table className='allowed-values-table'>
         <thead>
           <tr>
-            <th scope='col'>Value</th>
+            <th scope='col'>{compWords.value}</th>
             {named ?
-              <th scope='col'>Name</th>
+              <th scope='col'>{compWords.name}</th>
             : null}
             {described ?
-              <th scope='col'>Description</th>
+              <th scope='col'>{compWords.description}</th>
             : null}
           </tr>
         </thead>

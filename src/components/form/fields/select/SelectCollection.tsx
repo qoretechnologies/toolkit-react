@@ -1,4 +1,4 @@
-import { DEFAULT_REQRAFT_LABELS, useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { DEFAULT_REQRAFT_LABELS, reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreCollection,
@@ -18,7 +18,6 @@ import { useMemo, useState } from 'react';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import styled from 'styled-components';
 import {
-  UNAVAILABLE_VALUE_FALLBACK_REASON,
   getRefusalMessage,
 } from '../../../../helpers/options';
 import { Description } from '../../../Description';
@@ -328,7 +327,7 @@ export const getSelectItemUnavailability = (
   return {
     intent: explanation?.intent || 'warning',
     title: explanation?.title,
-    content: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+    content: explanation?.content || reqraftLabels().validation.thisValueIsNotAvailable,
   };
 };
 

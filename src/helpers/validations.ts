@@ -1,3 +1,4 @@
+import { reqraftLabels, reqraftLabelsVersion } from './reqraftLabels';
 import { IQorusFormSchema, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { isValidCron } from 'cron-validator';
 import jsyaml from 'js-yaml';
@@ -183,7 +184,7 @@ export const patternMismatchReason = (field?: {
   const desc =
     typeof field?.validation_regex_desc === 'string' ? field.validation_regex_desc.trim() : '';
   if (desc) {
-    return sentence(`Must be ${desc}`);
+    return sentence(reqraftLabels().validation.mustBeX(desc));
   }
   const example = field?.example_value;
   const exampleText =
@@ -192,9 +193,9 @@ export const patternMismatchReason = (field?: {
     : '';
   const main =
     exampleText ?
-      `Must match the expected form, for example ${exampleText}.`
-    : 'Must match the expected form.';
-  return field?.validation_regex ? `${main} Pattern: ${field.validation_regex}` : main;
+      reqraftLabels().validation.mustMatchTheExpectedFormFor(exampleText)
+    : reqraftLabels().validation.mustMatchTheExpectedForm;
+  return field?.validation_regex ? reqraftLabels().validation.xPatternX(main, field.validation_regex) : main;
 };
 
 const invalidResult = (
@@ -258,10 +259,10 @@ const checkNumericBounds = (value: any, field?: IFieldValidationProps): IValidat
   const max = field?.max_value;
 
   if (typeof min === 'number' && Number.isFinite(min) && num < min) {
-    return invalidResult(`Value must be ${min} or more`);
+    return invalidResult(reqraftLabels().validation.valueMustBeXOrMore(min));
   }
   if (typeof max === 'number' && Number.isFinite(max) && num > max) {
-    return invalidResult(`Value must be ${max} or less`);
+    return invalidResult(reqraftLabels().validation.valueMustBeXOrLess(max));
   }
   return validResult();
 };
@@ -306,7 +307,7 @@ const typeInSentence = (type: string): string | undefined =>
 /** What is said of a value that is not of its field's type, the type named where there is one (qorus#646). */
 const valueMustBe = (type: string): string => {
   const named = typeInSentence(type);
-  return named ? `Value must be ${named}` : "Value must be of this field's type";
+  return named ? reqraftLabels().validation.valueMustBeX(named) : reqraftLabels().validation.valueMustBeOfThisField;
 };
 
 /** The types a value is written as text in, where text around a template makes it text and not one of them. */
@@ -332,7 +333,7 @@ const NOT_TEXT_WITH_A_TEMPLATE = new Set([
  */
 const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
   const notA = NOT_TEXT_WITH_A_TEMPLATE.has(type)
-    ? (typeInSentence(type) ?? "of this field's type")
+    ? (typeInSentence(type) ?? reqraftLabels().validation.ofThisFieldSType)
     : undefined;
   const around = notA ? textAroundATemplate(value) : undefined;
   if (!around) {
@@ -340,20 +341,14 @@ const textAroundATemplateReason = (type: string, value: unknown): string | undef
   }
   if (around.templates > 1) {
     return around.text.length
-      ? `Text and more than one template make this text, not ${notA}. Keep one template alone.`
-      : `Templates side by side make this text, not ${notA}. Keep one of them alone.`;
+      ? reqraftLabels().validation.textAndMoreThanOneTemplate(notA)
+      : reqraftLabels().validation.templatesSideBySideMakeThis(notA);
   }
-  return `"${around.text.join(' … ')}" makes this text, not ${notA}. Delete it to keep the template alone.`;
+  return reqraftLabels().validation.xMakesThisTextNotX(around.text.join(' … '), notA);
 };
 
 /** 1st, 2nd, 3rd, 4th, … 11th, 12th, 13th, … 21st: a position as it is written. */
-const ordinal = (n: number): string => {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 13) {
-    return `${n}th`;
-  }
-  return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`;
-};
+const ordinal = (n: number): string => reqraftLabels().expression.ordinal(n);
 
 export const _validateField = (
   type: string,
@@ -363,10 +358,10 @@ export const _validateField = (
 ): IValidationResult => {
   if (!type) {
     if (value === undefined || value === null) {
-      return invalidResult('Missing value');
+      return invalidResult(reqraftLabels().validation.missingValue);
     }
 
-    return invalidResult('Missing type');
+    return invalidResult(reqraftLabels().validation.missingType);
   }
 
   // Check if the type starts with a * to indicate it can be null
@@ -396,7 +391,7 @@ export const _validateField = (
     const hasKey = !!getTemplateKey(value);
     const hasValue = !!getTemplateValue(value);
 
-    return resultFromBoolean(hasKey && hasValue, 'Template must include key and value');
+    return resultFromBoolean(hasKey && hasValue, reqraftLabels().validation.templateMustIncludeKeyAndValue);
   }
   // Expression values (`is_expression`) carry the AST `{ exp, args }` instead of
   // a typed literal, so the declared type says nothing about them — validate
@@ -454,7 +449,7 @@ export const _validateField = (
   switch (type) {
     case 'richtext': {
       if (!value || !size(value)) {
-        return invalidResult('Text value is empty');
+        return invalidResult(reqraftLabels().validation.textValueIsEmpty);
       }
 
       if (typeof value === 'string') {
@@ -462,7 +457,7 @@ export const _validateField = (
       }
 
       if (isRichTextWithoutValue(value)) {
-        return invalidResult('Text value is empty');
+        return invalidResult(reqraftLabels().validation.textValueIsEmpty);
       }
 
       return validResult();
@@ -477,7 +472,7 @@ export const _validateField = (
       );
     case 'connection': {
       if (!value) {
-        return invalidResult('Connection value is missing');
+        return invalidResult(reqraftLabels().validation.connectionValueIsMissing);
       }
 
       if (field?.allowed_values) {
@@ -486,21 +481,21 @@ export const _validateField = (
         );
 
         if (!allowedValue) {
-          return invalidResult('Connection is not allowed');
+          return invalidResult(reqraftLabels().validation.connectionIsNotAllowed);
         }
 
         if (allowedValue.disabled || allowedValue.metadata?.needs_auth) {
-          return invalidResult('Connection is disabled or not authenticated');
+          return invalidResult(reqraftLabels().validation.connectionIsDisabledOrNotAuthenticated);
         }
       }
 
       if (field?.disabled || field?.metadata?.needs_auth) {
-        return invalidResult('Connection is disabled or not authenticated');
+        return invalidResult(reqraftLabels().validation.connectionIsDisabledOrNotAuthenticated);
       }
 
       return withContext(
         validateFieldWithResult('string', value, field),
-        'Connection string validation failed'
+        reqraftLabels().validation.connectionStringValidationFailed
       );
     }
     // semantic string formats — permissive patterns mirror the qore DataProvider
@@ -513,25 +508,25 @@ export const _validateField = (
     case 'ipv6':
     case 'phone': {
       if (value === undefined || value === null || value === '' || typeof value !== 'string') {
-        return invalidResult('Value must be a non-empty text');
+        return invalidResult(reqraftLabels().validation.valueMustBeANonEmpty);
       }
       if (field?.validation_regex && !value.match(field.validation_regex)) {
         return invalidResult(patternMismatchReason(field));
       }
       return resultFromBoolean(
         SEMANTIC_FORMAT_PATTERNS[type].test(value),
-        `Value is not a valid ${type}`
+        reqraftLabels().validation.valueIsNotAValidX(type)
       );
     }
     case 'binary': {
       if (typeof value !== 'string') {
-        return invalidResult('Binary value must be a string');
+        return invalidResult(reqraftLabels().validation.binaryValueMustBeAString);
       }
 
       const trimmed = value.trim();
 
       if (trimmed.length === 0) {
-        return invalidResult('Binary value is empty');
+        return invalidResult(reqraftLabels().validation.binaryValueIsEmpty);
       }
 
       // the canonical wire form is base64 (matching the server decode); a "data:<mime>;base64,..." URL
@@ -544,13 +539,13 @@ export const _validateField = (
         const hex = trimmed.replace(/^0x/i, '');
         return resultFromBoolean(
           hex.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(hex),
-          'Binary hex value is invalid'
+          reqraftLabels().validation.binaryHexValueIsInvalid
         );
       }
 
       return resultFromBoolean(
         /^[A-Za-z0-9+/]+={0,2}$/.test(trimmed),
-        'Binary value must be base64, a data: URL, or 0x-prefixed hex'
+        reqraftLabels().validation.binaryValueMustBeBase64A
       );
     }
     case 'string':
@@ -567,7 +562,7 @@ export const _validateField = (
     case 'code-editor':
     case 'data': {
       if (value === undefined || value === null || value === '' || typeof value !== 'string') {
-        return invalidResult('Value must be a non-empty text');
+        return invalidResult(reqraftLabels().validation.valueMustBeANonEmpty);
       }
 
       const reasons: string[] = [];
@@ -584,13 +579,13 @@ export const _validateField = (
         (Array.isArray(field?.rules) && field.rules.includes('valid_identifier'))
       ) {
         if (value.match(/^[0-9]|\W/)) {
-          reasons.push('Value is not a valid identifier');
+          reasons.push(reqraftLabels().validation.valueIsNotAValidIdentifier);
         }
       }
 
       if (field?.has_to_have_value) {
         if (value === '' || value.length === 0) {
-          reasons.push('Value is required');
+          reasons.push(reqraftLabels().validation.valueIsRequired);
         }
       }
 
@@ -631,10 +626,10 @@ export const _validateField = (
       // masked the content result entirely, so the form could only ever surface
       // one problem at a time.
       const reasons = [
-        ...(nameResult.isValid ? [] : withContext(nameResult, 'File name is invalid').reasons),
+        ...(nameResult.isValid ? [] : withContext(nameResult, reqraftLabels().validation.fileNameIsInvalid).reasons),
         ...(contentResult.isValid
           ? []
-          : withContext(contentResult, 'File content is invalid').reasons),
+          : withContext(contentResult, reqraftLabels().validation.fileContentIsInvalid).reasons),
       ];
 
       return reasons.length ? invalidResult(reasons) : validResult();
@@ -654,24 +649,24 @@ export const _validateField = (
         return validResult();
       }
       if (!Array.isArray(value)) {
-        return invalidResult('Value must be a list of documents');
+        return invalidResult(reqraftLabels().validation.valueMustBeAListOf);
       }
       const reasons: string[] = [];
       value.forEach((row: any, idx: number) => {
         if (!row || typeof row !== 'object') {
-          reasons.push(`Row ${idx + 1} is not an object`);
+          reasons.push(reqraftLabels().validation.rowXIsNotAnObject(idx + 1));
           return;
         }
         if (typeof row.name !== 'string' || !row.name) {
-          reasons.push(`Row ${idx + 1} is missing a name`);
+          reasons.push(reqraftLabels().validation.rowXIsMissingAName(idx + 1));
           return;
         }
         const hasServerId = typeof row.ai_documentid === 'number';
         const hasContent = typeof row.content === 'string' && !!row.content;
         if (!hasServerId && !hasContent) {
           reasons.push(
-            `Row ${idx + 1} ("${row.name}") has neither uploaded ` +
-              `content nor a server document id`
+            reqraftLabels().validation.rowXXHasNeitherUploaded(idx + 1, row.name) +
+              reqraftLabels().validation.contentNorAServerDocumentId
           );
         }
       });
@@ -683,7 +678,7 @@ export const _validateField = (
       // Check if every pair has key & value
       // assigned properly
       if (!Array.isArray(value)) {
-        return invalidResult('Value must be a list');
+        return invalidResult(reqraftLabels().validation.valueMustBeAList);
       }
       if (
         !value?.every(
@@ -692,7 +687,7 @@ export const _validateField = (
         )
       ) {
         valid = false;
-        reasons.push('All pairs must include both fields');
+        reasons.push(reqraftLabels().validation.allPairsMustIncludeBothFields);
       }
       // Get a list of unique values
       const uniqueValues: any[] = uniqWith(
@@ -702,14 +697,14 @@ export const _validateField = (
       // Check if there are any duplicates
       if (size(uniqueValues) !== size(value)) {
         valid = false;
-        reasons.push('Pairs must use unique keys');
+        reasons.push(reqraftLabels().validation.pairsMustUseUniqueKeys);
       }
 
       return valid ? validResult() : invalidResult(undefined, reasons);
     }
     case 'class-connectors': {
       if (!Array.isArray(value) || value.length === 0) {
-        return invalidResult('At least one connector is required');
+        return invalidResult(reqraftLabels().validation.atLeastOneConnectorIsRequired);
       }
       let valid = true;
       const reasons: string[] = [];
@@ -722,14 +717,14 @@ export const _validateField = (
         )
       ) {
         valid = false;
-        reasons.push('Each connector must have a name and method');
+        reasons.push(reqraftLabels().validation.eachConnectorMustHaveAName);
       }
       // Get a list of unique values
       const uniqueValues: any[] = uniqWith(value, (cur, prev) => cur.name === prev.name);
       // Check if there are any duplicates
       if (size(uniqueValues) !== size(value)) {
         valid = false;
-        reasons.push('Connector names must be unique');
+        reasons.push(reqraftLabels().validation.connectorNamesMustBeUnique);
       }
 
       return valid ? validResult() : invalidResult(undefined, reasons);
@@ -737,7 +732,7 @@ export const _validateField = (
     // Classes check
     case 'class-array': {
       if (!(Array.isArray(value) && value.length > 0)) {
-        return invalidResult('At least one class must be provided');
+        return invalidResult(reqraftLabels().validation.atLeastOneClassMustBe);
       }
       let valid = true;
       const reasons: string[] = [];
@@ -746,7 +741,7 @@ export const _validateField = (
         !value?.every((pair: { [key: string]: string }): boolean => !!pair.name && pair.name !== '')
       ) {
         valid = false;
-        reasons.push('Each class must have a name');
+        reasons.push(reqraftLabels().validation.eachClassMustHaveAName);
       }
       // Get a list of unique values
       const uniqueValues: any[] = uniqWith(
@@ -756,7 +751,7 @@ export const _validateField = (
       // Check if there are any duplicates
       if (size(uniqueValues) !== size(value)) {
         valid = false;
-        reasons.push('Class names must be unique');
+        reasons.push(reqraftLabels().validation.classNamesMustBeUnique);
       }
 
       return valid ? validResult() : invalidResult(undefined, reasons);
@@ -781,10 +776,10 @@ export const _validateField = (
     case 'multi-select':
     case 'array':
     case 'file-tree':
-      return resultFromBoolean(value && value.length > 0, 'At least one value is required');
+      return resultFromBoolean(value && value.length > 0, reqraftLabels().validation.atLeastOneValueIsRequired);
     case 'cron': {
       if (!value) {
-        return invalidResult('Cron value is required');
+        return invalidResult(reqraftLabels().validation.cronValueIsRequired);
       }
       const expression = cronExpressionFromValue(value);
       // A value that is neither a cron string nor a schedule hash is INVALID,
@@ -792,11 +787,11 @@ export const _validateField = (
       // passing it a hash threw a TypeError out of validation and took the
       // whole form down through the host's error boundary.
       if (expression === undefined) {
-        return invalidResult('Cron expression is invalid');
+        return invalidResult(reqraftLabels().validation.cronExpressionIsInvalid);
       }
       return resultFromBoolean(
         isValidCron(expression, { alias: true }),
-        'Cron expression is invalid'
+        reqraftLabels().validation.cronExpressionIsInvalid
       );
     }
     case 'date':
@@ -805,7 +800,7 @@ export const _validateField = (
           value !== null &&
           value !== '' &&
           new Date(value).toString() !== 'Invalid Date',
-        'Date is invalid'
+        reqraftLabels().validation.dateIsInvalid
       );
     case 'hash':
     case 'free-hash': {
@@ -831,7 +826,7 @@ export const _validateField = (
           }
         );
 
-        return resultFromBoolean(result, 'Hash arguments are invalid');
+        return resultFromBoolean(result, reqraftLabels().validation.hashArgumentsAreInvalid);
       }
 
       if (!parsedValue || !isObject(parsedValue)) {
@@ -858,7 +853,7 @@ export const _validateField = (
       }
 
       if (!isArray(parsedValue)) {
-        return invalidResult('Value must be a list');
+        return invalidResult(reqraftLabels().validation.valueMustBeAList);
       }
 
       if (field?.ui_element_type || field?.element_type) {
@@ -876,7 +871,7 @@ export const _validateField = (
           );
 
           if (!itemResult.isValid) {
-            return withContext(itemResult, `List item ${i} is invalid`);
+            return withContext(itemResult, reqraftLabels().validation.listItemXIsInvalid(i));
           }
         }
       }
@@ -887,20 +882,20 @@ export const _validateField = (
       const parsedValue: any = maybeParseYaml(value);
 
       if (!parsedValue || !isArray(parsedValue)) {
-        return invalidResult('Value must be a list of hashes');
+        return invalidResult(reqraftLabels().validation.valueMustBeAListOf2);
       }
 
       for (let i = 0; i < parsedValue.length; i++) {
         const item = parsedValue[i];
 
         if (!size(item)) {
-          return invalidResult(`Hash at index ${i} must not be empty`);
+          return invalidResult(reqraftLabels().validation.hashAtIndexXMustNot(i));
         }
 
         const itemResult = validateFieldWithResult('hash', item);
 
         if (!itemResult.isValid) {
-          return withContext(itemResult, `Hash at index ${i} is invalid`);
+          return withContext(itemResult, reqraftLabels().validation.hashAtIndexXIsInvalid(i));
         }
       }
 
@@ -908,7 +903,7 @@ export const _validateField = (
     }
     case 'mapper-code': {
       if (!value) {
-        return invalidResult('Mapper code is required');
+        return invalidResult(reqraftLabels().validation.mapperCodeIsRequired);
       }
       // Split the value
       const [code, method] = value.split('::');
@@ -916,13 +911,13 @@ export const _validateField = (
       const codeResult = validateFieldWithResult('string', code);
 
       if (!codeResult.isValid) {
-        return withContext(codeResult, 'Mapper code is invalid');
+        return withContext(codeResult, reqraftLabels().validation.mapperCodeIsInvalid);
       }
 
       const methodResult = validateFieldWithResult('string', method);
 
       if (!methodResult.isValid) {
-        return withContext(methodResult, 'Mapper method is invalid');
+        return withContext(methodResult, reqraftLabels().validation.mapperMethodIsInvalid);
       }
 
       return validResult();
@@ -935,7 +930,7 @@ export const _validateField = (
         varAction?.var_type !== 'globalvar' &&
         varAction?.var_type !== 'autovar'
       ) {
-        return invalidResult('Variable type is invalid');
+        return invalidResult(reqraftLabels().validation.variableTypeIsInvalid);
       }
 
       const nameResult = validateFieldWithResult('string', varAction.var_name, {
@@ -943,7 +938,7 @@ export const _validateField = (
       });
 
       if (!nameResult.isValid) {
-        return withContext(nameResult, 'Variable name is invalid');
+        return withContext(nameResult, reqraftLabels().validation.variableNameIsInvalid);
       }
 
       const actionResult = validateFieldWithResult('string', varAction.action_type, {
@@ -951,7 +946,7 @@ export const _validateField = (
       });
 
       if (!actionResult.isValid) {
-        return withContext(actionResult, 'Variable action type is invalid');
+        return withContext(actionResult, reqraftLabels().validation.variableActionTypeIsInvalid);
       }
 
       // If the action type is transaction, the transaction_action needs to be set
@@ -961,7 +956,7 @@ export const _validateField = (
         });
 
         if (!transactionResult.isValid) {
-          return withContext(transactionResult, 'Transaction action is invalid');
+          return withContext(transactionResult, reqraftLabels().validation.transactionActionIsInvalid);
         }
 
         return validResult();
@@ -969,7 +964,7 @@ export const _validateField = (
 
       // If the variable data is missing
       if (!field?.variableData?.value) {
-        return invalidResult('Variable data is missing');
+        return invalidResult(reqraftLabels().validation.variableDataIsMissing);
       }
 
       // Get the variable data
@@ -980,7 +975,7 @@ export const _validateField = (
 
       return withContext(
         validateFieldWithResult(varAction.action_type, variableData, field),
-        'Variable action is invalid'
+        reqraftLabels().validation.variableActionIsInvalid
       );
     }
     case 'type-selector':
@@ -995,12 +990,12 @@ export const _validateField = (
       const newValue: IProviderType | null = maybeBuildOptionProvider(value);
 
       if (!newValue) {
-        return invalidResult('Provider value is invalid');
+        return invalidResult(reqraftLabels().validation.providerValueIsInvalid);
       }
 
       // Api call only supports  requests / response
       if (type === 'api-call' && !value.supports_request) {
-        return invalidResult('API call must support requests');
+        return invalidResult(reqraftLabels().validation.apiCallMustSupportRequests);
       }
 
       // If the provider is from FSM variables, it needs pass this
@@ -1016,7 +1011,7 @@ export const _validateField = (
           newValue.transaction_management
         )
       ) {
-        return invalidResult('Variable provider must support at least one action');
+        return invalidResult(reqraftLabels().validation.variableProviderMustSupportAtLeast);
       }
 
       // Send message only supports messages
@@ -1024,18 +1019,18 @@ export const _validateField = (
         type === 'send-message' &&
         (!newValue.supports_messages || !newValue.message_id || !newValue.message)
       ) {
-        return invalidResult('Send message provider must include message id and content');
+        return invalidResult(reqraftLabels().validation.sendMessageProviderMustIncludeMessage);
       }
 
       if (newValue.message_id) {
         const messageIdResult = validateFieldWithResult('string', newValue.message_id);
 
         if (!messageIdResult.isValid) {
-          return withContext(messageIdResult, 'Message id is invalid');
+          return withContext(messageIdResult, reqraftLabels().validation.messageIdIsInvalid);
         }
 
         if (!newValue.message) {
-          return invalidResult('Message content is missing');
+          return invalidResult(reqraftLabels().validation.messageContentIsMissing);
         }
 
         const messageResult = validateFieldWithResult(
@@ -1044,14 +1039,14 @@ export const _validateField = (
         );
 
         if (!messageResult.isValid) {
-          return withContext(messageResult, 'Message content is invalid');
+          return withContext(messageResult, reqraftLabels().validation.messageContentIsInvalid);
         }
       }
 
       if (newValue.use_args) {
         if (newValue.args?.type !== 'nothing') {
           if (!newValue.args) {
-            return invalidResult('Arguments are missing');
+            return invalidResult(reqraftLabels().validation.argumentsAreMissing);
           }
 
           const argsResult = validateFieldWithResult(
@@ -1060,7 +1055,7 @@ export const _validateField = (
           );
 
           if (!argsResult.isValid) {
-            return withContext(argsResult, 'Arguments are invalid');
+            return withContext(argsResult, reqraftLabels().validation.argumentsAreInvalid);
           }
         }
       }
@@ -1070,7 +1065,7 @@ export const _validateField = (
         size(newValue.search_args) !== 0 &&
         !validateFieldWithResult('system-options-with-operators', newValue.search_args).isValid
       ) {
-        return invalidResult('Search arguments are invalid');
+        return invalidResult(reqraftLabels().validation.searchArgumentsAreInvalid);
       }
 
       const isUpdateOrCreate = type === 'update' || type === 'create';
@@ -1087,17 +1082,17 @@ export const _validateField = (
             !validateFieldWithResult('list-of-hashes', newValue[`${type}_args_freeform`]).isValid);
 
         if (`${type}_args` in newValue && areNormalArgsInvalid && areFreeFormArgsInvalid) {
-          return invalidResult('Update/create arguments are invalid');
+          return invalidResult(reqraftLabels().validation.updateCreateArgumentsAreInvalid);
         }
 
         if (`${type}_args_freeform` in newValue && areFreeFormArgsInvalid && areNormalArgsInvalid) {
-          return invalidResult('Update/create arguments are invalid');
+          return invalidResult(reqraftLabels().validation.updateCreateArgumentsAreInvalid);
         }
       }
 
       if (newValue?.type === 'factory') {
         if (newValue.optionsChanged) {
-          return invalidResult('Factory options are not saved');
+          return invalidResult(reqraftLabels().validation.factoryOptionsAreNotSaved);
         }
 
         let options = true;
@@ -1109,24 +1104,24 @@ export const _validateField = (
         // Type path and name are required
         return resultFromBoolean(
           !!(newValue.type && newValue.name && options),
-          'Factory provider is incomplete'
+          reqraftLabels().validation.factoryProviderIsIncomplete
         );
       }
 
       if (newValue.record_requires_search_options && newValue.searchOptionsChanged) {
-        return invalidResult('Search options must be saved');
+        return invalidResult(reqraftLabels().validation.searchOptionsMustBeSaved);
       }
 
       if (
         newValue.search_options &&
         !validateFieldWithResult('system-options', newValue.search_options).isValid
       ) {
-        return invalidResult('Search options are invalid');
+        return invalidResult(reqraftLabels().validation.searchOptionsAreInvalid);
       }
 
       return resultFromBoolean(
         !!(newValue.type && newValue.name),
-        'Provider type and name required'
+        reqraftLabels().validation.providerTypeAndNameRequired
       );
     }
     case 'context-selector': {
@@ -1135,27 +1130,27 @@ export const _validateField = (
         const contextResult = validateFieldWithResult('string', cont[0]);
 
         if (!contextResult.isValid) {
-          return withContext(contextResult, 'Context selector prefix is invalid');
+          return withContext(contextResult, reqraftLabels().validation.contextSelectorPrefixIsInvalid);
         }
 
         const nameResult = validateFieldWithResult('string', cont[1]);
 
         if (!nameResult.isValid) {
-          return withContext(nameResult, 'Context selector name is invalid');
+          return withContext(nameResult, reqraftLabels().validation.contextSelectorNameIsInvalid);
         }
 
         return validResult();
       }
       return resultFromBoolean(
         !!value?.iface_kind && !!value?.name,
-        'Context selector requires iface_kind and name'
+        reqraftLabels().validation.contextSelectorRequiresIfaceKindAnd
       );
     }
     case 'service-event': {
       const typeResult = validateFieldWithResult('type-selector', value);
 
       if (!typeResult.isValid) {
-        return withContext(typeResult, 'Service event type is invalid');
+        return withContext(typeResult, reqraftLabels().validation.serviceEventTypeIsInvalid);
       }
 
       if (
@@ -1165,21 +1160,21 @@ export const _validateField = (
           (handler: any) => (handler.type === 'fsm' || handler.type === 'method') && handler.value
         )
       ) {
-        return invalidResult('Service event handlers are invalid');
+        return invalidResult(reqraftLabels().validation.serviceEventHandlersAreInvalid);
       }
 
       return validResult();
     }
     case 'service-events': {
       if (!isArray(value) || !size(value)) {
-        return invalidResult('At least one service event is required');
+        return invalidResult(reqraftLabels().validation.atLeastOneServiceEventIs);
       }
 
       for (let i = 0; i < value.length; i++) {
         const serviceEventResult = validateFieldWithResult('service-event', value[i]);
 
         if (!serviceEventResult.isValid) {
-          return withContext(serviceEventResult, `Service event ${i} is invalid`);
+          return withContext(serviceEventResult, reqraftLabels().validation.serviceEventXIsInvalid(i));
         }
       }
 
@@ -1191,18 +1186,18 @@ export const _validateField = (
         !validateFieldWithResult('string', value?.['rest-method']).isValid ||
         !validateFieldWithResult('string', value?.auth).isValid
       ) {
-        return invalidResult('Webhook name, method and auth are required');
+        return invalidResult(reqraftLabels().validation.webhookNameMethodAndAuthAre);
       }
 
       if (value.handler) {
         if (value.handler.type !== 'fsm' && value.handler.type !== 'method') {
-          return invalidResult('Webhook handler type is invalid');
+          return invalidResult(reqraftLabels().validation.webhookHandlerTypeIsInvalid);
         }
 
         const handlerResult = validateFieldWithResult('string', value.handler.value);
 
         if (!handlerResult.isValid) {
-          return withContext(handlerResult, 'Webhook handler value is invalid');
+          return withContext(handlerResult, reqraftLabels().validation.webhookHandlerValueIsInvalid);
         }
       }
 
@@ -1210,14 +1205,14 @@ export const _validateField = (
     }
     case 'service-webhooks': {
       if (!isArray(value) || !size(value)) {
-        return invalidResult('At least one webhook is required');
+        return invalidResult(reqraftLabels().validation.atLeastOneWebhookIsRequired);
       }
 
       for (let i = 0; i < value.length; i++) {
         const webhookResult = validateFieldWithResult('service-webhook', value[i]);
 
         if (!webhookResult.isValid) {
-          return withContext(webhookResult, `Service webhook ${i} is invalid`);
+          return withContext(webhookResult, reqraftLabels().validation.serviceWebhookXIsInvalid(i));
         }
       }
 
@@ -1245,7 +1240,7 @@ export const _validateField = (
         try {
           parsedData = jsyaml.load(value);
         } catch (e) {
-          return invalidResult('Value is not valid YAML');
+          return invalidResult(reqraftLabels().validation.valueIsNotValidYAML);
         }
       }
 
@@ -1264,7 +1259,7 @@ export const _validateField = (
          because that is the rule for a REQUIRED text field — a different
          question from whether an untyped field may hold a blank string. */
       if (parsedData === undefined) {
-        return invalidResult('Value is empty');
+        return invalidResult(reqraftLabels().validation.valueIsEmpty);
       }
 
       if (parsedData === null || parsedData === '') {
@@ -1280,12 +1275,12 @@ export const _validateField = (
          typed. */
       return withContext(
         validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
-        'Auto-detected type is invalid'
+        reqraftLabels().validation.autoDetectedTypeIsInvalid
       );
     }
     case 'processor': {
       if (!value || !value['processor-input-type'] || !value['processor-output-type']) {
-        return invalidResult('Processor input and output types are required');
+        return invalidResult(reqraftLabels().validation.processorInputAndOutputTypesAre);
       }
       // Validate the input and output types
       if (value?.['processor-input-type']) {
@@ -1295,7 +1290,7 @@ export const _validateField = (
         );
 
         if (!inputResult.isValid) {
-          return withContext(inputResult, 'Processor input type is invalid');
+          return withContext(inputResult, reqraftLabels().validation.processorInputTypeIsInvalid);
         }
       }
 
@@ -1306,7 +1301,7 @@ export const _validateField = (
         );
 
         if (!outputResult.isValid) {
-          return withContext(outputResult, 'Processor output type is invalid');
+          return withContext(outputResult, reqraftLabels().validation.processorOutputTypeIsInvalid);
         }
       }
 
@@ -1317,21 +1312,21 @@ export const _validateField = (
       // Each mapping must have an outputPath (the target field being mapped)
       // and either an inputPath (source field) or options configured
       if (!isArray(value)) {
-        return canBeNull ? validResult() : invalidResult('Processor mappings must be a list');
+        return canBeNull ? validResult() : invalidResult(reqraftLabels().validation.processorMappingsMustBeAList);
       }
 
       for (let i = 0; i < value.length; i++) {
         const mapping = value[i];
 
         if (!mapping || !isObject(mapping)) {
-          return invalidResult(`Mapping at index ${i} is invalid`);
+          return invalidResult(reqraftLabels().validation.mappingAtIndexXIsInvalid(i));
         }
 
         // outputPath is always required - it identifies which output field is being mapped
         const outputPathResult = validateFieldWithResult('string', mapping.outputPath);
 
         if (!outputPathResult.isValid) {
-          return withContext(outputPathResult, `Mapping ${i} output path is invalid`);
+          return withContext(outputPathResult, reqraftLabels().validation.mappingXOutputPathIsInvalid(i));
         }
 
         // A mapping must have either an inputPath or options (or both)
@@ -1340,7 +1335,7 @@ export const _validateField = (
 
         if (!hasInputPath && !hasOptions) {
           return invalidResult(
-            `Mapping for "${mapping.outputPath}" must have an input path or options configured`
+            reqraftLabels().validation.mappingForXMustHaveAn(mapping.outputPath)
           );
         }
       }
@@ -1355,13 +1350,13 @@ export const _validateField = (
       //   "<connection>"              — all tools from a connection
       //   "<connection>/<tool>"       — a specific tool from a connection
       if (!isArray(value)) {
-        return canBeNull ? validResult() : invalidResult('Tool catalog must be a list');
+        return canBeNull ? validResult() : invalidResult(reqraftLabels().validation.toolCatalogMustBeAList);
       }
 
       for (let i = 0; i < value.length; i++) {
         const selector = value[i];
         if (typeof selector !== 'string' || selector.length === 0) {
-          return invalidResult(`Tool selector at index ${i} must be a non-empty string`);
+          return invalidResult(reqraftLabels().validation.toolSelectorAtIndexXMust(i));
         }
       }
 
@@ -1370,14 +1365,14 @@ export const _validateField = (
     case 'fsm-list': {
       // users call FSMs Qogs: this is said to them
       if (!isArray(value)) {
-        return invalidResult('Qog list must be an array');
+        return invalidResult(reqraftLabels().validation.qogListMustBeAnArray);
       }
 
       for (let i = 0; i < value.length; i++) {
         const itemResult = validateFieldWithResult('string', value[i]?.name);
 
         if (!itemResult.isValid) {
-          return withContext(itemResult, `Qog entry ${i} name is invalid`);
+          return withContext(itemResult, reqraftLabels().validation.qogEntryXNameIsInvalid(i));
         }
       }
 
@@ -1385,33 +1380,33 @@ export const _validateField = (
     }
     case 'api-manager': {
       if (!value) {
-        return invalidResult('API manager value is missing');
+        return invalidResult(reqraftLabels().validation.apiManagerValueIsMissing);
       }
 
       const factoryResult = validateFieldWithResult('string', value.factory);
 
       if (!factoryResult.isValid) {
-        return withContext(factoryResult, 'API manager factory is invalid');
+        return withContext(factoryResult, reqraftLabels().validation.apiManagerFactoryIsInvalid);
       }
 
       const endpointsResult = validateFieldWithResult('api-endpoints', value.endpoints);
 
       if (!endpointsResult.isValid) {
-        return withContext(endpointsResult, 'API manager endpoints are invalid');
+        return withContext(endpointsResult, reqraftLabels().validation.apiManagerEndpointsAreInvalid);
       }
 
       return validResult();
     }
     case 'api-endpoints': {
       if (!isArray(value) || !size(value)) {
-        return invalidResult('At least one API endpoint is required');
+        return invalidResult(reqraftLabels().validation.atLeastOneAPIEndpointIs);
       }
 
       for (let i = 0; i < value.length; i++) {
         const endpointResult = validateFieldWithResult('string', value[i]?.value);
 
         if (!endpointResult.isValid) {
-          return withContext(endpointResult, `Endpoint ${i} value is invalid`);
+          return withContext(endpointResult, reqraftLabels().validation.endpointXValueIsInvalid(i));
         }
 
         const authorizationResult = validateFieldWithResult(
@@ -1422,7 +1417,7 @@ export const _validateField = (
         );
 
         if (!authorizationResult.isValid) {
-          return withContext(authorizationResult, `Endpoint ${i} authorization is invalid`);
+          return withContext(authorizationResult, reqraftLabels().validation.endpointXAuthorizationIsInvalid(i));
         }
       }
 
@@ -1430,31 +1425,31 @@ export const _validateField = (
     }
     case 'api-endpoint-authorization': {
       if (!value) {
-        return canBeNull ? validResult() : invalidResult('Authorization override is missing');
+        return canBeNull ? validResult() : invalidResult(reqraftLabels().validation.authorizationOverrideMissing);
       }
 
       if (typeof value !== 'object' || isArray(value)) {
-        return invalidResult('Authorization override must be an object');
+        return invalidResult(reqraftLabels().validation.authorizationOverrideObject);
       }
 
       if (value.mode !== undefined && !['merge', 'replace'].includes(value.mode)) {
-        return invalidResult('Authorization mode must be merge or replace');
+        return invalidResult(reqraftLabels().validation.authorizationMode);
       }
 
       if (value.allow_anonymous !== undefined && typeof value.allow_anonymous !== 'boolean') {
-        return invalidResult('Authorization allow_anonymous must be a boolean');
+        return invalidResult(reqraftLabels().validation.authorizationAllowAnonymous);
       }
 
       if (value.roles !== undefined) {
         if (!isArray(value.roles)) {
-          return invalidResult('Authorization roles must be a list');
+          return invalidResult(reqraftLabels().validation.authorizationRolesList);
         }
 
         for (let i = 0; i < value.roles.length; i++) {
           const roleResult = validateFieldWithResult('string', value.roles[i]);
 
           if (!roleResult.isValid) {
-            return withContext(roleResult, `Authorization role ${i} is invalid`);
+            return withContext(roleResult, reqraftLabels().validation.authorizationRoleInvalid(i));
           }
         }
       }
@@ -1471,7 +1466,7 @@ export const _validateField = (
       ): IValidationResult => {
         if (!options || size(options) === 0) {
           if (!canBeNull) {
-            return invalidResult('Options are required');
+            return invalidResult(reqraftLabels().validation.optionsAreRequired);
           }
 
           return validResult();
@@ -1484,7 +1479,7 @@ export const _validateField = (
           return unresolvedRequiredOption.validation
             ? withContext(
                 unresolvedRequiredOption.validation,
-                `Option ${unresolvedRequiredOption.name} is invalid`
+                reqraftLabels().validation.optionXIsInvalid(unresolvedRequiredOption.name)
               )
             : invalidResult(
                 getUnresolvedRequiredOptionReason(unresolvedRequiredOption, optionSchema)
@@ -1544,7 +1539,7 @@ export const _validateField = (
                 });
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option ${option} is invalid`);
+            return withContext(optionResult, reqraftLabels().validation.optionXIsInvalid2(option));
           }
         }
 
@@ -1556,7 +1551,7 @@ export const _validateField = (
           const optionResult = getIsValid(value[i], field?.optionSchema);
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option set ${i} is invalid`);
+            return withContext(optionResult, reqraftLabels().validation.optionSetXIsInvalid(i));
           }
         }
 
@@ -1572,7 +1567,7 @@ export const _validateField = (
             return validResult();
           }
 
-          return invalidResult('Options with operators are required');
+          return invalidResult(reqraftLabels().validation.optionsWithOperatorsAreRequired);
         }
 
         for (const option of Object.keys(val)) {
@@ -1583,7 +1578,7 @@ export const _validateField = (
               : validateFieldWithResult(optionData.type, optionData.value);
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option ${option} is invalid`);
+            return withContext(optionResult, reqraftLabels().validation.optionXIsInvalid2(option));
           }
 
           if (
@@ -1592,7 +1587,7 @@ export const _validateField = (
               (operator) => validateFieldWithResult('string', operator).isValid
             )
           ) {
-            return invalidResult(`Operators for option ${option} are invalid`);
+            return invalidResult(reqraftLabels().validation.operatorsForOptionXAreInvalid(option));
           }
         }
 
@@ -1604,7 +1599,7 @@ export const _validateField = (
           const optionResult = isValid(value[i]);
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option set ${i} is invalid`);
+            return withContext(optionResult, reqraftLabels().validation.optionSetXIsInvalid(i));
           }
         }
 
@@ -1614,20 +1609,20 @@ export const _validateField = (
       return isValid(value);
     }
     case 'byte-size': {
-      if (typeof value !== 'string') return invalidResult('Byte size must be a string');
+      if (typeof value !== 'string') return invalidResult(reqraftLabels().validation.byteSizeMustBeAString);
 
       const [bytes, sizeUnit] = splitByteSize(value);
 
       const bytesResult = validateFieldWithResult('number', bytes);
 
       if (!bytesResult.isValid) {
-        return withContext(bytesResult, 'Byte size numeric part is invalid');
+        return withContext(bytesResult, reqraftLabels().validation.byteSizeNumericPartIsInvalid);
       }
 
       const sizeResult = validateFieldWithResult('string', sizeUnit);
 
       if (!sizeResult.isValid) {
-        return withContext(sizeResult, 'Byte size unit is invalid');
+        return withContext(sizeResult, reqraftLabels().validation.byteSizeUnitIsInvalid);
       }
 
       return validResult();
@@ -1638,7 +1633,7 @@ export const _validateField = (
       const msResult = validateFieldWithResult('int', value);
 
       if (!msResult.isValid) {
-        return withContext(msResult, 'Timeout must be a whole number of milliseconds');
+        return withContext(msResult, reqraftLabels().validation.timeoutMustBeAWholeNumber);
       }
 
       return validResult();
@@ -1648,13 +1643,13 @@ export const _validateField = (
       const protocolResult = validateFieldWithResult('string', getProtocol(value));
 
       if (!protocolResult.isValid) {
-        return withContext(protocolResult, 'URL protocol is invalid');
+        return withContext(protocolResult, reqraftLabels().validation.urlProtocolIsInvalid);
       }
 
       const addressResult = validateFieldWithResult('string', getAddress(value));
 
       if (!addressResult.isValid) {
-        return withContext(addressResult, 'URL address is invalid');
+        return withContext(addressResult, reqraftLabels().validation.urlAddressIsInvalid);
       }
 
       return validResult();
@@ -1663,10 +1658,10 @@ export const _validateField = (
       // The minimal NEW_FIELD.md shape check, so malformed definitions can't
       // silently save through FormEngine.
       if (!isObject(value)) {
-        return invalidResult('Schema definition must be an object');
+        return invalidResult(reqraftLabels().validation.schemaDefinitionMustBeAnObject);
       }
       if (!isObject((value as { schema?: unknown }).schema)) {
-        return invalidResult('Schema definition must contain a `schema` section');
+        return invalidResult(reqraftLabels().validation.schemaDefinitionMustContainASchema);
       }
       return validResult();
     }
@@ -1694,11 +1689,11 @@ export const _validateField = (
       // the field's own "show invalid only" filter listed a different set of
       // rows on a fast machine than on a slow one.
       if (!castedValue) {
-        return invalidResult('Fill in this expression.');
+        return invalidResult(reqraftLabels().validation.fillInThisExpression);
       }
 
       if (!castedValue.value?.exp) {
-        return invalidResult('Choose what this expression does.');
+        return invalidResult(reqraftLabels().validation.chooseWhatThisExpressionDoes);
       }
 
       // Everything past this point needs the expression's definition, which
@@ -1715,7 +1710,7 @@ export const _validateField = (
       );
 
       if (!expressionDefinition) {
-        return invalidResult(`Qorus has no operation ${String(castedValue.value?.exp)}.`);
+        return invalidResult(reqraftLabels().validation.qorusHasNoOperationX(String(castedValue.value?.exp)));
       }
 
       // If the expression has no required args, we can consider it valid
@@ -1728,7 +1723,7 @@ export const _validateField = (
       // If there are no args provided but the expression requires some (normal expressions require at least 1 arg
       // because we checked for required args earlier), or min_args is set
       if (size(castedValue.value?.args || []) < (expressionDefinition.min_args || 1)) {
-        return invalidResult('Not enough arguments provided');
+        return invalidResult(reqraftLabels().validation.notEnoughArgumentsProvided);
       }
 
       // Now we need to validate each argument, either as a normal value or as a sub-expression
@@ -1739,7 +1734,7 @@ export const _validateField = (
         const definition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
-        return definition?.display_name ?? definition?.name ?? `argument ${index + 1}`;
+        return definition?.display_name ?? definition?.name ?? reqraftLabels().validation.argumentX(index + 1);
       });
 
       for (let index = 0; index < args.length; index++) {
@@ -1760,7 +1755,7 @@ export const _validateField = (
         const operand =
           expressionDefinition.varargs ||
           argLabels.some((label, other) => other !== index && label === argLabel)
-            ? `the ${ordinal(index + 1)} "${argLabel}"`
+            ? reqraftLabels().validation.theXX(ordinal(index + 1), argLabel)
             : undefined;
 
         /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
@@ -1793,7 +1788,7 @@ export const _validateField = (
 
           if (!result.isValid) {
             // said by the operand's name, as the editor shows it - not by its position in the call
-            return withContext(result, `The expression in ${operand ?? `"${argLabel}"`} has an error`);
+            return withContext(result, reqraftLabels().validation.theExpressionInXHasAn(operand ?? `"${argLabel}"`));
           }
 
           continue;
@@ -1820,16 +1815,16 @@ export const _validateField = (
           // an operand not filled in yet says what to do; one that is wrong says which and why (David's
           // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
           if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
-            return invalidResult(operand ? `Enter ${operand}` : `Enter a value for "${argLabel}"`);
+            return invalidResult(operand ? reqraftLabels().validation.enterX(operand) : reqraftLabels().validation.enterAValueForX(argLabel));
           }
-          return withContext(result, operand ? `${upperFirst(operand)} is invalid` : `"${argLabel}" is invalid`);
+          return withContext(result, operand ? reqraftLabels().validation.xIsInvalid(upperFirst(operand)) : reqraftLabels().validation.xIsInvalid2(argLabel));
         }
       }
 
       return validResult();
     }
     case 'nothing':
-      return invalidResult('Nothing is not a valid value');
+      return invalidResult(reqraftLabels().validation.nothingIsNotAValidValue);
     default:
       return validResult();
   }
@@ -1863,7 +1858,7 @@ export const validateFieldWithResult: (
 ) => IValidationResult = memoize(
   _validateField,
   (type, value, field, canBeNull) =>
-    `${type}-${JSON.stringify(value)}-${JSON.stringify(field)}-${canBeNull}`
+    `${reqraftLabelsVersion()}-${type}-${JSON.stringify(value)}-${JSON.stringify(field)}-${canBeNull}`
 );
 
 export const validateField: (
@@ -2011,13 +2006,13 @@ export const getUnresolvedRequiredOptionReason = (
 ): string => {
   switch (reason) {
     case 'dependency':
-      return `Option ${name} dependencies are not fulfilled`;
+      return reqraftLabels().validation.optionXDependenciesAreNotFulfilled(name);
     case 'invalid':
-      return `Option ${name} is invalid`;
+      return reqraftLabels().validation.optionXIsInvalid(name);
     default:
       return (optionSchema?.[name] as TQorusFormFieldSchema)?.required
-        ? `Option ${name} is required`
-        : `Option ${name} requires a value`;
+        ? reqraftLabels().validation.optionXIsRequired(name)
+        : reqraftLabels().validation.optionXRequiresAValue(name);
   }
 };
 

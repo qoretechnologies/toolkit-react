@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { useCallback, useEffect, useState } from 'react';
 import { useEffectOnce, useUnmount } from 'react-use';
 import { getCurrentTimeWithMilliseconds } from '../../utils/datetime';
@@ -59,7 +60,7 @@ export const useReqraftWebSocket = (
   };
 
   const handleOpen = (ev?: Event) => {
-    updateStates(ReqraftWebSocketStatus.OPEN, 'Connection opened');
+    updateStates(ReqraftWebSocketStatus.OPEN, reqraftLabels().components.connectionOpened);
 
     options?.onOpen?.(ev);
   };
@@ -98,25 +99,25 @@ export const useReqraftWebSocket = (
       ...options,
       onOpen: handleOpen,
       onClose: (...args) => {
-        updateStates(ReqraftWebSocketStatus.CLOSED, 'Connection closed');
+        updateStates(ReqraftWebSocketStatus.CLOSED, reqraftLabels().components.connectionClosed);
 
         options?.onClose?.(...args);
       },
       onError: (...args) => {
-        updateStates(ReqraftWebSocketStatus.CLOSED, 'Connection error');
+        updateStates(ReqraftWebSocketStatus.CLOSED, reqraftLabels().components.connectionError);
 
         options?.onError?.(...args);
       },
       onReconnecting: (reconnectNumber) => {
         updateStates(
           ReqraftWebSocketStatus.CONNECTING,
-          `Reconnecting... Attempt ${reconnectNumber}`
+          reqraftLabels().components.reconnecting(reconnectNumber)
         );
 
         options?.onReconnecting?.(reconnectNumber);
       },
       onReconnectFailed: () => {
-        updateStates(ReqraftWebSocketStatus.CLOSED, 'Reconnect failed');
+        updateStates(ReqraftWebSocketStatus.CLOSED, reqraftLabels().components.reconnectFailed);
 
         options?.onReconnectFailed?.();
       },

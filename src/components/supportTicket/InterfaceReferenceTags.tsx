@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { ReqoreControlGroup, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { ComponentProps } from 'react';
@@ -90,6 +91,7 @@ export const InterfaceReferenceTags = ({
   resolveInterfaceImage,
   preferKindImage = false,
 }: IInterfaceReferenceTagsProps) => {
+  const ticketWords = useReqraftLabels().tickets;
   const resolveIcon = resolveInterfaceIcon ?? defaultInterfaceIcon;
   const marks = (references ?? []).map((reference) => {
     const mark = toInterfaceKindMark(resolveIcon(reference.interface_kind));
@@ -133,14 +135,14 @@ export const InterfaceReferenceTags = ({
             customTheme={customTheme}
             tooltip={
               linkable
-                ? `Open ${reference.interface_kind} ${reference.interface_name}`
+                ? ticketWords.openXX(reference.interface_kind, reference.interface_name)
                 : reason
                   ? `${described} — ${reason}`
                   : described
             }
             onClick={linkable ? () => onInterfaceClick(reference) : undefined}
             onRemoveClick={onRemove ? () => onRemove(reference) : undefined}
-            removeTooltip={`Remove ${reference.interface_kind} ${reference.interface_name}`}
+            removeTooltip={ticketWords.removeXX(reference.interface_kind, reference.interface_name)}
           />
         );
       })}

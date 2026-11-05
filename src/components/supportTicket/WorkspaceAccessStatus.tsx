@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { ReqoreButton, ReqoreIcon, ReqoreSpan } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
@@ -74,9 +75,9 @@ export interface IWorkspaceAccessStatusProps {
 const grantedBy = (grant: IWorkspaceAccessGrantSummary, viewerRole: TTicketViewerRole): string => {
   if (grant.created_by_type === 'system') return 'automatically';
   if (grant.created_by_type === 'customer' || !grant.created_by_type) {
-    return viewerRole === 'customer' ? 'by you' : 'by the customer';
+    return viewerRole === 'customer' ? reqraftLabels().tickets.byYou : reqraftLabels().tickets.byTheCustomer;
   }
-  return 'by support';
+  return reqraftLabels().tickets.bySupport;
 };
 
 /** The sentence, its mark and its colour for the state the props describe. */
@@ -87,17 +88,17 @@ export const describeWorkspaceAccess = (
     const left = millisUntil(grant.expires_at, now);
     if (!Number.isNaN(left) && left <= 0) {
       return {
-        text: `Access ended ${formatRelativeTime(grant.expires_at, now)}`,
+        text: reqraftLabels().tickets.accessEndedX(formatRelativeTime(grant.expires_at, now)),
         tooltip: formatInstant(grant.expires_at),
         intent: 'muted',
         icon: 'HourglassLine',
       };
     }
-    const ends = grant.expires_at ? ` · ends ${formatRelativeTime(grant.expires_at, now)}` : '';
+    const ends = grant.expires_at ? reqraftLabels().tickets.endsX(formatRelativeTime(grant.expires_at, now)) : '';
     return {
-      text: `Granted ${grantedBy(grant, viewerRole)}${ends}`,
+      text: reqraftLabels().tickets.grantedXX(grantedBy(grant, viewerRole), ends),
       tooltip: grant.expires_at
-        ? `Until ${formatInstant(grant.expires_at)}${grant.until_resolved ? ', or when the ticket is resolved' : ''}`
+        ? reqraftLabels().tickets.untilXX(formatInstant(grant.expires_at), grant.until_resolved ? reqraftLabels().tickets.orWhenTheTicketIsResolved : '')
         : undefined,
       intent: grantTimeIntent(grant.expires_at, now),
       icon: 'ShieldCheckLine',
@@ -108,7 +109,7 @@ export const describeWorkspaceAccess = (
     const cause = supportGrantEndCauseLabel(grant.end_cause, viewerRole);
     const when = formatRelativeTime(grant.ended_at ?? grant.expires_at, now);
     return {
-      text: `Access ${cause ?? meta.label.toLowerCase()}${when ? ` · ${when}` : ''}`,
+      text: reqraftLabels().tickets.accessXX(cause ?? meta.label.toLowerCase(), when ? ` · ${when}` : ''),
       tooltip: formatInstant(grant.ended_at ?? grant.expires_at) || undefined,
       intent: meta.intent,
       icon: meta.icon,
@@ -116,12 +117,12 @@ export const describeWorkspaceAccess = (
   }
   if (request) {
     const since = formatRelativeTime(request.requested_at, now);
-    const duration = request.suggested_duration ? ` for ${supportAccessDurationLabel(request.suggested_duration)}` : '';
+    const duration = request.suggested_duration ? reqraftLabels().tickets.forX(supportAccessDurationLabel(request.suggested_duration)) : '';
     return {
       text:
         viewerRole === 'customer'
-          ? `Qorus Support asks for access${duration} · ${since}`
-          : `Requested${duration} · awaiting the customer · ${since}`,
+          ? reqraftLabels().tickets.qorusSupportAsksForAccessX(duration, since)
+          : reqraftLabels().tickets.requestedXAwaitingTheCustomerX(duration, since),
       tooltip: formatInstant(request.requested_at),
       intent: 'pending',
       icon: 'TimeLine',
@@ -129,12 +130,12 @@ export const describeWorkspaceAccess = (
   }
   if (policy === 'never') {
     return {
-      text: viewerRole === 'customer' ? 'Off: your setting is never' : "Not allowed: the account's setting is never",
+      text: viewerRole === 'customer' ? reqraftLabels().tickets.offYourSettingIsNever : reqraftLabels().tickets.notAllowedTheAccountSSetting,
       intent: 'danger',
       icon: 'ShieldCrossLine',
     };
   }
-  return { text: 'None', intent: 'muted', icon: 'ShieldLine', muted: true };
+  return { text: reqraftLabels().tickets.none, intent: 'muted', icon: 'ShieldLine', muted: true };
 };
 
 export const WorkspaceAccessStatus = ({
