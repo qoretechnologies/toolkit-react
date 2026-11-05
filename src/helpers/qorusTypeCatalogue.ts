@@ -493,7 +493,9 @@ export const typesInASentence = (
   typeNames: (string | undefined)[],
   sentenceForm: (typeName: string | undefined) => string | undefined
 ): string | undefined => {
-  const forms = [...new Set(typeNames.map(sentenceForm).filter((form): form is string => !!form))];
+  const forms = Array.from(
+    new Set(typeNames.map(sentenceForm).filter((form): form is string => !!form))
+  );
   return forms.length ? reqraftLabels().formEngine.typesJoin(forms) : undefined;
 };
 
