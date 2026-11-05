@@ -107,3 +107,7 @@ It is one setting for the page, not a prop, because the words are read where no 
 
 A word a component or provider is given itself (`buildTemplates`' `labels`, `TemplatePicker`'s `labels`, `TemplateCatalogueProvider`'s `pickerLabels`, `valueTabsLabels`, `compactBoxLabels`) comes before the host's. Code does not compare a word to decide what to do: a row says what it is with a flag (`isTemplateContext`), and the label is only drawn.
 
+## Opening a row of a drawn form
+
+`initialExpandedOptions` names the rows a compact form starts with and is spent once. A host that must take the reader to a row later - a save refused for a field inside a row the reader has closed - passes `expandOptionsRequest: { options, key }`: each new key opens the named rows alongside those already open, without drawing the form again, so nothing open or typed in its other rows is lost. A key already answered opens nothing again.
+
