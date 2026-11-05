@@ -2,6 +2,7 @@ import type { TTemplateCatalogueFixture } from '../src/stories/templateCatalogue
 import {
   ReqoreContent,
   ReqoreLayoutContent,
+  modalStore,
   ReqoreModalsWrapper,
   ReqoreUIProvider,
 } from '@qoretechnologies/reqore';
@@ -80,6 +81,9 @@ export const beforeEach = ({
   parameters?: IStoryClockParameters & { templateCatalogue?: TTemplateCatalogueFixture };
 }) => {
   ReqraftQueryClient.clear();
+  // and with no modal an earlier story left open: reqore's queue outlives the story, so a story that ends with one
+  // open, to capture it, had it drawn over every story after it
+  modalStore.setState({ modals: {} });
   // and without the type catalogue an earlier story's server answered with (`getQorusTypes`)
   _resetServerQorusTypesForTests();
   const restoreClock = startStoryClock(parameters);

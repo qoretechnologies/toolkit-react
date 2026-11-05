@@ -14,7 +14,8 @@ import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'story
 import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
 import { defaultQorusTypes, IQorusTypeObject } from '../../../../hooks/useQorusTypes';
-import { atTheCaptureSize } from '../../../../stories/mouse';
+import { storyCopiedTexts, withStoryClipboard } from '../../../../stories/clipboard';
+import { atTheCaptureSize, hasBrowserMouse } from '../../../../stories/mouse';
 import { storyApiUrl } from '../../../../stories/storyNetwork';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { mockExpressions } from '../../expressions/mockExpressions';
@@ -27,7 +28,8 @@ import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
 import { multiLevelTemplates, templates } from './__fixtures__/templateFixtures';
 import { QOG_FIELD_TEMPLATES } from './__fixtures__/qogTemplatePayloads';
-import { expectPickerFillsItsPopover } from '../../../../stories/templatePicker';
+import { expectPickerFillsItsPopover, expectRowsFit, pickerRow } from '../../../../stories/templatePicker';
+import { withTouchScreen } from '../../../../stories/touchScreen';
 
 // --- IDE leaf story components (2-arg field API over reqraft leafs) ---------
 
@@ -1095,6 +1097,108 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
   },
 };
 
+/* The words of a list of templates in a pseudo-locale, as a host that translates its interface passes them: every
+   text the list, its actions and its example-value window show is the host's, and none is English. */
+const PSEUDO_TEMPLATE_LIST_LABELS = {
+  exampleValue: (value: string) => `[Ëxämplé välüé → ${value}]`,
+  showFullExampleValue: '[Šhöw thé whölé éxämplé välüé]',
+  selectItem: '[Pîçk thîs rêçörd]',
+  exampleValueTitle: '[Ëxämplé välüé]',
+  copy: '[Çöpy]',
+  copied: '[Thé éxämplé välüé wäs çöpîéd]',
+  copyFailed:
+    '[Thé éxämplé välüé çöüld nöt bé çöpîéd: thé brôwsér réfüséd. Šéléçt thé téxt änd çöpy ît yöürsélf.]',
+};
+
+/** The open tooltip that says `text`, once the pointer rests on what has it. */
+const waitForTooltip = (text: string) =>
+  waitFor(
+    () => {
+      const open = Array.from(document.querySelectorAll('.reqore-popover-content')).map(
+        (popover) => popover.textContent || ''
+      );
+      if (!open.some((content) => content.includes(text))) {
+        throw new Error(`no tooltip "${text}" yet: ${JSON.stringify(open)}`);
+      }
+    },
+    { timeout: 10000 }
+  );
+
+export const TemplateListInAnotherLanguage: StoryObj<typeof meta> = {
+  decorators: [(Story) => <div style={{ width: 480 }}>{Story()}</div>],
+  // a secure page whose browser refuses the clipboard, and whose copy command does not copy either
+  beforeEach: withStoryClipboard('refused'),
+  args: {
+    component: LongStringField,
+    value: 'Some string',
+    type: 'string',
+    templates: buildTemplates(longExampleTemplates as any, PSEUDO_TEMPLATE_LIST_LABELS),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the list of templates with the words a host passes (a pseudo-locale here): each example value, the tooltips of the "?" (the whole example value) and "+" (pick this record) actions, and the example-value window, its Copy action and its notice. The browser refuses the clipboard and the copy command does not copy, so Copy shows the host\'s "could not copy" notice, and nothing is copied.',
+      },
+    },
+  },
+  play: async ({ args }) => {
+    await _testsOpenTemplates();
+    await _testsWaitForText('Attachment Body');
+
+    const popover = document.querySelector('.reqore-popover-content');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → "invoice.pdf"]');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → "JVBERi0x');
+    await expect(popover.textContent).not.toContain('Example value');
+
+    // the "?" action's tooltip, then the "+" action's
+    await userEvent.hover(popover.querySelector('.reqore-menu-item-right-action'));
+    await waitForTooltip(PSEUDO_TEMPLATE_LIST_LABELS.showFullExampleValue);
+    await userEvent.unhover(popover.querySelector('.reqore-menu-item-right-action'));
+    await userEvent.hover(popover.querySelector('.reqore-menu-item-left-action'));
+    await waitForTooltip(PSEUDO_TEMPLATE_LIST_LABELS.selectItem);
+    await userEvent.unhover(popover.querySelector('.reqore-menu-item-left-action'));
+
+    await _testsClickButton({ selector: '.reqore-menu-item-right-action' });
+    const modal = await waitFor(
+      () => {
+        const el = document.querySelector('.reqraft-template-example-value-modal');
+        if (!el) throw new Error('modal not open yet');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+    // the window is headed with the template's name, and its action says the host's word
+    await expect(modal.textContent).toContain('Attachment Body');
+    const copy = Array.from(modal.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === PSEUDO_TEMPLATE_LIST_LABELS.copy
+    );
+    await expect(copy).toBeTruthy();
+    await userEvent.click(copy);
+
+    // the copy is refused: the host's notice says so, and no "copied" notice is shown
+    const notices = await waitFor(
+      () => {
+        const shown = Array.from(document.querySelectorAll('.reqore-notification')).map(
+          (notification) => notification.textContent || ''
+        );
+        if (!shown.some((content) => content.includes(PSEUDO_TEMPLATE_LIST_LABELS.copyFailed))) {
+          throw new Error(`no "could not copy" notice yet: ${JSON.stringify(shown)}`);
+        }
+        return shown;
+      },
+      { timeout: 10000 }
+    );
+    await expect(
+      notices.some((content) => content.includes(PSEUDO_TEMPLATE_LIST_LABELS.copied))
+    ).toBe(false);
+    await expect(notices.some((content) => content.includes('Could not copy'))).toBe(false);
+    await expect(storyCopiedTexts()).toEqual([]);
+    // previewing and copying never pick a template; the capture shows the window with the host's notice
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
 /**
  * An EMPTY `any` field opens on the template selector, not the type picker.
  *
@@ -1549,6 +1653,151 @@ export const ExpressionOpensOnText: StoryObj<typeof meta> = {
     expect(buttons).toEqual(['Text', 'Visual']);
     await waitFor(() => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeTruthy());
     expect(canvasElement.textContent).not.toContain('Choose what this expression does');
+  },
+};
+
+const expressionWithTemplates = {
+  type: 'bool',
+  defaultType: 'bool',
+  allowFunctions: true,
+  allowTextExpressions: true,
+  isFunction: true,
+  expressions: storyExpressions as any,
+  templates: recordTemplates as any,
+};
+
+/**
+ * Opens the template picker of an expression's text with its button, as soon as there is one, at its Template
+ * contexts: a click as the field comes up is a click, and the editor settling did not put the picker away.
+ */
+const openTemplateContexts = async (canvasElement: HTMLElement) => {
+  const button = await waitFor(
+    () => {
+      const found = canvasElement.querySelector<HTMLElement>('.smart-editor-template-button');
+      expect(found).toBeTruthy();
+      return found!;
+    },
+    { timeout: 10000 }
+  );
+  await userEvent.click(button);
+  await userEvent.click(await pickerRow('Template contexts'));
+};
+
+/** A row's action, where it has one, beside the row in the list. */
+const useOfRow = (row: HTMLElement) => row.parentElement!.querySelector('.template-picker-use');
+
+export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
+  args: expressionWithTemplates,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Template contexts of an expression, open. A context with keys to choose from ($local:) opens on them and has Use, to take it whole. One with none to choose from is shown as what it gives ($fsminput:*), with no arrow and no Use. One that reads an argument ($rest:) says so, with no arrow, as there is no list to open.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await openTemplateContexts(canvasElement);
+    /* The window's width changes with the picker open: it stays at its button (Foxhoundn on qlip #456). The picture is
+       taken at this size. */
+    const buttonLeft = () =>
+      canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect().left;
+    const before = buttonLeft();
+    await atTheCaptureSize(parameters);
+    // only the test runner resizes the frame (`atTheCaptureSize`): the button moves there, before what is checked
+    if (await hasBrowserMouse()) {
+      await waitFor(() => expect(buttonLeft()).not.toBe(before));
+    }
+    await waitFor(() => {
+      const button = canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect();
+      // the fixed point the picker is drawn at, which only what follows the button moves
+      const anchor = Array.from(document.querySelectorAll('span')).find(
+        (span) => span.style.position === 'fixed' && span.style.width === '1px'
+      );
+      expect(anchor?.getBoundingClientRect().left).toBe(button.left);
+      const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
+      expect(picker.top).toBeGreaterThanOrEqual(button.bottom - 1);
+      // at its button, on the side there is room
+      expect(Math.abs(picker.right - button.left)).toBeLessThan(40);
+    });
+    const local = await pickerRow('$local:');
+    await expect(local.classList.contains('template-picker-group')).toBe(true);
+    await expect(useOfRow(local)).toBeTruthy();
+    const whole = await pickerRow('$fsminput:*');
+    await expect(whole.classList.contains('template-picker-group')).toBe(false);
+    await expect(useOfRow(whole)).toBeNull();
+    await expect(document.querySelector('.template-picker-row[data-label="$fsminput:"]')).toBeNull();
+    const rest = await pickerRow('$rest:');
+    await expect(rest.classList.contains('template-picker-group')).toBe(false);
+    await expect(useOfRow(rest)).toBeNull();
+  },
+};
+
+/** The same list on a phone: under the field, on the screen, its rows as big as a finger needs. */
+export const TemplateContextsOnAPhone: StoryObj<typeof meta> = {
+  tags: ['touch'],
+  args: expressionWithTemplates,
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "Renders the Template contexts of an expression on a phone (390 px, touch), opened from the template button: the picker is under the field and inside the screen, and its rows fit it.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await withTouchScreen(async (touch) => {
+      const button = await waitFor(
+        () => {
+          const found = canvasElement.querySelector<HTMLElement>('.smart-editor-template-button');
+          expect(found).toBeTruthy();
+          return found!;
+        },
+        { timeout: 10000 }
+      );
+      await touch.tap(button);
+      await touch.tap(await pickerRow('Template contexts'));
+      const whole = await pickerRow('$fsminput:*');
+      const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
+      await expect(picker.left).toBeGreaterThanOrEqual(0);
+      await expect(picker.right).toBeLessThanOrEqual(window.innerWidth);
+      await expect(picker.top).toBeGreaterThanOrEqual(button.getBoundingClientRect().bottom - 1);
+      expectRowsFit([whole]);
+    });
+  },
+};
+
+export const AContextWithNothingInItIsTakenByAClick: StoryObj<typeof meta> = {
+  // a value of any type: the whole of a context is no yes/no, and only what parses is the field's value
+  args: { ...expressionWithTemplates, type: 'any', defaultType: 'any' },
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the list is pictured by `TemplateContextsOfferWhatCanBeTaken`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders the Template contexts of an expression and clicks $fsminput:*. The field holds the value, the picker closes, and no box asks for a key.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    await openTemplateContexts(canvasElement);
+    await userEvent.click(await pickerRow('$fsminput:*'));
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
+    await expect(document.querySelector('.template-picker-key')).toBeNull();
+    // the field holds it, as its chip and as its value
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('.expression-field [data-slate-editor]')?.textContent
+      ).toContain('fsminput')
+    );
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(
+      () => expect(JSON.stringify((args.onChange as any).mock.lastCall ?? null)).toContain('$fsminput:*'),
+      { timeout: 10000 }
+    );
+    await expect(canvasElement.textContent).not.toContain("isn't finished");
   },
 };
 

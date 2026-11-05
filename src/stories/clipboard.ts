@@ -9,11 +9,14 @@
 // - `clipboard-api`: a secure page whose Clipboard API copies;
 // - `copy-command`: a page served over plain http, with no Clipboard API, whose
 //   copy command (`document.execCommand('copy')`) copies;
-// - `none`: a page where neither copies, so the copy fails.
+// - `none`: a page where neither copies, so the copy fails;
+// - `refused`: a secure page whose Clipboard API is there but refuses (`writeText`
+//   rejects with a `NotAllowedError`, as a browser does without the permission),
+//   and whose copy command does not copy either, so the copy fails.
 //
 // What was copied is recorded in `copied`, whichever way it was copied.
 
-export type TStoryClipboard = 'clipboard-api' | 'copy-command' | 'none';
+export type TStoryClipboard = 'clipboard-api' | 'copy-command' | 'none' | 'refused';
 
 export interface IStoryClipboard {
   /** The texts copied, in order. */
@@ -56,6 +59,12 @@ export const stubClipboard = (kind: TStoryClipboard): IStoryClipboard => {
           {
             writeText: async (text: string) => {
               copied.push(text);
+            },
+          }
+        : kind === 'refused' ?
+          {
+            writeText: async () => {
+              throw new DOMException('Write permission denied.', 'NotAllowedError');
             },
           }
         : undefined

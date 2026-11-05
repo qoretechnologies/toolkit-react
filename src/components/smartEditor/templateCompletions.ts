@@ -307,6 +307,7 @@ export const templateSearchItems = (
             !node.children?.length &&
             // a context of free keys is its context's row, above
             !node.writesKey &&
+            !isKeylessContext(node) &&
             node.label
               .toLowerCase()
               .split(/[^\p{L}\p{N}]+/u)
@@ -314,9 +315,9 @@ export const templateSearchItems = (
         )
       : [];
     return onceEach([
-      ...templateContextsOf(roots, partial, wholeRecords).map((node) =>
-        templateRow(node, typeLabel)
-      ),
+      ...templateContextsOf(roots, partial, wholeRecords)
+        .filter((node) => !node.disabled)
+        .map((node) => templateRow(node, typeLabel)),
       ...named.map((node) => templateRow(node, typeLabel)),
     ]);
   }
@@ -345,7 +346,7 @@ export const templateSearchItems = (
   return onceEach([
     ...whole,
     ...searchTemplateReferences(roots, typed)
-      .filter((node) => !node.writesKey)
+      .filter((node) => !node.writesKey && !isKeylessContext(node))
       .map((node) => templateRow(node, typeLabel)),
   ]);
 };
@@ -377,15 +378,22 @@ const wholeContextRow = (context: string): ILspCompletionItem => ({
   >,
 });
 
+/** A context of a catalogue with no key to choose, taken whole in the picker: its context's row here, not a value's. */
+const isKeylessContext = (node: ITemplateNode) =>
+  !!node.catalogue && !node.children?.length && !!node.value;
+
 /** A node's row in the completion list. */
 const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletionItem => {
-  const group = !!node.children?.length || !!node.loadChildren;
+  const group = !!node.children?.length || (!!node.loadChildren && !node.children);
   // a context written to go on into it (`$local:`): of the field's own templates, or of its catalogue
   const isContext =
     node.id.startsWith('context:') || (!!node.catalogue && /^\$[\w-]+:$/.test(node.reference ?? ''));
   /* A group that a reference names - a context, a state, a record - is gone on into as it is typed: taken, its
      reference is written and what is in it is listed (qorus#646, David: "accepting an intermediate level continues
      to the next level"). A group no reference names (Context Data) opens the picker at its members. */
+  /* Written on from, as typing goes on: the picker's `$dynamic:*`, a context with no key to choose, is `$dynamic:` here,
+     its key typed after it (a list has no dead end: it says to write the key), and taken whole with Use. */
+  const wholeHere = isContext && !!node.value;
   const continuation =
     isContext ? node.reference
     : group && node.reference && /^(?:\$[^:]*:.|@.)/.test(node.reference) ? `${node.reference}.`
@@ -398,8 +406,8 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
     opens: group && !continuation,
     continues: !!continuation,
     // a context of keys written freely has none listed, and is taken whole all the same (`$dynamic:*`)
-    takesWhole: (group || isContext) && !!node.takesWhole,
-    wholeValue: (group || isContext) && node.takesWhole ? node.value : undefined,
+    takesWhole: wholeHere || (group && !!node.takesWhole),
+    wholeValue: wholeHere || (group && node.takesWhole) ? node.value : undefined,
     section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
     kindLabel,
     kindIntent: templateNodeIntent(node),
@@ -411,7 +419,7 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
     Boolean
   );
   return {
-    label: node.label,
+    label: isContext ? (node.reference ?? node.label) : node.label,
     kind: node.kind === 'field' ? FIELD_KIND : TEMPLATE_KIND,
     detail: said.length ? said.join(' · ') : undefined,
     insertText: continuation ?? node.value ?? node.reference ?? node.label,

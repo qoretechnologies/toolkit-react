@@ -159,7 +159,7 @@ export function mockTokenizeDpql(text: string): number[] {
       `(/(?:\\\\.|[^/\\\\])*/[gimsux]*)`, // 3: regex literal /…/flags
       // a field name is bare in any script, as the server reads it: @menge_bestätigt, @名前
       `(@"(?:\\\\.|[^"\\\\])*"|@[\\p{L}_][\\p{L}\\p{M}\\p{N}_.]*)`, // 4: @field
-      `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|[\\w.{}]+))`, // 5: $context:value
+      `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|\\*|[\\w.{}]+))`, // 5: $context:value, `*` the whole of it
       `(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)`, // 6: number
       `(==|!=|<=|>=|&&|\\|\\||=~|!~|[+\\-*/%<>!=])`, // 7: operator
       // 8: punctuation — matched so it is not misread, but the server leaves it uncolored
@@ -224,7 +224,7 @@ type TToken =
 /* A template is braced wherever its path holds more than a name's characters (`$record:{orders[*].id}`), as the
    server reads it; `=~` and `!~` match a regular expression literal, read whole after them (`readRegex`). */
 const LEX_RE =
-  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:(?:\{(?:\\.|[^{}\\])*\}|[\w.]+))|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|=~|!~|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
+  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:(?:\{(?:\\.|[^{}\\])*\}|\*|[\w.]+))|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|=~|!~|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
 
 /** A regular expression literal at the start of `text` (`/^[a-z]+@example\.com$/i`), as the server reads one after
  *  `=~` or `!~`: what is in it is the pattern's, a `$` or an `@` in it included. */
@@ -972,7 +972,7 @@ export const mockParseDpql = (
 
 // ─── Serialize and render ────────────────────────────────────────────────────
 
-const TEMPLATE_TOKEN = /^\$[A-Za-z_-][\w-]*:[\w.{}]+$/;
+const TEMPLATE_TOKEN = /^\$[A-Za-z_-][\w-]*:(?:\*|[\w.{}]+)$/;
 
 /** An argument's own value, for a rendering that asks whether it is set. */
 const argumentValue = (arg: IDpqlMockNode | undefined): unknown =>

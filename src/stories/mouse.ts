@@ -176,3 +176,10 @@ export const middleOfElement = (element: Element) => {
   const box = element.getBoundingClientRect();
   return { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
 };
+
+/**
+ * Whether the story runs in the test runner, whose mouse is the browser's own: what only a real pointer does - a
+ * style drawn on `:hover` - can be checked there, and not in Storybook's UI, where the mouse is dispatched events
+ * (`restMouseOn`) and the viewer's own mouse is wherever they left it.
+ */
+export const hasBrowserMouse = async () => !!(await vitestBrowser());

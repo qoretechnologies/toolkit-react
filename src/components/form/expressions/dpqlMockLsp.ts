@@ -103,7 +103,7 @@ const DPQL_MOCK_AFTER_A_VALUE = ['==', '!=', '<', '>', '&&', '||'].map((label) =
 const MOCK_BEFORE_A_VALUE = /[-+*/%<>=!&|,([]$/;
 
 /** A template written out whole: `$record:{pos}`, not the `$` or `$rec` of one being written. */
-const MOCK_WHOLE_TEMPLATE = /^\$[A-Za-z_][\w-]*:(?:\{[^{}]*\}|[\w.])+$/;
+const MOCK_WHOLE_TEMPLATE = /^\$[A-Za-z_][\w-]*:(?:\*|(?:\{[^{}]*\}|[\w.])+)$/;
 
 /** The fields each document is bound to, by its URI. */
 const dpqlMockDocumentFields = new Map<string, TDpqlMockFields>();

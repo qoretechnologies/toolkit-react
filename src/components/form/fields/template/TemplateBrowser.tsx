@@ -42,6 +42,10 @@ const writtenHere = (roots: ITemplateNode[]): ITemplateNode[] =>
   roots.map((node) => ({
     ...node,
     ...(node.continues && !node.children?.length ? { writesKey: true, continues: false } : {}),
+    // taken whole by its row: nothing can be typed here, so a key of it is asked for with the row's Key action
+    ...(node.catalogue?.free_form_keys && !node.children?.length && node.value ?
+      { offersKey: true }
+    : {}),
     ...(node.children ? { children: writtenHere(node.children) } : {}),
   }));
 
