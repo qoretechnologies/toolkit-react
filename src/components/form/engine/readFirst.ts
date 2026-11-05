@@ -885,9 +885,18 @@ export const getOptionGroupLabel = (
 
 /** Completion summary for the read-first progress meter. */
 export interface IReadFirstCompletion {
+  /**
+   * What the form is made of for this count: every field holding a value and every one the form says still needs
+   * attention. An empty optional field is not part of what is left to do, so it is not counted (with a verdict).
+   */
   total: number;
   /** Fields holding a value, whether or not anything is wrong with it. */
   set: number;
+  /**
+   * Every field the form shows, counted or not: a form of empty optional fields counts nothing (`total` 0) and
+   * is still a form, which reads Ready.
+   */
+  shown: number;
   /** Fields holding a value that nothing is flagging — what the meter fills. */
   done: number;
   pct: number;
@@ -897,9 +906,13 @@ export interface IReadFirstCompletion {
  * status BOX bucketing (FormEngine) so the two can never disagree:
  *   invalid  — a value fails validation, or a danger message is present (red)
  *   todo     — empty & required (or has a warning message), needs a value (amber)
+ *   pending  — empty & required, but the person has not been to it yet: still to
+ *              fill in, not yet a fault (neutral). A new form is not already wrong;
+ *              the field becomes `todo` once they open it and leave it empty, or the
+ *              host reports a submit attempt (`revealRequired`)
  *   set      — has a valid value (green)
  *   optional — empty & not required, or covered by a one-of sibling (calm) */
-export type TReadFirstStatus = 'invalid' | 'todo' | 'set' | 'optional';
+export type TReadFirstStatus = 'invalid' | 'todo' | 'pending' | 'set' | 'optional';
 
 export const getReadFirstStatus = (s: {
   empty: boolean;
@@ -910,17 +923,26 @@ export const getReadFirstStatus = (s: {
   invalid: boolean;
   /** A warning message is attached (surfaces an empty field for attention). */
   warned: boolean;
+  /**
+   * Whether the person has been to this field (opened it and left it), or the host
+   * reported a submit attempt. Until then an empty required field is `pending`, not
+   * `todo`. Unset means visited, the behaviour before this existed.
+   */
+  visited?: boolean;
 }): TReadFirstStatus => {
   if (s.invalid) return 'invalid';
   if (!s.empty) return 'set';
   // A one-of member covered by a satisfied sibling reads as "set" (green) — the
   // requirement is met; the row just shows a "Covered by …" note.
   if (s.covered) return 'set';
-  if (s.required || s.warned) return 'todo';
+  if (s.warned) return 'todo';
+  if (s.required) return s.visited === false ? 'pending' : 'todo';
   return 'optional';
 };
 
-/** Coarse bucket for the three status boxes (Needs attention / Set / Optional). */
+/** Coarse bucket for the three status boxes (Needs attention / Set / Optional). A
+ *  `pending` field is in the first box too: it still has to be filled in. The box only
+ *  reads "To fill in" instead of "Needs attention" while nothing in it is a fault. */
 export const getReadFirstBucket = (status: TReadFirstStatus): 'attention' | 'set' | 'optional' =>
   status === 'set' ? 'set'
   : status === 'optional' ? 'optional'
@@ -936,9 +958,16 @@ export const getReadFirstCompletion = (
    */
   needsAttention?: (name: string) => boolean
 ): IReadFirstCompletion => {
-  const names = Object.keys(shownOptions);
-  const total = names.length;
   const hasValue = (name: string) => !isOptionValueEmpty(shownOptions[name]?.value);
+  /* An empty optional field is nothing left to do. Counted, a form with nothing outstanding read
+     "Ready · 2/6 set · 33%": the word and the figure disagreed, because four optional fields nobody
+     needed to fill sat in the denominator. Only a verdict says which empty fields are needed, so a
+     caller without one keeps counting every shown field. */
+  const shown = Object.keys(shownOptions).length;
+  const names = Object.keys(shownOptions).filter(
+    (name) => !needsAttention || hasValue(name) || needsAttention(name)
+  );
+  const total = names.length;
   const set = names.filter(hasValue).length;
   /* "Set" and "needs attention" are not opposites. A field can hold a value and
      still be wrong — one that fails validation, or one the host has flagged
@@ -954,7 +983,7 @@ export const getReadFirstCompletion = (
     needsAttention ? names.filter((name) => hasValue(name) && !needsAttention(name)).length : set;
   const pct = total ? Math.round((done / total) * 100) : 0;
 
-  return { total, set, done, pct };
+  return { total, set, done, pct, shown };
 };
 
 /** What the "first field to fix" selector needs to know about one field.

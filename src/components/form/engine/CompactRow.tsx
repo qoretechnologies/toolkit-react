@@ -40,7 +40,13 @@ import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeC
 import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 import { resolveInheritProps } from './inheritProps';
 import { NO_OPTION_DESCRIPTION } from '../../../helpers/noDescription';
-import { revealRow } from './revealRow';
+import {
+  CALM_REQUIRED_LABEL,
+  CALM_REQUIRED_READ_LABEL,
+  calmNoteIntent,
+  useIsCalmForm,
+} from './formAppearance';
+import { getRevealClearance, isCaretLineInView, revealRow } from './revealRow';
 import {
   MONO_FONT_STACK,
   StyledActionSlot,
@@ -63,6 +69,7 @@ import {
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
 import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
+import { RowLabelledContext } from './rowLabelled';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
@@ -251,8 +258,17 @@ export const CompactRow = memo(
     clusterLast?: boolean;
   }) => {
     const readOnly = useContextSelector(CompactRowContext, (v) => v.readOnly);
+    // The look only — see `TFormEngineAppearance`. Nothing a row DOES reads it.
+    const calm = useIsCalmForm();
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
+    // Whether this field's emptiness is a fault yet: the person has opened it and left,
+    // or the host reported a submit attempt. Before that a required field is only to
+    // fill in, and says so in the quiet colour.
+    const visited = useContextSelector(
+      CompactRowContext,
+      (v) => v.revealRequired || !!v.visitedOptions?.includes(optionName)
+    );
 
     // An absorbed field keeps its own name — it is a different field, not a
     // property of its host — so the label comes from its schema exactly as it
@@ -358,6 +374,11 @@ export const CompactRow = memo(
     const cDanger = useContextSelector(CompactRowContext, (v) => v.cDanger);
     const cWarning = useContextSelector(CompactRowContext, (v) => v.cWarning);
     const cInfo = useContextSelector(CompactRowContext, (v) => v.cInfo);
+    const cText = useContextSelector(CompactRowContext, (v) => v.cText);
+    // A field's NAME: full text colour by default; grey in the calm look, so the
+    // value beside it is what the eye lands on. One colour for the read row, the
+    // open row and the edit card, so a name does not change as its field opens.
+    const cLabel = calm ? `${cText}b3` : cKey;
     // A markdown value renders as a document in the row's inset; the host's
     // renderer when it supplied one, reqraft's own otherwise.
 
@@ -496,6 +517,11 @@ export const CompactRow = memo(
 
       // a yes/no holding a template has read as the template, above, not as Yes (qorus#646)
       if (valueType === 'bool' || valueType === 'boolean') {
+        // Calm: Yes and No are words. Neither is a status — "No" is not a
+        // failure — so neither is coloured.
+        if (calm) {
+          return <span style={textStyle}>{formatted}</span>;
+        }
         const truthy = field?.value === true || field?.value === 'true';
         return (
           <ReqoreTag
@@ -798,8 +824,11 @@ export const CompactRow = memo(
       );
     };
     const required = !!(schema?.required || schema?.required_groups);
-    // The asterisk says "you have to fill this in". Read-only, nobody does.
-    const requiredMark = required && !readOnly;
+    // The asterisk says "you have to fill this in". Read-only, nobody does. The
+    // calm look draws none at all: an empty required field says so in its
+    // value column instead ("Required · add a value"), and a filled one has
+    // nothing left to ask for.
+    const requiredMark = required && !readOnly && !calm;
     const removable =
       !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
@@ -867,8 +896,15 @@ export const CompactRow = memo(
             minimal
             flat
             compact
-            effect={{ uppercase: true, spaced: 1 }}
-            intent={groupResolved ? 'success' : 'warning'}
+            effect={calm ? undefined : { uppercase: true, spaced: 1 }}
+            // Calm: a met group is nothing to point at — only the unmet one is
+            // coloured.
+            intent={
+              groupResolved ?
+                calm ? undefined
+                : 'success'
+              : 'warning'
+            }
             icon={groupResolved ? 'CheckLine' : 'LinkM'}
             label={
               !groupResolved ? 'One of'
@@ -1035,25 +1071,52 @@ export const CompactRow = memo(
       const editor = editorRef.current;
       if (!editor) return undefined;
       let settled = false;
+      /* A control that is not a text box holds the caret PROVISIONALLY. An editor that
+         takes text can mount after the row opens (a code editor loads late), and until
+         it does the only control there is its chrome: a fullscreen toggle. When the
+         text box arrives it takes the caret, unless the reader has moved it since. A
+         row that never grows one (a pick-one) simply keeps its control. */
+      let provisional: HTMLElement | null = null;
       const takeCaret = (): boolean => {
         if (settled) return true;
         const active = document.activeElement as HTMLElement | null;
+        if (provisional) {
+          if (active !== provisional) {
+            // The reader moved the caret themselves. Leave it there.
+            settled = true;
+            return true;
+          }
+          const textEntry = findRowFocusTarget(editor, { textEntryOnly: true });
+          if (!textEntry) return false;
+          textEntry.focus({ preventScroll: true });
+          // An editor's text box can be in the DOM before it can take focus (Monaco's
+          // edit area, mid-layout), and `focus()` then does nothing. Only a caret
+          // that landed counts; otherwise try again on the editor's next change.
+          if (document.activeElement !== textEntry) return false;
+          settled = true;
+          return true;
+        }
         if (active && active !== document.body && !rowRef.current?.contains(active)) {
           // Someone else holds the caret — a field the reader moved into while
           // this row's editor was still arriving. Leave it where it is.
           settled = true;
           return true;
         }
-        const control = findRowFocusTarget(editor);
+        // A card hands the caret only to where text goes (see `findRowFocusTarget`).
+        const control = findRowFocusTarget(editor, { textEntryOnly: !inlineEditable });
         if (!control) return false;
-        // The least scroll that shows the row clear of the pinned box header,
-        // and none when it is already in view (see `revealRow`).
-        if (rowRef.current) {
+        // The least scroll that shows the row clear of the pinned box header, and none
+        // while the line the caret lands on is in view (`isCaretLineInView`: the row's own
+        // height is not settled yet, the top of its control is).
+        if (rowRef.current && !isCaretLineInView(control, getRevealClearance(control))) {
           revealRow(rowRef.current, 'auto');
         }
         // `preventScroll`, because the reveal above has already put the row
         // where it belongs; letting focus scroll as well moves it twice.
         control.focus({ preventScroll: true });
+        // A control that cannot take focus yet (still laying out) did not take
+        // the caret: try again on the editor's next change.
+        if (document.activeElement !== control) return false;
         /* …and if the control the row offers is a PICKER, open it.
          *
          * A closed picker prints the value it holds, which is exactly what the
@@ -1071,6 +1134,13 @@ export const CompactRow = memo(
         if (openedByAuthor.current && inlineEditable && isClosedPickerTrigger(control)) {
           openedByAuthor.current = false;
           setOpenThePicker(true);
+          settled = true;
+          return true;
+        }
+        if (findRowFocusTarget(editor, { textEntryOnly: true }) !== control) {
+          // Not a text box: hold it until one arrives (see `provisional`).
+          provisional = control;
+          return false;
         }
         settled = true;
         return true;
@@ -1079,7 +1149,9 @@ export const CompactRow = memo(
       const observer = new MutationObserver(() => {
         if (takeCaret()) observer.disconnect();
       });
-      observer.observe(editor, { childList: true, subtree: true });
+      // Attributes too: an editor's text box can become focusable by an attribute or
+      // style change after it is inserted (see the `focus()` checks above).
+      observer.observe(editor, { childList: true, subtree: true, attributes: true });
       return () => observer.disconnect();
     }, [isExpanded, optionName, inlineEditable]);
 
@@ -1282,7 +1354,7 @@ export const CompactRow = memo(
           fixed
           flat
           compact
-          effect={{ uppercase: true, spaced: 1 }}
+          effect={calm ? undefined : { uppercase: true, spaced: 1 }}
         />
       : null;
     // nothing can have been typed where the value is a fixed choice, or the form is read-only (a card opened to read)
@@ -1307,7 +1379,7 @@ export const CompactRow = memo(
           minimal
           fixed
           icon='CloseLine'
-          intent='warning'
+          intent={calm ? undefined : 'warning'}
           // "Cancel edit", not "Cancel": a bare Cancel collides with the one
           // in Reqore's confirmation modal, and this one is specifically about
           // abandoning the edit rather than dismissing a dialog.
@@ -1328,7 +1400,9 @@ export const CompactRow = memo(
       <ReqoreButton
         className='options-readfirst-done'
         size='small'
-        intent={!isPassiveCloseAction ? 'success' : undefined}
+        // Calm: a neutral button. Closing a field is not a healthy figure and
+        // not the page's one primary action, so it takes neither colour.
+        intent={!isPassiveCloseAction && !calm ? 'success' : undefined}
         flat={isPassiveCloseAction}
         minimal={isPassiveCloseAction}
         fixed
@@ -1379,6 +1453,10 @@ export const CompactRow = memo(
           allOptions: availableOptions,
           getType: getTypeForOption,
           isRendererOnly,
+          calm,
+          readOnly,
+          // Until the person has been to the field, its requirement is stated plainly.
+          requirementPending: !visited,
         }).map((m) => ({ intent: m.intent as string, content: String(m.label) }))
       : [];
     // TWO display channels, matching the Focus prototype:
@@ -1501,7 +1579,8 @@ export const CompactRow = memo(
         size='small'
         opaque={false}
         flat
-        intent={m.intent as never}
+        // Calm: a note that only informs takes no colour (`calmNoteIntent`).
+        intent={calmNoteIntent(m.intent, calm) as never}
         title={m.title}
         style={{ marginBottom: 8 }}
       >
@@ -1688,7 +1767,7 @@ export const CompactRow = memo(
                 tabIndex={0}
                 aria-label={`Collapse ${label}`}
                 title={labelHover}
-                $color={cKey}
+                $color={cLabel}
                 $pointer
                 onClick={collapse}
                 onKeyDown={(event) => {
@@ -1700,7 +1779,7 @@ export const CompactRow = memo(
               >
                 <StyledLabelName $fill>
                   <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
-                    {nameWithAsterisk(!!required)}
+                    {nameWithAsterisk(!!required && !calm)}
                     {typeTag}
                   </span>
                   {helpIcon}
@@ -1723,6 +1802,7 @@ export const CompactRow = memo(
             </StyledLabelBlock>
             <div
               ref={editorRef}
+              className='options-readfirst-row-editor'
               style={{ minWidth: 0 }}
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
@@ -1782,7 +1862,9 @@ export const CompactRow = memo(
               <RowOpenPickerContext.Provider value={openThePicker}>
                 <RowMenuContext.Provider value={rowMenu}>
                   <PendingEditsContext.Provider value={pendingEdits}>
-                    {renderOption(optionName, optionField, 'small', true)}
+                    <RowLabelledContext.Provider value>
+                      {renderOption(optionName, optionField, 'small', true)}
+                    </RowLabelledContext.Provider>
                   </PendingEditsContext.Provider>
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
@@ -1865,6 +1947,7 @@ export const CompactRow = memo(
       return (
         <StyledEditCard
           key={optionName}
+          ref={rowRef}
           data-field={optionName}
           className={
             COMPACT_SINGLE_VALUE_TYPES.has(editType) ?
@@ -1873,6 +1956,7 @@ export const CompactRow = memo(
           }
           $bg={cHover}
           $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
+          $calm={calm}
         >
           <div
             className='options-readfirst-card-header'
@@ -1886,7 +1970,7 @@ export const CompactRow = memo(
             }}
           >
             <StyledCardHeading>
-              <StyledCardLabel $color={cKey} title={labelHover}>
+              <StyledCardLabel $color={cLabel} title={labelHover}>
                 {(
                   (schema as { icon?: string } | undefined)?.icon ||
                   (schema as { image?: string } | undefined)?.image
@@ -1899,7 +1983,7 @@ export const CompactRow = memo(
                 : null}
                 <StyledLabelName>
                   <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
-                    {nameWithAsterisk(!!required)}
+                    {nameWithAsterisk(!!required && !calm)}
                     {/* The `?` belongs here too. The read row and the inline
                       editor both carry it; the edit CARD did not — and the card
                       is the path every field with an `arg_schema` takes, so a
@@ -2007,6 +2091,11 @@ export const CompactRow = memo(
               keystroke a silent commit. Same handler, same `cancelEdit()`, so
               the two shapes cannot diverge. */}
           <div
+            // The card's editor, as the inline row's is: an opened card takes the
+            // caret too (the tap-to-edit rule above), so opening Description or
+            // Source Code by a click or by a blocked submit puts the cursor in it.
+            ref={editorRef}
+            className='options-readfirst-row-editor'
             style={{ display: 'contents' }}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
@@ -2070,7 +2159,7 @@ export const CompactRow = memo(
     const valueReasons: TInfoMsg[] = [
       ...inlineMessages,
       ...(empty && coveredByLabel ?
-        [{ content: `Covered by “${coveredByLabel}”`, intent: 'success' }]
+        [{ content: `Covered by “${coveredByLabel}”`, intent: calm ? undefined : 'success' }]
       : []),
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
@@ -2449,10 +2538,28 @@ export const CompactRow = memo(
       covered: !!coveredByLabel || groupResolved,
       invalid: worstIntent === 'danger',
       warned: worstIntent === 'warning',
+      visited,
     });
     // No dot at all in a read-only form: the dot reports progress on the
     // form, and a read view has no progress to report.
-    const dotStatus = hidden || fieldDisabled || readOnly ? undefined : rowStatus;
+    //
+    // Calm: no dot on a healthy row, and none on an empty required one either —
+    // its value column already says "Required · add a value" in amber, and one
+    // thing is said once. Only a failing value keeps the red dot beside the
+    // reason it gives.
+    const dotStatus =
+      hidden || fieldDisabled || readOnly || (calm && rowStatus !== 'invalid') ?
+        undefined
+      : rowStatus;
+    // Calm: an empty required value is said IN the value column, in amber,
+    // where the value would be — instead of a dash plus a red reason beside it.
+    // Not on a locked field (its lock and reason speak for it) or one that
+    // shows the default it will fall back to.
+    const calmRequiredWord =
+      calm && empty && !hidden && !!schema?.required && !fieldDisabled && !formattedDefault ?
+        readOnly ? CALM_REQUIRED_READ_LABEL
+        : CALM_REQUIRED_LABEL
+      : undefined;
     const dotColor =
       dotStatus === 'invalid' ? cDanger
       : dotStatus === 'todo' ? cWarning
@@ -2499,7 +2606,7 @@ export const CompactRow = memo(
       >
         {clusterNode}
         <StyledLabelBlock className='options-readfirst-label-block'>
-          <StyledRowLabel title={labelHover} $color={cKey}>
+          <StyledRowLabel title={labelHover} $color={cLabel}>
             {rowChromeIcon}
             {/* The name, its asterisk with its last word and what it takes flow as one run that wraps; the help is
                 at the column's right edge, on the name's first line, the same x in every row (`StyledLabelName`). */}
@@ -2570,8 +2677,15 @@ export const CompactRow = memo(
           // actual data — crucial when stacked under a (muted) description on
           // mobile, where a dim value blends into the prose. The bold name still
           // outranks it; the empty dash stays faint.
-          $color={empty || hidden ? rowInks.emptyValue : cKey}
-          $empty={empty || hidden}
+          $color={
+            calmRequiredWord ?
+              rowStatus === 'pending' ?
+                rowInks.mutedReason
+              : rowInks.warning
+            : empty || hidden ? rowInks.emptyValue
+            : cKey
+          }
+          $empty={(empty || hidden) && !calmRequiredWord}
         >
           {/* A markdown value with a host renderer draws in full in the inset
               below, so the row prints no value line at all: the stripped-prose
@@ -2617,7 +2731,7 @@ export const CompactRow = memo(
                   formatted={formatted}
                 />
               : hidden || empty ?
-                formattedDefault || '—'
+                calmRequiredWord || formattedDefault || '—'
               : renderReadFirstValue(optionField, schema, formatted, readOnly)}
             </span>}
           {readOnlyChoiceDesc ?
@@ -2631,7 +2745,10 @@ export const CompactRow = memo(
               : plainTextNode(readOnlyChoiceDesc)}
             </div>
           : null}
-          {valueReasons.map((m, i) => (
+          {(calmRequiredWord ?
+            valueReasons.filter((m) => m.content !== calmRequiredWord)
+          : valueReasons
+          ).map((m, i) => (
             <span
               key={`${m.content}-${i}`}
               className='options-readfirst-reason'
@@ -2914,7 +3031,12 @@ export const CompactRow = memo(
                 }}
               />
             : dotColor ?
-              <StyledStatusDot $color={dotColor} $ring={dotStatus !== 'set'} aria-hidden />
+              <StyledStatusDot
+                className='options-readfirst-status-dot'
+                $color={dotColor}
+                $ring={dotStatus !== 'set'}
+                aria-hidden
+              />
             : null}
           </StyledActionSlot>
         </StyledRowActions>

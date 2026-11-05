@@ -29,7 +29,7 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size } from 'lodash';
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
@@ -92,6 +92,7 @@ import {
   useRowMenu,
   useRowMenuPublisher,
 } from '../../engine/rowMenuContext';
+import { SavedValuesContext } from '../allowed-values/savedValues';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
@@ -382,6 +383,9 @@ export interface ITemplateFieldSavedValues {
   /** The menu's words, English where not given. */
   labels?: Partial<{ save: string; saveTooltip: string; use: string; remove: string }>;
 }
+
+/** A form host's saved values are the field's choices, not its menu's (see `savedValues` in the field). */
+const NO_SAVED_VALUE_ITEMS: ITemplateFieldSavedValue[] = [];
 
 const DEFAULT_SAVED_VALUES_LABELS = {
   save: 'Save this value',
@@ -717,7 +721,7 @@ const TemplateFieldImpl = memo(
     valueTabsLabels,
     expressionModeLabels,
     textWidth = 'field',
-    savedValues,
+    savedValues: savedValuesProp,
     templateBadge,
     extraActions,
     componentOverrides,
@@ -1248,9 +1252,25 @@ const TemplateFieldImpl = memo(
       [name, onChange]
     );
 
-    // SEAM (reqraft): the IDE computes `canSaveValue` here and renders a
-    // `SaveValueButton` in the controls menu — the saved-values storage is
-    // IDE-only, so the menu item is dropped (`allowSaving` is inert).
+    /* Saving a value for reuse goes to the HOST, which keeps saved values and asks what to call this one. A
+       host that draws this field itself passes `savedValues`; a form's host provides them to every form through
+       `SavedValuesContext`, whose save this field offers only where its option allows saving (`allowSaving`).
+       Those values are offered as the field's own choices (`showSavedValues`, see `AllowedValues`), so they are
+       not listed in the menu a second time. */
+    const savedValuesContext = useContext(SavedValuesContext);
+    const savedValues = useMemo<ITemplateFieldSavedValues | undefined>(
+      () =>
+        savedValuesProp ??
+        (rest.allowSaving && savedValuesContext?.saveValue ?
+          {
+            items: NO_SAVED_VALUE_ITEMS,
+            onSave: (saved, savedType) =>
+              savedValuesContext.saveValue?.({ value: saved, type: savedType }),
+            labels: savedValuesContext.saveLabel ? { save: savedValuesContext.saveLabel } : undefined,
+          }
+        : undefined),
+      [savedValuesProp, savedValuesContext, rest.allowSaving]
+    );
 
     /* A template chosen beside a date control is the value at once, IN the template control: handed to
        the form while the field was still drawing its date control, the reference reached the date
@@ -1745,7 +1765,8 @@ const TemplateFieldImpl = memo(
         ...(tabsKind ?
           []
         : [
-            ...(canOfferExpression && !functions.loading ?
+            // a field whose only input is an expression draws its own way in (see `hasOnlyExpressions`)
+            ...(canOfferExpression && !hasOnlyExpressions && !functions.loading ?
               [
                 {
                   // in a condition field the label says what it is for; the value's tooltip would only repeat it
@@ -1818,6 +1839,7 @@ const TemplateFieldImpl = memo(
         value,
         savedForType,
         takeSavedValue,
+        hasOnlyExpressions,
       ]
     );
 
@@ -1825,9 +1847,10 @@ const TemplateFieldImpl = memo(
        handlers, so they are a new array every render and a row comparing them
        by value would loop. */
     const publishedKey = [
-      canOfferExpression && !functions.loading ? 'expression' : '',
+      canOfferExpression && !hasOnlyExpressions && !functions.loading ? 'expression' : '',
       canOfferTemplate ? `template${hasTemplatesOnOffer ? '' : '-none-on-offer'}` : '',
       canOfferCustomValue ? 'custom-value' : '',
+      canSaveValue ? 'save-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
       canSaveValue ? `save:${JSON.stringify(value)}` : '',
       canUseSavedValue ? `saved:${savedForType.map((item) => item.id).join('|')}` : '',
@@ -1872,17 +1895,9 @@ const TemplateFieldImpl = memo(
           canUseSavedValue,
         ].filter(Boolean).length === 1;
 
-      /* ONE menu per control. Where this field sits in a form ROW, the row
-         already renders a ⋮ of its own, and drawing a second one beside it
-         put two menus of slightly different widths on the same control —
-         with the type choices an `any` field offers hidden in the narrower
-         one. The items are published to the row instead (see
-         `rowMenuContext`); outside a row there is nothing to publish into,
-         so the field goes on drawing its own. */
-      if (rowMenu) {
-        return null;
-      }
-
+      /* A field that takes nothing BUT an expression has one way in, and it is
+         its editor, not a menu item — so it is drawn in a form row too. Behind
+         the row's ⋮ the field read as having nowhere to write anything. */
       if (hasOnlyExpressions) {
         return (
           showFunctionsDropdown ?
@@ -1910,6 +1925,17 @@ const TemplateFieldImpl = memo(
               />
           : null
         );
+      }
+
+      /* ONE menu per control. Where this field sits in a form ROW, the row
+         already renders a ⋮ of its own, and drawing a second one beside it
+         put two menus of slightly different widths on the same control —
+         with the type choices an `any` field offers hidden in the narrower
+         one. The items are published to the row instead (see
+         `rowMenuContext`); outside a row there is nothing to publish into,
+         so the field goes on drawing its own. */
+      if (rowMenu) {
+        return null;
       }
 
       if (hasValueRows || size(menuActions?.items) > 0 || size(menuTrailingItems) > 0) {

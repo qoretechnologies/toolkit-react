@@ -67,6 +67,7 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
+import { calmNoteIntent, useIsCalmForm } from '../../engine/formAppearance';
 import { useExpressionType } from '../useExpressionType';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
@@ -74,6 +75,7 @@ import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
+import { RowLabelledContext } from '../../engine/rowLabelled';
 import { ExpressionItem } from './item';
 import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
@@ -199,6 +201,7 @@ export const Expression = ({
   conditionMessage,
   ...props
 }: IExpressionProps) => {
+  const calm = useIsCalmForm();
   const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
@@ -1138,7 +1141,7 @@ export const Expression = ({
         <ReqoreMessage
           size='small'
           opaque={false}
-          intent='info'
+          intent={calmNoteIntent('info', calm)}
           className='expression-no-operation-yet'
         >
           {noOperationYetText(false, takesText)}
@@ -1497,7 +1500,7 @@ export const noOperationYetText = (part: boolean, takes: string | undefined): st
     `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`
   : `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`;
 
-export const ExpressionBuilder = ({
+const ExpressionBuilderBody = ({
   localTemplates,
   value = ExpressionDefaultValue,
   isChild,
@@ -1764,3 +1767,14 @@ export const ExpressionBuilder = ({
     </ReqoreErrorBoundary>
   );
 };
+
+/**
+ * The builder, scoped as an editor of its own: what it draws (an operand's choices, headed by
+ * their own instruction) is not the form row's field, so the row's label does not name it
+ * (`RowLabelledContext`).
+ */
+export const ExpressionBuilder = (props: IExpressionBuilderProps) => (
+  <RowLabelledContext.Provider value={false}>
+    <ExpressionBuilderBody {...props} />
+  </RowLabelledContext.Provider>
+);

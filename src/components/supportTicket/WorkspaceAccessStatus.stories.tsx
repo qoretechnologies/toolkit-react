@@ -16,19 +16,19 @@ const ACTIVE = { state: 'active', created_by_type: 'customer', issued_at: at(-18
  * in any row still fails the play by name. The clicking case and the phone case are
  * their own stories.
  */
-const STATES: { label: string; props: Omit<IWorkspaceAccessStatusProps, 'now'> }[] = [
-  { label: 'Active · staff', props: { viewerRole: 'staff', grant: ACTIVE } },
-  { label: 'Active · customer', props: { viewerRole: 'customer', grant: ACTIVE } },
-  { label: 'Expiring soon', props: { viewerRole: 'staff', grant: { ...ACTIVE, expires_at: at(40) } } },
-  { label: 'Ended on the clock', props: { viewerRole: 'staff', grant: { ...ACTIVE, expires_at: at(-5) } } },
+const STATES: { label: string; props: Omit<IWorkspaceAccessStatusProps, 'now'>; text: string; attention: string }[] = [
+  { label: 'Active · staff', props: { viewerRole: 'staff', grant: ACTIVE }, text: 'Granted by the customer · ends in 2 days', attention: 'quiet' },
+  { label: 'Active · customer', props: { viewerRole: 'customer', grant: ACTIVE }, text: 'Granted by you · ends in 2 days', attention: 'quiet' },
+  { label: 'Expiring soon', props: { viewerRole: 'staff', grant: { ...ACTIVE, expires_at: at(40) } }, text: 'Granted by the customer · ends in 40 minutes', attention: 'warn' },
+  { label: 'Ended on the clock', props: { viewerRole: 'staff', grant: { ...ACTIVE, expires_at: at(-5) } }, text: 'Access ended 5 minutes ago', attention: 'idle' },
   // six days, not seven: at seven the clock says "next week", which reads worse
-  { label: 'Automatic, until resolved', props: { viewerRole: 'staff', grant: { ...ACTIVE, created_by_type: 'system', until_resolved: true, expires_at: at(6 * 24 * 60) } } },
-  { label: 'Revoked', props: { viewerRole: 'staff', grant: { state: 'revoked', created_by_type: 'customer', issued_at: at(-3 * 24 * 60), expires_at: at(-24 * 60), ended_at: at(-26 * 60), end_cause: 'staff_revoked' } } },
-  { label: 'Pending · staff', props: { viewerRole: 'staff', request: { requested_at: at(-45), suggested_duration: '72h' } } },
-  { label: 'Pending · customer', props: { viewerRole: 'customer', request: { requested_at: at(-45), suggested_duration: '24h' } } },
-  { label: 'Setting is never', props: { viewerRole: 'staff', policy: 'never' } },
+  { label: 'Automatic, until resolved', props: { viewerRole: 'staff', grant: { ...ACTIVE, created_by_type: 'system', until_resolved: true, expires_at: at(6 * 24 * 60) } }, text: 'Granted automatically · ends in 6 days', attention: 'quiet' },
+  { label: 'Revoked', props: { viewerRole: 'staff', grant: { state: 'revoked', created_by_type: 'customer', issued_at: at(-3 * 24 * 60), expires_at: at(-24 * 60), ended_at: at(-26 * 60), end_cause: 'staff_revoked' } }, text: 'Access ended by support · yesterday', attention: 'idle' },
+  { label: 'Pending · staff', props: { viewerRole: 'staff', request: { requested_at: at(-45), suggested_duration: '72h' } }, text: 'Requested for 3 days · awaiting the customer · 45 minutes ago', attention: 'quiet' },
+  { label: 'Pending · customer', props: { viewerRole: 'customer', request: { requested_at: at(-45), suggested_duration: '24h' } }, text: 'Qorus Support asks for access for 24 hours · 45 minutes ago', attention: 'warn' },
+  { label: 'Setting is never', props: { viewerRole: 'staff', policy: 'never' }, text: "Not allowed: the account's setting is never", attention: 'quiet' },
   // the row label must not repeat the value's own word, or the play finds two
-  { label: 'Nothing yet', props: { viewerRole: 'staff' } },
+  { label: 'Nothing yet', props: { viewerRole: 'staff' }, text: 'None', attention: 'idle' },
 ];
 
 const meta = {
@@ -47,7 +47,7 @@ export const States: Story = {
     docs: {
       description: {
         story:
-          'Renders every state of the value as a labeled rail row against one frozen clock: an active grant from the staff and the customer side, one expiring within the hour (amber), one whose expiry passed (muted), an automatic grant until the ticket is resolved, a revoked one, an open request from both sides, a setting of "never", and none.',
+          'Renders every state of the value as a labeled rail row against one frozen clock: an active grant from the staff and the customer side, one expiring within the hour, one whose expiry passed, an automatic grant until the ticket is resolved, a revoked one, an open request from both sides, a setting of "never", and none. Only the grant ending within the hour and the request the customer has to answer are amber; everything else, the setting of "never" included, reads in the soft shade.',
       },
     },
   },
@@ -59,19 +59,37 @@ export const States: Story = {
   ),
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    for (const text of [
-      'Granted by the customer · ends in 2 days',
-      'Granted by you · ends in 2 days',
-      'Granted by the customer · ends in 40 minutes',
-      'Access ended 5 minutes ago',
-      'Granted automatically · ends in 6 days',
-      'Access ended by support · yesterday',
-      'Requested for 3 days · awaiting the customer · 45 minutes ago',
-      'Qorus Support asks for access for 24 hours · 45 minutes ago',
-      "Not allowed: the account's setting is never",
-      'None',
-    ]) {
-      await expect(canvas.getByText(text)).toBeInTheDocument();
+    for (const { text, attention } of STATES) {
+      const value = canvas.getByText(text).closest<HTMLElement>('.reqore-workspace-access-status');
+      await expect(value?.dataset.attention).toBe(attention);
+    }
+  },
+};
+
+export const ClassicLook: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same states in `appearance="classic"`: the mark beside each sentence in the state\'s own intent (green for a running grant, amber within the hour, red for a setting of "never", the pending color for a request).',
+      },
+    },
+  },
+  render: () => (
+    <TicketHeader
+      padding={14}
+      properties={STATES.map(({ label, props }) => ({
+        label,
+        value: <WorkspaceAccessStatus {...props} now={NOW} appearance='classic' />,
+      }))}
+    />
+  ),
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    for (const { text } of STATES) {
+      const value = canvas.getByText(text).closest<HTMLElement>('.reqore-workspace-access-status');
+      // the classic look carries no attention: its color is the state's intent
+      await expect(value?.dataset.attention).toBeUndefined();
     }
   },
 };

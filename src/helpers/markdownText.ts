@@ -85,6 +85,8 @@ const stripInline = (line: string): string => {
       // images before links - an image's `!` prefix would otherwise survive
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // reference links, full and collapsed: [Simple Notification Service][sns] and [SNS][] read as their words
+      .replace(/!?\[([^\]]+)\]\[[^\]]*\]/g, '$1')
       // autolinks: <https://example.com> -> https://example.com
       .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
       .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
@@ -104,6 +106,8 @@ const BLOCK_MARKER = /^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/;
 const LIST_ITEM = /^\s{0,3}(?:[-*+]|\d+[.)])\s+/;
 /** A setext underline or a thematic break: no words. */
 const RULE = /^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/;
+/** A link reference definition (`[sns]: https://…`): where a reference link points, never words. */
+const LINK_DEFINITION = /^\s{0,3}\[[^\]]+\]:\s*\S/;
 
 /**
  * Markdown as plain text: its words, with no marks, a blank line between its paragraphs and a line of its own for
@@ -123,7 +127,7 @@ export const markdownToPlainText = (value: unknown): string => {
     }
     const lines: string[] = [];
     for (const line of block.split('\n')) {
-      if (RULE.test(line)) {
+      if (RULE.test(line) || LINK_DEFINITION.test(line)) {
         continue;
       }
       const text = stripInline(line.replace(BLOCK_MARKER, '')).replace(/\s+/g, ' ').trim();
@@ -147,6 +151,54 @@ export const markdownToPlainText = (value: unknown): string => {
 /** Markdown as prose on one line: `markdownToPlainText` with its breaks run together. */
 export const markdownToProse = (value: unknown): string =>
   markdownToPlainText(value).replace(/\s+/g, ' ').trim();
+
+/** A heading line (ATX), which names a section rather than saying anything about it. */
+const HEADING = /^\s{0,3}#{1,6}(?:\s|$)/;
+/** Where a collapsed line stops when it has to: a line, not a paragraph, under a name. */
+export const MARKDOWN_SUMMARY_MAX_LENGTH = 160;
+
+/**
+ * The line a long markdown description is summed up by while it is folded: its first paragraph of words as prose,
+ * skipping the headings and code blocks that open it (a description that starts "## Summary" would otherwise sum
+ * itself up as the word "Summary", and a card in a picker showed its markdown's marks). A paragraph longer than
+ * `maxLength` gives its first sentence when that ends in time, and is cut at a word with an ellipsis otherwise.
+ */
+export const markdownSummaryLine = (value: unknown, maxLength = MARKDOWN_SUMMARY_MAX_LENGTH): string => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  let paragraph = '';
+  for (const block of value.replace(/\r\n?/g, '\n').split(/\n\s*\n/)) {
+    if (/^\s{0,3}```/.test(block)) {
+      continue;
+    }
+    paragraph = markdownToProse(
+      block
+        .split('\n')
+        .filter((line) => !HEADING.test(line))
+        .join('\n')
+    );
+    if (paragraph) {
+      break;
+    }
+  }
+
+  if (paragraph.length <= maxLength) {
+    return paragraph;
+  }
+
+  // the first sentence, when it ends before the line has to: a full stop, a question or an exclamation followed by
+  // a space, past a few words so "e.g." or "v1." at the start does not end it
+  const sentence = /^(.{24,}?[.!?])\s/.exec(paragraph.slice(0, maxLength + 1));
+  if (sentence) {
+    return sentence[1];
+  }
+
+  const cut = paragraph.slice(0, maxLength);
+  const atWord = cut.lastIndexOf(' ');
+  return `${(atWord > maxLength / 2 ? cut.slice(0, atWord) : cut).replace(/[\s,;:–—-]+$/, '')}…`;
+};
 
 /**
  * Markdown as plain text to show: the text alone when it is one line, or a block that keeps its paragraph and

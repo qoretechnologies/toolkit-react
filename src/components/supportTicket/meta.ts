@@ -55,6 +55,9 @@ export type TTicketViewerRole = 'customer' | 'staff';
 
 export interface ITicketEnumMeta {
   label: string;
+  /** The value's tint in the classic look (`TicketMetaTags appearance='classic'`). A calm surface does not read
+   *  it: a category is not a verdict, and a status or a priority takes a color only when it needs the person
+   *  looking at it (`ticketStatusAttention`, `ticketPriorityAttention`). */
   intent: TReqoreIntent;
   icon: IReqoreIconName;
   /** Audience-specific label for the customer view; falls back to `label` (the
@@ -175,6 +178,50 @@ export const ticketStatusLabel = (
   const meta = TICKET_STATUS_META[status];
   return viewerRole === 'customer' && meta.customerLabel ? meta.customerLabel : meta.label;
 };
+
+/**
+ * How much a ticket's state asks of the person looking at it, in the calm vocabulary every Qorus surface shares
+ * (a status is a dot and a word, and only what needs a person is colored): `bad` and `warn` need someone (red,
+ * amber), `good` is done (a little green), `live` is being worked, `idle` is closed, and `quiet` has nothing to
+ * report.
+ *
+ * Decided here once, for the IDE's support pages, the Qonsole ticket card and the staff portal's queue, which
+ * each kept their own copy, and for `TicketMetaTags`.
+ */
+export type TTicketAttention = 'bad' | 'warn' | 'good' | 'live' | 'quiet' | 'idle';
+
+/**
+ * A status's attention for whoever is looking. The customer is needed only when the ticket waits on their reply;
+ * staff are needed by a new ticket, which waits for triage, and an open one is being worked. A closed ticket does
+ * nothing any more. With no viewer (a neutral surface) only a closed ticket differs.
+ */
+export const ticketStatusAttention = (
+  status: TTicketStatus,
+  viewerRole?: TTicketViewerRole
+): TTicketAttention => {
+  if (status === 'closed') {
+    return 'idle';
+  }
+  if (viewerRole === 'customer') {
+    return status === 'awaiting_customer' ? 'warn' : 'quiet';
+  }
+  if (viewerRole === 'staff') {
+    return (
+      status === 'new' ? 'warn'
+      : status === 'open' ? 'live'
+      : status === 'resolved' ? 'good'
+      : 'quiet'
+    );
+  }
+  return 'quiet';
+};
+
+/** A priority only orders the queue, so it is a word: red for urgent, amber for high, quiet otherwise - never a
+ *  dot that could read as the ticket's health. */
+export const ticketPriorityAttention = (priority: TTicketPriority): TTicketAttention =>
+  priority === 'urgent' ? 'bad'
+  : priority === 'high' ? 'warn'
+  : 'quiet';
 
 /** A reply may be sent while a ticket is in any state except `closed`. */
 export const REPLYABLE_STATUSES: TTicketStatus[] = [

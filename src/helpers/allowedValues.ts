@@ -263,12 +263,29 @@ const describeChoiceValue = (value: unknown): string => {
   if (stored === null || typeof stored !== 'object') {
     return String(stored);
   }
+  /* An object is named by what it calls itself, as a choice is named by its label: an author read
+     '"{"name":"preselected with default value"}" is not one of the choices' and was shown the
+     shape of a value instead of the value. JSON only for an object that names nothing. */
+  const own = stored as Record<string, unknown>;
+  const name = ['display_name', 'label', 'name', 'title'].map((key) => own[key]).find(
+    (candidate) => typeof candidate === 'string' && candidate.trim()
+  );
+  if (typeof name === 'string') {
+    return name;
+  }
   try {
     return JSON.stringify(stored);
   } catch {
     return String(stored);
   }
 };
+
+/**
+ * What the author does about a value that is not among the choices. Said only where the field can be
+ * changed (`getOptionFieldMessages` in an editable form): a read view states the problem, and a reader
+ * cannot pick anything. Creatable choices are never judged, so there is no "or type a new one" case.
+ */
+export const UNLISTED_CHOICE_NEXT_STEP = 'pick one from the list';
 
 /**
  * Why a stored value is not acceptable for a field with fixed choices, or

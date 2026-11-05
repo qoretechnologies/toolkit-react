@@ -4,12 +4,23 @@ import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { getOptionFieldMessages } from '../src/components/form/engine/OptionFieldMessages';
+import {
+  CALM_REQUIRED_LABEL,
+  TFormEngineAppearance,
+} from '../src/components/form/engine/formAppearance';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 const fetchContext = emptyFetchContext();
 
 const REQUIRED_MESSAGE = 'This field is required';
+
+/** How each look says it: the classic one in a red sentence, the calm one (the default) in its words. In both, a
+ *  new form's first box reads "To fill in": nothing is wrong yet, it is the next step. */
+const SAYS: Record<TFormEngineAppearance, { box: string; words: string }> = {
+  calm: { box: 'To fill in', words: CALM_REQUIRED_LABEL },
+  classic: { box: 'To fill in', words: REQUIRED_MESSAGE },
+};
 
 /**
  * A required list holding no items says "This field is required", as any other empty required field does
@@ -68,20 +79,25 @@ describe('a required list with no items', () => {
   it('is said to be required', () => {
     expect(messagesFor('emptied', [])).toEqual([REQUIRED_MESSAGE]);
   });
-
-  it('says so on its row, closed', async () => {
-    renderForm();
-    await waitFor(() => expect(row()).toBeTruthy());
-    expect(document.body.textContent).toContain('Needs attention');
-    await waitFor(() => expect(row()?.textContent).toContain(REQUIRED_MESSAGE));
-  });
-
-  it('says so in its editor, open', async () => {
-    renderForm({ initialExpandedOptions: ['emptied'] });
-    await waitFor(() => expect(row()?.textContent).toContain('Add new item for "Emptied"'));
-    await waitFor(() => expect(row()?.textContent).toContain(REQUIRED_MESSAGE));
-  });
 });
+
+describe.each(['calm', 'classic'] as TFormEngineAppearance[])(
+  'a required list with no items, in the %s look',
+  (appearance) => {
+    it('says so on its row, closed', async () => {
+      renderForm({ appearance });
+      await waitFor(() => expect(row()).toBeTruthy());
+      expect(document.body.textContent).toContain(SAYS[appearance].box);
+      await waitFor(() => expect(row()?.textContent).toContain(SAYS[appearance].words));
+    });
+
+    it('says so in its editor, open', async () => {
+      renderForm({ appearance, initialExpandedOptions: ['emptied'] });
+      await waitFor(() => expect(row()?.textContent).toContain('Add new item for "Emptied"'));
+      await waitFor(() => expect(row()?.textContent).toContain(SAYS[appearance].words));
+    });
+  }
+);
 
 describe('what is not an empty required list says nothing of a requirement', () => {
   it('a required list with items', () => {

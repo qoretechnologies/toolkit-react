@@ -66,6 +66,26 @@ export const useLoadedImages = (sources: Array<string | undefined>): ((src?: str
 export const whenImageSettled = (src: string): Promise<void> =>
   imageStatus.has(src) ? Promise.resolve() : loadImage(src);
 
+/**
+ * Resolves with `src` once it has loaded as an image, and rejects when it does not.
+ *
+ * A fetched attachment URL can resolve and still not be a picture — the server
+ * answered with an error page or an empty body — and an `<img>` handed it draws a
+ * broken picture. Chained after the fetch, this puts that case on the same path as
+ * a failed fetch, so every preview falls back to the file's name or its download
+ * chip. A rejected object URL is revoked here, since the caller never receives it.
+ */
+export const loadedImageUrl = async (src: string): Promise<string> => {
+  await whenImageSettled(src);
+  if (imageStatus.get(src) !== 'loaded') {
+    if (src.startsWith('blob:')) {
+      URL.revokeObjectURL(src);
+    }
+    throw new Error('The attachment is not an image that can be shown');
+  }
+  return src;
+};
+
 /** Forget every image's status. For tests only. */
 export const resetLoadedImagesForTests = (): void => {
   imageStatus.clear();

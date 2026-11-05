@@ -110,6 +110,12 @@ describe('getUnlistedChoiceReason', () => {
     ).toBeUndefined();
   });
 
+  it('names an object by what it calls itself, not by its JSON', () => {
+    expect(getUnlistedChoiceReason({ name: 'preselected with default value' }, channelField())).toBe(
+      '"preselected with default value" is not one of the choices'
+    );
+  });
+
   it('matches a hash-valued choice by its contents', () => {
     const field = { allowed_values: [{ value: { type: 'hash', value: { a: 1 } } }] };
     expect(getUnlistedChoiceReason({ a: 1 }, field)).toBeUndefined();
@@ -250,8 +256,25 @@ describe('the field message names the value', () => {
       getType: (type: string) => type as never,
     } as any);
     expect(messages).toContainEqual(
-      expect.objectContaining({ label: '"gone" is not one of the choices', intent: 'danger' })
+      expect.objectContaining({
+        label: '"gone" is not one of the choices · pick one from the list',
+        intent: 'danger',
+      })
     );
+  });
+
+  it('only states it in a read view, where nothing can be picked', () => {
+    const schema = { channel: channelField() } as any;
+    const messages = getOptionFieldMessages({
+      schema,
+      option: { type: 'string', value: 'gone' },
+      name: 'channel',
+      allOptions: { channel: { type: 'string', value: 'gone' } },
+      getType: (type: string) => type as never,
+      readOnly: true,
+    } as any);
+    expect(messages.map((m) => m.label)).toContain('"gone" is not one of the choices');
+    expect(messages.map((m) => m.label).join(' ')).not.toContain('pick one');
   });
 });
 
@@ -447,7 +470,7 @@ describe('a field drawn by a bespoke editor is not judged against allowed_values
     } as any;
     // without the predicate the undeclared editor's value is judged...
     expect(getOptionFieldMessages(args).map((m) => m.label)).toContain(
-      '"*" is not one of the choices'
+      '"*" is not one of the choices · pick one from the list'
     );
     // ...and with it, it is not
     expect(

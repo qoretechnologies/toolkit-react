@@ -4,7 +4,8 @@ import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
-import { markdownToProse } from '../../helpers/markdownText';
+import { markdownSummaryLine, markdownToProse } from '../../helpers/markdownText';
+import { useIsCalmForm } from '../form/engine/formAppearance';
 import { useMarkdownRenderer } from './markdownRendererContext';
 
 export interface IDescriptionProps extends IReqoreParagraphProps {
@@ -175,12 +176,34 @@ export const Description = memo(
     const finalLongDescription =
       longDescription || (isShortDescriptionTooLong ? actualShortDescription : shortDescription);
 
+    // Folded, a description is one line of prose: the short description as written, or, when only the long
+    // markdown exists, its first paragraph's words (its opening heading skipped, its first sentence when long).
+    // "…more" shows whenever the markdown says more than that line, which is no longer only when a separate short
+    // description was given: a picker card whose class had only a markdown body printed the whole of it, marks
+    // and all, with no way to read it rendered.
+    const collapsedLine = useMemo(
+      () =>
+        shortDescription ?
+          markdownToProse(finalShownDescription)
+        : markdownSummaryLine(finalShownDescription),
+      [shortDescription, finalShownDescription]
+    );
+    const saysMore = useMemo(
+      () =>
+        !longDescriptionOnly &&
+        !!finalLongDescription &&
+        markdownToProse(finalLongDescription) !== collapsedLine,
+      [longDescriptionOnly, finalLongDescription, collapsedLine]
+    );
+
     const handleDescriptionClick = useCallback((e: React.MouseEvent) => {
       e.stopPropagation();
       setShowLongDescription((prev) => !prev);
     }, []);
 
-    const effect = useMemo(() => ({ italic: true, opacity: 0.7 }), []);
+    // the calm look reads a description as plain secondary text; the classic one set it in italics
+    const calm = useIsCalmForm();
+    const effect = useMemo(() => (calm ? { opacity: 0.7 } : { italic: true, opacity: 0.7 }), [calm]);
 
     const components = useMemo(
       () => ({
@@ -195,7 +218,7 @@ export const Description = memo(
     );
 
     const renderToggle = useCallback(() => {
-      if (finalShownDescription === longDescription || longDescriptionOnly) {
+      if (!saysMore) {
         return null;
       }
 
@@ -217,7 +240,7 @@ export const Description = memo(
           </ReqoreTextEffect>
         </>
       );
-    }, [showLongDescription]);
+    }, [showLongDescription, saysMore, handleDescriptionClick]);
 
     if (!shortDescription && !longDescription) {
       return null;
@@ -245,7 +268,7 @@ export const Description = memo(
           <ReqoreP {...rest}>
             <ReqoreSpan effect={effect}>
               {/* one line of prose until expanded: the words of its markdown, never the marks */}
-              {markdownToProse(finalShownDescription)} {finalLongDescription ? renderToggle() : null}
+              {collapsedLine} {renderToggle()}
             </ReqoreSpan>
           </ReqoreP>
         )}

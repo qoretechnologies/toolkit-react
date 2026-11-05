@@ -34,6 +34,15 @@ describe('markdownToPlainText', () => {
     );
   });
 
+  it('reads a reference link as its words and drops the definition it points at', () => {
+    // the Base Class picker read "Base AWS [Simple Notification Service][Simple Notification Service] handler"
+    expect(
+      markdownToPlainText(
+        'Base AWS [Simple Notification Service][Simple Notification Service] handler, see [SNS][].\n\n[Simple Notification Service]: https://aws.amazon.com/sns/\n[SNS]: https://aws.amazon.com/sns/'
+      )
+    ).toBe('Base AWS Simple Notification Service handler, see SNS.');
+  });
+
   it('is empty for what is not text', () => {
     expect(markdownToPlainText(undefined)).toBe('');
     expect(markdownToPlainText(12)).toBe('');

@@ -6,6 +6,7 @@ import {
   ReqoreIcon,
   ReqoreMessage,
   ReqoreP,
+  ReqoreSpan,
   ReqoreTag,
   ReqoreVerticalSpacer,
   useReqoreProperty,
@@ -52,6 +53,7 @@ import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { revealRow } from './revealRow';
+import { findRowFocusTarget } from './rowFocus';
 import { useEmittedValues } from '../fields/emittedValues';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, omit, uniq } from 'lodash';
 import map from 'lodash/map';
@@ -60,6 +62,7 @@ import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled, { css } from 'styled-components';
+import { fieldHasLongDescription } from '../../../helpers/fieldDescription';
 import { fixOperatorValue, getDefaultValue, insertAtIndex } from '../../../helpers/common';
 import {
   getRequiredOptionMessage,
@@ -89,6 +92,7 @@ import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
 import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
+  CALM_SECTION_INSET,
   COMPACT_LABEL_COL,
   GROUP_INDENT,
   isCompactNarrow,
@@ -103,6 +107,7 @@ import {
   StyledRequiredClusterHeader,
   StyledStatusBox,
   StyledStatusBoxGroupLabel,
+  StyledStatusDot,
 } from './compactRowStyles';
 import { CompactToolbar } from './CompactToolbar';
 import {
@@ -123,6 +128,16 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import {
+  calmNoteIntent,
+  FormAppearanceProvider,
+  getCalmIntentText,
+  getCalmPanelHairline,
+  getCalmPanelSurface,
+  TFormEngineAppearance,
+  useFormAppearance,
+  useIsCalmForm,
+} from './formAppearance';
 import { TypeSentenceFormProvider, useTypeName } from '../typeSentenceForm';
 import {
   ITemplateReferenceNames,
@@ -214,6 +229,24 @@ export interface IFormValidityData {
   isValid: boolean;
   fields: IFormFieldValidityData[];
   invalidFields: IFormFieldValidityData[];
+}
+
+/** The two numbers the readiness line shows ("2 need attention · 1 to fill in"). */
+export interface IFormAttention {
+  /** Fields in the first box: still to fill in, and faults. */
+  count: number;
+  /** How many of those are faults (amber) rather than only still to fill in. */
+  faults: number;
+}
+
+/**
+ * What a host found wrong OUTSIDE the fields this form draws (`outsideAttention`).
+ */
+export interface IFormOutsideAttention {
+  /** How many things are wrong out there. */
+  count: number;
+  /** Takes the reader to them, from the readiness line's "need attention" link. */
+  onReveal?: () => void;
 }
 
 /** One shared "nothing came down from above" bag. See `inheritedScopeFor`. */
@@ -992,6 +1025,21 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   compact?: boolean;
   /**
+   * How the form LOOKS — never what it does. `'calm'`, the default, draws the
+   * status boxes as plain panels on the theme's panel surface with label/value
+   * rows split by hairlines, grey labels, an amber "Required · add a value" in
+   * place of red asterisks and messages, quiet counts, no dot on a healthy row,
+   * Yes/No as words, and a readiness meter whose done part is grey. `'classic'`
+   * is the earlier look (tinted boxes, a green meter, a dot on every row), for a
+   * host that asks for it. See {@link TFormEngineAppearance}.
+   *
+   * Inherited: a nested (`arg_schema`) sub-form and every field editor the form mounts
+   * follow the form's appearance, and a form with no `appearance` of its own
+   * follows a `FormAppearanceProvider` above it. Applies to compact mode; the
+   * classic collection layout only passes it on to its field editors.
+   */
+  appearance?: TFormEngineAppearance;
+  /**
    * Compact mode only: drop the read-first wrap's horizontal gutter (the 12px
    * breathing room) so the form sits flush to its container's edges. For embeds
    * that own their own gutters — e.g. the SchemaDefinition tab body, where the
@@ -1071,8 +1119,40 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * `Optional` names a category rather than the things in it, and
    * `Optional settings` is what the reader is looking at. Only the labels
    * change; bucketing, icons and intents are untouched.
+   *
+   * `pending` names the first box while nothing in it is a fault yet — a new form's
+   * empty required fields, which are still to fill in (default `To fill in`).
    */
-  compactBoxLabels?: Partial<Record<TFormEngineBoxKey, string>>;
+  compactBoxLabels?: Partial<Record<TFormEngineBoxKey | 'pending', string>>;
+  /**
+   * The host attempted a submit. Until then an empty required field the person has not
+   * been to yet is only "to fill in": a new form opens neutral rather than with every
+   * required field in amber, and a field turns amber once someone opens it and leaves
+   * it empty. Pass `true` after a failed submit to show every empty required field as
+   * needing attention. Invalid values are faults from the start either way.
+   */
+  revealRequired?: boolean;
+  /**
+   * Bump it to move the caret to the first field that needs attention: the answer to a
+   * submit that could not go is where to type. Each new value opens that field and puts
+   * the caret in it once, even though the host's submit button holds the caret (an open
+   * row otherwise never takes a caret held outside it). Pair it with `revealRequired`.
+   */
+  focusAttentionRequest?: number;
+  /**
+   * The readiness line's two numbers, reported whenever they change. A host that draws
+   * its own submit control draws it from these, so the control and the form can never
+   * disagree about what is left. `{ count: 0, faults: 0 }` is a form with nothing left.
+   */
+  onAttentionChange?: (attention: IFormAttention) => void;
+  /**
+   * Problems the host found outside this form's fields — a table drawn under the form that
+   * the form cannot see (an API operation's path parameters). They count in the readiness
+   * line and in `onAttentionChange` as things that need attention, so the form never says
+   * "Ready" while the page around it says something is missing; with `onReveal`, the line's
+   * link takes the reader to them when no field of the form needs anything.
+   */
+  outsideAttention?: IFormOutsideAttention;
   /**
    * Compact mode only: the three status-box headers stay pinned to the top of
    * whatever scrolls while their own box is in view. Default `true`.
@@ -1412,6 +1492,9 @@ const FormEngineImpl = ({
   forceDropdown,
   showTypeToggle = true,
   compact,
+  // Read through the context `FormEngine` provides (resolved there against an
+  // inherited appearance); destructured only to keep it out of `rest`.
+  appearance: _appearance, // eslint-disable-line @typescript-eslint/no-unused-vars
   // Destructured only to keep it out of `rest` (and so off the DOM). The gutter
   // this prop documents was never implemented: it was passed to the wrap as
   // `$flush`, whose styled template had no interpolation slot, so it has always
@@ -1424,6 +1507,10 @@ const FormEngineImpl = ({
   compactPanelProps,
   compactCollapsedGroups: compactCollapsedGroupsProp,
   compactBoxLabels,
+  revealRequired = false,
+  focusAttentionRequest,
+  onAttentionChange,
+  outsideAttention,
   compactStickyBoxHeaders = true,
   compactStickyOffset = 0,
   compactToolbar = true,
@@ -1515,6 +1602,7 @@ const FormEngineImpl = ({
   const [loading, setLoading] = useState<boolean>(!!(url || customUrl || operatorsUrl));
   const confirmAction = useReqoreProperty('confirmAction');
   const theme = useReqoreTheme();
+  const calm = useIsCalmForm();
   const [focusedEditing, setFocusedEditing] = useState<string>();
   const [showFieldTypes, setShowFieldTypes] = useState<boolean>(false);
   // Global toggle (toolbar ⓘ): reveal the short-description info panel on every
@@ -1527,6 +1615,21 @@ const FormEngineImpl = ({
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  // The fields the person has opened and left. An empty required field becomes a
+  // fault only then (or after a submit attempt, `revealRequired`): a form nobody has
+  // touched is not already wrong.
+  const [visitedOptions, setVisitedOptions] = useState<string[]>([]);
+  const lastExpandedOptions = useRef<string[]>([]);
+  useEffect(() => {
+    const left = lastExpandedOptions.current.filter((name) => !expandedOptions.includes(name));
+    lastExpandedOptions.current = expandedOptions;
+    if (left.length) {
+      setVisitedOptions((prev) => {
+        const added = left.filter((name) => !prev.includes(name));
+        return added.length ? [...prev, ...added] : prev;
+      });
+    }
+  }, [expandedOptions]);
   /** Status boxes whose "N more fields" control the reader has opened. Keyed by
       box so opening Optional does not also unfold Set. */
   const [expandedMoreBoxes, setExpandedMoreBoxes] = useState<TFormEngineBoxKey[]>([]);
@@ -1660,6 +1763,34 @@ const FormEngineImpl = ({
        the ResizeObserver never fires and a stale 124px would go on offsetting
        the box headers below a toolbar that is no longer there. */
   }, [compact, compactNested, compactStickyBoxHeaders, compactNarrow, compactWrapNode, options]);
+
+  /* The colour a calm form sits on, for its pinned toolbar's glass.
+
+     A calm form has no surface of its own, so the toolbar has to paint one to
+     keep the rows that scroll under it from showing through the meter and the
+     search — and it has to be the host's colour, or it draws a band across the
+     form before anything has moved. The host is whatever paints first above the
+     form: the page, a drawer's panel surface, a card. Read once it mounts (and
+     when the theme changes), not assumed from the theme's main colour. */
+  const [compactHostColour, setCompactHostColour] = useState<number[]>();
+  useLayoutEffect(() => {
+    if (!calm || !compact || compactNested || !compactWrapNode) {
+      setCompactHostColour(undefined);
+      return;
+    }
+    for (let node = compactWrapNode.parentElement; node; node = node.parentElement) {
+      const [r, g, b, alpha = 1] = (getComputedStyle(node).backgroundColor.match(/[\d.]+/g) || [])
+        .slice(0, 4)
+        .map(Number);
+      if (alpha > 0 && b !== undefined) {
+        setCompactHostColour((prev) =>
+          prev?.[0] === r && prev?.[1] === g && prev?.[2] === b ? prev : [r, g, b]
+        );
+        return;
+      }
+    }
+    setCompactHostColour(undefined);
+  }, [calm, compact, compactNested, compactWrapNode, theme]);
 
   // Global label-column sizing: size the label column to the WIDEST field label
   // across the whole form, clamped to [MIN, MAX], and publish it as a CSS var on
@@ -2757,6 +2888,11 @@ const FormEngineImpl = ({
         }
         if (
           showInvalidOptionsOnly &&
+          // An open row stays while the reader is in it, as its box does
+          // (`stableBucketOf`): the first character typed into an empty required
+          // field makes it valid, and hiding it then would pull the field out
+          // from under the caret mid-word.
+          !expandedOptions.includes(optionName) &&
           isOptionValid(
             optionName,
             getOptionFieldStorageType(
@@ -2780,6 +2916,7 @@ const FormEngineImpl = ({
   }, [
     dependencyLockedNames,
     showInvalidOptionsOnly,
+    expandedOptions,
     isRendererOnly,
     JSON.stringify(availableOptions),
     JSON.stringify(options),
@@ -2848,9 +2985,12 @@ const FormEngineImpl = ({
         covered,
         invalid,
         warned: msgIntent === 'warning',
+        visited: revealRequired || visitedOptions.includes(name),
       });
     },
     [
+      revealRequired,
+      visitedOptions,
       isRendererOnly,
       JSON.stringify(options),
       JSON.stringify(availableOptions),
@@ -2885,6 +3025,26 @@ const FormEngineImpl = ({
       ).length,
     [JSON.stringify(availableOptions), getOptionBucket, dependencyLockedNames]
   );
+  // How many of those are faults rather than only still to fill in (`pending`). Zero
+  // on a new form, so its first box reads "To fill in" without amber.
+  const readFirstAttentionFaultCount = useMemo(
+    () =>
+      Object.keys(availableOptions || {}).filter(
+        (name) => getOptionBucket(name) === 'attention' && getOptionStatus(name) !== 'pending'
+      ).length,
+    [JSON.stringify(availableOptions), getOptionBucket, getOptionStatus]
+  );
+  // The same two numbers, to a host that draws its own submit control from them.
+  const onAttentionChangeRef = useRef(onAttentionChange);
+  onAttentionChangeRef.current = onAttentionChange;
+  // What the host found wrong outside the fields: in the line and in what the host is told.
+  const outsideAttentionCount = Math.max(0, outsideAttention?.count ?? 0);
+  useEffect(() => {
+    onAttentionChangeRef.current?.({
+      count: readFirstAttentionCount + outsideAttentionCount,
+      faults: readFirstAttentionFaultCount + outsideAttentionCount,
+    });
+  }, [readFirstAttentionCount, readFirstAttentionFaultCount, outsideAttentionCount]);
 
   const getIntent = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -3193,6 +3353,48 @@ const FormEngineImpl = ({
     };
   }, [autoFocusFirstRequired, compact, compactWrapNode]);
 
+  // A submit that could not go is answered with where to type: each new
+  // `focusAttentionRequest` opens the first field that needs attention and puts the
+  // caret in it. The host's submit button holds the caret at that moment, and an open
+  // row never takes a caret held outside it (CompactRow), so the button lets go of it
+  // here first; the person asked to submit, and this is the answer to that. It picks
+  // the field the arrival scan above would (`firstAttentionRow`), and spends that scan:
+  // the person has been taken to a field now.
+  const lastFocusRequest = useRef(focusAttentionRequest);
+  useEffect(() => {
+    if (focusAttentionRequest === lastFocusRequest.current) {
+      return;
+    }
+    lastFocusRequest.current = focusAttentionRequest;
+    if (!focusAttentionRequest || !compact || !options) {
+      return;
+    }
+    const target = firstAttentionRow();
+    if (!target) {
+      return;
+    }
+    hasAutoFocusedRef.current = true;
+    const wrap = compactWrapNodeRef.current;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body && !wrap?.contains(active)) {
+      active.blur();
+    }
+    if (!expandedOptions.includes(target)) {
+      // The row's own open effect reveals it and takes the caret.
+      openFirstAttentionRow(target);
+      return;
+    }
+    // Already open (the field the form opened on arrival): its open effect has run,
+    // so the caret goes to its control here.
+    const row = wrap?.querySelector<HTMLElement>(`[data-field="${target}"]`);
+    if (row) {
+      revealRow(row, 'auto');
+      findRowFocusTarget(row.querySelector<HTMLElement>('.options-readfirst-row-editor'), {
+        textEntryOnly: row.classList.contains('options-readfirst-card'),
+      })?.focus({ preventScroll: true });
+    }
+  }, [focusAttentionRequest]);
+
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
   const readFirstCompletion = useMemo(
@@ -3419,7 +3621,7 @@ const FormEngineImpl = ({
             if (!schemaMsgs.length) return null;
             const items = schemaMsgs.map(({ intent, title, content }, index) => (
               <ReqoreMessage
-                intent={intent as never}
+                intent={calmNoteIntent(intent, calm) as never}
                 title={title}
                 key={title || index}
                 opaque={false}
@@ -3639,6 +3841,9 @@ const FormEngineImpl = ({
             option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
             isRendererOnly={isRendererOnly}
+            // Open is not left: a field the form opened for typing (the first empty
+            // one, on a new form) says what it needs without already being wrong.
+            requirementPending={!(revealRequired || visitedOptions.includes(optionName))}
           />
           {operators && size(operators) && size(other.op) ?
             <>
@@ -3686,6 +3891,8 @@ const FormEngineImpl = ({
       getTypeForOption,
       inheritedScopes,
       inheritedFromParent,
+      revealRequired,
+      visitedOptions,
     ]
   );
 
@@ -3700,8 +3907,11 @@ const FormEngineImpl = ({
   const cFaint = `${cMuted}99`;
   const cDivider = `${cText}14`;
   const cHover = `${cText}0d`;
-  const cDanger = theme?.intents?.danger || '#e35a5a';
-  const cWarning = theme?.intents?.warning || '#ffdf34';
+  // Calm: the intents as words that read on the section surface, not the
+  // theme's fills (see `getCalmIntentText`). Dots and edges take them too.
+  const cDanger = calm ? getCalmIntentText(theme, 'danger') : theme?.intents?.danger || '#e35a5a';
+  const cWarning =
+    calm ? getCalmIntentText(theme, 'warning') : theme?.intents?.warning || '#ffdf34';
   const cInfo = theme?.intents?.info || '#3b8eea';
   const cSuccess = theme?.intents?.success || '#36b37e';
   // the rows' own words and marks, in colors that read on every surface a row is drawn on
@@ -3726,6 +3936,10 @@ const FormEngineImpl = ({
   // The "N more fields" row's dashed edge. Well above the divider tint: this
   // one is an affordance the reader has to notice, not a hairline between rows.
   const cMoreBorder = `${cText}4d`;
+  // Calm: the section surface and its hairline, from the theme's panel (the
+  // same surface and edge Reqore gives the section panels themselves).
+  const cPanel = getCalmPanelSurface(theme);
+  const cHairline = getCalmPanelHairline(theme);
 
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
@@ -3747,6 +3961,8 @@ const FormEngineImpl = ({
       cardEditorTypes,
       showAllDescriptions,
       expandedOptions,
+      visitedOptions,
+      revealRequired,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -3800,6 +4016,8 @@ const FormEngineImpl = ({
       cardEditorTypes,
       showAllDescriptions,
       expandedOptions,
+      visitedOptions,
+      revealRequired,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -3844,15 +4062,23 @@ const FormEngineImpl = ({
   // the toolbar itself has to re-default anything. `null` means no toolbar.
   const compactToolbarParts = useMemo(() => {
     if (compactToolbar === false) return null;
+    // A calm sub-form nested in a row (a list item, a hash field) draws only its
+    // fields. Its readiness is said once, by the item it sits in, and each row
+    // says what it lacks; a search over two to six fields helps nobody, and one
+    // per item stacked a second search box under the form's own for every item.
+    if (calm && compactNested) return null;
     const all = { completion: true, search: true, fields: true, help: true };
     return compactToolbar === true ? all : { ...all, ...compactToolbar };
-  }, [JSON.stringify(compactToolbar)]);
+  }, [JSON.stringify(compactToolbar), calm, compactNested]);
 
   const compactToolbarContextValue = useMemo<ICompactToolbarContext>(
     () => ({
       readOnly,
       invalidCount: size(validityData.invalidFields),
       attentionCount: readFirstAttentionCount,
+      attentionFaultCount: readFirstAttentionFaultCount,
+      outsideAttentionCount,
+      onRevealOutside: outsideAttention?.onReveal,
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
@@ -3900,6 +4126,7 @@ const FormEngineImpl = ({
       onReadOnlyActivate,
       validityData,
       readFirstAttentionCount,
+      readFirstAttentionFaultCount,
       readFirstCompletion,
       showInvalidOptionsOnly,
       handleToggleInvalidOnly,
@@ -3937,7 +4164,14 @@ const FormEngineImpl = ({
     [compactPanelProps?.actions, compactToolbarParts]
   );
   const renderCompact = () => {
-    const headerBg = `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
+    // Calm: the host's own colour (see `compactHostColour`), so the pinned
+    // toolbar's glass is invisible until something scrolls under it.
+    const headerBg =
+      calm && compactHostColour ?
+        `rgba(${compactHostColour.join(', ')}, 0.88)`
+      : `${
+          calm ? getMainBackgroundColor(theme) : changeDarkness(getMainBackgroundColor(theme), 0.02)
+        }${percentToHexAlpha(88)}`;
     // Toolbar filters narrow the listed rows; the meter reflects the full set.
     const query = compactQuery.trim().toLowerCase();
     const matchesQuery = (optionName: string): boolean =>
@@ -4181,12 +4415,20 @@ const FormEngineImpl = ({
       intent?: 'warning' | 'success';
       icon: IReqoreIconName;
     }> = [
-      {
-        key: 'attention',
-        label: compactBoxLabels?.attention ?? 'Needs attention',
-        intent: 'warning',
-        icon: 'ErrorWarningLine',
-      },
+      // The first box is amber only once something in it is a fault. On a new form it
+      // holds the required fields still to fill in, which is not yet anything wrong.
+      readFirstAttentionFaultCount ?
+        {
+          key: 'attention',
+          label: compactBoxLabels?.attention ?? 'Needs attention',
+          intent: 'warning',
+          icon: 'ErrorWarningLine',
+        }
+      : {
+          key: 'attention',
+          label: compactBoxLabels?.pending ?? 'To fill in',
+          icon: 'CheckboxBlankCircleLine',
+        },
       { key: 'set', label: compactBoxLabels?.set ?? 'Set', intent: 'success', icon: 'CheckLine' },
       {
         key: 'optional',
@@ -4255,16 +4497,32 @@ const FormEngineImpl = ({
         // box (the Focus cluster). A met group needs no banner — the rail + the
         // "Covers"/"Covered by" chips already say which member satisfies it.
         if (requiredGroupsInfo.satisfiedBy[grp]) return railed;
+        // Amber once someone has been to the group (or a submit was attempted); until
+        // then it is still to fill in, in the quiet colour, like its members.
+        const clusterVisited = memberEntries.some((e) => getOptionStatus(e.name) !== 'pending');
+        const clusterColor = clusterVisited ? cWarning : cMuted;
+        // its words and mark: the same colour, in the shade of it that reads on the tint
+        const clusterInk = clusterVisited ? rowInks.warning : rowInks.mutedReason;
         return (
           <StyledRequiredClusterBox
             key={grp}
             className='options-readfirst-required-cluster'
-            $border={`${cWarning}33`}
-            $tint={`${cWarning}0d`}
+            $border={`${clusterColor}33`}
+            $tint={`${clusterColor}0d`}
+            $calm={calm}
           >
-            {/* the words and the mark in a shade of the warning that reads on the cluster's tint */}
-            <StyledRequiredClusterHeader $color={rowInks.warning}>
-              <ReqoreIcon icon='LinkM' size='11px' style={{ color: rowInks.warning }} />
+            {/* the words and the mark in a shade that reads on the cluster's tint: the warning's, or the
+                quiet colour's while the group is still only to fill in */}
+            <StyledRequiredClusterHeader
+              className='options-readfirst-required-cluster-header'
+              $color={clusterInk}
+              $calm={calm}
+            >
+              <ReqoreIcon
+                icon='LinkM'
+                size={calm ? '13px' : '11px'}
+                style={{ color: clusterInk }}
+              />
               One of the below is required
             </StyledRequiredClusterHeader>
             {railed}
@@ -4281,7 +4539,6 @@ const FormEngineImpl = ({
         can be split across the shown and folded halves of a capped box, and its
         label must appear above whichever half holds its first row. */
     const renderBoxGroup = (boxKey: TFormEngineBoxKey, groupName: string, only?: Set<string>) => {
-      const groupConfig = groups?.[groupName];
       const rows =
         only ?
           (buckets[boxKey][groupName] || []).filter((entry) => only.has(entry.name))
@@ -4289,29 +4546,140 @@ const FormEngineImpl = ({
       if (only && !rows.length) {
         return null;
       }
+      return renderGroupBlock(groupName, rows);
+    };
+    /** A group's sub-label, subtitle and rows. `key` tells two halves of one
+        group apart when both render in the same body. */
+    const renderGroupBlock = (groupName: string, rows: TRowEntry[], key: string = groupName) => {
+      const groupConfig = groups?.[groupName];
       return (
-        <React.Fragment key={groupName}>
+        <React.Fragment key={key}>
           {showGroupSubLabel(groupName) ?
-            <StyledStatusBoxGroupLabel>
+            <StyledStatusBoxGroupLabel
+              className='options-readfirst-group-label'
+              $calm={calm}
+              $color={cKey}
+            >
               {getOptionGroupLabel(groupName, groups)}
             </StyledStatusBoxGroupLabel>
           : null}
           {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
             <ReqoreP
+              className='options-readfirst-group-subtitle'
               size='small'
               effect={{ opacity: 0.6 }}
-              style={{
-                marginTop: 2,
-                marginBottom: 8,
-                marginLeft: GROUP_INDENT,
-                paddingRight: 10,
-              }}
+              style={
+                calm ?
+                  // Under the calm heading, at the rows' inset; the space below
+                  // it is the next row's own padding.
+                  { margin: 0, padding: `2px ${CALM_SECTION_INSET}px 4px` }
+                : {
+                    marginTop: 2,
+                    marginBottom: 8,
+                    marginLeft: GROUP_INDENT,
+                    paddingRight: 10,
+                  }
+              }
             >
               {groupConfig.subtitle}
             </ReqoreP>
           : null}
           {renderGroupRows(rows)}
         </React.Fragment>
+      );
+    };
+
+    /** The "N more fields" control: a quiet last row of the body it folds. */
+    const renderMoreRow = (boxKey: TFormEngineBoxKey, count: number, open: boolean) => (
+      <button
+        type='button'
+        className='readfirst-row readfirst-more-row options-readfirst-more'
+        aria-expanded={open}
+        onClick={() =>
+          setExpandedMoreBoxes((prev) =>
+            prev.includes(boxKey) ? prev.filter((k) => k !== boxKey) : [...prev, boxKey]
+          )
+        }
+      >
+        <ReqoreP size='small' effect={{ opacity: 0.8 }}>
+          {open ?
+            'Show fewer'
+          : `${count} more ${boxKey === 'optional' ? 'optional ' : ''}field${count === 1 ? '' : 's'}`
+          }
+        </ReqoreP>
+        <ReqoreIcon
+          icon='ArrowDownSLine'
+          size='small'
+          className='readfirst-more-chevron'
+          effect={{ opacity: 0.8 }}
+        />
+      </button>
+    );
+
+    const groupBodyProps = {
+      $calm: calm,
+      $hairline: cHairline,
+      $divider: cDivider,
+      $hover: cHover,
+      $focus: cWarning,
+      $success: cSuccess,
+      $rowBg: cRowBg,
+      $lineColor: cGroupLine,
+      $moreBorder: cMoreBorder,
+    };
+
+    /* Calm, nested in a row (a list item, a hash field's sub-form): the item is
+       already the card, so its fields sit in it directly instead of in status
+       boxes, which drew a card inside the card. In schema order, so a row does
+       not move to another box under the caret as it is filled; a row that lacks
+       a value still says so where the value would be. The fields nobody has
+       added fold behind one quiet last row, the same control a capped box ends
+       with — and when nothing else is listed they ARE the form, so they show. */
+    const renderNestedRows = () => {
+      // Fields with no named group are one list here. The engine files them under
+      // two synthetic keys (the required ones and the rest), which the boxes
+      // never showed; in one list that split put a set Description above an
+      // empty Method Name. Named groups keep their sub-labels and their order.
+      const UNLABELLED = '';
+      const keyOf = (groupName: string) => (showGroupSubLabel(groupName) ? groupName : UNLABELLED);
+      const nestedKeys = uniq(groupKeys.map(keyOf));
+      const listedByGroup: Record<string, TRowEntry[]> = {};
+      const addableByGroup: Record<string, TRowEntry[]> = {};
+      groupKeys.forEach((groupName) => {
+        grouped[groupName].forEach((entry) => {
+          const target = entry.hidden ? addableByGroup : listedByGroup;
+          (target[keyOf(groupName)] ||= []).push(entry);
+        });
+      });
+      // In the schema's order, not the order the values arrived in.
+      const schemaOrder = Object.keys(options || {});
+      const bySchema = (a: TRowEntry, b: TRowEntry) =>
+        schemaOrder.indexOf(a.name) - schemaOrder.indexOf(b.name);
+      forEach(listedByGroup, (rows) => rows.sort(bySchema));
+      forEach(addableByGroup, (rows) => rows.sort(bySchema));
+      const renderNestedGroup = (key: string, rows: TRowEntry[], half: string) =>
+        key === UNLABELLED ?
+          <React.Fragment key={`${half}-fields`}>{renderGroupRows(rows)}</React.Fragment>
+        : renderGroupBlock(key, rows, `${half}-${key}`);
+      const listedGroups = nestedKeys.filter((key) => listedByGroup[key]?.length);
+      const addableGroups = nestedKeys.filter((key) => addableByGroup[key]?.length);
+      const addableCount = addableGroups.reduce(
+        (total, key) => total + addableByGroup[key].length,
+        0
+      );
+      const folds = listedGroups.length > 0;
+      const addableOpen = !folds || expandedMoreBoxes.includes('optional');
+      return (
+        <StyledGroupBody
+          {...groupBodyProps}
+          className={`readfirst-nested-list${compactNarrow ? ' readfirst-narrow' : ''}`}
+        >
+          {listedGroups.map((key) => renderNestedGroup(key, listedByGroup[key], 'listed'))}
+          {folds && addableCount ? renderMoreRow('optional', addableCount, addableOpen) : null}
+          {addableOpen ?
+            addableGroups.map((key) => renderNestedGroup(key, addableByGroup[key], 'addable'))
+          : null}
+        </StyledGroupBody>
       );
     };
 
@@ -4345,6 +4713,7 @@ const FormEngineImpl = ({
                   // transparent inside the parent's card.
                   $headerBg={compactNested ? 'transparent' : headerBg}
                   $nested={compactNested}
+                  $calm={calm}
                   // Keeps the wrapper from clipping, which is what a pinned box
                   // header inside it needs — see StyledCompactPanel.
                   $stickyBoxes={compactStickyBoxHeaders && !compactNested}
@@ -4359,8 +4728,15 @@ const FormEngineImpl = ({
                     )
                   }
                   flat
-                  raised
+                  // Calm: no surface and no lift at all. A theme that gives
+                  // panels a surface of their own (Reqore's `theme.panel`) would
+                  // otherwise paint this wrapper as a card around the section
+                  // cards inside it. Transparent and un-raised, Reqore also drops
+                  // the wrapper's horizontal padding, so the readiness line, the
+                  // search and the sections share one left edge with the host.
+                  raised={!calm}
                   minimal
+                  transparent={calm || undefined}
                   // No panel background: the form sits transparently on whatever
                   // hosts it (page, drawer, or — for an arg_schema field — the
                   // parent's edit card) instead of stacking its own dark surface.
@@ -4440,21 +4816,19 @@ const FormEngineImpl = ({
                       the reader's record withheld, and a page scrolls. */}
                   {readOnly ?
                     bucketCount('set') ?
-                      <div className='options-readfirst-read' style={{ padding: '4px 4px 6px' }}>
+                      <div
+                        className='options-readfirst-read'
+                        style={{ padding: calm ? 0 : '4px 4px 6px' }}
+                      >
                         <StyledGroupBody
-                          $divider={cDivider}
-                          $hover={cHover}
-                          $focus={cWarning}
-                          $success={cSuccess}
-                          $rowBg={cRowBg}
-                          $lineColor={cGroupLine}
-                          $moreBorder={cMoreBorder}
-                          className={compactNarrow ? 'readfirst-narrow' : undefined}
+                          {...groupBodyProps}
+                          className={`readfirst-read-list${compactNarrow ? ' readfirst-narrow' : ''}`}
                         >
                           {bucketGroups.set.map((groupName) => renderBoxGroup('set', groupName))}
                         </StyledGroupBody>
                       </div>
                     : null
+                  : calm && compactNested ? renderNestedRows()
                   : STATUS_BOXES.map((box) => {
                       const groupsInBox = bucketGroups[box.key];
                       const count = bucketCount(box.key);
@@ -4477,6 +4851,17 @@ const FormEngineImpl = ({
                       const orderedRows: TRowEntry[] = groupsInBox.flatMap(
                         (groupName) => buckets[box.key][groupName] || []
                       );
+                      // The number in the box's header counts the rows whose value
+                      // belongs in it NOW. A field being edited keeps its box until it
+                      // is left (so it does not jump away under the caret), and it used
+                      // to keep its count too: a box read "To fill in 1" while its last
+                      // field already had a value and the host's submit read ready.
+                      const headerCount =
+                        readOnly ? count : (
+                          orderedRows.filter(
+                            (entry) => getOptionBucket(entry.name, entry.hidden) === box.key
+                          ).length
+                        );
                       // Optional's own rule first: a box opened solely to reveal
                       // preselected rows offers those, not an arbitrary first-N.
                       const candidateRows =
@@ -4509,24 +4894,32 @@ const FormEngineImpl = ({
                       );
                       const moreOpen = Boolean(query) || expandedMoreBoxes.includes(box.key);
                       const accent =
-                        box.key === 'attention' ? cWarning
+                        box.key === 'attention' && readFirstAttentionFaultCount ? cWarning
                         : box.key === 'set' ? cSuccess
                         : cMuted;
                       // The muted "Optional" box reads as a quieter, recessed
                       // surface — a touch darker than the page rather than the
                       // faint grey tint the accent would give.
+                      // Calm: every box is the same panel — no recessed one.
                       const boxBg =
-                        box.key === 'optional' ?
+                        box.key === 'optional' && !calm ?
                           changeDarkness(getMainBackgroundColor(theme), 0.06)
                         : undefined;
                       return (
                         <StyledStatusBox
                           $accent={accent}
                           $bg={boxBg}
+                          $calm={calm}
                           // Only a box that PINS needs an opaque header (see
                           // StyledStatusBox); passing it unconditionally would
-                          // repaint every form's boxes for nothing.
-                          $surface={stickyBoxHeaders ? getMainBackgroundColor(theme) : undefined}
+                          // repaint every form's boxes for nothing. A calm box
+                          // pins on its own panel surface.
+                          $surface={
+                            stickyBoxHeaders ?
+                              calm ? cPanel
+                              : getMainBackgroundColor(theme)
+                            : undefined
+                          }
                           key={box.key}
                           ref={(node: HTMLDivElement | null) => {
                             statusBoxRefs.current[box.key] = node;
@@ -4536,7 +4929,11 @@ const FormEngineImpl = ({
                           onCollapseChange={(collapsed) =>
                             setOpenedStatusBox(collapsed ? undefined : box.key)
                           }
-                          flat
+                          // Calm: an ordinary panel — Reqore paints the theme's
+                          // panel surface and its hairline edge. The header stays
+                          // minimal (no surface or rule of its own); the first
+                          // row's hairline is the line under it.
+                          flat={!calm}
                           minimal
                           /* The header stays on screen while its own box is
                              being read — see `compactStickyBoxHeaders`. Sticky
@@ -4574,36 +4971,56 @@ const FormEngineImpl = ({
                           // author.
                           isCollapsed={wouldCollapse && !hasPreselectedRows}
                           label={
-                            <StyledGroupHeader>
-                              <ReqoreP effect={{ weight: 'bold' }} size='normal'>
-                                {box.label}
-                              </ReqoreP>
-                              <ReqoreTag
-                                size='small'
-                                minimal
-                                compact
-                                intent={box.intent}
-                                label={String(count)}
-                              />
-                            </StyledGroupHeader>
+                            calm ?
+                              // One status dot and a word — and only where a
+                              // person is needed. The count is a quiet number.
+                              <StyledGroupHeader $calm>
+                                {box.key === 'attention' && readFirstAttentionFaultCount ?
+                                  <StyledStatusDot
+                                    className='options-readfirst-group-dot'
+                                    $color={cWarning}
+                                    aria-hidden
+                                  />
+                                : null}
+                                <ReqoreP effect={{ weight: 'bold' }} size='normal'>
+                                  {box.label}
+                                </ReqoreP>
+                                {headerCount ?
+                                  <ReqoreSpan
+                                    className='options-readfirst-group-count'
+                                    size='small'
+                                    effect={{ opacity: 0.65 }}
+                                  >
+                                    {headerCount}
+                                  </ReqoreSpan>
+                                : null}
+                              </StyledGroupHeader>
+                            : <StyledGroupHeader>
+                                <ReqoreP effect={{ weight: 'bold' }} size='normal'>
+                                  {box.label}
+                                </ReqoreP>
+                                {headerCount ?
+                                  <ReqoreTag
+                                    size='small'
+                                    minimal
+                                    compact
+                                    intent={box.intent}
+                                    label={String(headerCount)}
+                                  />
+                                : null}
+                              </StyledGroupHeader>
                           }
-                          icon={box.icon}
+                          icon={calm ? undefined : box.icon}
                           className='options-readfirst-group'
                           padded={false}
-                          contentStyle={{ padding: '4px 4px 6px' }}
+                          contentStyle={{ padding: calm ? 0 : '4px 4px 6px' }}
                         >
                           {/* ONE group body per box: every field block (and the
                             thin schema sub-labels) is a direct flex child, so the
                             inter-field gap is identical everywhere — including
                             across schema-group boundaries. */}
                           <StyledGroupBody
-                            $divider={cDivider}
-                            $hover={cHover}
-                            $focus={cWarning}
-                            $success={cSuccess}
-                            $rowBg={cRowBg}
-                            $lineColor={cGroupLine}
-                            $moreBorder={cMoreBorder}
+                            {...groupBodyProps}
                             className={compactNarrow ? 'readfirst-narrow' : undefined}
                           >
                             {shownGroups.map((groupName) =>
@@ -4614,33 +5031,7 @@ const FormEngineImpl = ({
                               hover and lines up with them. Outside it was a bare
                               line of text in the box's corner, which is what the
                               build #154 review rejected. */}
-                            {deferredCount ?
-                              <button
-                                type='button'
-                                className='readfirst-row readfirst-more-row options-readfirst-more'
-                                aria-expanded={moreOpen}
-                                onClick={() =>
-                                  setExpandedMoreBoxes((prev) =>
-                                    prev.includes(box.key) ?
-                                      prev.filter((k) => k !== box.key)
-                                    : [...prev, box.key]
-                                  )
-                                }
-                              >
-                                <ReqoreP size='small' effect={{ opacity: 0.8 }}>
-                                  {moreOpen ?
-                                    'Show fewer'
-                                  : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
-                                  }
-                                </ReqoreP>
-                                <ReqoreIcon
-                                  icon='ArrowDownSLine'
-                                  size='small'
-                                  className='readfirst-more-chevron'
-                                  effect={{ opacity: 0.8 }}
-                                />
-                              </button>
-                            : null}
+                            {deferredCount ? renderMoreRow(box.key, deferredCount, moreOpen) : null}
                             {/* A search forces the fold open for the same reason
                               the boxes open: an unmounted row cannot be found. */}
                             {deferredCount && moreOpen ?
@@ -4784,7 +5175,7 @@ const FormEngineImpl = ({
         )}
         {recordRequiresSearchOptions && !readOnly ?
           <>
-            <ReqoreMessage intent='info'>
+            <ReqoreMessage intent={calmNoteIntent('info', calm)}>
               This provider record requires some search options to be set. You can set them below.
             </ReqoreMessage>
             <ReqoreVerticalSpacer height={10} />
@@ -4870,14 +5261,16 @@ const FormEngineImpl = ({
                     }
                   : undefined,
                 onClick:
-                  options[optionName]?.desc ? () => handleOptionLabelClick(optionName) : undefined,
+                  fieldHasLongDescription(options[optionName]) ?
+                    () => handleOptionLabelClick(optionName)
+                  : undefined,
               },
               showLabelTooltip: !!options[optionName]?.short_desc,
               customLabelTooltip: {
                 delay: 300,
                 content: (
                   <Description
-                    longDescription={`${options[optionName]?.short_desc}${options[optionName]?.desc ? '. Click to learn more.' : ''}`}
+                    longDescription={`${options[optionName]?.short_desc}${fieldHasLongDescription(options[optionName]) ? '. Click to learn more.' : ''}`}
                     margin='none'
                   />
                 ),
@@ -4891,7 +5284,8 @@ const FormEngineImpl = ({
               descriptionEffect: {
                 textSize: '11px',
                 opacity: optionDescOpacity,
-                underline: options[optionName]?.desc ? 'underline dotted #878787' : undefined,
+                underline:
+                  fieldHasLongDescription(options[optionName]) ? 'underline dotted #878787' : undefined,
               },
               customTheme: {
                 main: 'main:darken:1',
@@ -5053,19 +5447,27 @@ const FormEngineImpl = ({
  * hand is how one of them gets missed.
  */
 export const FormEngine = (props: IFormEngineProps) => {
+  // The form's own `appearance` wins; without one it follows the form (or the
+  // host's provider) it sits in, so a nested sub-form never changes look
+  // halfway down its parent.
+  const inherited = useFormAppearance();
+  const appearance = props.appearance ?? inherited;
   // what the host knows of references beyond the catalogue, for every chip the form draws (qorus#646)
   const referenceNames = useMemo(
     () => props.templateReferences ?? NO_REFERENCE_NAMES,
     [props.templateReferences]
   );
+
   return (
     <MarkdownRendererContext.Provider value={props.markdownRenderer}>
-      {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
-      <TypeSentenceFormProvider>
-        <TemplateReferenceNamesProvider value={referenceNames}>
-          <FormEngineImpl {...props} />
-        </TemplateReferenceNamesProvider>
-      </TypeSentenceFormProvider>
+      <FormAppearanceProvider value={appearance}>
+        {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
+        <TypeSentenceFormProvider>
+          <TemplateReferenceNamesProvider value={referenceNames}>
+            <FormEngineImpl {...props} />
+          </TemplateReferenceNamesProvider>
+        </TypeSentenceFormProvider>
+      </FormAppearanceProvider>
     </MarkdownRendererContext.Provider>
   );
 };

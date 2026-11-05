@@ -4,7 +4,6 @@ import {
   IReqoreLabelProps,
   ReqoreCheckbox,
   ReqoreControlGroup,
-  ReqoreSpan,
 } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
@@ -40,6 +39,7 @@ import {
   UNAVAILABLE_ITEM_CLASS,
 } from './select/SelectCollection';
 import { useAllowedValueAvailability } from '../engine/OptionFieldMessages';
+import { ChoiceGroupHeading, useSelectedChoiceIntent } from './ChoiceGroupHeading';
 import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 import { AutoFormField } from './auto/AutoFormField';
@@ -160,6 +160,7 @@ export const FormField = <T extends TFormFieldType>({
   // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
   const unavailableOpacity = useReadableOpacity(0.55);
   const id = useId();
+  const selectedChoiceIntent = useSelectedChoiceIntent();
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
   // a choice's description card: drawn as markdown, opened by a tap on touch (`descriptionTooltip`)
   const descriptions = useDescriptionTooltips();
@@ -453,7 +454,7 @@ export const FormField = <T extends TFormFieldType>({
                       label={label}
                       tooltip={described.tooltip}
                       checked={checked}
-                      intent={checked ? 'info' : undefined}
+                      intent={selectedChoiceIntent(checked)}
                       onClick={() => {
                         const next =
                           checked ?
@@ -676,11 +677,11 @@ export const FormField = <T extends TFormFieldType>({
     if (allowed_values.length <= 3) {
       return (
         <ReqoreControlGroup vertical size={choiceSize}>
-          <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
+          <ChoiceGroupHeading>
             {/* Headed by the field's own name; "Select one:" only when it has
                 none. Same rule as FieldAllowedValuesCheckGroup. */}
             {display_name ? `${display_name}:` : 'Select one:'}
-          </ReqoreSpan>
+          </ChoiceGroupHeading>
           {allowed_values.map((item, index) => {
             // its value and its name however the entry is written: an envelope, a bare value or a name
             const itemValue = allowedValueOf(item);
@@ -732,7 +733,7 @@ export const FormField = <T extends TFormFieldType>({
                 readOnly={!!unavailable}
                 uncheckedIcon={unavailable ? 'LockLine' : undefined}
                 checked={checked}
-                intent={checked ? 'info' : undefined}
+                intent={selectedChoiceIntent(checked)}
                 onClick={
                   unavailable ? undefined : (
                     () => handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
