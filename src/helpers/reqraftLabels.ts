@@ -289,6 +289,8 @@ export interface IFormEngineLabels {
   mustNotBe: (label: string, value: string) => string;
   /** How a field's alternative dependencies are joined: "a or b". */
   orJoin: (alternatives: string[]) => string;
+  /** The types a place takes, each named inside a sentence: "a whole number or text". */
+  typesJoin: (types: string[]) => string;
   unavailable: (dependsOn?: string) => string;
   disabledByDependencies: (dependsOn?: string) => string;
   valueNotValid: string;
@@ -629,6 +631,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     mustBe: (label, value) => `${label} must be "${value}"`,
     mustNotBe: (label, value) => `${label} must not be "${value}"`,
     orJoin: (alternatives) => `(${alternatives.join(' or ')})`,
+    typesJoin: (types) => types.join(' or '),
     unavailable: (dependsOn) =>
       `Unavailable because some dependencies are not fulfilled${dependsOn ? `: ${dependsOn}` : ''}`,
     disabledByDependencies: (dependsOn) =>

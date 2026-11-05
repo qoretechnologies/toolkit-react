@@ -1,5 +1,6 @@
+import { typesInASentence } from '../../../../helpers/qorusTypeCatalogue';
 import { ReqoreIcon, ReqoreP, ReqoreSpan } from '@qoretechnologies/reqore';
-import { compact, uniq } from 'lodash';
+import { uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -62,9 +63,7 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
   /** The types this argument takes, named inside a sentence: "a whole number or a number" (qorus#646). */
-  const acceptedTypeNames = uniq(compact(acceptedTypes.map((t) => types.getTypeSentenceForm(t)))).join(
-    ' or '
-  );
+  const acceptedTypeNames = typesInASentence(acceptedTypes, (t) => types.getTypeSentenceForm(t)) ?? '';
   /* `arg` is optional — an operand the author has not filled in yet has no
      entry at all, and a literal carried straight from a parse can be the null
      literal itself. Both were dereferenced unguarded here, which took the whole
