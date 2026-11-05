@@ -186,7 +186,10 @@ export interface IUseLspAutocompleteResult {
     editor: BaseEditor & ReactEditor & HistoryEditor,
     options: {
       rect: { left: number; bottom: number };
-      /** What it is opened from (a button, a chip), where that is not the caret: it stays there as the window resizes. */
+      /**
+       * What it is opened from (a button, a chip): it stays there as the window resizes. Without one - opened at the
+       * caret or at the text - it stays where it was opened in the text, which moves with it.
+       */
       anchor?: Element;
       caret?: BasePoint;
       replacementPath?: number[];
@@ -393,7 +396,8 @@ export function useLspAutocomplete(
   // the template picker in place of the rows, and where it is open
   const [browse, setBrowseState] = useState<ITemplateBrowse | null>(null);
   const browseRef = useRef<ITemplateBrowse | null>(null);
-  const browseAnchorRef = useRef<Element | null>(null);
+  // what the picker goes with as the window resizes, and where it is drawn from it
+  const browseAnchorRef = useRef<{ element: Element; left: number; bottom: number } | null>(null);
   const setBrowse = useCallback((next: ITemplateBrowse | null) => {
     browseRef.current = next;
     setBrowseState(next);
@@ -1226,9 +1230,9 @@ export function useLspAutocomplete(
     const follow = () => {
       const anchor = browseAnchorRef.current;
       // the picker's: the list that typing has put in its place is at the caret
-      if (browseRef.current && anchor?.isConnected) {
-        const { left, bottom } = anchor.getBoundingClientRect();
-        setPosition({ left, top: bottom });
+      if (browseRef.current && anchor?.element.isConnected) {
+        const { left, bottom } = anchor.element.getBoundingClientRect();
+        setPosition({ left: left + anchor.left, top: bottom + anchor.bottom });
       }
     };
     window.addEventListener('resize', follow);
@@ -1238,7 +1242,24 @@ export function useLspAutocomplete(
   const openBrowse = useCallback<IUseLspAutocompleteResult['openBrowse']>(
     (editor, { rect, anchor, caret, replacementPath, levelId, query, selectedValue, arrows }) => {
       editorRef.current = editor;
-      browseAnchorRef.current = anchor ?? null;
+      /* It goes with what it was opened from; opened at the caret or the text, with the text it was opened in, as
+         far from it as when it opened: a picker opened by a click in the text was left at the point of the window it
+         opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+      let from: Element | null = anchor ?? null;
+      if (!from) {
+        try {
+          from = ReactEditor.toDOMNode(editor as ReactEditor, editor as ReactEditor);
+        } catch {
+          // the editor is not drawn: there is nothing to go with
+          from = null;
+        }
+      }
+      if (from) {
+        const at = from.getBoundingClientRect();
+        browseAnchorRef.current = { element: from, left: rect.left - at.left, bottom: rect.bottom - at.bottom };
+      } else {
+        browseAnchorRef.current = null;
+      }
       requestCompletions.cancel();
       requestGenerationRef.current++;
       pendingRequestRef.current = false;
