@@ -45,14 +45,19 @@ export function formatCodeChars(chars: number): string {
  * The chip as plain `ReqoreTag` props. Needed wherever a host takes tag
  * *props* rather than an element — a `ReqorePanel` `badge`, a button badge —
  * which is most of Reqore's badge surface.
+ *
+ * Neutral words, not a colored chip: how much code there is is metadata, and
+ * a blue tag reads as a state or a filter (it used to be `info`, and the IDE
+ * had to undo it at every call site). `text` paints only the label and icon,
+ * in the muted shade that reads on the theme's surface.
  */
 export function codeSizeTagProps(code: string): IReqoreTagProps {
   const { lines, chars } = describeCodeSize(code);
 
   return {
     size: 'small',
-    minimal: true,
-    intent: 'info',
+    appearance: 'text',
+    intent: 'muted',
     icon: 'CodeLine',
     label: formatCodeLines(lines),
     labelKey: formatCodeChars(chars),
