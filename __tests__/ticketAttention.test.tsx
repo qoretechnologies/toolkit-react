@@ -15,6 +15,7 @@ import {
   TTicketStatus,
 } from '../src/components/supportTicket/meta';
 import { TicketMetaTags } from '../src/components/supportTicket/TicketMetaTags';
+import { describeWorkspaceAccess } from '../src/components/supportTicket/WorkspaceAccessStatus';
 
 const STATUSES: TTicketStatus[] = ['new', 'open', 'awaiting_customer', 'resolved', 'closed'];
 
@@ -106,5 +107,39 @@ describe('TicketMetaTags', () => {
     const { container } = draw({ appearance: 'classic' });
     expect(container.querySelectorAll('.reqore-tag').length).toBe(3);
     expect(container.querySelector('.ticket-meta-word')).toBeNull();
+  });
+});
+
+describe("the workspace-access line's attention", () => {
+  const NOW = Date.parse('2026-10-19T12:00:00Z');
+  const at = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+  const grant = (expiresInMinutes: number) => ({
+    state: 'active',
+    created_by_type: 'customer',
+    expires_at: at(expiresInMinutes),
+  });
+
+  it('is quiet for a running grant and asks for the reader only within its last hour', () => {
+    expect(describeWorkspaceAccess({ viewerRole: 'staff', now: NOW, grant: grant(2 * 24 * 60) }).attention).toBe('quiet');
+    expect(describeWorkspaceAccess({ viewerRole: 'staff', now: NOW, grant: grant(40) }).attention).toBe('warn');
+    expect(describeWorkspaceAccess({ viewerRole: 'staff', now: NOW, grant: grant(-5) }).attention).toBe('idle');
+  });
+
+  it("asks the customer to answer a request; support only waits for it", () => {
+    const request = { requested_at: at(-45) };
+    expect(describeWorkspaceAccess({ viewerRole: 'customer', now: NOW, request }).attention).toBe('warn');
+    expect(describeWorkspaceAccess({ viewerRole: 'staff', now: NOW, request }).attention).toBe('quiet');
+  });
+
+  it('reads a setting of never as a choice, not a fault, and keeps the classic red for it', () => {
+    const never = describeWorkspaceAccess({ viewerRole: 'staff', now: NOW, policy: 'never' });
+    expect(never.attention).toBe('quiet');
+    expect(never.intent).toBe('danger');
+  });
+
+  it('reads an ended grant and no access at all as over', () => {
+    const revoked = { state: 'revoked', ended_at: at(-60), end_cause: 'staff_revoked' };
+    expect(describeWorkspaceAccess({ viewerRole: 'staff', now: NOW, grant: revoked }).attention).toBe('idle');
+    expect(describeWorkspaceAccess({ viewerRole: 'staff', now: NOW }).attention).toBe('idle');
   });
 });

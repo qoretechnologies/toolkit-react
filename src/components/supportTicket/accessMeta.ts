@@ -1,7 +1,7 @@
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { ITicketEnumMeta, humaniseWireValue } from './meta';
-import type { TTicketViewerRole } from '../supportTicket/meta';
+import type { TTicketAttention, TTicketViewerRole } from '../supportTicket/meta';
 
 /*
  * The delegated-support-access vocabulary (qorus#692): how the account's access
@@ -230,6 +230,17 @@ export const grantTimeIntent = (expiresAt: string | undefined, now: number): TRe
   if (Number.isNaN(left)) return 'success';
   if (left <= 0) return 'muted';
   return left < EXPIRING_SOON_MS ? 'warning' : 'success';
+};
+
+/**
+ * The calm look's reading of the same clock: a grant that runs is a fact nobody has to act
+ * on, one ending within the hour needs the person looking, one whose time passed is over.
+ */
+export const grantTimeAttention = (expiresAt: string | undefined, now: number): TTicketAttention => {
+  const left = millisUntil(expiresAt, now);
+  if (Number.isNaN(left)) return 'quiet';
+  if (left <= 0) return 'idle';
+  return left < EXPIRING_SOON_MS ? 'warn' : 'quiet';
 };
 
 /** The grantee, as every surface names the support team. */

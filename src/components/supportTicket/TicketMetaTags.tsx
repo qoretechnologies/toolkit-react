@@ -1,10 +1,7 @@
 import { ReqoreControlGroup, ReqoreIcon, ReqoreSpan, ReqoreTag } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
-import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
-import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { Fragment, useMemo } from 'react';
-import { getReadableFaded, getReadableShade, getThemeSurfaces } from '../../helpers/readableColors';
+import { Fragment } from 'react';
 import {
   TICKET_CATEGORY_META,
   TICKET_PRIORITY_META,
@@ -18,6 +15,7 @@ import {
   TTicketStatus,
   TTicketViewerRole,
 } from './meta';
+import { ticketAttentionInk, ticketAttentionNeedsSomeone, useTicketAttentionInks } from './ticketAttentionInks';
 
 export interface ITicketMetaTagsProps {
   /** The three enum values to badge — a full ticket satisfies this structurally. */
@@ -58,24 +56,6 @@ interface ITicketWord {
   fact?: boolean;
 }
 
-/** The words' colors: the intent's shade that reads for what needs a person, a soft
- *  shade of the text for everything else. */
-const useTicketWordInks = () => {
-  const theme = useReqoreTheme();
-
-  return useMemo(() => {
-    const surfaces = getThemeSurfaces(theme);
-    const text = getReadableColor(theme);
-
-    return {
-      bad: getReadableShade(theme.intents?.danger || '#c11c1c', surfaces),
-      warn: getReadableShade(theme.intents?.warning || '#d17c29', surfaces),
-      quiet: getReadableFaded(text, surfaces, 0.7),
-      fact: getReadableFaded(text, surfaces, 0.55),
-    };
-  }, [theme]);
-};
-
 /**
  * The status / priority / category row for a ticket — the single place the three
  * enum vocabularies (`../supportTicket/meta`) turn into what a person reads, so the
@@ -91,7 +71,7 @@ export const TicketMetaTags = ({
   minimal = true,
   flat = false,
 }: ITicketMetaTagsProps) => {
-  const inks = useTicketWordInks();
+  const inks = useTicketAttentionInks();
   const status = TICKET_STATUS_META[ticket.status];
   const priority = TICKET_PRIORITY_META[ticket.priority];
   const category = TICKET_CATEGORY_META[ticket.category];
@@ -154,12 +134,8 @@ export const TicketMetaTags = ({
       style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 2 }}
     >
       {words.map((word, index) => {
-        const needsSomeone = word.attention === 'bad' || word.attention === 'warn';
-        const color =
-          word.attention === 'bad' ? inks.bad
-          : word.attention === 'warn' ? inks.warn
-          : word.fact ? inks.fact
-          : inks.quiet;
+        const needsSomeone = ticketAttentionNeedsSomeone(word.attention);
+        const color = ticketAttentionInk(inks, word.attention, word.fact);
 
         return (
           <Fragment key={word.key}>

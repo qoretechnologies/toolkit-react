@@ -5,6 +5,7 @@ import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
   formatInstant,
   formatRelativeTime,
+  grantTimeAttention,
   grantTimeIntent,
   millisUntil,
   supportAccessDurationLabel,
@@ -13,8 +14,9 @@ import {
   TSupportAccessPolicy,
   TSupportGrantState,
 } from './accessMeta';
-import { TTicketViewerRole } from './meta';
+import { TTicketAttention, TTicketViewerRole } from './meta';
 import { TicketPersonValue } from './TicketHeader';
+import { ticketAttentionInk, ticketAttentionNeedsSomeone, useTicketAttentionInks } from './ticketAttentionInks';
 
 /*
  * Where a ticket's workspace access stands, as one rail value: granted and for how
@@ -25,6 +27,12 @@ import { TicketPersonValue } from './TicketHeader';
  *
  * The clock is the caller's (`now`): the component never reads the wall clock, so a
  * story freezes it and every surface on a page agrees on "ends in 2 days".
+ *
+ * In the calm look (the default) the line takes a color only when it needs the person
+ * looking, in the same amber as a ticket's words: a request the customer has to answer,
+ * a grant ending within the hour. A setting of "never" is a choice, not a fault, and a
+ * running grant is a fact, so both read in the soft shade. The classic look keeps the
+ * vocabulary's own intent on the mark.
  */
 
 /** What the value needs of a grant: the plane's `SupportAccessGrant`, a subset. */
@@ -68,6 +76,11 @@ export interface IWorkspaceAccessStatusProps {
   action?: IWorkspaceAccessStatusAction;
   /** the rail's size by default */
   size?: TSizes;
+  /**
+   * `calm` (the default): colored only when it needs the person looking (`attention`).
+   * `classic`: the mark in the state's own intent (green for a grant, red for never).
+   */
+  appearance?: 'calm' | 'classic';
   className?: string;
 }
 
@@ -82,7 +95,16 @@ const grantedBy = (grant: IWorkspaceAccessGrantSummary, viewerRole: TTicketViewe
 /** The sentence, its mark and its colour for the state the props describe. */
 export const describeWorkspaceAccess = (
   { grant, request, policy, viewerRole, now }: Pick<IWorkspaceAccessStatusProps, 'grant' | 'request' | 'policy' | 'viewerRole' | 'now'>
-): { text: string; tooltip?: string; intent: TReqoreIntent; icon: IReqoreIconName; muted?: boolean } => {
+): {
+  text: string;
+  tooltip?: string;
+  /** the classic look's color for the mark */
+  intent: TReqoreIntent;
+  /** the calm look's: whether the line needs the person reading it */
+  attention: TTicketAttention;
+  icon: IReqoreIconName;
+  muted?: boolean;
+} => {
   if (grant && grant.state === 'active') {
     const left = millisUntil(grant.expires_at, now);
     if (!Number.isNaN(left) && left <= 0) {
@@ -90,6 +112,7 @@ export const describeWorkspaceAccess = (
         text: `Access ended ${formatRelativeTime(grant.expires_at, now)}`,
         tooltip: formatInstant(grant.expires_at),
         intent: 'muted',
+        attention: 'idle',
         icon: 'HourglassLine',
       };
     }
@@ -100,6 +123,7 @@ export const describeWorkspaceAccess = (
         ? `Until ${formatInstant(grant.expires_at)}${grant.until_resolved ? ', or when the ticket is resolved' : ''}`
         : undefined,
       intent: grantTimeIntent(grant.expires_at, now),
+      attention: grantTimeAttention(grant.expires_at, now),
       icon: 'ShieldCheckLine',
     };
   }
@@ -111,6 +135,8 @@ export const describeWorkspaceAccess = (
       text: `Access ${cause ?? meta.label.toLowerCase()}${when ? ` · ${when}` : ''}`,
       tooltip: formatInstant(grant.ended_at ?? grant.expires_at) || undefined,
       intent: meta.intent,
+      // revoked or run out: over, whoever ended it
+      attention: 'idle',
       icon: meta.icon,
     };
   }
@@ -124,6 +150,8 @@ export const describeWorkspaceAccess = (
           : `Requested${duration} · awaiting the customer · ${since}`,
       tooltip: formatInstant(request.requested_at),
       intent: 'pending',
+      // the customer has to answer it; support only waits
+      attention: viewerRole === 'customer' ? 'warn' : 'quiet',
       icon: 'TimeLine',
     };
   }
@@ -131,10 +159,11 @@ export const describeWorkspaceAccess = (
     return {
       text: viewerRole === 'customer' ? 'Off: your setting is never' : "Not allowed: the account's setting is never",
       intent: 'danger',
+      attention: 'quiet',
       icon: 'ShieldCrossLine',
     };
   }
-  return { text: 'None', intent: 'muted', icon: 'ShieldLine', muted: true };
+  return { text: 'None', intent: 'muted', attention: 'idle', icon: 'ShieldLine', muted: true };
 };
 
 export const WorkspaceAccessStatus = ({
@@ -145,15 +174,39 @@ export const WorkspaceAccessStatus = ({
   now,
   action,
   size = 'small',
+  appearance = 'calm',
   className,
 }: IWorkspaceAccessStatusProps) => {
-  const { text, tooltip, intent, icon, muted } = describeWorkspaceAccess({ grant, request, policy, viewerRole, now });
+  const inks = useTicketAttentionInks();
+  const { text, tooltip, intent, attention, icon, muted } = describeWorkspaceAccess({
+    grant,
+    request,
+    policy,
+    viewerRole,
+    now,
+  });
+  const calm = appearance !== 'classic';
+  const needsSomeone = calm && ticketAttentionNeedsSomeone(attention);
+  // the mark beside the sentence is a fact unless the line needs the reader
+  const ink = ticketAttentionInk(inks, attention, true);
+
   return (
-    <TicketPersonValue className={`reqore-workspace-access-status${className ? ` ${className}` : ''}`}>
-      {/* intent as a dot, the way the rail's other state values read: the colour
-          carries the state without a saturated chip in a row of reference material */}
-      <ReqoreIcon icon={icon} size='tiny' color={intent as never} />
-      <ReqoreSpan size={size} tooltip={tooltip} effect={muted ? { opacity: 0.5 } : undefined}>
+    <TicketPersonValue
+      className={`reqore-workspace-access-status${className ? ` ${className}` : ''}`}
+      data-attention={calm ? attention : undefined}
+    >
+      {/* a small mark, the way the rail's other state values read: no saturated chip
+          in a row of reference material */}
+      <ReqoreIcon icon={icon} size='tiny' color={(calm ? ink : intent) as never} />
+      <ReqoreSpan
+        size={size}
+        tooltip={tooltip}
+        effect={
+          needsSomeone ? { color: ink as never, weight: 'bold' }
+          : muted ? { opacity: 0.5 }
+          : undefined
+        }
+      >
         {text}
       </ReqoreSpan>
       {action ? (
