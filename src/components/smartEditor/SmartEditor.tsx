@@ -283,7 +283,7 @@ const TemplateButton = ({
   /** A value can be written at the caret: the button can be pressed. */
   insertable: boolean;
   notInsertable?: string;
-  open: (rect: { left: number; bottom: number }) => void;
+  open: (rect: { left: number; bottom: number }, anchor: Element) => void;
 }) => {
   return (
     <ReqoreButton
@@ -297,7 +297,7 @@ const TemplateButton = ({
       onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
         const { left, bottom } = event.currentTarget.getBoundingClientRect();
-        open({ left, bottom });
+        open({ left, bottom }, event.currentTarget);
       }}
     />
   );
@@ -867,6 +867,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             }
             autocomplete.openBrowse(editor as any, {
               rect: { left: rect.left, bottom: rect.bottom },
+              anchor: domNode as HTMLElement,
               replacementPath: tagPath,
               levelId: listed.trailIds[listed.trailIds.length - 1],
               selectedValue: tag.value as string,
@@ -904,6 +905,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
         openBrowse(editor as any, {
           rect: { left: at.left, bottom: at.bottom },
+          anchor: ReactEditor.toDOMNode(editor, editor),
           caret: Editor.start(editor as unknown as Editor, []),
           arrows: true,
         });
@@ -1172,7 +1174,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               size={size}
               insertable={insertableAtCaret}
               notInsertable={templateButton.notInsertable}
-              open={(rect) => {
+              open={(rect, anchor) => {
                 const editor = editorRef.current;
                 if (!editor) return;
                 if (autocomplete.browse && !autocomplete.isReplaceMode) {
@@ -1181,6 +1183,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 }
                 openBrowse(editor as any, {
                   rect,
+                  anchor,
                   arrows: !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim(),
                 });
               }}

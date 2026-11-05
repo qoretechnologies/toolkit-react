@@ -2,9 +2,10 @@ import { ReqoreModal, ReqoreTextarea, useReqoreProperty } from '@qoretechnologie
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { CSSProperties, memo, useCallback } from 'react';
 import { copyText } from '../../../../helpers/secureContextApis';
+import { DEFAULT_TEMPLATE_LIST_LABELS } from '../../../../helpers/templateListLabels';
 
 export interface IReqraftTemplateExampleValueModalProps extends Partial<IReqoreModalProps> {
-  /** The template field's display name — the modal heading. */
+  /** The template field's display name — the modal heading. @default 'Example value' */
   label?: string;
   /** The FULL serialized example value. */
   value: string;
@@ -45,9 +46,10 @@ export const ReqraftTemplateExampleValueModal = memo(
   ({
     label,
     value,
-    copyLabel = 'Copy',
-    copyNotificationContent = 'Example value copied to clipboard',
-    copyFailedNotificationContent = 'Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself.',
+    // the English words of a list of templates (`DEFAULT_TEMPLATE_LIST_LABELS`), which `buildTemplates` passes on
+    copyLabel = DEFAULT_TEMPLATE_LIST_LABELS.copy,
+    copyNotificationContent = DEFAULT_TEMPLATE_LIST_LABELS.copied,
+    copyFailedNotificationContent = DEFAULT_TEMPLATE_LIST_LABELS.copyFailed,
     ...rest
   }: IReqraftTemplateExampleValueModalProps) => {
     const addNotification = useReqoreProperty('addNotification');
@@ -73,7 +75,7 @@ export const ReqraftTemplateExampleValueModal = memo(
 
     return (
       <ReqoreModal
-        label={label || 'Example value'}
+        label={label || DEFAULT_TEMPLATE_LIST_LABELS.exampleValueTitle}
         icon='FileTextLine'
         height='70vh'
         className='reqraft-template-example-value-modal'

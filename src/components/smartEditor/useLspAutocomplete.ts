@@ -219,6 +219,8 @@ export interface IUseLspAutocompleteResult {
     editor: BaseEditor & ReactEditor & HistoryEditor,
     options: {
       rect: { left: number; bottom: number };
+      /** What it is opened from (a button, a chip), where that is not the caret: it stays there as the window resizes. */
+      anchor?: Element;
       caret?: BasePoint;
       replacementPath?: number[];
     } & ITemplateBrowse
@@ -421,6 +423,7 @@ export function useLspAutocomplete(
   // the template picker in place of the rows, and where it is open
   const [browse, setBrowseState] = useState<ITemplateBrowse | null>(null);
   const browseRef = useRef<ITemplateBrowse | null>(null);
+  const browseAnchorRef = useRef<Element | null>(null);
   const setBrowse = useCallback((next: ITemplateBrowse | null) => {
     browseRef.current = next;
     setBrowseState(next);
@@ -1030,10 +1033,15 @@ export function useLspAutocomplete(
         // opened it momentarily left the selection null — clicking a
         // void inline can do that.
         if (replacingChipPathRef.current) return;
+        const contentEdit = editor.operations.some((op) => op.type !== 'set_selection');
         // a content edit before the session is ready is answered once it is (see `pendingTypingRef`)
-        if (editor.selection && editor.operations.some((op) => op.type !== 'set_selection')) {
+        if (editor.selection && contentEdit) {
           pendingTypingRef.current = editor;
         }
+        /* The picker needs no session: it lists the field's own templates. Opening it sets the caret its pick goes
+           at (`openBrowse`), and that selection change closed it again until the session was up: the template button
+           did nothing while the field came up, and for good where the language server cannot be reached. */
+        if (browseRef.current && !contentEdit) return;
         close();
         return;
       }
@@ -1240,9 +1248,27 @@ export function useLspAutocomplete(
     }
   }, [isReady, performCompletionRequest]);
 
+  /* The window's width changes with the picker open (a phone turned, a window resized): what it was opened from moves
+     with the layout, and the fixed point it is drawn at would not (Foxhoundn on qlip #456: "Why is the popover rendered
+     so far to the right"). It goes with it. A resize never closes it: a phone's keyboard coming up is one. */
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const follow = () => {
+      const anchor = browseAnchorRef.current;
+      // the picker's: the list that typing has put in its place is at the caret
+      if (browseRef.current && anchor?.isConnected) {
+        const { left, bottom } = anchor.getBoundingClientRect();
+        setPosition({ left, top: bottom });
+      }
+    };
+    window.addEventListener('resize', follow);
+    return () => window.removeEventListener('resize', follow);
+  }, [isOpen]);
+
   const openBrowse = useCallback<IUseLspAutocompleteResult['openBrowse']>(
-    (editor, { rect, caret, replacementPath, levelId, query, selectedValue, arrows }) => {
+    (editor, { rect, anchor, caret, replacementPath, levelId, query, selectedValue, arrows }) => {
       editorRef.current = editor;
+      browseAnchorRef.current = anchor ?? null;
       requestCompletions.cancel();
       requestGenerationRef.current++;
       pendingRequestRef.current = false;

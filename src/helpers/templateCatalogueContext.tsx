@@ -8,10 +8,12 @@
  */
 import { createContext, ReactNode, useContext, useMemo } from 'react';
 import type { ITemplateCatalogue, ITemplateFieldContext } from './templateCatalogue';
+import type { ITemplatePickerLabels } from './templateListLabels';
 
 interface ITemplateCatalogueContextValue {
   catalogue?: ITemplateCatalogue;
   fieldContext?: ITemplateFieldContext;
+  pickerLabels?: Partial<ITemplatePickerLabels>;
 }
 
 const TemplateCatalogueContext = createContext<ITemplateCatalogueContextValue>({});
@@ -19,19 +21,29 @@ const TemplateCatalogueContext = createContext<ITemplateCatalogueContextValue>({
 export const TemplateCatalogueProvider = ({
   catalogue,
   fieldContext,
+  pickerLabels,
   children,
 }: {
   catalogue?: ITemplateCatalogue;
   fieldContext?: ITemplateFieldContext;
+  /** The words of the template picker of the fields here, in the host's language. */
+  pickerLabels?: Partial<ITemplatePickerLabels>;
   children?: ReactNode;
 }) => {
-  const value = useMemo(() => ({ catalogue, fieldContext }), [catalogue, fieldContext]);
+  const value = useMemo(
+    () => ({ catalogue, fieldContext, pickerLabels }),
+    [catalogue, fieldContext, pickerLabels]
+  );
   return <TemplateCatalogueContext.Provider value={value}>{children}</TemplateCatalogueContext.Provider>;
 };
 
 /** The template catalogue of the fields here, if a host gave one (`TemplateCatalogueProvider`). */
 export const useTemplateCatalogue = (): ITemplateCatalogue | undefined =>
   useContext(TemplateCatalogueContext).catalogue;
+
+/** The words of the template picker of the fields here, if a host gave them (`TemplateCatalogueProvider`). */
+export const useTemplatePickerLabels = (): Partial<ITemplatePickerLabels> | undefined =>
+  useContext(TemplateCatalogueContext).pickerLabels;
 
 /** Where the fields here are, if a host said (`TemplateCatalogueProvider`). */
 export const useTemplateFieldContext = (): ITemplateFieldContext | undefined =>

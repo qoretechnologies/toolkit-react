@@ -289,6 +289,86 @@ export const MembersLoadedWhenOpened: Story = {
   },
 };
 
+/** A group whose members cannot be loaded says which, says why and offers Retry; the picker around it stays usable. */
+export const MembersThatCannotBeLoaded: Story = {
+  args: {
+    templates: {
+      items: [
+        {
+          label: 'Order data',
+          loadItems: () => Promise.reject(new Error('The server did not answer.')),
+        },
+        { label: 'Other', items: [{ label: 'One', value: '$local:one' }] },
+      ],
+    },
+    fields: undefined,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens Order data, whose members cannot be loaded: the picker says it could not load them and why, with ' +
+          'Retry, and its way back and search box stay usable. Back returns to the other groups.',
+      },
+    },
+  },
+  play: async () => {
+    await userEvent.click(await pickerRow('Order data'));
+    const failure = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>('.template-picker-load-failed');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await expect(failure.textContent).toContain('Order data');
+    await expect(failure.textContent).toContain('The server did not answer.');
+    // only what failed is said: the groups above it are behind Back
+    await expect(pickerLabels()).toEqual([]);
+    await expect(document.querySelector('.template-picker-empty')).toBeNull();
+    await expect(document.querySelector('.template-picker-retry')).toBeTruthy();
+    await expect(document.querySelector('.template-picker-back')).toBeTruthy();
+  },
+};
+
+let cameOnRetry = 0;
+
+/** Retry asks again: the members that come are listed, and what failed is no longer said. */
+export const RetryLoadsTheMembers: Story = {
+  args: {
+    templates: {
+      items: [
+        {
+          label: 'Order data',
+          loadItems: () =>
+            cameOnRetry++ ?
+              Promise.resolve([{ label: 'Order ID', value: '$data:{order.id}', badge: 'string' }])
+            : Promise.reject(new Error('The server did not answer.')),
+        },
+      ],
+    },
+    fields: undefined,
+  },
+  beforeEach: () => {
+    cameOnRetry = 0;
+  },
+  parameters: {
+    // Interaction-only: the play assertions are the guard; the failure is pictured by `MembersThatCannotBeLoaded`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Opens Order data, whose first load fails, and clicks Retry: Order ID is listed and the failure is gone.',
+      },
+    },
+  },
+  play: async () => {
+    // a lone group is opened: its load is asked for at once
+    await waitFor(() => expect(document.querySelector('.template-picker-retry')).toBeTruthy());
+    await userEvent.click(document.querySelector<HTMLElement>('.template-picker-retry')!);
+    await waitFor(() => expect(pickerLabels()).toEqual(['Order ID']));
+    await expect(document.querySelector('.template-picker-load-failed')).toBeNull();
+  },
+};
+
 /** The picker at a phone's width: as wide as the screen less its margins, tall rows for a finger. */
 export const OnAPhone: Story = {
   tags: ['touch'],
