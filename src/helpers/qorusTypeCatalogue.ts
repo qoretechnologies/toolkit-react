@@ -489,6 +489,19 @@ export const qorusTypeSentenceForm = (
     : reqraftLabels().typeCatalogue.unknownType;
 };
 
+/**
+ * The types a place takes, named inside a sentence: each name said once. Several types are one name: a soft or optional
+ * type is its base type (`softint`, `*int`: "a whole number"), and two types can share a sentence form (`string` and
+ * `richtext`: "text"). Undefined where none has one.
+ */
+export const typesInASentence = (
+  typeNames: (string | undefined)[],
+  sentenceForm: (typeName: string | undefined) => string | undefined
+): string | undefined => {
+  const forms = [...new Set(typeNames.map(sentenceForm).filter((form): form is string => !!form))];
+  return forms.length ? reqraftLabels().formEngine.typesJoin(forms) : undefined;
+};
+
 /** What a type is called inside a sentence ("a whole number"), by a catalogue: `useQorusTypes().getTypeSentenceForm`. */
 export type TTypeSentenceForm = (
   typeName: string | undefined,

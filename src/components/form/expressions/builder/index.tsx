@@ -1,4 +1,5 @@
 import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { typesInASentence } from '../../../../helpers/qorusTypeCatalogue';
 import {
   ReqoreControlGroup,
   ReqoreErrorBoundary,
@@ -20,7 +21,7 @@ import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/M
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
-import { clone, cloneDeep, compact, get, isArray, set, size, unset } from 'lodash';
+import { clone, cloneDeep, get, isArray, set, size, unset } from 'lodash';
 import { darken, rgba } from 'polished';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -268,12 +269,10 @@ export const Expression = ({
   const typeNotKnownYet = !!value.value?.exp && !serverType;
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
   // (qorus#646)
-  const expectedReturnTypeText =
-    compact(
-      (isArray(returnType) ? returnType : [returnType]).map((type) =>
-        types.getTypeSentenceForm(type, returnBaseType)
-      )
-    ).join(' or ') || undefined;
+  const expectedReturnTypeText = typesInASentence(
+    isArray(returnType) ? returnType : [returnType],
+    (type) => types.getTypeSentenceForm(type, returnBaseType)
+  );
 
   // Server Handler expressions is either defined by the option
   // then it's always the first level
