@@ -9,8 +9,9 @@
 # from that line. It ends at the first space or colon: taking everything up to the space kept the colon, and the
 # link went to build `20261010-104435:`, which does not exist.
 #
-# Prints GITHUB_OUTPUT lines `build_id=` and `url=` (the dashboard's builds are global: /builds/<id>), or nothing
-# when no build was uploaded.
+# Prints GITHUB_OUTPUT lines `build_id=`, `url=` (the dashboard's builds are global: /builds/<id>) and `link=`
+# (the Discord message's "🔍 [Qlip visual tests](url)"), or nothing when no build was uploaded: a push to develop
+# uploads none, and its message then simply has no link, instead of a `[Qlip visual tests]()` that goes nowhere.
 set -eu
 
 log=${1:?usage: qlip-build-link.sh <story run log>}
@@ -26,4 +27,5 @@ echo "Resolved qlip build='${build_id:-<none>}' server='${server}'" >&2
 if [ -n "$build_id" ]; then
     echo "build_id=$build_id"
     echo "url=$server/builds/$build_id"
+    echo "link=🔍 [Qlip visual tests]($server/builds/$build_id)"
 fi
