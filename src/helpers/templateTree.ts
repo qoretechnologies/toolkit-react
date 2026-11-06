@@ -10,6 +10,7 @@
  * one reference (`$data:receive_order.…`) stands for that reference (`reference`), which is what typing reaches it
  * by. A node with members may be a value as well (a record taken whole): it then has a `value` too.
  */
+import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from './reqraftLabels';
 import type { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { templateBaseType, templateType } from './templateType';
 import type { ITemplateCatalogueContext } from './templateCatalogue';
@@ -30,15 +31,12 @@ export type TTemplateNodeKind =
 /** What a row says a node is, in words. A group says nothing: its members do. */
 export const TEMPLATE_NODE_KIND_LABELS: Record<TTemplateNodeKind, string | undefined> = {
   group: undefined,
-  state: 'State data',
-  context: 'Context',
-  config: 'Config',
-  variable: 'Variable',
-  field: 'Field',
-  template: 'Template',
-  function: 'Function',
-  keyword: 'Keyword',
+  ...DEFAULT_REQRAFT_LABELS.templateTree.kinds,
 };
+
+/** What a row says a node is, in the host's words (`setReqraftLabels`). */
+export const templateNodeKindLabel = (kind: TTemplateNodeKind): string | undefined =>
+  kind === 'group' ? undefined : reqraftLabels().templateTree.kinds[kind];
 
 /** A catalogue row, as far as the tree reads it: a reqore dropdown item with a host's extras. */
 export interface ITemplateCatalogueRow {
@@ -276,7 +274,7 @@ export interface ITemplateTreeField {
 }
 
 /** The name of the group a DPQL field's record fields are listed under. */
-export const RECORD_FIELDS_LABEL = 'Record fields';
+export const RECORD_FIELDS_LABEL = DEFAULT_REQRAFT_LABELS.templateTree.recordFields;
 
 export interface ITemplateTreeOptions {
   /** The record's fields, written as `@<name>`: listed as a group of their own, beside the templates. */
@@ -396,10 +394,10 @@ export const templateTree = (
     const trail = [RECORD_FIELDS_LABEL];
     merged.push({
       id,
-      label: RECORD_FIELDS_LABEL,
+      label: reqraftLabels().templateTree.recordFields,
       reference: undefined,
       kind: 'field',
-      description: 'The fields of the record the expression is about',
+      description: reqraftLabels().templateTree.recordFieldsDescription,
       trail: [],
       trailIds: [],
       children: fieldNodes(unlisted, id, trail, '@'),
@@ -700,11 +698,8 @@ export type TTemplateIntent = 'success' | 'custom1' | 'info';
  * of the colors?"): green is the data of the event that starts the Qog, purple a value Qorus gives, blue any other
  * template (which its hover does not need to say).
  */
-export const TEMPLATE_INTENT_MEANINGS: Record<TTemplateIntent, string> = {
-  success: 'From the event that starts the Qog.',
-  custom1: 'A value Qorus gives.',
-  info: 'Any other data this value can use.',
-};
+export const TEMPLATE_INTENT_MEANINGS: Record<TTemplateIntent, string> =
+  DEFAULT_REQRAFT_LABELS.templateTree.intentMeanings;
 
 /** The color a catalogue row's template is drawn in: its own metadata's, else its first member's. */
 export const templateRowIntent = (
@@ -790,7 +785,7 @@ export const referenceNamesNothing = (roots: ITemplateNode[], written: string): 
 
 /** What a diagnostic says of a reference that names nothing here. */
 export const referenceNamesNothingMessage = (written: string): string =>
-  `No template here is called \`${written}\`: pick one from the list, or remove it.`;
+  reqraftLabels().templateTree.referenceNamesNothing(written);
 
 /** The context a reference is in, with its `$` and `:` (`$data:` of `$data:receive_order.event_type`). */
 export const templateContextOf = (reference: string | undefined): string | undefined =>
@@ -885,31 +880,34 @@ interface IServerCompletion {
   documentation?: string | { value?: string };
 }
 
-const SERVER_GROUPS: Array<{
+const serverGroups = (): Array<{
   id: string;
   label: string;
   kind: TTemplateNodeKind;
   description: string;
-}> = [
-  {
-    id: 'contexts',
-    label: 'Template contexts',
-    kind: 'context',
-    description: 'Write one and pick what is in it',
-  },
-  {
-    id: 'functions',
-    label: 'Functions',
-    kind: 'function',
-    description: 'What the expression can call',
-  },
-  {
-    id: 'keywords',
-    label: 'Values and keywords',
-    kind: 'keyword',
-    description: 'Literal values and operators',
-  },
-];
+}> => {
+  const words = reqraftLabels().templateTree;
+  return [
+    {
+      id: 'contexts',
+      label: words.templateContexts,
+      kind: 'context',
+      description: words.serverContextsDescription,
+    },
+    {
+      id: 'functions',
+      label: words.functions,
+      kind: 'function',
+      description: words.functionsDescription,
+    },
+    {
+      id: 'keywords',
+      label: words.valuesAndKeywords,
+      kind: 'keyword',
+      description: words.valuesAndKeywordsDescription,
+    },
+  ];
+};
 
 /**
  * The template picker's roots: the field's own (`templateTree`) and what the language server completes where a
@@ -939,7 +937,7 @@ const rehomed = (
 });
 
 /** The name of the picker's group of template contexts. */
-export const TEMPLATE_CONTEXTS_LABEL = 'Template contexts';
+export const TEMPLATE_CONTEXTS_LABEL = DEFAULT_REQRAFT_LABELS.templateTree.templateContexts;
 
 /**
  * The picker's roots with the template contexts of the field's own templates as a group of their own (qorus#646,
@@ -966,9 +964,9 @@ export const withTemplateContexts = (
     ...roots,
     {
       id,
-      label: TEMPLATE_CONTEXTS_LABEL,
+      label: reqraftLabels().templateTree.templateContexts,
       kind: 'context',
-      description: 'Each context, to pick what is in it or to take it whole',
+      description: reqraftLabels().templateTree.templateContextsDescription,
       trail: [],
       trailIds: [],
       children: contexts.map((context) => ({
@@ -1046,9 +1044,9 @@ export const withServerCompletions = (
           ...out,
           {
             id,
-            label: RECORD_FIELDS_LABEL,
+            label: reqraftLabels().templateTree.recordFields,
             kind: 'field',
-            description: 'The fields of the record the expression is about',
+            description: reqraftLabels().templateTree.recordFieldsDescription,
             trail: [],
             trailIds: [],
             children: extra,
@@ -1112,9 +1110,9 @@ export const withServerCompletions = (
           ...out,
           {
             id,
-            label: TEMPLATE_CONTEXTS_LABEL,
+            label: reqraftLabels().templateTree.templateContexts,
             kind: 'context',
-            description: 'Each context, to pick what is in it or to take it whole',
+            description: reqraftLabels().templateTree.templateContextsDescription,
             trail: [],
             trailIds: [],
             children: members,
@@ -1122,7 +1120,7 @@ export const withServerCompletions = (
         ];
   }
   const byGroup: Record<string, IServerCompletion[]> = { contexts: [], functions, keywords };
-  for (const group of SERVER_GROUPS) {
+  for (const group of serverGroups()) {
     const members = byGroup[group.id];
     if (!members.length) continue;
     const id = `server.${group.id}`;

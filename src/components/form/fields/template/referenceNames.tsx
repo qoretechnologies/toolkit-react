@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from '../../../../helpers/reqraftLabels';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { size } from 'lodash';
 import { createContext, useContext } from 'react';
@@ -35,7 +36,8 @@ export const hostSaysOf = (reference: string, names: ITemplateReferenceNames) =>
 });
 
 /** What the chip of a reference nothing names says on hover, where the host says nothing of its own. */
-export const DEFAULT_UNLISTED_REFERENCE_HINT = 'Not one of the values offered here';
+export const DEFAULT_UNLISTED_REFERENCE_HINT =
+  DEFAULT_REQRAFT_LABELS.templateField.unlistedReference;
 
 const TemplateReferenceNamesContext = createContext<ITemplateReferenceNames>({});
 
@@ -91,7 +93,7 @@ export const referenceStanding = (
 /** The chip props a reference nothing names draws with: a warning, and the host's hint on hover. */
 export const unlistedReferenceChipProps = (names: ITemplateReferenceNames) => ({
   intent: 'warning' as const,
-  tooltip: names.unlistedHint || DEFAULT_UNLISTED_REFERENCE_HINT,
+  tooltip: names.unlistedHint || reqraftLabels().templateField.unlistedReference,
   className: UNLISTED_REFERENCE_CLASS,
 });
 

@@ -2,6 +2,7 @@
 // What a DPQL editor's one completion list offers, and what it says (qorus#646, David's decision): the server's
 // completion at the caret, with the field's templates merged in where a value can be written - opened by a click,
 // a tap or Tab as by typing - and the server's diagnostics in the words the editor owes the author.
+import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from '../../helpers/reqraftLabels';
 import { TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import {
   ITemplateNode,
@@ -56,8 +57,7 @@ const NO_VALUE_KINDS = new Set([14, 24]);
 const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
 
 /** Why the templates beside the text cannot be used: a value at its end would follow another (qorus#646). */
-export const NO_VALUE_AT_THE_END =
-  'A template goes where a value can: after an operator, an opening bracket or a comma, or in an empty expression.';
+export const NO_VALUE_AT_THE_END = DEFAULT_REQRAFT_LABELS.editor.noValueAtTheEnd;
 
 /**
  * The text with `template` put in at its end, where a template chosen from the picker beside the text goes - the
@@ -155,9 +155,10 @@ const markedServerItem = (item: ILspCompletionItem): ILspCompletionItem => {
       data: {
         ...said,
         continues: true,
-        kindLabel: 'Template context',
+        kindLabel: reqraftLabels().editor.templateContext,
+        isTemplateContext: true,
         // listed with the field's own templates and contexts, in one section
-        section: 'Templates',
+        section: reqraftLabels().editor.templatesSection,
         takesWhole: whole,
         wholeValue: whole ? wholeContextValue(written) : undefined,
       },
@@ -229,9 +230,9 @@ export const dpqlCompletionsWith =
         .map((item) => [item.insertText ?? '', !!(item.data as { takesWhole?: boolean } | undefined)?.takesWhole])
     );
     const oursListed = ours.map((item) => {
-      const data = item.data as { kindLabel?: string; takesWhole?: boolean } | undefined;
+      const data = item.data as { isTemplateContext?: boolean; takesWhole?: boolean } | undefined;
       const whole = serverWhole.get(item.insertText ?? '');
-      return data?.kindLabel === 'Template context' && whole !== undefined && whole !== data.takesWhole ?
+      return data?.isTemplateContext && whole !== undefined && whole !== data.takesWhole ?
           { ...item, data: { ...data, takesWhole: whole } }
         : item;
     });
@@ -288,7 +289,7 @@ export const dpqlEmptyCompletionMessage = (
 ): string | undefined => {
   const before = plainText.slice(0, offset);
   if (asksForAField(before)) {
-    return 'No record fields here';
+    return reqraftLabels().editor.noRecordFields;
   }
   // a context written: what to write in it; a `$` alone or a context's name being written: that there is none
   const inContext = unlistedContextMessage(before);
@@ -296,12 +297,15 @@ export const dpqlEmptyCompletionMessage = (
     return inContext;
   }
   const written = dpqlReferenceBeingWritten(before);
-  return written && before[before.length - written] === '$' ? 'No templates here' : undefined;
+  return written && before[before.length - written] === '$' ?
+      reqraftLabels().editor.noTemplates
+
+    : undefined;
 };
 
-
 /** What is said of the placeholders an unfinished expression is written with, for each part not chosen yet. */
-export const UNFINISHED_PARTS_MESSAGE = `Fill in each ${EXPRESSION_HOLE} (the parts not chosen yet).`;
+export const UNFINISHED_PARTS_MESSAGE =
+  DEFAULT_REQRAFT_LABELS.editor.unfinishedParts(EXPRESSION_HOLE);
 
 /**
  * The server's diagnostics as a DPQL editor says them. The Text view writes an unfinished expression with a
@@ -326,7 +330,7 @@ export const presentDpqlDiagnostics = (
       range: placeholders[0].range,
       severity: 2,
       source: placeholders[0].source,
-      message: UNFINISHED_PARTS_MESSAGE,
+      message: reqraftLabels().editor.unfinishedParts(EXPRESSION_HOLE),
     },
     ...diagnostics.filter((diagnostic) => !atPlaceholder(diagnostic)),
   ];

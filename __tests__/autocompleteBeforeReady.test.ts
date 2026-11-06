@@ -9,6 +9,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSlateConverter } from '../src/components/smartEditor/helpers';
 import { useLspAutocomplete } from '../src/components/smartEditor/useLspAutocomplete';
+import { ReactEditor } from 'slate-react';
 
 /** The editor as Slate holds it after a key: its text, the caret at the end, and the edit's operations. */
 const editorWith = (text: string, operations: { type: string }[] = [{ type: 'insert_text' }]) =>
@@ -218,6 +219,54 @@ describe('the template picker when the window is resized', () => {
       expect(measure).not.toHaveBeenCalled();
     } finally {
       button.remove();
+    }
+  });
+
+  /* A click in the text opens the picker at the caret, with nothing it was opened from: it was left at the point of the
+     window it opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+  it('opened at the caret, stays where it was opened in the text as the text moves', () => {
+    const { hook } = setup(true);
+    const text = document.createElement('div');
+    document.body.appendChild(text);
+    const drawn = vi.spyOn(ReactEditor, 'toDOMNode').mockReturnValue(text);
+    try {
+      const measure = vi.spyOn(text, 'getBoundingClientRect').mockReturnValue(boxAt(320, 58) as DOMRect);
+      // the caret 40 px into the text, on its first line
+      act(() =>
+        hook.result.current.openBrowse(editorWith('hello') as never, {
+          rect: { left: 360, bottom: 40 },
+          caret: { path: [0, 0], offset: 2 },
+        } as never)
+      );
+      expect(hook.result.current.position).toEqual({ left: 360, top: 40 });
+
+      measure.mockReturnValue(boxAt(900, 58) as DOMRect);
+      resized();
+      expect(hook.result.current.position).toEqual({ left: 940, top: 40 });
+      expect(hook.result.current.browse).toBeTruthy();
+    } finally {
+      drawn.mockRestore();
+      text.remove();
+    }
+  });
+
+  it('opened from an element, stays as far from it as when it opened', () => {
+    const { hook } = setup(true);
+    const chip = document.createElement('span');
+    document.body.appendChild(chip);
+    try {
+      const measure = vi.spyOn(chip, 'getBoundingClientRect').mockReturnValue(boxAt(100, 30) as DOMRect);
+      act(() =>
+        hook.result.current.openBrowse(editorWith('') as never, {
+          rect: { left: 100, bottom: 34 },
+          anchor: chip,
+        } as never)
+      );
+      measure.mockReturnValue(boxAt(600, 130) as DOMRect);
+      resized();
+      expect(hook.result.current.position).toEqual({ left: 600, top: 134 });
+    } finally {
+      chip.remove();
     }
   });
 });

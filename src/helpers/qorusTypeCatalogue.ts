@@ -2,6 +2,7 @@
 // The Qorus server's type catalogue as reqraft keeps it (qorus#646): what each type is called as a label (its
 // display name) and inside a sentence (its sentence form). No React here: the form's validation names types too,
 // and the hook (`useQorusTypes`) that answers with the server's catalogue builds on it.
+import { reqraftLabels } from './reqraftLabels';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
 
@@ -481,6 +482,21 @@ export const qorusTypeSentenceForm = (
     return entry.sentence_form || `a value of type ${entry.display_name}`;
   }
   return typeName.includes('/') ? `a value of type ${typeName}` : 'a value of an unknown type';
+};
+
+/**
+ * The types a place takes, named inside a sentence: each name said once. Several types are one name: a soft or optional
+ * type is its base type (`softint`, `*int`: "a whole number"), and two types can share a sentence form (`string` and
+ * `richtext`: "text"). Undefined where none has one.
+ */
+export const typesInASentence = (
+  typeNames: (string | undefined)[],
+  sentenceForm: (typeName: string | undefined) => string | undefined
+): string | undefined => {
+  const forms = Array.from(
+    new Set(typeNames.map(sentenceForm).filter((form): form is string => !!form))
+  );
+  return forms.length ? reqraftLabels().formEngine.typesJoin(forms) : undefined;
 };
 
 /** What a type is called inside a sentence ("a whole number"), by a catalogue: `useQorusTypes().getTypeSentenceForm`. */

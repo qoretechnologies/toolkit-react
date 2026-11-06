@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { size } from 'lodash';
@@ -52,6 +53,7 @@ export const useTemplateTags = (
   templates: IReqoreFormTemplates | undefined,
   allowTemplates = true
 ): IReqoreRichTextEditorProps['tags'] => {
+  const browserWords = useReqraftLabels().templateBrowser;
   const renderMarkdown = useMarkdownRenderer();
   // a template's type named by the catalogue the surrounding form has, never its code
   const typeLabel = useTypeLabel();
@@ -61,9 +63,9 @@ export const useTemplateTags = (
     if (size(templates?.items) && allowTemplates) {
       tags.templates = {
         icon: 'MoneyDollarBoxLine',
-        label: 'Templates',
+        label: browserWords.templates,
         flat: false,
-        description: 'Universal values that can be used in multiple places',
+        description: browserWords.universalValues,
         /* The in-editor list already nests everything under "Templates", so a
            lone category makes the author drill through TWO headers to reach
            the only values on offer. Hoist it. */
@@ -83,5 +85,5 @@ export const useTemplateTags = (
     }
 
     return tags;
-  }, [allowTemplates, templates, renderMarkdown, typeLabel]);
+  }, [allowTemplates, templates, renderMarkdown, typeLabel, browserWords]);
 };

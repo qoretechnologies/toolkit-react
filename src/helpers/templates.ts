@@ -9,7 +9,8 @@ import {
 import { cloneDeep, size } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
-import { DEFAULT_TEMPLATE_LIST_LABELS, IReqraftTemplateListLabels } from './templateListLabels';
+import { reqraftLabels } from './reqraftLabels';
+import { IReqraftTemplateListLabels } from './templateListLabels';
 import {
   describedContent,
   DESCRIPTION_TOOLTIP_MAX_WIDTH,
@@ -25,7 +26,6 @@ import {
   catalogueGroupFor,
   catalogueRowTrail,
   chipPathLabel,
-  TEMPLATE_INTENT_MEANINGS,
   templateRowIntent,
 } from './templateTree';
 
@@ -566,7 +566,8 @@ export const templateTooltip = (
      its row (qorus#646, David: "what is the significance of the colors?") */
   const intent = item ? templateRowIntent(item.metadata as Record<string, unknown>) : 'info';
   // blue is any other data: only green and purple say something of their own
-  const meaning = intent === 'info' ? undefined : TEMPLATE_INTENT_MEANINGS[intent];
+  const meaning =
+    intent === 'info' ? undefined : reqraftLabels().templateTree.intentMeanings[intent];
   const body = [
     describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type),
     meaning,
@@ -783,7 +784,7 @@ export const buildTemplates = (
     return undefined;
   }
 
-  const words: IReqraftTemplateListLabels = { ...DEFAULT_TEMPLATE_LIST_LABELS, ...labels };
+  const words: IReqraftTemplateListLabels = { ...reqraftLabels().templateList, ...labels };
 
   const mapTemplates = (
     items: ITemplateItemPayload[] = [],

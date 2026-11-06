@@ -1,5 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
+import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from '../../helpers/reqraftLabels';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BaseEditor, BasePoint, Editor, Point, Range, Transforms } from 'slate';
@@ -44,42 +45,8 @@ const DEBOUNCE_MS = 150;
 // slow responses; sub-250ms responses never set the flag.
 const LOADER_DELAY_MS = 250;
 
-const COMPLETION_KIND_LABELS: Record<number, string> = {
-  2: 'Methods',
-  3: 'Functions',
-  5: 'Fields',
-  6: 'Variables',
-  14: 'Keywords',
-  15: 'Snippets',
-};
-
-export const COMPLETION_KIND_CHIPS: Record<number, string> = {
-  1: 'Text',
-  2: 'Method',
-  3: 'Function',
-  4: 'Constructor',
-  5: 'Field',
-  6: 'Variable',
-  7: 'Class',
-  8: 'Interface',
-  9: 'Module',
-  10: 'Property',
-  11: 'Unit',
-  12: 'Value',
-  13: 'Enum',
-  14: 'Keyword',
-  15: 'Snippet',
-  16: 'Color',
-  17: 'File',
-  18: 'Reference',
-  19: 'Folder',
-  20: 'EnumMember',
-  21: 'Constant',
-  22: 'Struct',
-  23: 'Event',
-  24: 'Operator',
-  25: 'TypeParameter',
-};
+export const COMPLETION_KIND_CHIPS: Record<number, string> =
+  DEFAULT_REQRAFT_LABELS.editor.completionKinds;
 
 export interface ICompletionDropdownItem {
   label: string;
@@ -219,7 +186,10 @@ export interface IUseLspAutocompleteResult {
     editor: BaseEditor & ReactEditor & HistoryEditor,
     options: {
       rect: { left: number; bottom: number };
-      /** What it is opened from (a button, a chip), where that is not the caret: it stays there as the window resizes. */
+      /**
+       * What it is opened from (a button, a chip): it stays there as the window resizes. Without one - opened at the
+       * caret or at the text - it stays where it was opened in the text, which moves with it.
+       */
       anchor?: Element;
       caret?: BasePoint;
       replacementPath?: number[];
@@ -243,6 +213,7 @@ export interface ITemplateBrowse {
  * Variable, Function... - when there is more than one.
  */
 export const groupCompletionItems = (items: ICompletionDropdownItem[]): ICompletionGroup[] => {
+  const editorWords = reqraftLabels().editor;
   if (items.length === 0) return [];
 
   // When the server populates `sortText` it has already ranked items;
@@ -259,7 +230,9 @@ export const groupCompletionItems = (items: ICompletionDropdownItem[]): IComplet
     // a template row says its own section: the field's templates, its record fields, or none (Browse all)
     const section = templateRowMarks(item).section;
     const groupLabel =
-      section !== undefined ? section : (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
+      section !== undefined ? section : (
+        (kind && editorWords.completionSections[kind]) || editorWords.otherSection
+      );
     if (!groupMap.has(groupLabel)) {
       groupMap.set(groupLabel, []);
     }
@@ -288,7 +261,7 @@ export const toDropdownItems = (lspItems: ILspCompletionItem[]): ICompletionDrop
       kindLabel:
         templateRowMarks(item).kindLabel ??
         (item.kind !== undefined && !templateRowMarks(item).browseAll ?
-          COMPLETION_KIND_CHIPS[item.kind]
+          reqraftLabels().editor.completionKinds[item.kind]
         : undefined),
       warning: item.warning,
       raw: item,
@@ -423,7 +396,8 @@ export function useLspAutocomplete(
   // the template picker in place of the rows, and where it is open
   const [browse, setBrowseState] = useState<ITemplateBrowse | null>(null);
   const browseRef = useRef<ITemplateBrowse | null>(null);
-  const browseAnchorRef = useRef<Element | null>(null);
+  // what the picker goes with as the window resizes, and where it is drawn from it
+  const browseAnchorRef = useRef<{ element: Element; left: number; bottom: number } | null>(null);
   const setBrowse = useCallback((next: ITemplateBrowse | null) => {
     browseRef.current = next;
     setBrowseState(next);
@@ -1256,9 +1230,9 @@ export function useLspAutocomplete(
     const follow = () => {
       const anchor = browseAnchorRef.current;
       // the picker's: the list that typing has put in its place is at the caret
-      if (browseRef.current && anchor?.isConnected) {
-        const { left, bottom } = anchor.getBoundingClientRect();
-        setPosition({ left, top: bottom });
+      if (browseRef.current && anchor?.element.isConnected) {
+        const { left, bottom } = anchor.element.getBoundingClientRect();
+        setPosition({ left: left + anchor.left, top: bottom + anchor.bottom });
       }
     };
     window.addEventListener('resize', follow);
@@ -1268,7 +1242,24 @@ export function useLspAutocomplete(
   const openBrowse = useCallback<IUseLspAutocompleteResult['openBrowse']>(
     (editor, { rect, anchor, caret, replacementPath, levelId, query, selectedValue, arrows }) => {
       editorRef.current = editor;
-      browseAnchorRef.current = anchor ?? null;
+      /* It goes with what it was opened from; opened at the caret or the text, with the text it was opened in, as
+         far from it as when it opened: a picker opened by a click in the text was left at the point of the window it
+         opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+      let from: Element | null = anchor ?? null;
+      if (!from) {
+        try {
+          from = ReactEditor.toDOMNode(editor as ReactEditor, editor as ReactEditor);
+        } catch {
+          // the editor is not drawn: there is nothing to go with
+          from = null;
+        }
+      }
+      if (from) {
+        const at = from.getBoundingClientRect();
+        browseAnchorRef.current = { element: from, left: rect.left - at.left, bottom: rect.bottom - at.bottom };
+      } else {
+        browseAnchorRef.current = null;
+      }
       requestCompletions.cancel();
       requestGenerationRef.current++;
       pendingRequestRef.current = false;
