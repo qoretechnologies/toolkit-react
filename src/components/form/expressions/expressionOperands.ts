@@ -22,8 +22,10 @@ const isObject = (value: unknown): value is Record<string, any> =>
 
 /** A rich-text value as the operand it holds, or `undefined` when it is empty. */
 const richtextOperand = (value: unknown): IExpression | undefined => {
+  // only empty text is dropped: spaces or tabs around a single template make the value text, as the server reads
+  // it (evaluation keeps them)
   const segments = richtextToSegments(value as never).filter(
-    (segment) => segment.kind === 'tag' || segment.text.trim()
+    (segment) => segment.kind === 'tag' || segment.text !== ''
   );
   if (!segments.length) return undefined;
   // a single template is that template, as a template picked from the list is
@@ -67,8 +69,10 @@ export const isExpressionComplete = (value: IExpressionValue | undefined): boole
   return (value.args ?? []).every((arg) => {
     const operand = expressionOperand(arg);
     if (operand === undefined) return false;
-    if (isObject(operand) && operand.is_expression) return isExpressionComplete(operand.value as IExpressionValue);
-    if (isObject(operand) && 'exp' in operand) return isExpressionComplete(operand as IExpressionValue);
+    if (isObject(operand) && operand.is_expression)
+      return isExpressionComplete(operand.value as IExpressionValue);
+    if (isObject(operand) && 'exp' in operand)
+      return isExpressionComplete(operand as IExpressionValue);
     return true;
   });
 };
