@@ -14,25 +14,34 @@
 // Text view's `dpql/serialize`, the read-first row summary, and an application's
 // own summaries - so none of them prints a hash or `[object Object]` for them.
 // Pure: no transport/socket import.
-import { richtextToSegments, richtextToString } from '../../../helpers/common';
+import { richtextToString } from '../../../helpers/common';
+import { isCompleteTemplateToken } from '../../../helpers/templates';
 import { IExpression, IExpressionValue } from './types';
 
 const isObject = (value: unknown): value is Record<string, any> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-/** A rich-text value as the operand it holds, or `undefined` when it is empty. */
+/**
+ * A rich-text value as Qorus reads it (`_priv_parse_ui_hash_value_intern`): its paragraphs, each its text with its
+ * tags as their templates, joined with a newline - an empty paragraph too.
+ */
+const richtextAsTheServerReadsIt = (value: unknown): string =>
+  Array.isArray(value) ?
+    value.map((paragraph) => richtextToString([paragraph] as never)).join('\n')
+  : richtextToString(value as never);
+
+/**
+ * A rich-text value as the operand it holds, or `undefined` when it is empty. It is a template when what it reads as
+ * is one template and nothing else, as the server rules (`QorusUiExpression::uiTemplateArg()`): any character around
+ * it - a space, a tab, a newline, a no-break space, another paragraph - makes it text, which evaluation keeps.
+ */
 const richtextOperand = (value: unknown): IExpression | undefined => {
-  // only empty text is dropped: spaces or tabs around a single template make the value text, as the server reads
-  // it (evaluation keeps them)
-  const segments = richtextToSegments(value as never).filter(
-    (segment) => segment.kind === 'tag' || segment.text !== ''
-  );
-  if (!segments.length) return undefined;
-  // a single template is that template, as a template picked from the list is
-  if (segments.length === 1 && segments[0].kind === 'tag') {
-    return { type: 'auto', value: segments[0].value };
+  const text = richtextAsTheServerReadsIt(value);
+  if (text === '') return undefined;
+  if (isCompleteTemplateToken(text)) {
+    return { type: 'auto', value: text };
   }
-  return { type: 'string', value: richtextToString(value as never) };
+  return { type: 'string', value: text };
 };
 
 /**

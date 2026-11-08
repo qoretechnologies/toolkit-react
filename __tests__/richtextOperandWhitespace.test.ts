@@ -30,4 +30,35 @@ describe('a rich-text operand', () => {
   it('holding nothing is not given', () => {
     expect(expressionOperand({ type: 'richtext', value: paragraph({ text: '' }) })).toBeUndefined();
   });
+
+  it('holding a tag and a newline is text', () => {
+    expect(expressionOperand({ type: 'richtext', value: paragraph(tag, { text: '\n' }) })).toEqual({
+      type: 'string',
+      value: '$local:id\n',
+    });
+  });
+
+  it('holding a tag between no-break spaces is text', () => {
+    expect(
+      expressionOperand({
+        type: 'richtext',
+        value: paragraph({ text: ' ' }, tag, { text: ' ' }),
+      })
+    ).toEqual({ type: 'string', value: ' $local:id ' });
+  });
+
+  it('holding a tag and an empty paragraph after it is text, as the server joins paragraphs with a newline', () => {
+    expect(
+      expressionOperand({
+        type: 'richtext',
+        value: [...paragraph(tag), ...paragraph({ text: '' })],
+      })
+    ).toEqual({ type: 'string', value: '$local:id\n' });
+  });
+
+  it('holding a template written as text, alone, is that template', () => {
+    expect(
+      expressionOperand({ type: 'richtext', value: paragraph({ text: '$local:id' }) })
+    ).toEqual({ type: 'auto', value: '$local:id' });
+  });
 });
