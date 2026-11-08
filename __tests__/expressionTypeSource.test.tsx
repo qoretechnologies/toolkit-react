@@ -103,6 +103,12 @@ describe('an operand named without raw data', () => {
     );
   });
 
+  it('is "this value" for rich text stored as text, and for long or multi-line text', () => {
+    expect(operandLabel('Dear customer', undefined, 'richtext')).toBe('this value');
+    expect(operandLabel('line one\nline two', undefined, 'string')).toBe('this value');
+    expect(operandLabel('x'.repeat(25), undefined, 'string')).toBe('this value');
+  });
+
   it('quotes a value written as text or a number', () => {
     expect(operandLabel('abc', undefined)).toBe('"abc"');
     expect(operandLabel(5, undefined)).toBe('"5"');

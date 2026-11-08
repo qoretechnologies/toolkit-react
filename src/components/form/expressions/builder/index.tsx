@@ -283,7 +283,8 @@ export const Expression = ({
         return {
           label: operandLabel(
             arg?.value,
-            findTemplate(localTemplates, arg?.value)?.label?.toString()
+            findTemplate(localTemplates, arg?.value)?.label?.toString(),
+            arg?.type
           ),
           type: arg?.type,
         };

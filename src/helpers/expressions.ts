@@ -223,11 +223,19 @@ export interface IExpressionOperand {
   isOperation?: boolean;
 }
 
+/** The longest written value an operand is named by: a longer one is named "this value". */
+const OPERAND_VALUE_LABEL_MAX = 24;
+
 /**
  * An operand as the reader knows it, never its raw data: a template by its label where the field offers it, else by
- * its kind (`$local`); a value written as text or a number, quoted; anything else - rich text, a list - "this value".
+ * its kind (`$local`); a short value written on one line, quoted; anything else - rich text (as a document or as the
+ * text it is stored as), long or multi-line text, a list - "this value".
  */
-export const operandLabel = (value: unknown, templateLabel: string | undefined): string => {
+export const operandLabel = (
+  value: unknown,
+  templateLabel: string | undefined,
+  type?: string
+): string => {
   const labels = reqraftLabels().formEngine;
   if (templateLabel) {
     return `"${templateLabel}"`;
@@ -236,6 +244,9 @@ export const operandLabel = (value: unknown, templateLabel: string | undefined):
     const kind = /^\$([a-z_]+):/i.exec(value)?.[1];
     if (kind) {
       return labels.templateOfKind(kind);
+    }
+    if (type === 'richtext' || /[\r\n]/.test(value) || value.length > OPERAND_VALUE_LABEL_MAX) {
+      return labels.thisValue;
     }
     return `"${value}"`;
   }
