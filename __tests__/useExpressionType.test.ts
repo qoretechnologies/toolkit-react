@@ -27,10 +27,17 @@ import {
   _resetExpressionTypeTransportForTests,
   fetchExpressionType,
   getCachedExpressionType,
+  registerTemplateTypes,
   useExpressionType,
 } from '../src/components/form/expressions/useExpressionType';
 
-const SUM = { exp: '+', args: [{ type: 'int', value: 1 }, { type: 'float', value: 2.5 }] } as never;
+const SUM = {
+  exp: '+',
+  args: [
+    { type: 'int', value: 1 },
+    { type: 'float', value: 2.5 },
+  ],
+} as never;
 const TEXT = { exp: 'lwr', args: [{ type: 'string', value: 'A' }] } as never;
 const FLOAT = { inferred_type: 'float', ui_type: 'number', known: true };
 const STRING = { inferred_type: 'string', ui_type: 'richtext', known: true };
@@ -128,5 +135,64 @@ describe('useExpressionType', () => {
     expect(result.current).toBeUndefined();
     await expect(fetchExpressionType({} as never)).resolves.toBeNull();
     expect(client.connect).not.toHaveBeenCalled();
+  });
+});
+
+describe('the types of the templates an expression holds', () => {
+  const NESTED = {
+    exp: 'substr',
+    args: [
+      { type: 'string', value: '$local:name' },
+      {
+        is_expression: true,
+        value: {
+          exp: '+',
+          args: [
+            { type: 'int', value: '$local:id' },
+            { type: 'int', value: 5 },
+          ],
+        },
+      },
+      { type: 'int', value: 10 },
+    ],
+  } as never;
+  const TEMPLATES = {
+    items: [
+      {
+        label: 'Context Data',
+        items: [
+          { label: 'Interface ID', value: '$local:id', badge: 'int', metadata: { type: 'int' } },
+          { label: 'Interface Name', value: '$local:name', badge: 'string' },
+          { label: 'Anything', value: '$local:any', badge: 'any' },
+          { label: 'Unused', value: '$local:unused', badge: 'date' },
+        ],
+      },
+    ],
+  } as never;
+
+  it('go with the question, as the lists name them: only those the expression holds, none of any type', async () => {
+    registerTemplateTypes(TEMPLATES);
+    client.customRequest.mockResolvedValue(STRING);
+    await fetchExpressionType(NESTED);
+    expect(client.customRequest).toHaveBeenCalledWith('dpql/expressionType', {
+      expression: NESTED,
+      template_types: { '$local:id': 'int', '$local:name': 'string' },
+    });
+  });
+
+  it('are left out where no list types the templates', async () => {
+    client.customRequest.mockResolvedValue(STRING);
+    await fetchExpressionType(NESTED);
+    expect(client.customRequest).toHaveBeenCalledWith('dpql/expressionType', {
+      expression: NESTED,
+    });
+  });
+
+  it('ask again once a list types a template the expression holds', async () => {
+    client.customRequest.mockResolvedValue(STRING);
+    await fetchExpressionType(NESTED);
+    registerTemplateTypes(TEMPLATES);
+    await fetchExpressionType(NESTED);
+    expect(client.customRequest).toHaveBeenCalledTimes(2);
   });
 });

@@ -71,7 +71,11 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
-import { getCachedExpressionType, useExpressionType } from '../useExpressionType';
+import {
+  getCachedExpressionType,
+  registerTemplateTypes,
+  useExpressionType,
+} from '../useExpressionType';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
@@ -263,6 +267,8 @@ export const Expression = ({
   // `ui_type` is compared with the types this place takes, which are UI types; what the expression gives is
   // named, and judged as a condition, by the type's own name, as the Text view names it (`inferred_type`:
   // "a whole number", where the UI type of every number is `number`).
+  // the types of the templates this builder offers go with every question of an expression's type
+  useMemo(() => registerTemplateTypes(localTemplates), [localTemplates]);
   const serverType = useExpressionType(value.value);
   const expressionReturnType = serverType?.ui_type;
   const expressionGivesType = serverType?.inferred_type;

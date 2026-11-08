@@ -16,6 +16,8 @@
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 import { ReqraftLspClient } from '../../../utils/lspClient';
+import type { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { templateType } from '../../../helpers/templateType';
 import { IExpressionValue } from './types';
 
 /** Coalesce rapid changes per consumer (live editing) — trailing edge. */
@@ -49,7 +51,58 @@ const getTypeClient = (): ReqraftLspClient => {
   return typeClient;
 };
 
-const cacheKey = (value: IExpressionValue): string => JSON.stringify(value);
+/**
+ * The types of the templates the reader is offered, as the lists of templates name them: what a template, as
+ * written, holds (`$local:id` a whole number). The server types an operation by its operands, and a template it
+ * cannot type itself is typed by what the IDE shows for it (`template_types`); one it can type keeps its own type.
+ * Kept for the page: a template is the same value wherever a list offers it.
+ */
+const templateTypes = new Map<string, string>();
+
+/** Notes the types of the templates a list offers (`buildTemplates` rows: `metadata.type`, else the badge). */
+export const registerTemplateTypes = (templates: IReqoreFormTemplates | undefined): void => {
+  const walk = (items: unknown[] | undefined) => {
+    (items ?? []).forEach((item) => {
+      const row = item as { value?: unknown; items?: unknown[] };
+      if (typeof row?.value === 'string' && row.value.startsWith('$')) {
+        const type = templateType(row as never);
+        // a template of any type says nothing the server could use
+        if (type && !/^\*?(any|auto)$/.test(type)) {
+          templateTypes.set(row.value, type);
+        }
+      }
+      walk(row?.items);
+    });
+  };
+  walk(templates?.items as unknown[] | undefined);
+};
+
+/** The templates an expression holds, as written: in its operands, in rich text, in the expressions it nests. */
+const templatesIn = (value: unknown, found = new Set<string>()): Set<string> => {
+  if (typeof value === 'string') {
+    if (value.startsWith('$')) {
+      found.add(value);
+    }
+  } else if (Array.isArray(value)) {
+    value.forEach((item) => templatesIn(item, found));
+  } else if (value && typeof value === 'object') {
+    Object.values(value as Record<string, unknown>).forEach((item) => templatesIn(item, found));
+  }
+  return found;
+};
+
+/** The types of the templates an expression holds that the lists offering them type. */
+export const expressionTemplateTypes = (value: IExpressionValue): Record<string, string> =>
+  Object.fromEntries(
+    Array.from(templatesIn(value))
+      .sort()
+      .flatMap((template) =>
+        templateTypes.has(template) ? [[template, templateTypes.get(template) as string]] : []
+      )
+  );
+
+const cacheKey = (value: IExpressionValue): string =>
+  JSON.stringify({ value, template_types: expressionTemplateTypes(value) });
 
 /**
  * The type the server gave for an expression, if it has given it — for the
@@ -73,10 +126,13 @@ export const fetchExpressionType = async (
     // Waits as long as the connection does: it has its own reconnect schedule
     // and rejects once it gives up, so this never outlives a dead socket.
     await client.connect();
+    const types = expressionTemplateTypes(value);
     const result = await client.customRequest<Partial<IExpressionType>>('dpql/expressionType', {
       // The server accepts both the bare `{exp, args}` AST and the
       // `{is_expression, value}` wrapper, as `dpql/renderExpression` does.
       expression: value,
+      // what the IDE shows for each template it holds; the server's own type of a template wins
+      ...(Object.keys(types).length ? { template_types: types } : {}),
     });
     if (typeof result?.inferred_type !== 'string' || typeof result?.ui_type !== 'string') {
       return null;
@@ -103,6 +159,7 @@ export const _resetExpressionTypeTransportForTests = (): void => {
   typeClient = null;
   methodUnsupported = false;
   typeCache.clear();
+  templateTypes.clear();
 };
 
 /**
@@ -131,11 +188,13 @@ export const useExpressionType = (
     setType(undefined);
     let current = true;
     const timer = setTimeout(() => {
-      void fetchExpressionType(JSON.parse(key) as IExpressionValue).then((served) => {
-        if (current) {
-          setType(served ?? undefined);
+      void fetchExpressionType((JSON.parse(key) as { value: IExpressionValue }).value).then(
+        (served) => {
+          if (current) {
+            setType(served ?? undefined);
+          }
         }
-      });
+      );
     }, TYPE_DEBOUNCE_MS);
     return () => {
       current = false;
