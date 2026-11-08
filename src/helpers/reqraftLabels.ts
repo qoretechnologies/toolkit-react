@@ -305,6 +305,24 @@ export interface IFormEngineLabels {
   expression: string;
   yes: string;
   no: string;
+  /**
+   * What the expression builder says of an expression whose result does not fit its place: what it gives (`gives`,
+   * a type inside a sentence, undefined for nothing yet), what the place takes (`takes`, undefined where not known),
+   * the operand the type comes from (`source`: a quoted name, and whether it is an operation, which "gives" its type,
+   * or a value, which "is" it), and what to do.
+   */
+  typeMismatch: (
+    gives: string | undefined,
+    takes: string | undefined,
+    source?: { label: string; isOperation: boolean }
+  ) => string;
+  /** An operand named by its kind where the reader has no name for it: a template of a kind ("a $local template"). */
+  templateOfKind: (kind: string) => string;
+  /** An operand that has no name the reader knows. */
+  thisValue: string;
+  /** Beside an argument whose operation's type is known only when it runs, and its tooltip. */
+  knownWhenItRuns: string;
+  knownWhenItRunsTooltip: string;
 }
 
 /** Every word Reqraft draws that a host can give in its own language, by where it is drawn. */
@@ -657,6 +675,20 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     expression: 'Expression',
     yes: 'Yes',
     no: 'No',
+    typeMismatch: (gives, takes, source) => {
+      // where the type comes from: ("because "Order note" is text", "because "Lower Case" gives text")
+      const because =
+        gives && source ?
+          ` because ${source.label} ${source.isOperation ? 'gives' : 'is'} ${gives}`
+        : '';
+      return takes ?
+          `This expression gives ${gives ?? 'nothing'}${because}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
+        : `This expression gives ${gives ?? 'nothing'}${because}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+    },
+    templateOfKind: (kind) => `a $${kind} template`,
+    thisValue: 'this value',
+    knownWhenItRuns: 'known when it runs',
+    knownWhenItRunsTooltip: 'Qorus knows the type of this value only when the expression runs',
   },
 };
 

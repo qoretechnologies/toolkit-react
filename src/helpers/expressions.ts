@@ -13,6 +13,7 @@ import {
 import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
 import { getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
 import { catalogueTypeName, qorusTypeEntry, qorusTypeSentenceForm } from './qorusTypeCatalogue';
+import { reqraftLabels } from './reqraftLabels';
 
 /**
  * The UI type of an argument: a value's own type, or, for an expression, the
@@ -206,43 +207,87 @@ export const expressionTypeMismatchText = (
   gives: string | undefined,
   takes: string | undefined,
   source?: IExpressionTypeSource
-): string => {
-  // where the type comes from: the operand that gives it ("because "Interface ID" is text")
-  const because = gives && source ? ` because ${source.label} is ${gives}` : '';
-  return takes ?
-      `This expression gives ${gives ?? 'nothing'}${because}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
-    : `This expression gives ${gives ?? 'nothing'}${because}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
-};
+): string => reqraftLabels().formEngine.typeMismatch(gives, takes, source);
 
-/** An operand that gives an expression its type, named as the reader sees it: a template's label, a quoted value. */
+/** The operand an expression's type comes from, named as the reader knows it: quoted, and whether it is an operation. */
 export interface IExpressionTypeSource {
   label: string;
+  isOperation: boolean;
 }
 
-/** One operand of an expression, as the builder knows it: what it is called and the type it gives. */
+/** One operand of an expression, as the builder knows it: what it is called, the type it gives, whether it is an
+ *  operation. */
 export interface IExpressionOperand {
   label: string | undefined;
   type: string | undefined;
+  isOperation?: boolean;
 }
 
 /**
- * The operand an expression's type comes from: the first one whose type has the same sentence form as the type the
- * expression gives ("text" for both `string` and `richtext`). Undefined when no operand gives that type - the type
- * then comes from the operation itself, and naming an operand would mislead.
+ * An operand as the reader knows it, never its raw data: a template by its label where the field offers it, else by
+ * its kind (`$local`); a value written as text or a number, quoted; anything else - rich text, a list - "this value".
+ */
+export const operandLabel = (value: unknown, templateLabel: string | undefined): string => {
+  const labels = reqraftLabels().formEngine;
+  if (templateLabel) {
+    return `"${templateLabel}"`;
+  }
+  if (typeof value === 'string') {
+    const kind = /^\$([a-z_]+):/i.exec(value)?.[1];
+    if (kind) {
+      return labels.templateOfKind(kind);
+    }
+    return `"${value}"`;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return `"${String(value)}"`;
+  }
+  return labels.thisValue;
+};
+
+/** What an operation's schema says of where its type comes from. */
+export interface IExpressionTypeRule {
+  return_type?: string;
+  ui_return_type?: string;
+  return_type_first_arg?: boolean;
+  return_type_arg_priority?: string[];
+}
+
+/**
+ * The operand an expression's type comes from - only where the operation's schema says an operand sets it: its first
+ * operand (`return_type_first_arg`), or, for an operation whose type is that of its operands (by a priority of types,
+ * `return_type_arg_priority`, or declared to give any type), the operand that gives the type it gave. An operation that declares its own
+ * type (`substr` gives text, a comparison true or false) names nobody, whatever its operands are.
  */
 export const expressionTypeSource = (
   gives: string | undefined,
   operands: IExpressionOperand[],
-  sentenceForm: (typeName: string | undefined) => string | undefined
+  sentenceForm: (typeName: string | undefined) => string | undefined,
+  rule?: IExpressionTypeRule
 ): IExpressionTypeSource | undefined => {
   const givesForm = sentenceForm(gives);
-  if (!givesForm) {
+  if (!givesForm || !rule) {
     return undefined;
   }
-  const source = operands.find(
-    (operand) => operand.label && sentenceForm(operand.type) === givesForm
-  );
-  return source?.label ? { label: source.label } : undefined;
+  const named = (operand: IExpressionOperand | undefined) =>
+    operand?.label && sentenceForm(operand.type) === givesForm ?
+      { label: operand.label, isOperation: !!operand.isOperation }
+    : undefined;
+  if (rule.return_type_first_arg) {
+    return named(operands[0]);
+  }
+  // an operation whose type is that of its operands - by a priority of types, or declared to give any type - takes
+  // it from the operand that gives it
+  const declared = rule.ui_return_type ?? rule.return_type;
+  if (rule.return_type_arg_priority?.length || declared === 'any' || declared === 'auto') {
+    for (const operand of operands) {
+      const source = named(operand);
+      if (source) {
+        return source;
+      }
+    }
+  }
+  return undefined;
 };
 
 /**

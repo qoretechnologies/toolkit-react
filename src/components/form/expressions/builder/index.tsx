@@ -35,6 +35,7 @@ import {
   expressionTypeMismatchText,
   expressionTypeSource,
   IExpressionOperand,
+  operandLabel,
   conditionPartCards,
   conditionPartVerdict,
   conditionVerdict,
@@ -272,17 +273,18 @@ export const Expression = ({
     () =>
       (value.value?.args ?? []).map((arg: IExpression) => {
         if (arg?.is_expression) {
+          const operation = expressions.value?.find((exp) => exp.name === arg.value?.exp);
           return {
-            label: expressions.value?.find((exp) => exp.name === arg.value?.exp)?.display_name,
+            label: operation?.display_name ? `"${operation.display_name}"` : undefined,
             type: getCachedExpressionType(arg.value)?.inferred_type,
+            isOperation: true,
           };
         }
-        const template = findTemplate(localTemplates, arg?.value);
         return {
-          label:
-            template ? `"${template.label}"`
-            : typeof arg?.value === 'string' || typeof arg?.value === 'number' ? `"${arg.value}"`
-            : undefined,
+          label: operandLabel(
+            arg?.value,
+            findTemplate(localTemplates, arg?.value)?.label?.toString()
+          ),
           type: arg?.type,
         };
       }),
@@ -1485,8 +1487,11 @@ export const Expression = ({
               label={expressionTypeMismatchText(
                 expressionGivesType ? types.getTypeSentenceForm(expressionGivesType) : undefined,
                 expectedReturnTypeText,
-                expressionTypeSource(expressionGivesType, operands, (type) =>
-                  types.getTypeSentenceForm(type)
+                expressionTypeSource(
+                  expressionGivesType,
+                  operands,
+                  (type) => types.getTypeSentenceForm(type),
+                  selectedExpression
                 )
               )}
             />

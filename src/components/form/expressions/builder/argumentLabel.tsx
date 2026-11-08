@@ -1,4 +1,5 @@
 import { typesInASentence } from '../../../../helpers/qorusTypeCatalogue';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreIcon, ReqoreP, ReqoreSpan } from '@qoretechnologies/reqore';
 import { uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
@@ -32,6 +33,7 @@ export const ExpressionBuilderArgumentLabel = ({
   const warningMark = useReadableIntentShade('warning', READABLE_ICON);
   const pendingMark = useReadableIntentShade('pending', READABLE_ICON);
   const types = useQorusTypes();
+  const engineLabels = useReqraftLabels().formEngine;
   // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives
   const served = useExpressionType(
     arg?.is_expression ? (arg.value as IExpressionValue) : undefined
@@ -126,9 +128,9 @@ export const ExpressionBuilderArgumentLabel = ({
       {knownWhenItRuns ?
         <ReqoreSpan
           effect={{ italic: true, weight: 'light', opacity: hintOpacity }}
-          tooltip='Qorus knows the type of this value only when the expression runs'
+          tooltip={engineLabels.knownWhenItRunsTooltip}
         >
-          {' · known when it runs'}
+          {` · ${engineLabels.knownWhenItRuns}`}
         </ReqoreSpan>
       : null}
       {(

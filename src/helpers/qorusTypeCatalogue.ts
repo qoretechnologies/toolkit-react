@@ -484,6 +484,16 @@ export const qorusTypeSentenceForm = (
   return typeName.includes('/') ? `a value of type ${typeName}` : 'a value of an unknown type';
 };
 
+/** The types that are text. */
+const TEXT_TYPE_NAMES = ['string', 'richtext'];
+
+/** The kinds of text the server names by their own types: each is text, and a place that takes text takes it. */
+const TEXT_FORMAT_TYPE_NAMES = ['email', 'uri', 'uuid', 'hostname', 'ipv4', 'ipv6', 'phone'];
+
+/** A type's name without the optional mark or `soft`. */
+const baseTypeName = (name: string | undefined): string =>
+  (name ?? '').replace(/^\*/, '').replace(/^soft(?=[a-z])/, '');
+
 /**
  * The types a place takes, named inside a sentence: each name said once. Several types are one name: a soft or optional
  * type is its base type (`softint`, `*int`: "a whole number"), and two types can share a sentence form (`string` and
@@ -493,8 +503,15 @@ export const typesInASentence = (
   typeNames: (string | undefined)[],
   sentenceForm: (typeName: string | undefined) => string | undefined
 ): string | undefined => {
+  // text of a kind (an email address, a URI, a phone number) is text: a place that takes text says "text" once
+  const takesText = typeNames.some((name) => TEXT_TYPE_NAMES.includes(baseTypeName(name)));
   const forms = Array.from(
-    new Set(typeNames.map(sentenceForm).filter((form): form is string => !!form))
+    new Set(
+      typeNames
+        .filter((name) => !(takesText && TEXT_FORMAT_TYPE_NAMES.includes(baseTypeName(name))))
+        .map(sentenceForm)
+        .filter((form): form is string => !!form)
+    )
   );
   return forms.length ? reqraftLabels().formEngine.typesJoin(forms) : undefined;
 };
