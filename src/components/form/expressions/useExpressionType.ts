@@ -57,10 +57,28 @@ const getTypeClient = (): ReqraftLspClient => {
  * cannot type itself is typed by what the IDE shows for it (`template_types`); one it can type keeps its own type.
  * Kept for the page: a template is the same value wherever a list offers it.
  */
-const templateTypes = new Map<string, string>();
+/** The template types each list registered, by the list: rebuilt on each registration, gone with the list. */
+const registeredTemplateTypes = new Map<string, Map<string, string>>();
 
-/** Notes the types of the templates a list offers (`buildTemplates` rows: `metadata.type`, else the badge). */
-export const registerTemplateTypes = (templates: IReqoreFormTemplates | undefined): void => {
+/** The type a template has in the lists that offer it now: the latest registration that types it. */
+const templateTypeNow = (template: string): string | undefined => {
+  let type: string | undefined;
+  registeredTemplateTypes.forEach((types) => {
+    type = types.get(template) ?? type;
+  });
+  return type;
+};
+
+/**
+ * Notes the types of the templates a list offers (`buildTemplates` rows: `metadata.type`, else the badge), in place of
+ * what the same list (`list`, the builder that offers it) said before: a template whose type became any, or that the
+ * list no longer offers, is no longer typed by it.
+ */
+export const registerTemplateTypes = (
+  templates: IReqoreFormTemplates | undefined,
+  list = 'default'
+): void => {
+  const types = new Map<string, string>();
   const walk = (items: unknown[] | undefined) => {
     (items ?? []).forEach((item) => {
       const row = item as { value?: unknown; items?: unknown[] };
@@ -68,13 +86,21 @@ export const registerTemplateTypes = (templates: IReqoreFormTemplates | undefine
         const type = templateType(row as never);
         // a template of any type says nothing the server could use
         if (type && !/^\*?(any|auto)$/.test(type)) {
-          templateTypes.set(row.value, type);
+          types.set(row.value, type);
         }
       }
       walk(row?.items);
     });
   };
   walk(templates?.items as unknown[] | undefined);
+  // re-inserted, so the latest registration is the last one read
+  registeredTemplateTypes.delete(list);
+  registeredTemplateTypes.set(list, types);
+};
+
+/** Forgets what a list registered, as the list goes. */
+export const unregisterTemplateTypes = (list: string): void => {
+  registeredTemplateTypes.delete(list);
 };
 
 /** The templates an expression holds, as written: in its operands, in rich text, in the expressions it nests. */
@@ -97,7 +123,7 @@ export const expressionTemplateTypes = (value: IExpressionValue): Record<string,
     Array.from(templatesIn(value))
       .sort()
       .flatMap((template) =>
-        templateTypes.has(template) ? [[template, templateTypes.get(template) as string]] : []
+        templateTypeNow(template) ? [[template, templateTypeNow(template) as string]] : []
       )
   );
 
@@ -159,7 +185,7 @@ export const _resetExpressionTypeTransportForTests = (): void => {
   typeClient = null;
   methodUnsupported = false;
   typeCache.clear();
-  templateTypes.clear();
+  registeredTemplateTypes.clear();
 };
 
 /**

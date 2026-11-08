@@ -22,7 +22,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { clone, cloneDeep, get, isArray, set, size, unset } from 'lodash';
 import { darken, rgba } from 'polished';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
 import {
@@ -74,6 +74,7 @@ import {
 import {
   getCachedExpressionType,
   registerTemplateTypes,
+  unregisterTemplateTypes,
   useExpressionType,
 } from '../useExpressionType';
 import { useExpressions } from '../useExpressions';
@@ -268,7 +269,12 @@ export const Expression = ({
   // named, and judged as a condition, by the type's own name, as the Text view names it (`inferred_type`:
   // "a whole number", where the UI type of every number is `number`).
   // the types of the templates this builder offers go with every question of an expression's type
-  useMemo(() => registerTemplateTypes(localTemplates), [localTemplates]);
+  const templateList = useId();
+  useMemo(
+    () => registerTemplateTypes(localTemplates, templateList),
+    [localTemplates, templateList]
+  );
+  useEffect(() => () => unregisterTemplateTypes(templateList), [templateList]);
   const serverType = useExpressionType(value.value);
   const expressionReturnType = serverType?.ui_type;
   const expressionGivesType = serverType?.inferred_type;

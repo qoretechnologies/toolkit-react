@@ -28,6 +28,7 @@ import {
   fetchExpressionType,
   getCachedExpressionType,
   registerTemplateTypes,
+  unregisterTemplateTypes,
   useExpressionType,
 } from '../src/components/form/expressions/useExpressionType';
 
@@ -183,6 +184,44 @@ describe('the types of the templates an expression holds', () => {
   it('are left out where no list types the templates', async () => {
     client.customRequest.mockResolvedValue(STRING);
     await fetchExpressionType(NESTED);
+    expect(client.customRequest).toHaveBeenCalledWith('dpql/expressionType', {
+      expression: NESTED,
+    });
+  });
+
+  it('are those the list says now: a template whose type changes to any is no longer typed', async () => {
+    registerTemplateTypes(TEMPLATES, 'state');
+    registerTemplateTypes(
+      {
+        items: [
+          {
+            label: 'Context Data',
+            items: [
+              { label: 'Interface ID', value: '$local:id', badge: 'any' },
+              { label: 'Interface Name', value: '$local:name', badge: 'string' },
+            ],
+          },
+        ],
+      } as never,
+      'state'
+    );
+    client.customRequest.mockResolvedValue(STRING);
+    await fetchExpressionType(NESTED);
+    expect(client.customRequest).toHaveBeenCalledWith('dpql/expressionType', {
+      expression: NESTED,
+      template_types: { '$local:name': 'string' },
+    });
+  });
+
+  it('go with the list: a template the list no longer offers, or a list that is gone, types nothing', async () => {
+    registerTemplateTypes(TEMPLATES, 'state');
+    registerTemplateTypes({ items: [] } as never, 'state');
+    client.customRequest.mockResolvedValue(STRING);
+    await fetchExpressionType(NESTED);
+    registerTemplateTypes(TEMPLATES, 'other');
+    unregisterTemplateTypes('other');
+    await fetchExpressionType(NESTED);
+    expect(client.customRequest).toHaveBeenCalledTimes(1);
     expect(client.customRequest).toHaveBeenCalledWith('dpql/expressionType', {
       expression: NESTED,
     });
