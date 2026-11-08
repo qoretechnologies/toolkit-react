@@ -61,7 +61,11 @@ import {
   StyledRowValue,
   StyledStatusDot,
 } from './compactRowStyles';
-import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
+import {
+  getShownSchemaMessages,
+  getOptionFieldMessages,
+  messageDrawsAttention,
+} from './OptionFieldMessages';
 import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
@@ -1356,7 +1360,7 @@ export const CompactRow = memo(
     const infoActive = !hidden || isExpanded;
     /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
        take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
-    type TInfoMsg = { intent?: string; title?: string; content: string };
+    type TInfoMsg = { intent?: string; title?: string; content: string; attention?: boolean };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
         (getShownSchemaMessages((schema as any)?.messages as any[], availableOptions, options).map(
@@ -1364,6 +1368,7 @@ export const CompactRow = memo(
             intent: m.intent,
             title: m.title,
             content: m.content,
+            attention: (m as { attention?: boolean }).attention,
           })
         ) as TInfoMsg[])
       : [];
@@ -2466,7 +2471,8 @@ export const CompactRow = memo(
       required,
       covered: !!coveredByLabel || groupResolved,
       invalid: worstIntent === 'danger',
-      warned: worstIntent === 'warning',
+      // a warning that asks for nothing (`attention: false`) colors the row but does not make it a step left to take
+      warned: allMsgs.some(messageDrawsAttention),
     });
     // No dot at all in a read-only form: the dot reports progress on the
     // form, and a read view has no progress to report.

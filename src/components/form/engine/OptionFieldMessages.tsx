@@ -40,7 +40,17 @@ export interface IConditionalFieldMessage {
   when?: (string | string[])[];
   /** Hide the message while every entry holds — the negative form of `when`. */
   unless?: (string | string[])[];
+  /**
+   * `false` for a warning that informs without asking for anything: it is shown like any warning, but it does not
+   * put its field under "Needs attention" or count it as unfinished. A field whose choices the server could not offer
+   * says why with one; the user can do nothing about it in the form, so it is not a step left to take.
+   */
+  attention?: boolean;
 }
+
+/** Whether a message asks the user to act on its field: a warning, unless it says it does not. */
+export const messageDrawsAttention = (message: { intent?: string; attention?: boolean }): boolean =>
+  message.intent === 'warning' && message.attention !== false;
 
 /**
  * Whether a schema message applies to the form as it currently stands.

@@ -117,6 +117,7 @@ import {
   describeDependencies,
   getAllowedValueAvailability,
   getShownSchemaMessages,
+  messageDrawsAttention,
 } from './OptionFieldMessages';
 import { OptionsContext } from './optionsContext';
 import {
@@ -2855,7 +2856,7 @@ const FormEngineImpl = ({
         options
       );
       if (msgs.some((m) => m.intent === 'danger')) return 'danger';
-      if (msgs.some((m) => m.intent === 'warning')) return 'warning';
+      if (msgs.some(messageDrawsAttention)) return 'warning';
       return undefined;
     },
     [JSON.stringify(options), JSON.stringify(availableOptions)]
