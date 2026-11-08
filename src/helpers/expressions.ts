@@ -89,8 +89,7 @@ export const areQorusTypesCompatible = (
   const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
   // a value's type by the name the catalogue lists it under (`*int`, `softint`: `int`), else by its base type's
   const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(
-    (check) =>
-      qorusTypeEntry(types, check, checkBaseType)?.name ?? normalizeAnyLikeTypeName(check)
+    (check) => qorusTypeEntry(types, check, checkBaseType)?.name ?? normalizeAnyLikeTypeName(check)
   );
   // Get each of the main types from the types list
   for (const main of mainTypes) {
@@ -139,7 +138,10 @@ export const isTextOrDateType = (type: string): boolean =>
  * only that).
  */
 export const isConditionType = (returnType: string | string[] | undefined): boolean => {
-  const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
+  const types =
+    isArray(returnType) ? returnType
+    : returnType ? [returnType]
+    : [];
   return types.length > 0 && types.every((type) => /^\*?(soft)?(bool|boolean)$/.test(type));
 };
 
@@ -166,8 +168,9 @@ export const conditionVerdict = (type: string | undefined): 'error' | 'warning' 
  * are conditions (a Qog transition's value, a built-in if's value, a while or for block's condition). The
  * schema's own `type` cannot say it: a value of type bool is not a condition.
  */
-export const isConditionOption = (field: { metadata?: Record<string, unknown> } | undefined): boolean =>
-  field?.metadata?.condition === true;
+export const isConditionOption = (
+  field: { metadata?: Record<string, unknown> } | undefined
+): boolean => field?.metadata?.condition === true;
 
 /** A type as a condition reads it: without the optional mark, `soft`, or what a list or hash holds. */
 export const conditionBaseType = (type: string | undefined): string =>
@@ -201,11 +204,46 @@ export const conditionErrorText = (
  */
 export const expressionTypeMismatchText = (
   gives: string | undefined,
-  takes: string | undefined
-): string =>
-  takes ?
-    `This expression gives ${gives ?? 'nothing'}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
-  : `This expression gives ${gives ?? 'nothing'}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+  takes: string | undefined,
+  source?: IExpressionTypeSource
+): string => {
+  // where the type comes from: the operand that gives it ("because "Interface ID" is text")
+  const because = gives && source ? ` because ${source.label} is ${gives}` : '';
+  return takes ?
+      `This expression gives ${gives ?? 'nothing'}${because}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
+    : `This expression gives ${gives ?? 'nothing'}${because}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+};
+
+/** An operand that gives an expression its type, named as the reader sees it: a template's label, a quoted value. */
+export interface IExpressionTypeSource {
+  label: string;
+}
+
+/** One operand of an expression, as the builder knows it: what it is called and the type it gives. */
+export interface IExpressionOperand {
+  label: string | undefined;
+  type: string | undefined;
+}
+
+/**
+ * The operand an expression's type comes from: the first one whose type has the same sentence form as the type the
+ * expression gives ("text" for both `string` and `richtext`). Undefined when no operand gives that type - the type
+ * then comes from the operation itself, and naming an operand would mislead.
+ */
+export const expressionTypeSource = (
+  gives: string | undefined,
+  operands: IExpressionOperand[],
+  sentenceForm: (typeName: string | undefined) => string | undefined
+): IExpressionTypeSource | undefined => {
+  const givesForm = sentenceForm(gives);
+  if (!givesForm) {
+    return undefined;
+  }
+  const source = operands.find(
+    (operand) => operand.label && sentenceForm(operand.type) === givesForm
+  );
+  return source?.label ? { label: source.label } : undefined;
+};
 
 /**
  * What the builder's conversion list says of an argument it converts: from what to what. `from` and `to` name the
@@ -257,7 +295,10 @@ export interface IConditionPart {
 }
 
 /** The server's code for what it says of a condition read as this verdict. */
-const CONDITION_CODE_OF_VERDICT = { error: 'NOT_A_CONDITION', warning: 'CONDITION_BY_TRUTHINESS' } as const;
+const CONDITION_CODE_OF_VERDICT = {
+  error: 'NOT_A_CONDITION',
+  warning: 'CONDITION_BY_TRUTHINESS',
+} as const;
 
 /**
  * What the server says of a whole condition, in its words: the first condition diagnostic, when the whole

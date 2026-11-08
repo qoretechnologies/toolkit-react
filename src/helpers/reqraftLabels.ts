@@ -323,7 +323,9 @@ export interface IReqraftLabels {
 /** What a host gives: any of the words of any part, and one or more entries of a part's maps. */
 export type TReqraftLabelOverrides = {
   [Part in keyof IReqraftLabels]?: {
-    [Word in keyof IReqraftLabels[Part]]?: IReqraftLabels[Part][Word] extends (...args: never[]) => unknown ?
+    [Word in keyof IReqraftLabels[Part]]?: IReqraftLabels[Part][Word] extends (
+      (...args: never[]) => unknown
+    ) ?
       IReqraftLabels[Part][Word]
     : IReqraftLabels[Part][Word] extends object ? Partial<IReqraftLabels[Part][Word]>
     : IReqraftLabels[Part][Word];
@@ -631,7 +633,11 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     mustBe: (label, value) => `${label} must be "${value}"`,
     mustNotBe: (label, value) => `${label} must not be "${value}"`,
     orJoin: (alternatives) => `(${alternatives.join(' or ')})`,
-    typesJoin: (types) => types.join(' or '),
+    // "a whole number", "a whole number or text", "a whole number, a number or an exact number"
+    typesJoin: (types) =>
+      types.length > 2 ?
+        `${types.slice(0, -1).join(', ')} or ${types[types.length - 1]}`
+      : types.join(' or '),
     unavailable: (dependsOn) =>
       `Unavailable because some dependencies are not fulfilled${dependsOn ? `: ${dependsOn}` : ''}`,
     disabledByDependencies: (dependsOn) =>

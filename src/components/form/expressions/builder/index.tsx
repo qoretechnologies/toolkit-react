@@ -33,6 +33,8 @@ import {
   conditionByTruthinessText,
   conditionErrorText,
   expressionTypeMismatchText,
+  expressionTypeSource,
+  IExpressionOperand,
   conditionPartCards,
   conditionPartVerdict,
   conditionVerdict,
@@ -68,7 +70,7 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
-import { useExpressionType } from '../useExpressionType';
+import { getCachedExpressionType, useExpressionType } from '../useExpressionType';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
@@ -249,9 +251,9 @@ export const Expression = ({
   // captured when it was built inline here.
   const resolvedExtraActions = useMemo<IReqorePanelAction[]>(
     () =>
-      typeof extraActions === 'function'
-        ? extraActions({ selectedExpression, value })
-        : (extraActions ?? []),
+      typeof extraActions === 'function' ?
+        extraActions({ selectedExpression, value })
+      : (extraActions ?? []),
     [extraActions, selectedExpression, JSON.stringify(value)]
   );
 
@@ -263,6 +265,29 @@ export const Expression = ({
   const serverType = useExpressionType(value.value);
   const expressionReturnType = serverType?.ui_type;
   const expressionGivesType = serverType?.inferred_type;
+  // Each operand as the reader knows it - a template by its label, a value quoted, an operation by its name - with the
+  // type it gives: a nested operation's is the server's, a value's the type it is entered as. A mismatch names the
+  // operand its type comes from.
+  const operands = useMemo<IExpressionOperand[]>(
+    () =>
+      (value.value?.args ?? []).map((arg: IExpression) => {
+        if (arg?.is_expression) {
+          return {
+            label: expressions.value?.find((exp) => exp.name === arg.value?.exp)?.display_name,
+            type: getCachedExpressionType(arg.value)?.inferred_type,
+          };
+        }
+        const template = findTemplate(localTemplates, arg?.value);
+        return {
+          label:
+            template ? `"${template.label}"`
+            : typeof arg?.value === 'string' || typeof arg?.value === 'number' ? `"${arg.value}"`
+            : undefined,
+          type: arg?.type,
+        };
+      }),
+    [JSON.stringify(value), JSON.stringify(expressions.value), localTemplates, serverType]
+  );
   // An empty card gives nothing, which is known without asking: it does not fit a place that takes something.
   const typeNotKnownYet = !!value.value?.exp && !serverType;
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
@@ -561,8 +586,9 @@ export const Expression = ({
      falling back to the builder's own type gave the first value of a condition (the builder's `bool`)
      or of an untyped builder (`context`) a type it is not, which rendered as "Unknown type!" once an
      untyped operand was written as text. */
-  const firstParamType = firstArgument?.is_expression
-    ? firstArgSchema?.ui_type
+  const firstParamType =
+    firstArgument?.is_expression ?
+      firstArgSchema?.ui_type
     : firstArgument?.type ||
       (isUntypedOptionType(firstArgSchema?.ui_type) ? firstArgSchema?.ui_type : undefined) ||
       type ||
@@ -669,10 +695,10 @@ export const Expression = ({
   const isReturnTypeMatching =
     noOperationYet ||
     (condition !== 'error' &&
-    (typeNotKnownYet ||
-      expressionReturnType === 'any' ||
-      (isArray(returnType)
-        ? areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType)
+      (typeNotKnownYet ||
+        expressionReturnType === 'any' ||
+        (isArray(returnType) ?
+          areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType)
         : returnType === 'auto' ||
           returnType === 'any' ||
           returnType === 'context' ||
@@ -712,13 +738,18 @@ export const Expression = ({
           groups: exp.groups,
         }))
         .filter((exp) =>
-          serverExpression
-            ? exp.from_server || exp.from_both
-            : firstArgument?.value && !isFirstArgumentField
-              ? !exp.from_server
-              : true
+          serverExpression ? exp.from_server || exp.from_both
+          : firstArgument?.value && !isFirstArgumentField ? !exp.from_server
+          : true
         ),
-    [JSON.stringify(expressions.value), serverExpression, level, isChild, returnType, value?.value?.exp]
+    [
+      JSON.stringify(expressions.value),
+      serverExpression,
+      level,
+      isChild,
+      returnType,
+      value?.value?.exp,
+    ]
   );
 
   // SEAM (reqraft): reqraft's `SelectFormField` calls `onChange(value)` with
@@ -933,9 +964,7 @@ export const Expression = ({
       index={index}
       as={ReqorePanel}
       intent={validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted' : 'danger'}
-      description={
-        isExpressionServerHandled ? 'This expression runs outside Qorus' : ''
-      }
+      description={isExpressionServerHandled ? 'This expression runs outside Qorus' : ''}
       flat
       readOnly={readOnly}
       minimal
@@ -1033,8 +1062,9 @@ export const Expression = ({
           show: level === 0,
           onClick: () => setShowSummary(!showSummary),
           icon: 'InformationLine',
-          tooltip: showSummary
-            ? 'Hide explanation of this expression'
+          tooltip:
+            showSummary ?
+              'Hide explanation of this expression'
             : 'Show explanation of this expression',
           fixed: true,
         },
@@ -1129,11 +1159,15 @@ export const Expression = ({
         </ConfirmUnsupportedTypeModal>
       )}
       {showSummary && (
-        <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
+        <ExpressionRenderTemplate
+          exp={value}
+          expressions={expressions.value}
+          templates={localTemplates}
+        />
       )}
       {/* One sentence for an expression with nothing chosen yet: what it lacks and what its place takes. It
           was said twice, here and under the card (qorus#646). */}
-      {nothingChosenYet ? (
+      {nothingChosenYet ?
         <ReqoreMessage
           size='small'
           opaque={false}
@@ -1142,8 +1176,7 @@ export const Expression = ({
         >
           {noOperationYetText(false, takesText)}
         </ReqoreMessage>
-      ) : (
-        <ReqoreControlGroup
+      : <ReqoreControlGroup
           // On a phone every operand is a full-width row, so the group spans
           // the panel; on desktop it hugs its content and wraps.
           fluid={phone}
@@ -1187,13 +1220,12 @@ export const Expression = ({
               extraActions={extraActions}
               minimal
               label={
-                serverAndQorusExpression
-                  ? 'Select Template Or Field'
-                  : serverExpression
-                    ? 'Select Field'
-                    : qorusExpression
-                      ? 'Select Template'
-                      : 'Select Template Or Field'
+                serverAndQorusExpression ? 'Select Template Or Field'
+                : serverExpression ?
+                  'Select Field'
+                : qorusExpression ?
+                  'Select Template'
+                : 'Select Template Or Field'
               }
               allowFunctions={
                 !serverExpression &&
@@ -1205,9 +1237,9 @@ export const Expression = ({
               key={`${argsGeneration}-${firstParamType}${selectedExpression?.name}`}
               type={firstParamType}
               defaultType={
-                firstArgument?.allowed_values || firstArgument?.element_allowed_values
-                  ? firstArgument?.type.base_type
-                  : firstParamType
+                firstArgument?.allowed_values || firstArgument?.element_allowed_values ?
+                  firstArgument?.type.base_type
+                : firstParamType
               }
               // an argument of a type the catalogue does not list takes what its base type takes
               returnType={
@@ -1247,16 +1279,16 @@ export const Expression = ({
               allowed_values={firstArgSchema?.allowed_values}
               element_allowed_values={firstArgSchema?.element_allowed_values}
               menuItems={
-                isExpressionServerHandled
-                  ? undefined
-                  : buildCustomTemplateItems(firstArgSchema, (type, removeTemplate) => {
-                      removeTemplate?.();
-                      updateArg(
-                        undefined,
-                        0,
-                        type.name === 'context' ? undefined : (type.name as string)
-                      );
-                    })
+                isExpressionServerHandled ? undefined : (
+                  buildCustomTemplateItems(firstArgSchema, (type, removeTemplate) => {
+                    removeTemplate?.();
+                    updateArg(
+                      undefined,
+                      0,
+                      type.name === 'context' ? undefined : (type.name as string)
+                    );
+                  })
+                )
               }
               menuActions={argMenuActions?.[0]}
               menuTrailingItems={argRemoveMenuItems?.[0]}
@@ -1268,111 +1300,111 @@ export const Expression = ({
           {firstArgSchema?.label_after && (
             <ExpressionArgumentDetail label={firstArgSchema.label_after} />
           )}
-          {selectedExpression
-            ? restOfArgs?.map((arg, index) => (
-                <React.Fragment
-                  key={`${argsGeneration}-${index}-${arg.ui_type}-${arg.display_name}`}
+          {selectedExpression ?
+            restOfArgs?.map((arg, index) => (
+              <React.Fragment key={`${argsGeneration}-${index}-${arg.ui_type}-${arg.display_name}`}>
+                {arg?.label_before && <ExpressionArgumentDetail label={arg.label_before} />}
+                <ExpressionBuilderArgumentWrapper
+                  readOnly={readOnly}
+                  expressions={expressions.value}
+                  arg={{
+                    ...rest[index],
+                    type: getArgumentType(expressions.value, rest[index], arg),
+                  }}
+                  schema={arg}
+                  onTypeChange={(value) => {
+                    updateArg(
+                      undefined,
+                      index + 1,
+                      value === 'context' ? undefined : (value as string)
+                    );
+                  }}
+                  onRemoveArgClick={() => {
+                    removeVarArg(index + 1);
+                  }}
+                  hasMultipleArgs={removeArgInline}
+                  fluid={phone}
+                  reorder={argReorderSurfaces}
+                  argIndex={index + 1}
+                  argCount={argCount}
+                  dragOver={isDragOverArg(index + 1)}
+                  onMoveArg={moveVarArg}
+                  onArgDragStart={handleArgDragStart}
+                  onArgDragOver={handleArgDragOver}
+                  onArgDrop={handleArgDrop}
+                  onArgDragEnd={handleArgDragEnd}
                 >
-                  {arg?.label_before && <ExpressionArgumentDetail label={arg.label_before} />}
-                  <ExpressionBuilderArgumentWrapper
-                    readOnly={readOnly}
-                    expressions={expressions.value}
-                    arg={{
-                      ...rest[index],
-                      type: getArgumentType(expressions.value, rest[index], arg),
-                    }}
-                    schema={arg}
-                    onTypeChange={(value) => {
+                  <TemplateField
+                    minimal
+                    component={auto}
+                    componentOverrides={componentOverrides}
+                    textWidth='content'
+                    // SEAM (reqraft): same as the first operand above.
+                    extraActions={extraActions}
+                    level={level + 1}
+                    allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
+                    isFunction={rest[index]?.is_expression}
+                    key={`${argsGeneration}-${index}-${arg.ui_type}-${arg.display_name}-${level + 1}`}
+                    // An empty argument has no value to take a type from; fall
+                    // back to the type the catalogue declares for it, as the
+                    // first-argument mount already does. Without this an
+                    // empty bool argument rendered as an untyped `auto` field
+                    // — a type picker under a label that already said
+                    // "true or false" — and an empty `any` argument never
+                    // qualified for the template-selector default, because
+                    // that rule reads `type`, and `type` was undefined.
+                    type={rest[index]?.type ?? arg.ui_type}
+                    defaultType={
+                      arg.allowed_values || arg.element_allowed_values ?
+                        arg.ui_type
+                      : (rest[index]?.type ?? arg.ui_type)
+                    }
+                    // an argument of a type the catalogue does not list takes what its base type takes
+                    returnType={types.getAcceptedTypes(arg.ui_type, arg.base_type) as any}
+                    canBeNull={false}
+                    value={rest[index]?.value}
+                    templates={localTemplates}
+                    allowTemplates={!arg?.allowed_values && !arg?.element_allowed_values}
+                    filterTemplatesByType={false}
+                    allowCustomValues={
+                      !!arg.allowed_values ||
+                      !!arg.element_allowed_values ||
+                      !!rest[index]?.type ||
+                      !!arg.default_value ||
+                      // an untyped operand is written as text from the start (see the first operand)
+                      isUntypedOptionType(arg.ui_type)
+                    }
+                    onChange={
+                      ((_name, value, type, isFunction) => {
+                        updateArg(value, index + 1, isFunction ? undefined : type, isFunction);
+                      }) as any
+                    }
+                    fluid={phone}
+                    fixed={!phone}
+                    disableManagement
+                    disabled={readOnly}
+                    menuItems={buildCustomTemplateItems(arg, (type, removeTemplate) => {
+                      removeTemplate?.();
                       updateArg(
                         undefined,
                         index + 1,
-                        value === 'context' ? undefined : (value as string)
+                        type.name === 'context' ? undefined : (type.name as string)
                       );
-                    }}
-                    onRemoveArgClick={() => {
-                      removeVarArg(index + 1);
-                    }}
-                    hasMultipleArgs={removeArgInline}
-                    fluid={phone}
-                    reorder={argReorderSurfaces}
-                    argIndex={index + 1}
-                    argCount={argCount}
-                    dragOver={isDragOverArg(index + 1)}
-                    onMoveArg={moveVarArg}
-                    onArgDragStart={handleArgDragStart}
-                    onArgDragOver={handleArgDragOver}
-                    onArgDrop={handleArgDrop}
-                    onArgDragEnd={handleArgDragEnd}
-                  >
-                    <TemplateField
-                      minimal
-                      component={auto}
-                      componentOverrides={componentOverrides}
-                      textWidth='content'
-                      // SEAM (reqraft): same as the first operand above.
-                      extraActions={extraActions}
-                      level={level + 1}
-                      allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
-                      isFunction={rest[index]?.is_expression}
-                      key={`${argsGeneration}-${index}-${arg.ui_type}-${arg.display_name}-${level + 1}`}
-                      // An empty argument has no value to take a type from; fall
-                      // back to the type the catalogue declares for it, as the
-                      // first-argument mount already does. Without this an
-                      // empty bool argument rendered as an untyped `auto` field
-                      // — a type picker under a label that already said
-                      // "true or false" — and an empty `any` argument never
-                      // qualified for the template-selector default, because
-                      // that rule reads `type`, and `type` was undefined.
-                      type={rest[index]?.type ?? arg.ui_type}
-                      defaultType={
-                        arg.allowed_values || arg.element_allowed_values
-                          ? arg.ui_type
-                          : (rest[index]?.type ?? arg.ui_type)
-                      }
-                      // an argument of a type the catalogue does not list takes what its base type takes
-                      returnType={types.getAcceptedTypes(arg.ui_type, arg.base_type) as any}
-                      canBeNull={false}
-                      value={rest[index]?.value}
-                      templates={localTemplates}
-                      allowTemplates={!arg?.allowed_values && !arg?.element_allowed_values}
-                      filterTemplatesByType={false}
-                      allowCustomValues={
-                        !!arg.allowed_values ||
-                        !!arg.element_allowed_values ||
-                        !!rest[index]?.type ||
-                        !!arg.default_value ||
-                        // an untyped operand is written as text from the start (see the first operand)
-                        isUntypedOptionType(arg.ui_type)
-                      }
-                      onChange={((_name, value, type, isFunction) => {
-                        updateArg(value, index + 1, isFunction ? undefined : type, isFunction);
-                      }) as any}
-                      fluid={phone}
-                      fixed={!phone}
-                      disableManagement
-                      disabled={readOnly}
-                      menuItems={buildCustomTemplateItems(arg, (type, removeTemplate) => {
-                        removeTemplate?.();
-                        updateArg(
-                          undefined,
-                          index + 1,
-                          type.name === 'context' ? undefined : (type.name as string)
-                        );
-                      })}
-                      menuActions={argMenuActions?.[index + 1]}
-                      menuTrailingItems={argRemoveMenuItems?.[index + 1]}
-                      reorder={props.reorder}
-                      expressions={props.expressions as any}
-                      expressions_url={expressionsUrl}
-                      allowed_values={arg?.allowed_values}
-                      element_allowed_values={arg?.element_allowed_values}
-                      ui_element_type={(arg as any)?.ui_element_type}
-                    />
-                  </ExpressionBuilderArgumentWrapper>
-                  {arg?.label_after && <ExpressionArgumentDetail label={arg.label_after} />}
-                </React.Fragment>
-              ))
-            : null}
+                    })}
+                    menuActions={argMenuActions?.[index + 1]}
+                    menuTrailingItems={argRemoveMenuItems?.[index + 1]}
+                    reorder={props.reorder}
+                    expressions={props.expressions as any}
+                    expressions_url={expressionsUrl}
+                    allowed_values={arg?.allowed_values}
+                    element_allowed_values={arg?.element_allowed_values}
+                    ui_element_type={(arg as any)?.ui_element_type}
+                  />
+                </ExpressionBuilderArgumentWrapper>
+                {arg?.label_after && <ExpressionArgumentDetail label={arg.label_after} />}
+              </React.Fragment>
+            ))
+          : null}
           {canAddArg && (
             <ExpressionBuilderAddArgumentSlot
               argumentName={selectedExpression.args[0]?.display_name}
@@ -1385,7 +1417,7 @@ export const Expression = ({
             />
           )}
         </ReqoreControlGroup>
-      )}
+      }
       {partVerdict && (
         <>
           <ReqoreVerticalSpacer height={5} />
@@ -1400,7 +1432,10 @@ export const Expression = ({
             label={
               part?.message ??
               (partVerdict === 'error' ?
-                conditionErrorText(types.getTypeSentenceForm(conditionBaseType(part!.type)), part!.type)
+                conditionErrorText(
+                  types.getTypeSentenceForm(conditionBaseType(part!.type)),
+                  part!.type
+                )
               : conditionByTruthinessText(part!.type))
             }
           />
@@ -1424,7 +1459,7 @@ export const Expression = ({
       {!isReturnTypeMatching && (
         <>
           <ReqoreVerticalSpacer height={5} />
-          {takesCondition && !!expressionGivesType && isTextOrDateType(expressionGivesType) ? (
+          {takesCondition && !!expressionGivesType && isTextOrDateType(expressionGivesType) ?
             // a condition that gives text, a date or a time: say how to make it one
             <ReqoreTag
               minimal
@@ -1441,8 +1476,7 @@ export const Expression = ({
                 )
               }
             />
-          ) : (
-            <ReqoreTag
+          : <ReqoreTag
               minimal
               icon='ErrorWarningLine'
               intent='danger'
@@ -1450,13 +1484,16 @@ export const Expression = ({
               wrap
               label={expressionTypeMismatchText(
                 expressionGivesType ? types.getTypeSentenceForm(expressionGivesType) : undefined,
-                expectedReturnTypeText
+                expectedReturnTypeText,
+                expressionTypeSource(expressionGivesType, operands, (type) =>
+                  types.getTypeSentenceForm(type)
+                )
               )}
             />
-          )}
+          }
         </>
       )}
-      {selectedExpression && !validationData.isValid ? (
+      {selectedExpression && !validationData.isValid ?
         <>
           <ReqoreVerticalSpacer height={5} />
           <ReqoreTag
@@ -1468,7 +1505,7 @@ export const Expression = ({
             label={validationData.reason || 'Qorus could not check this expression.'}
           />
         </>
-      ) : null}
+      : null}
       {noOperationYet && !readOnly && !nothingChosenYet ?
         <>
           <ReqoreVerticalSpacer height={5} />
@@ -1653,8 +1690,9 @@ export const ExpressionBuilder = ({
               show: level === 0,
               onClick: () => setShowSummary(!showSummary),
               icon: 'InformationLine',
-              tooltip: showSummary
-                ? 'Hide explanation of this expression'
+              tooltip:
+                showSummary ?
+                  'Hide explanation of this expression'
                 : 'Show explanation of this expression',
               fixed: true,
             },
