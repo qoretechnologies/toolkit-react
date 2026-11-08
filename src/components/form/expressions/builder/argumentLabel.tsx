@@ -33,7 +33,12 @@ export const ExpressionBuilderArgumentLabel = ({
   const pendingMark = useReadableIntentShade('pending', READABLE_ICON);
   const types = useQorusTypes();
   // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives
-  useExpressionType(arg?.is_expression ? (arg.value as IExpressionValue) : undefined);
+  const served = useExpressionType(
+    arg?.is_expression ? (arg.value as IExpressionValue) : undefined
+  );
+  // the server cannot tell this operation's type before it runs (`known: false`, as of a template whose type only
+  // the running interface has): that is said, not shown as "Any" or judged
+  const knownWhenItRuns = !!arg?.is_expression && served?.known === false;
 
   if (!schema) {
     return (
@@ -63,7 +68,8 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
   /** The types this argument takes, named inside a sentence: "a whole number or a number" (qorus#646). */
-  const acceptedTypeNames = typesInASentence(acceptedTypes, (t) => types.getTypeSentenceForm(t)) ?? '';
+  const acceptedTypeNames =
+    typesInASentence(acceptedTypes, (t) => types.getTypeSentenceForm(t)) ?? '';
   /* `arg` is optional — an operand the author has not filled in yet has no
      entry at all, and a literal carried straight from a parse can be the null
      literal itself. Both were dereferenced unguarded here, which took the whole
@@ -93,11 +99,11 @@ export const ExpressionBuilderArgumentLabel = ({
             underline: !isValid || !matchesType ? 'underline solid red' : undefined,
           }}
           tooltip={
-            isValid
-              ? !matchesType
-                ? `This value is not ${acceptedTypeNames}. Put it inside an expression that converts it`
-                : undefined
-              : reason
+            isValid ?
+              !matchesType ?
+                `This value is not ${acceptedTypeNames}. Put it inside an expression that converts it`
+              : undefined
+            : reason
           }
         >
           {schema.display_name}
@@ -114,15 +120,26 @@ export const ExpressionBuilderArgumentLabel = ({
         {'['}
         {types.getTypeDisplayName(schema.ui_type, schema.base_type)}
       </ReqoreSpan>
-      {!matchesType ? (
+      {!matchesType ?
         <ReqoreIcon icon='ErrorWarningLine' color={warningMark} size='10px' margin='both' />
-      ) : null}
-      {(argumentType || (arg?.is_expression && arg.value?.exp)) &&
-      types.getTypeDisplayName(argumentType) !==
-        types.getTypeDisplayName(schema.ui_type, schema.base_type) &&
-      !matchesTypeExactly ? (
+      : null}
+      {knownWhenItRuns ?
+        <ReqoreSpan
+          effect={{ italic: true, weight: 'light', opacity: hintOpacity }}
+          tooltip='Qorus knows the type of this value only when the expression runs'
+        >
+          {' · known when it runs'}
+        </ReqoreSpan>
+      : null}
+      {(
+        !knownWhenItRuns &&
+        (argumentType || (arg?.is_expression && arg.value?.exp)) &&
+        types.getTypeDisplayName(argumentType) !==
+          types.getTypeDisplayName(schema.ui_type, schema.base_type) &&
+        !matchesTypeExactly
+      ) ?
         <>
-          {matchesType ? (
+          {matchesType ?
             <ReqoreIcon
               icon='CheckLine'
               color={pendingMark}
@@ -130,7 +147,7 @@ export const ExpressionBuilderArgumentLabel = ({
               margin='both'
               tooltip='The type fits; Qorus may convert the value'
             />
-          ) : null}
+          : null}
 
           <ReqoreSpan
             effect={{
@@ -141,19 +158,18 @@ export const ExpressionBuilderArgumentLabel = ({
             }}
             intent={matchesType ? 'pending' : 'warning'}
             tooltip={
-              matchesType
-                ? 'The type fits; Qorus may convert the value'
-                : acceptedTypeNames
-                  ? // the sentence starts with them
-                    `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
-                  : // a place whose types are not known names none
-                    'A value of another type is needed here'
+              matchesType ? 'The type fits; Qorus may convert the value'
+              : acceptedTypeNames ?
+                // the sentence starts with them
+                `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
+                // a place whose types are not known names none
+              : 'A value of another type is needed here'
             }
           >
             {types.getTypeDisplayName(argumentType)}
           </ReqoreSpan>
         </>
-      ) : null}
+      : null}
       <ReqoreSpan
         effect={{
           italic: true,
