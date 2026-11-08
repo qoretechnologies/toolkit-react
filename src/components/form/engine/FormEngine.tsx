@@ -468,6 +468,42 @@ export const hasRequiredOptions = (options: IQorusFormSchema = {}) => {
 export { OptionsContext } from './optionsContext';
 export type { IOptionsContext } from './optionsContext';
 
+/** The options a schema entry says cannot be set together with it (`exclusive_with`). */
+const exclusiveWith = (option: unknown): string[] => {
+  const names = (option as { exclusive_with?: unknown } | undefined)?.exclusive_with;
+  return Array.isArray(names) ?
+      names.filter((name): name is string => typeof name === 'string')
+    : [];
+};
+
+/** Whether a form value holds something: a field envelope's value, or a bare value. */
+const holdsValue = (field: unknown): boolean => {
+  const value =
+    isPlainObject(field) && 'value' in (field as object) ? (field as IQorusFormField).value : field;
+  if (value === undefined || value === null || value === '') {
+    return false;
+  }
+  return !(Array.isArray(value) && value.length === 0);
+};
+
+/**
+ * Whether `name` is excluded by an option that already holds a value: one it names in its own
+ * `exclusive_with`, or one that names it in theirs. A schema may declare the pair on one side only
+ * (Discord's `webhook` names `qorus_app_connection`, not the reverse), so both directions count.
+ */
+export const isExcludedBySetOption = (
+  name: string,
+  value: TQorusForm | TQorusFlatForm,
+  options: IQorusFormSchema
+): boolean =>
+  Object.keys(value ?? {}).some(
+    (other) =>
+      other !== name &&
+      holdsValue((value as Record<string, unknown>)[other]) &&
+      (exclusiveWith(options?.[name]).includes(other) ||
+        exclusiveWith(options?.[other]).includes(name))
+  );
+
 export const fixOptions = (
   value: TQorusForm | TQorusFlatForm = {},
   options?: IQorusFormSchema,
@@ -484,6 +520,12 @@ export const fixOptions = (
   }
 
   forEach(options, (option, name) => {
+    // An option that is not in the value and cannot be set together with one that is (`exclusive_with`)
+    // is not added: a Discord message sent through a connection does not also gain an empty webhook
+    // URL, which the form then reported as invalid on every state that used a connection.
+    if (fixedValue[name] === undefined && isExcludedBySetOption(name, fixedValue, options)) {
+      return;
+    }
     if (
       option.value ||
       option.required_groups ||
