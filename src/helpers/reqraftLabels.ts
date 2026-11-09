@@ -321,8 +321,8 @@ export interface IFormEngineLabels {
   /** An operand that has no name the reader knows. */
   thisValue: string;
   /** Beside an argument whose operation's type is known only when it runs, and its tooltip. */
+  /** Under a value that depends on the incoming data, so its type is checked only when it runs. Plain words. */
   knownWhenItRuns: string;
-  knownWhenItRunsTooltip: string;
 }
 
 /** Every word Reqraft draws that a host can give in its own language, by where it is drawn. */
@@ -687,8 +687,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     },
     templateOfKind: (kind) => `a $${kind} template`,
     thisValue: 'this value',
-    knownWhenItRuns: 'known when it runs',
-    knownWhenItRunsTooltip: 'Qorus knows the type of this value only when the expression runs',
+    knownWhenItRuns: 'Depends on the incoming data, so it is checked when this runs.',
   },
 };
 

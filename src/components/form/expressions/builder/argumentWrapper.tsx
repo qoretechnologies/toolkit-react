@@ -14,7 +14,11 @@ import {
   IExpressionSchemaArg,
   TExpressionReorderSurface,
 } from '../types';
-import { ExpressionBuilderArgumentLabel } from './argumentLabel';
+import {
+  ExpressionBuilderArgumentLabel,
+  ExpressionBuilderArgumentRuntimeNote,
+  useArgumentKnownWhenItRuns,
+} from './argumentLabel';
 
 /**
  * An operand's field row: the field (a value or a field reference, its clear button, its ⋮ menu) shrinks
@@ -85,6 +89,8 @@ export const ExpressionBuilderArgumentWrapper = memo(
   }: IExpressionBuilderArgumentWrapperProps) => {
     const theme = useReqoreTheme();
     const type = arg?.type || schema?.ui_type || 'context';
+    // an expression whose type only shows when it runs: the note under its value says so
+    const knownWhenItRuns = useArgumentKnownWhenItRuns(arg);
     const draggable = !!reorder?.includes('dragHandle');
 
     // Only the grip is `draggable`, so a drag never starts from inside the
@@ -164,6 +170,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
 
     if (arg?.is_expression) {
       return (
+        // the value comes first; a note on it (that it depends on the incoming data) is under it
         <ReqoreControlGroup
           vertical
           fluid
@@ -194,6 +201,9 @@ export const ExpressionBuilderArgumentWrapper = memo(
           >
             {children}
           </ReqorePanel>
+          {knownWhenItRuns ?
+            <ExpressionBuilderArgumentRuntimeNote />
+          : null}
         </ReqoreControlGroup>
       );
     }

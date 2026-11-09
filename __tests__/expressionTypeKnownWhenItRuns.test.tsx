@@ -101,21 +101,30 @@ describe('an expression whose type is known only when it runs', () => {
     expect(container.textContent).not.toMatch(/read as true unless/);
   });
 
-  it('says so in the label of the argument that holds it', () => {
+  it('says under the value, in plain words, that it depends on the incoming data', () => {
     serverType = { inferred_type: 'auto', ui_type: 'any', known: false };
     const { container } = renderExpression(
       { is_expression: true, value: { exp: 'add_days', args: [lookup] } },
       'date'
     );
-    expect(container.textContent).toMatch(/known when it runs/i);
+    const note = container.querySelector('.expression-arg-runtime-note');
+    expect(note?.textContent).toBe(
+      'Depends on the incoming data, so it is checked when this runs.'
+    );
+    // under the value it is about: the last thing of that argument, after the value, not in its header
+    const argument = note!.closest('.expression-arg')!;
+    expect(argument.lastElementChild).toBe(note);
+    expect(argument.firstElementChild?.contains(note)).toBe(false);
+    // and no longer a technical suffix on the argument's type
+    expect(container.textContent).not.toMatch(/known when it runs/i);
   });
 
-  it('names the type of an argument whose type is known', () => {
+  it('says nothing of the kind for an argument whose type is known', () => {
     serverType = { inferred_type: 'int', ui_type: 'int', known: true };
     const { container } = renderExpression(
       { is_expression: true, value: { exp: 'add_days', args: [lookup] } },
       'date'
     );
-    expect(container.textContent).not.toMatch(/known when it runs/i);
+    expect(container.querySelector('.expression-arg-runtime-note')).toBeNull();
   });
 });

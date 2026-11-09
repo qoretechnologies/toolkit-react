@@ -11,6 +11,37 @@ import { READABLE_ICON } from '../../../../helpers/readableColors';
 import { IExpression, IExpressionSchema, IExpressionSchemaArg, IExpressionValue } from '../types';
 import { useExpressionType } from '../useExpressionType';
 
+/**
+ * Whether an argument holds an expression whose type the server can tell only when it runs (`known: false`, as of a
+ * template that reads the incoming data). Such an argument is not judged against the type it takes; the value says
+ * instead that it depends on the incoming data (`ExpressionBuilderArgumentRuntimeNote`).
+ */
+export const useArgumentKnownWhenItRuns = (arg?: IExpression): boolean => {
+  const served = useExpressionType(
+    arg?.is_expression ? (arg.value as IExpressionValue) : undefined
+  );
+  return !!arg?.is_expression && served?.known === false;
+};
+
+/**
+ * Said under an argument's value when that value depends on the incoming data: plain words, on the value they are
+ * about, rather than a type name in the argument's header (qlip review of #161: the users are supply chain managers).
+ */
+export const ExpressionBuilderArgumentRuntimeNote = () => {
+  const hintOpacity = useReadableOpacity(0.5);
+  const engineLabels = useReqraftLabels().formEngine;
+  return (
+    <ReqoreP
+      size='tiny'
+      className='expression-arg-runtime-note'
+      effect={{ italic: true, weight: 'light', opacity: hintOpacity }}
+    >
+      <ReqoreIcon icon='InformationLine' size='10px' margin='right' />
+      {engineLabels.knownWhenItRuns}
+    </ReqoreP>
+  );
+};
+
 export interface IExpressionBuilderArgumentLabelProps {
   label: string;
   arg?: IExpression;
@@ -33,14 +64,10 @@ export const ExpressionBuilderArgumentLabel = ({
   const warningMark = useReadableIntentShade('warning', READABLE_ICON);
   const pendingMark = useReadableIntentShade('pending', READABLE_ICON);
   const types = useQorusTypes();
-  const engineLabels = useReqraftLabels().formEngine;
-  // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives
-  const served = useExpressionType(
-    arg?.is_expression ? (arg.value as IExpressionValue) : undefined
-  );
-  // the server cannot tell this operation's type before it runs (`known: false`, as of a template whose type only
-  // the running interface has): that is said, not shown as "Any" or judged
-  const knownWhenItRuns = !!arg?.is_expression && served?.known === false;
+  // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives. The
+  // server cannot tell some operations' type before they run (`known: false`): such a value is not judged here, and
+  // the note under it says it depends on the incoming data
+  const knownWhenItRuns = useArgumentKnownWhenItRuns(arg);
 
   if (!schema) {
     return (
@@ -124,14 +151,6 @@ export const ExpressionBuilderArgumentLabel = ({
       </ReqoreSpan>
       {!matchesType ?
         <ReqoreIcon icon='ErrorWarningLine' color={warningMark} size='10px' margin='both' />
-      : null}
-      {knownWhenItRuns ?
-        <ReqoreSpan
-          effect={{ italic: true, weight: 'light', opacity: hintOpacity }}
-          tooltip={engineLabels.knownWhenItRunsTooltip}
-        >
-          {` · ${engineLabels.knownWhenItRuns}`}
-        </ReqoreSpan>
       : null}
       {(
         !knownWhenItRuns &&
