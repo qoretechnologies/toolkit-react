@@ -194,90 +194,92 @@ export const ExpressionBuilderArgumentWrapper = memo(
 
     if (arg?.is_expression) {
       return (
-        // the value comes first; a note on it (that it depends on the incoming data) is under it
-        <ReqoreControlGroup
-          vertical
-          fluid
-          gapSize='small'
-          className='expression-arg'
-          {...dragProps}
-        >
-          <ReqoreControlGroup verticalAlign='center' gapSize='small'>
-            <ExpressionBuilderArgumentLabel
-              arg={arg}
-              schema={schema}
-              label={label || ''}
-              expressions={expressions}
-              type={type}
-            />
-            {reorder && renderReorderControls()}
-          </ReqoreControlGroup>
-          <ReqorePanel
-            minimal
+        // The provider wraps the whole argument, never a child of a control group: a group lays out its direct
+        // children one by one, and one more wrapper among them moved every operand's field and button (qlip #473).
+        <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+          {/* the value comes first; a note on it (that it depends on the incoming data) is under it */}
+          <ReqoreControlGroup
+            vertical
             fluid
-            wrapperPadding='top'
-            responsiveTitle={false}
-            responsiveActions={false}
-            size='small'
-            flat
-            padded={false}
-            transparent
+            gapSize='small'
+            className='expression-arg'
+            {...dragProps}
           >
-            <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+            <ReqoreControlGroup verticalAlign='center' gapSize='small'>
+              <ExpressionBuilderArgumentLabel
+                arg={arg}
+                schema={schema}
+                label={label || ''}
+                expressions={expressions}
+                type={type}
+              />
+              {reorder && renderReorderControls()}
+            </ReqoreControlGroup>
+            <ReqorePanel
+              minimal
+              fluid
+              wrapperPadding='top'
+              responsiveTitle={false}
+              responsiveActions={false}
+              size='small'
+              flat
+              padded={false}
+              transparent
+            >
               {children}
-            </RuntimeNoteBelowContext.Provider>
-          </ReqorePanel>
-          {showsRuntimeNote ?
-            <ExpressionBuilderArgumentRuntimeNote />
-          : null}
-        </ReqoreControlGroup>
+            </ReqorePanel>
+            {showsRuntimeNote ?
+              <ExpressionBuilderArgumentRuntimeNote />
+            : null}
+          </ReqoreControlGroup>
+        </RuntimeNoteBelowContext.Provider>
       );
     }
 
     return (
-      <ReqoreControlGroup
-        vertical
-        wrap
-        fluid={fluid}
-        size='small'
-        className='expression-arg'
-        // the builder gives a value just added the focus here when it has no text field (see `focusNewArgIn`)
-        tabIndex={-1}
-        {...dragProps}
-        // at most the width of the expression it is in: a narrow column shrinks its field instead
-        style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%', ...dragProps.style }}
-      >
-        <ExpressionBuilderArgumentLabel
-          arg={arg}
-          schema={schema}
-          label={label}
-          expressions={expressions}
-        />
-        {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
-            the field takes what is left; wrapping would put the grip on a
-            line of its own above a full-width field. */}
-        <StyledOperandFieldRow verticalAlign='flex-start' wrap={!fluid} fluid className='expression-arg-field'>
-          {reorder && renderReorderControls()}
-          <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+      <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+        <ReqoreControlGroup
+          vertical
+          wrap
+          fluid={fluid}
+          size='small'
+          className='expression-arg'
+          // the builder gives a value just added the focus here when it has no text field (see `focusNewArgIn`)
+          tabIndex={-1}
+          {...dragProps}
+          // at most the width of the expression it is in: a narrow column shrinks its field instead
+          style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%', ...dragProps.style }}
+        >
+          <ExpressionBuilderArgumentLabel
+            arg={arg}
+            schema={schema}
+            label={label}
+            expressions={expressions}
+          />
+          {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
+              the field takes what is left; wrapping would put the grip on a
+              line of its own above a full-width field. */}
+          <StyledOperandFieldRow verticalAlign='flex-start' wrap={!fluid} fluid className='expression-arg-field'>
+            {reorder && renderReorderControls()}
             {children}
-          </RuntimeNoteBelowContext.Provider>
-          {hasMultipleArgs && (
-            <ReqoreButton
-              compact
-              intent='danger'
-              minimal
-              fixed
-              className='expression-remove-arg'
-              icon='DeleteBinLine'
-              flat
-              transparent
-              tooltip='Remove argument'
-              onClick={onRemoveArgClick}
-              disabled={readOnly}
-            />
-          )}
-        </StyledOperandFieldRow>
-      </ReqoreControlGroup>
+            {hasMultipleArgs && (
+              <ReqoreButton
+                compact
+                intent='danger'
+                minimal
+                fixed
+                className='expression-remove-arg'
+                icon='DeleteBinLine'
+                flat
+                transparent
+                tooltip='Remove argument'
+                onClick={onRemoveArgClick}
+                disabled={readOnly}
+              />
+            )}
+          </StyledOperandFieldRow>
+        </ReqoreControlGroup>
+      </RuntimeNoteBelowContext.Provider>
     );
   }
 );
