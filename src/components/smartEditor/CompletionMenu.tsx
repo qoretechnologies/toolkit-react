@@ -437,8 +437,6 @@ export const COMPLETION_POPOVER_PROPS = {
   closeOnInsideClick: false,
   minWidth: '300px',
   flat: true,
-  // Transparent so the popover wrapper doesn't frame the menu.
-  transparent: true,
 };
 
 export interface ICompletionMenuProps {
