@@ -3,7 +3,7 @@
 // ui_type: "any"}`, as of a template whose type only the running interface has) is no mismatch and no error: the
 // builder says nothing against it, and an argument holding it says its type is known when it runs.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /** What the server has said every expression gives. */
@@ -117,6 +117,28 @@ describe('an expression whose type is known only when it runs', () => {
     expect(argument.firstElementChild?.contains(note)).toBe(false);
     // and no longer a technical suffix on the argument's type
     expect(container.textContent).not.toMatch(/known when it runs/i);
+  });
+
+  it('says it once, on the innermost value, when one such value is nested in another', async () => {
+    serverType = { inferred_type: 'auto', ui_type: 'any', known: false };
+    const { container } = renderExpression(
+      {
+        is_expression: true,
+        value: {
+          exp: 'add_days',
+          args: [{ is_expression: true, value: { exp: 'add_days', args: [lookup] } }],
+        },
+      },
+      'date'
+    );
+    await waitFor(() =>
+      expect(container.querySelectorAll('.expression-arg-runtime-note')).toHaveLength(1)
+    );
+    // the one note is on the value that reads the data, inside the outer argument
+    const note = container.querySelector('.expression-arg-runtime-note')!;
+    const outer = container.querySelector('.expression-arg')!;
+    expect(outer.lastElementChild).not.toBe(note);
+    expect(outer.contains(note)).toBe(true);
   });
 
   it('says nothing of the kind for an argument whose type is known', () => {

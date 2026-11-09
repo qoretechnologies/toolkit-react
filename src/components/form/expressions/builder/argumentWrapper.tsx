@@ -5,7 +5,7 @@ import {
   ReqorePanel,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
-import { memo } from 'react';
+import { createContext, memo, useCallback, useContext, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { ordinal } from '../../../../helpers/common';
 import {
@@ -66,6 +66,14 @@ export interface IExpressionBuilderArgumentWrapperProps {
   onArgDragEnd?: () => void;
 }
 
+/**
+ * How an argument tells the argument it is nested in that a note "depends on the incoming data" is shown below it.
+ * The note is said once, on the innermost value it is about: an expression wrapping one that already says it (a Size
+ * of a data path, an Addition of that Size) depends on the same data, and repeating the sentence at every level
+ * says nothing new.
+ */
+const RuntimeNoteBelowContext = createContext<((change: 1 | -1) => void) | undefined>(undefined);
+
 export const ExpressionBuilderArgumentWrapper = memo(
   ({
     children,
@@ -89,8 +97,24 @@ export const ExpressionBuilderArgumentWrapper = memo(
   }: IExpressionBuilderArgumentWrapperProps) => {
     const theme = useReqoreTheme();
     const type = arg?.type || schema?.ui_type || 'context';
-    // an expression whose type only shows when it runs: the note under its value says so
+    // an expression whose type only shows when it runs: the note under its value says so, unless an argument nested
+    // in it already does
     const knownWhenItRuns = useArgumentKnownWhenItRuns(arg);
+    const [notesBelow, setNotesBelow] = useState(0);
+    const reportNoteBelow = useCallback(
+      (change: 1 | -1) => setNotesBelow((count) => count + change),
+      []
+    );
+    const reportToParent = useContext(RuntimeNoteBelowContext);
+    const showsRuntimeNote = knownWhenItRuns && notesBelow === 0;
+    const hasRuntimeNote = knownWhenItRuns || notesBelow > 0;
+    useEffect(() => {
+      if (!hasRuntimeNote || !reportToParent) {
+        return undefined;
+      }
+      reportToParent(1);
+      return () => reportToParent(-1);
+    }, [hasRuntimeNote, reportToParent]);
     const draggable = !!reorder?.includes('dragHandle');
 
     // Only the grip is `draggable`, so a drag never starts from inside the
@@ -199,9 +223,11 @@ export const ExpressionBuilderArgumentWrapper = memo(
             padded={false}
             transparent
           >
-            {children}
+            <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+              {children}
+            </RuntimeNoteBelowContext.Provider>
           </ReqorePanel>
-          {knownWhenItRuns ?
+          {showsRuntimeNote ?
             <ExpressionBuilderArgumentRuntimeNote />
           : null}
         </ReqoreControlGroup>
@@ -232,7 +258,9 @@ export const ExpressionBuilderArgumentWrapper = memo(
             line of its own above a full-width field. */}
         <StyledOperandFieldRow verticalAlign='flex-start' wrap={!fluid} fluid className='expression-arg-field'>
           {reorder && renderReorderControls()}
-          {children}
+          <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+            {children}
+          </RuntimeNoteBelowContext.Provider>
           {hasMultipleArgs && (
             <ReqoreButton
               compact
