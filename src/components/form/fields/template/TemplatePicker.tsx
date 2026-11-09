@@ -13,7 +13,16 @@ import {
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { flushSync } from 'react-dom';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { TTypeLabel } from '../../../../helpers/qorusTypeCatalogue';
@@ -207,6 +216,32 @@ const levelsTo = (roots: ITemplateNode[], levelId?: string): string[] => {
     templateNodeById(roots, levelId) ??
     (levelId === undefined && roots.length === 1 && isGroup(roots[0]) ? roots[0] : undefined);
   return node ? [...node.trailIds, node.id] : [];
+};
+
+/** The most the picker's list is drawn at before it scrolls: a whole row more where that shows every row. */
+export const TEMPLATE_PICKER_LIST_CAP = 300;
+
+/**
+ * The height a template picker's list is drawn at: all of it where it is no more than a row past the cap, else
+ * the end of the last row the cap holds whole. Either way no row is cut through: the list shows whole rows, and a
+ * scroll brings the others.
+ */
+export const wholeRowsHeight = (list: HTMLElement, cap = TEMPLATE_PICKER_LIST_CAP): number => {
+  const top = list.getBoundingClientRect().top - list.scrollTop;
+  const rows = Array.from(list.querySelectorAll<HTMLElement>('[role="option"], .template-picker-empty')).map(
+    (row) => {
+      const box = row.getBoundingClientRect();
+      return { bottom: box.bottom - top, height: box.height };
+    }
+  );
+  const all = list.scrollHeight;
+  if (!rows.length || all <= cap) return cap;
+  const tallest = Math.max(...rows.map((row) => row.height));
+  if (all <= cap + tallest) return Math.ceil(all);
+  // a row is whole where it ends within the cap, to the half pixel a row's measure rounds to; the next row starts
+  // where it ends, so the list ends there too (the list's own padding is under its last row, which is scrolled to)
+  const whole = rows.filter((row) => row.bottom <= cap + 0.5);
+  return whole.length ? Math.round(whole[whole.length - 1].bottom) : cap;
 };
 
 export const TemplatePicker = memo(
@@ -531,6 +566,16 @@ export const TemplatePicker = memo(
       loadFailure && (level?.id === loadFailure.node.id || isReference) ? loadFailure : null;
     const optionId = (index: number) => `${id}-option-${index}`;
 
+    /* The list's height ends at a row's end, never through a row (qorus-ide #301: the last row was drawn cut
+       through its description). Measured after every draw, as a row's height follows what it says. */
+    const [listHeight, setListHeight] = useState(TEMPLATE_PICKER_LIST_CAP);
+    useLayoutEffect(() => {
+      const list = rootRef.current?.querySelector<HTMLElement>('.template-picker-list');
+      if (!list) return;
+      const height = wholeRowsHeight(list);
+      setListHeight((was) => (was === height ? was : height));
+    });
+
     return (
       <div
         ref={rootRef}
@@ -733,7 +778,7 @@ export const TemplatePicker = memo(
           className='template-picker-list'
           rounded
           flat
-          maxHeight='300px'
+          maxHeight={`${listHeight}px`}
           width='100%'
           effect={SMART_EDITOR_OVERLAY_EFFECT}
           customTheme={COMPLETION_LIST_THEME}

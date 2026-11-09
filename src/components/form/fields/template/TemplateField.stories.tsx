@@ -2424,3 +2424,91 @@ export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
     await waitFor(() => expect(uses()).toEqual(['Use Look up customer', 'Use Receive order']));
   },
 };
+
+/**
+ * A field in a drawer at the window's right edge, written as text, as a Qog state's options are: its template picker
+ * is opened by a click at the end of its text (qorus-ide #301).
+ */
+const InADrawerAtTheRight = (args: any) => {
+  const [value, setValue] = useState(args.value);
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', minHeight: 640 }}>
+      <div className='story-drawer' style={{ width: 420, padding: 16, boxSizing: 'border-box' }}>
+        <div style={{ width: 200 }}>
+          <TemplateField
+            {...args}
+            value={value}
+            onChange={(name: string, changed: unknown) => {
+              args.onChange?.(name, changed);
+              setValue(changed);
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** No row of the picker's list is cut through by its edge: each is wholly in view, or wholly scrolled out of it. */
+const expectNoRowCut = () => {
+  const list = document.querySelector<HTMLElement>('.template-picker .template-picker-list')!;
+  const box = list.getBoundingClientRect();
+  const rows = Array.from(list.querySelectorAll<HTMLElement>('.template-picker-row'));
+  expect(rows.length, 'the rows').toBeGreaterThan(0);
+  for (const row of rows) {
+    const at = row.getBoundingClientRect();
+    const whole = at.top >= box.top - 1 && at.bottom <= box.bottom + 1;
+    const out = at.top >= box.bottom - 1 || at.bottom <= box.top + 1;
+    expect(whole || out, `the row ${row.getAttribute('data-label')} is not cut by the list's edge`).toBe(true);
+  }
+};
+
+export const APickerOpenedInTheTextStaysUnderItsField: StoryObj<typeof meta> = {
+  args: {
+    type: 'any',
+    allowTemplates: true,
+    allowCustomValues: true,
+    templates: QOG_FIELD_TEMPLATES as never,
+    filterTemplatesByType: false,
+    value: 'This Qog was run at by',
+    name: 'message',
+  },
+  render: InADrawerAtTheRight,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field written as text in a drawer at the right edge of the window, and clicks at the end of its text: the template picker opens under the field, from its left edge, inside the drawer, and its list shows only whole rows.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const editor = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(found, 'the field written as text').toBeTruthy();
+      return found!;
+    });
+    // a click right of the text puts the caret at its end, as a click in a Qog's message did
+    const field = editor.getBoundingClientRect();
+    await userEvent.pointer({
+      keys: '[MouseLeft]',
+      target: editor,
+      coords: { clientX: field.right - 4, clientY: field.top + field.height / 2 },
+    });
+    await pickerRow('Context Data');
+    await waitFor(() => {
+      const drawer = canvasElement.querySelector('.story-drawer')!.getBoundingClientRect();
+      const box = editor.getBoundingClientRect();
+      // the popover the picker is drawn in, whose edge is the picker's
+      const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
+      // under the field, from its left edge
+      expect(picker.top).toBeGreaterThanOrEqual(box.bottom - 1);
+      expect(Math.abs(picker.left - box.left)).toBeLessThanOrEqual(2);
+      // inside the drawer the field is in
+      expect(picker.left).toBeGreaterThanOrEqual(drawer.left - 1);
+      expect(picker.right).toBeLessThanOrEqual(drawer.right + 1);
+    });
+    expectNoRowCut();
+  },
+};
