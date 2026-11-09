@@ -1195,8 +1195,18 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 } catch {
                   at = undefined;
                 }
+                /* At the caret across, and clear of the button down and up: the button is as tall as the field, and a
+                   picker under the caret's line alone overlapped it on a phone. */
+                const caret = at ? caretBoxAt(editor, at) : undefined;
                 openBrowse(editor as any, {
-                  rect: at ? caretBoxAt(editor, at) : rect,
+                  rect:
+                    caret ?
+                      {
+                        left: caret.left,
+                        top: Math.min(caret.top ?? rect.top ?? caret.bottom, rect.top ?? caret.bottom),
+                        bottom: Math.max(caret.bottom, rect.bottom),
+                      }
+                    : rect,
                   anchor: at ? ReactEditor.toDOMNode(editor, editor) : anchor,
                   caret: at,
                   arrows: !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim(),
