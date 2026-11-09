@@ -25,6 +25,7 @@ import {
 import { withTouchScreen } from '../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../stories/tracking';
 import {
+  expectPickerAtTheTextStart,
   chipsOf,
   completionLabels,
   completionRow,
@@ -1493,6 +1494,7 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
   play: async ({ canvasElement, args }) => {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
+    await expectPickerAtTheTextStart(editable);
     await waitFor(
       () =>
         expect(pickerLabels()).toEqual([
@@ -3508,5 +3510,7 @@ export const AnEmptiedFieldOpensThePicker: Story = {
     // the template button
     await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
     await expectThePickerAtItsTop();
+    // where the pick goes: the start of the emptied text, not the button at its far end (David on reqraft #162)
+    await expectPickerAtTheTextStart(editable);
   },
 };

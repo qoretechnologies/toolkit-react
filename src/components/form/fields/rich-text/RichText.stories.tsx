@@ -18,6 +18,7 @@ import {
   WORKFLOW_CONTEXT_DATA_PAYLOAD,
 } from '../template/__fixtures__/qogTemplatePayloads';
 import {
+  expectPickerAtTheTextStart,
   chipsOf,
   completionLabels,
   expectRowsFit,
@@ -640,6 +641,8 @@ export const ThePickerOnAPhone: Story = {
     const editable = within(canvasElement).getByRole('textbox');
     await withTouchScreen(async (touch) => {
       await touch.tap(editable);
+      await pickerRow('Receive order');
+      await expectPickerAtTheTextStart(editable);
       await touch.tap(await pickerRow('Receive order'));
       await waitFor(() => expect(pickerLabels()).toContain('Event type'));
       if (touch.narrowed) {

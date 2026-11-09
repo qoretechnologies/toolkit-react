@@ -196,3 +196,25 @@ export const expectPickerFillsItsPopover = () => {
   expect(outer.right - inner.right, 'empty space right of the picker').toBeLessThanOrEqual(16);
   expect(inner.left - outer.left, 'empty space left of the picker').toBeLessThanOrEqual(16);
 };
+
+/**
+ * The template picker opened in an empty text is at the start of the text, where its pick goes, below the text's top:
+ * the first time as every time, however it was opened (David on reqraft #162: from the template button it opened at
+ * the far right end of the empty text, and a click in the text then opened it at the start).
+ */
+export const expectPickerAtTheTextStart = (editable: HTMLElement) =>
+  waitFor(() => {
+    const leaf = editable.querySelector<HTMLElement>('[data-slate-leaf]') ?? editable;
+    const start = leaf.getBoundingClientRect().left;
+    const picker = document.querySelector<HTMLElement>('.reqore-popover-content .template-picker');
+    expect(picker, 'the template picker').toBeTruthy();
+    const box = picker!.closest('.reqore-popover-content')!.getBoundingClientRect();
+    // slid left only where the window has no room for it at the start
+    const room = window.innerWidth - start;
+    if (room >= box.width + 16) {
+      expect(Math.abs(box.left - start), 'the picker at the start of the text').toBeLessThanOrEqual(2);
+    } else {
+      expect(box.left, 'the picker no further right than the start of the text').toBeLessThanOrEqual(start + 2);
+    }
+    expect(box.top, 'the picker below the top of the text').toBeGreaterThanOrEqual(editable.getBoundingClientRect().top);
+  });

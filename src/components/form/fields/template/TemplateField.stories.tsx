@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
 import { defaultQorusTypes, IQorusTypeObject } from '../../../../hooks/useQorusTypes';
 import { storyCopiedTexts, withStoryClipboard } from '../../../../stories/clipboard';
-import { atTheCaptureSize, hasBrowserMouse } from '../../../../stories/mouse';
+import { atTheCaptureSize } from '../../../../stories/mouse';
 import { storyApiUrl } from '../../../../stories/storyNetwork';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { mockExpressions } from '../../expressions/mockExpressions';
@@ -1698,30 +1698,28 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
   },
   async play({ canvasElement, parameters }) {
     await openTemplateContexts(canvasElement);
-    /* The window's width changes with the picker open: it stays at its button (Foxhoundn on qlip #456). The picture is
-       taken at this size. */
-    const buttonLeft = () =>
-      canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect().left;
-    const before = buttonLeft();
+    /* Where the pick goes: the start of the empty text, inside its padding. The picker opens there, from the button as
+       from a click in the text, the first time as every time (David on #162: the picker opened at the far right end of
+       the empty text, by its button, and a click in the text then opened it at the start). */
+    const textStart = () => {
+      const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!;
+      const leaf = text.querySelector<HTMLElement>('[data-slate-leaf]') ?? text;
+      return leaf.getBoundingClientRect().left;
+    };
+    const pickerLeft = () => document.querySelector('.reqore-popover-content')!.getBoundingClientRect().left;
+    const atTheTextStart = () =>
+      waitFor(() => {
+        expect(Math.abs(pickerLeft() - textStart()), 'the picker at the start of the text').toBeLessThanOrEqual(2);
+        const text = canvasElement.querySelector('[data-slate-editor]')!.getBoundingClientRect();
+        expect(document.querySelector('.reqore-popover-content')!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          text.top
+        );
+      });
+    await atTheTextStart();
+    /* The window's width changes with the picker open: it stays where it was opened (Foxhoundn on qlip #456). The
+       picture is taken at this size. */
     await atTheCaptureSize(parameters);
-    // only the test runner resizes the frame (`atTheCaptureSize`): the button moves there, before what is checked
-    if (await hasBrowserMouse()) {
-      await waitFor(() => expect(buttonLeft()).not.toBe(before));
-    }
-    await waitFor(() => {
-      const button = canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect();
-      // the fixed point the picker is drawn at, which only what follows the button moves
-      const anchor = Array.from(document.querySelectorAll('span')).find(
-        (span) => span.style.position === 'fixed' && span.style.width === '1px'
-      );
-      expect(anchor?.getBoundingClientRect().left).toBe(button.left);
-      const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
-      expect(picker.top).toBeGreaterThanOrEqual(button.bottom - 1);
-      // at its button, below it, slid left only as far as the window needs: it still reaches the button
-      expect(picker.left).toBeLessThanOrEqual(button.left + 1);
-      expect(picker.right).toBeGreaterThan(button.left);
-      expect(picker.right).toBeLessThanOrEqual(window.innerWidth);
-    });
+    await atTheTextStart();
     const local = await pickerRow('$local:');
     await expect(local.classList.contains('template-picker-group')).toBe(true);
     await expect(useOfRow(local)).toBeTruthy();
@@ -1732,6 +1730,20 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
     const rest = await pickerRow('$rest:');
     await expect(rest.classList.contains('template-picker-group')).toBe(false);
     await expect(useOfRow(rest)).toBeNull();
+    // put away and opened again from the button, and then by a click in the text: where it was the first time
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+    await pickerRow('Template contexts');
+    await atTheTextStart();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!);
+    await pickerRow('Template contexts');
+    await atTheTextStart();
+    // the picture is of the contexts, open
+    await userEvent.click(await pickerRow('Template contexts'));
+    await pickerRow('$local:');
   },
 };
 

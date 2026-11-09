@@ -35,6 +35,7 @@ import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
 import { useEmittedValues } from '../form/fields/emittedValues';
+import { caretBoxAt } from './caretBox';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
 import { CompletionMenu } from './CompletionMenu';
@@ -905,11 +906,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       if (!browsesOnClick || readOnly || !editor) return;
       try {
         if (!ReactEditor.isFocused(editor)) return;
-        const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
+        const start = Editor.start(editor as unknown as Editor, []);
         openBrowse(editor as any, {
-          rect: { left: at.left, bottom: at.bottom, top: at.top },
+          rect: caretBoxAt(editor, start),
           anchor: ReactEditor.toDOMNode(editor, editor),
-          caret: Editor.start(editor as unknown as Editor, []),
+          caret: start,
           arrows: true,
         });
       } catch {
@@ -938,7 +939,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           if (!caret) return;
           const box = page.getRangeAt(0).getBoundingClientRect();
           // a caret in an empty line has no box of its own: the text's
-          const at = box.width || box.height ? box : root.getBoundingClientRect();
+          const at = box.width || box.height ? box : caretBoxAt(editor, caret.anchor);
           /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
              empty field shows the templates, the record's fields among them). */
           const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
@@ -1185,9 +1186,19 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   autocomplete.close();
                   return;
                 }
+                /* It opens where its pick goes - the caret the text keeps while the button is pressed, else the
+                   text's end - as a click there opens it; at the button it opened at the far right end of the text
+                   (David on reqraft #162). It goes with the text as the window resizes. */
+                let at;
+                try {
+                  at = editor.selection?.anchor ?? Editor.end(editor as unknown as Editor, []);
+                } catch {
+                  at = undefined;
+                }
                 openBrowse(editor as any, {
-                  rect,
-                  anchor,
+                  rect: at ? caretBoxAt(editor, at) : rect,
+                  anchor: at ? ReactEditor.toDOMNode(editor, editor) : anchor,
+                  caret: at,
                   arrows: !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim(),
                 });
               }}
