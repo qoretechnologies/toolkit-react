@@ -1,5 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreCallout,
@@ -285,14 +286,15 @@ const TemplateButton = ({
   notInsertable?: string;
   open: (rect: { left: number; bottom: number }, anchor: Element) => void;
 }) => {
+  const editorWords = useReqraftLabels().editor;
   return (
     <ReqoreButton
       className='smart-editor-template-button'
       icon='MoneyDollarCircleLine'
       fixed
       size={size ?? 'normal'}
-      aria-label='Insert a template'
-      tooltip={insertable ? 'Insert a template' : notInsertable}
+      aria-label={editorWords.insertTemplate}
+      tooltip={insertable ? editorWords.insertTemplate : notInsertable}
       disabled={!insertable}
       onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
@@ -344,6 +346,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     },
     ref
   ) => {
+    const editorWords = useReqraftLabels().editor;
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
     const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
@@ -980,9 +983,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (!editorRef.current) return;
         autocomplete.onItemSelect(item, editorRef.current as any);
       },
+
       [autocomplete]
     );
-
 
     // Overlay shown while the session connects, a context binding resolves,
     // or the wrapper signals `isLoading` (e.g. DpqlEditor awaiting
@@ -991,9 +994,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const showLoadingOverlay =
       (!session.isReady || !session.isContextReady || isLoading) && loadingIndicator !== null;
     const defaultLoadingLabel =
-      !session.isReady ? 'Connecting to language server…'
-      : !session.isContextReady ? 'Loading schema…'
-      : 'Loading…';
+      !session.isReady ? editorWords.connecting
+      : !session.isContextReady ? editorWords.loadingSchema
+      : editorWords.loading;
     // Built only when shown — skips a ReqoreSpinner alloc on every render
     // of an already-connected editor.
     const overlayContent =
@@ -1118,8 +1121,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               onSelect={handleCompletionSelect}
               templateRoots={pickerRoots}
               pendingLabel={
-                !session.isReady ? 'Connecting to language server…'
-                : !session.isContextReady ? 'Loading schema…'
+                !session.isReady ? editorWords.connecting
+                : !session.isContextReady ?
+                  editorWords.loadingSchema
                 : undefined
               }
             />
@@ -1196,8 +1200,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               fixed
               flat
               minimal
-              aria-label='Show what the word at the cursor is'
-              tooltip={detailsSaysItsWord ? undefined : 'Details'}
+              aria-label={editorWords.showWordAtCursor}
+              tooltip={detailsSaysItsWord ? undefined : editorWords.details}
               // the press keeps the focus, and the caret the details are of, in the text
               onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1213,7 +1217,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   .then(setDetailsHoverId);
               }}
             >
-              {detailsSaysItsWord ? 'Details' : undefined}
+              {detailsSaysItsWord ? editorWords.details : undefined}
             </ReqoreButton>
           )}
         </ReqoreControlGroup>

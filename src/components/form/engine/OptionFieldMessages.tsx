@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../../helpers/reqraftLabels';
 import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
@@ -39,7 +40,17 @@ export interface IConditionalFieldMessage {
   when?: (string | string[])[];
   /** Hide the message while every entry holds — the negative form of `when`. */
   unless?: (string | string[])[];
+  /**
+   * `false` for a warning that informs without asking for anything: it is shown like any warning, but it does not
+   * put its field under "Needs attention" or count it as unfinished. A field whose choices the server could not offer
+   * says why with one; the user can do nothing about it in the form, so it is not a step left to take.
+   */
+  attention?: boolean;
 }
+
+/** Whether a message asks the user to act on its field: a warning, unless it says it does not. */
+export const messageDrawsAttention = (message: { intent?: string; attention?: boolean }): boolean =>
+  message.intent === 'warning' && message.attention !== false;
 
 /**
  * Whether a schema message applies to the form as it currently stands.
@@ -99,6 +110,7 @@ export const getShownSchemaMessages = <T extends IConditionalFieldMessage>(
  * and the lock cannot disagree about what an entry means.
  */
 const describeDependency = (dependency: string, schema: IQorusFormSchema): string | undefined => {
+  const feWords = reqraftLabels().formEngine;
   const { name, op, value } = parseDependency(dependency);
   const dependencySchema = schema[name];
 
@@ -119,10 +131,14 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
   // being unanswered — so it gets a sentence of its own rather than the
   // comparison template, which would read `must not be "undefined"`.
   if (op === '!') {
-    return `${label} must have no value`;
+    return feWords.mustHaveNoValue(label);
   }
 
-  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${shown}"` : label;
+  return (
+    op === '!=' ? feWords.mustNotBe(label, shown)
+    : op ? feWords.mustBe(label, shown)
+    : label
+  );
 };
 
 /**
@@ -148,7 +164,9 @@ export const describeDependencies = (
       if (!alternatives.length) {
         return undefined;
       }
-      return alternatives.length > 1 ? `(${alternatives.join(' or ')})` : alternatives[0];
+      return alternatives.length > 1 ?
+          reqraftLabels().formEngine.orJoin(alternatives)
+        : alternatives[0];
     })
     .filter((entry): entry is string => !!entry)
     .join(', ');
@@ -222,6 +240,7 @@ export const getAllowedValueAvailability = (
   allOptions?: TQorusForm,
   schema?: IQorusFormSchema
 ): IAllowedValueAvailability => {
+  const feWords = reqraftLabels().formEngine;
   if (!value) {
     return ALLOWED_VALUE_AVAILABLE;
   }
@@ -242,11 +261,11 @@ export const getAllowedValueAvailability = (
       intent: 'warning',
       reason:
         dependsOn ?
-          `Unavailable because some dependencies are not fulfilled: ${dependsOn}`
+          feWords.unavailable(dependsOn)
           // Nothing nameable: every entry pointed at a field this schema does
           // not contain. A sentence that ends in a colon and then stops reads
           // as a rendering fault rather than as a fact about the form.
-        : 'Unavailable because some dependencies are not fulfilled',
+        : feWords.unavailable(),
     };
   }
 
@@ -363,6 +382,7 @@ export const getOptionFieldMessages = ({
   getType,
   isRendererOnly,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
+  const feWords = reqraftLabels().formEngine;
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
   const locked =
@@ -412,7 +432,7 @@ export const getOptionFieldMessages = ({
     );
     if (!validationData.isValid) {
       result.push({
-        label: validationData.reason || 'Field value is not valid',
+        label: validationData.reason || feWords.valueNotValid,
         intent: 'danger',
       });
     }
@@ -421,7 +441,7 @@ export const getOptionFieldMessages = ({
     // locked field is not asked for: the dependency message below says what
     // unlocks it, and until then there is nothing to fill in.
     if (optionSchema?.required && !locked) {
-      result.push({ label: 'This field is required', intent: 'danger' });
+      result.push({ label: feWords.required, intent: 'danger' });
     }
   }
 
@@ -450,11 +470,11 @@ export const getOptionFieldMessages = ({
     result.push({
       label:
         dependsOn ?
-          `This field is disabled because some dependencies are not fulfilled: ${dependsOn}`
+          feWords.disabledByDependencies(dependsOn)
           // Nothing nameable: every entry pointed at a field this schema does
           // not contain. A sentence that ends in a colon and then stops reads
           // as a rendering fault rather than as a fact about the form.
-        : 'This field is disabled because some dependencies are not fulfilled',
+        : feWords.disabledByDependencies(),
       intent: 'warning',
     });
   }

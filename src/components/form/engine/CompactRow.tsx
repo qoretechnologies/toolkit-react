@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreCollapsibleContent,
@@ -39,7 +40,6 @@ import { CompactRowContext } from './compactRowContext';
 import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
 import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 import { resolveInheritProps } from './inheritProps';
-import { NO_OPTION_DESCRIPTION } from '../../../helpers/noDescription';
 import { revealRow } from './revealRow';
 import {
   MONO_FONT_STACK,
@@ -61,7 +61,11 @@ import {
   StyledRowValue,
   StyledStatusDot,
 } from './compactRowStyles';
-import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
+import {
+  getShownSchemaMessages,
+  getOptionFieldMessages,
+  messageDrawsAttention,
+} from './OptionFieldMessages';
 import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
@@ -199,25 +203,28 @@ const SUMMARY_TEXT_STYLE: React.CSSProperties = Object.freeze({
  * without opening the row it is in. Reached with Tab, it says where it goes and that it opens a new tab, and
  * shows its focus ring (`.options-readfirst-link`); its address is copied as a link's is.
  */
-const WebLink = memo(({ address, color }: { address: string; color?: string }) => (
-  <a
-    className='options-readfirst-link'
-    href={address}
-    target='_blank'
-    rel='noopener noreferrer'
-    aria-label={`${address} (opens in a new tab)`}
-    style={color ? { color } : undefined}
-    // the link's, not the row's: the row opens on a click and on Enter or Space
-    onClick={(event) => event.stopPropagation()}
-    onKeyDown={(event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.stopPropagation();
-      }
-    }}
-  >
-    {address}
-  </a>
-));
+const WebLink = memo(({ address, color }: { address: string; color?: string }) => {
+  const feWords = useReqraftLabels().formEngine;
+  return (
+    <a
+      className='options-readfirst-link'
+      href={address}
+      target='_blank'
+      rel='noopener noreferrer'
+      aria-label={feWords.opensInNewTab(address)}
+      style={color ? { color } : undefined}
+      // the link's, not the row's: the row opens on a click and on Enter or Space
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.stopPropagation();
+        }
+      }}
+    >
+      {address}
+    </a>
+  );
+});
 WebLink.displayName = 'WebLink';
 
 /** The status boxes by name, as their headers say them. */
@@ -250,6 +257,7 @@ export const CompactRow = memo(
     clusterFirst?: boolean;
     clusterLast?: boolean;
   }) => {
+    const feWords = useReqraftLabels().formEngine;
     const readOnly = useContextSelector(CompactRowContext, (v) => v.readOnly);
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
@@ -423,7 +431,7 @@ export const CompactRow = memo(
                  rule, which reqore has no prop for, stays inline. */
               effect={{ opacity: 0.7 }}
               style={{ flexShrink: 0 }}
-              tooltip='This value is an expression'
+              tooltip={feWords.valueIsExpression}
             />
             {rendered}
           </span>
@@ -871,10 +879,10 @@ export const CompactRow = memo(
             intent={groupResolved ? 'success' : 'warning'}
             icon={groupResolved ? 'CheckLine' : 'LinkM'}
             label={
-              !groupResolved ? 'One of'
+              !groupResolved ? feWords.oneOf
               : coveredByLabel ?
-                `Covered by “${coveredByLabel}”`
-              : 'Covers'
+                feWords.coveredBy(coveredByLabel)
+              : feWords.covers
             }
             filterable={
               chipGroups.reduce((n, g) => n + requiredGroupsInfo.members[g].length, 0) > 6
@@ -1214,7 +1222,7 @@ export const CompactRow = memo(
           flat
           minimal
           icon='HistoryLine'
-          tooltip='Revert changes'
+          tooltip={feWords.revertChanges}
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation();
             handleValueChange(
@@ -1246,9 +1254,9 @@ export const CompactRow = memo(
     const confirmClearValue = (event?: React.MouseEvent) => {
       event?.stopPropagation();
       confirmAction({
-        title: 'Clear value',
-        description: `Clear the current value of "${label}"?`,
-        confirmLabel: 'Clear value',
+        title: feWords.clearValue,
+        description: feWords.clearValueConfirm(label),
+        confirmLabel: feWords.clearValue,
         confirmButtonIntent: 'danger',
         intent: 'danger',
         onConfirm: () => handleValueChange(optionName, undefined),
@@ -1263,8 +1271,8 @@ export const CompactRow = memo(
           minimal
           icon='DeleteBinLine'
           intent='danger'
-          aria-label='Clear value'
-          tooltip='Clear value'
+          aria-label={feWords.clearValue}
+          tooltip={feWords.clearValue}
           onClick={confirmClearValue}
         />
       : null;
@@ -1274,7 +1282,7 @@ export const CompactRow = memo(
       commitMode === 'batched' && changed ?
         <ReqoreTag
           className='options-readfirst-draft'
-          label='Draft'
+          label={feWords.draft}
           intent='warning'
           icon='EditLine'
           size='tiny'
@@ -1311,8 +1319,8 @@ export const CompactRow = memo(
           // "Cancel edit", not "Cancel": a bare Cancel collides with the one
           // in Reqore's confirmation modal, and this one is specifically about
           // abandoning the edit rather than dismissing a dialog.
-          aria-label='Cancel edit'
-          tooltip='Cancel edit — discard the changes made since this field was opened'
+          aria-label={feWords.cancelEdit}
+          tooltip={feWords.cancelEditTooltip}
           onClick={(event: React.MouseEvent) => {
             event.stopPropagation();
             cancelEdit();
@@ -1333,8 +1341,8 @@ export const CompactRow = memo(
         minimal={isPassiveCloseAction}
         fixed
         icon={isPassiveCloseAction ? 'CloseLine' : 'CheckLine'}
-        aria-label={isPassiveCloseAction ? 'Close field' : 'Done'}
-        tooltip={isPassiveCloseAction ? 'Close field' : 'Done'}
+        aria-label={isPassiveCloseAction ? feWords.closeField : feWords.done}
+        tooltip={isPassiveCloseAction ? feWords.closeField : feWords.done}
         onClick={() => {
           // what was typed inside the field's pause reaches the form before the row closes
           pendingEdits.flush();
@@ -1352,7 +1360,7 @@ export const CompactRow = memo(
     const infoActive = !hidden || isExpanded;
     /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
        take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
-    type TInfoMsg = { intent?: string; title?: string; content: string };
+    type TInfoMsg = { intent?: string; title?: string; content: string; attention?: boolean };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
         (getShownSchemaMessages((schema as any)?.messages as any[], availableOptions, options).map(
@@ -1360,6 +1368,7 @@ export const CompactRow = memo(
             intent: m.intent,
             title: m.title,
             content: m.content,
+            attention: (m as { attention?: boolean }).attention,
           })
         ) as TInfoMsg[])
       : [];
@@ -1393,8 +1402,12 @@ export const CompactRow = memo(
         [
           {
             // the default's description is the server's markdown: its words, not its marks
-            content:
-              `Default: ${schema.default_value_display_name || ''} — ${markdownToProse(schema.default_value_desc)}`.trim(),
+            content: feWords
+              .defaultIs(
+                schema.default_value_display_name || '',
+                markdownToProse(schema.default_value_desc)
+              )
+              .trim(),
           },
         ]
       : []),
@@ -1431,8 +1444,8 @@ export const CompactRow = memo(
     // what the option is, or, where it has no description at all, why nothing says so (qorus#646)
     const labelHover =
       [
-        schema?.short_desc || (!schema?.desc && typeSentence ? NO_OPTION_DESCRIPTION : undefined),
-        typeSentence && `Takes ${typeSentence}.`,
+        schema?.short_desc || (!schema?.desc && typeSentence ? feWords.noDescription : undefined),
+        typeSentence && feWords.takes(typeSentence),
       ]
         .filter(Boolean)
         .join('\n') || undefined;
@@ -1451,8 +1464,8 @@ export const CompactRow = memo(
           flat
           fixed
           className='options-readfirst-help'
-          aria-label={`Help: ${label}`}
-          tooltip='Help'
+          aria-label={feWords.helpOn(label)}
+          tooltip={feWords.help}
           effect={{ opacity: rowInks.helpOpacity }}
           onClick={(event: React.MouseEvent) => {
             event.stopPropagation();
@@ -1563,11 +1576,11 @@ export const CompactRow = memo(
         minimal
         fixed
         size='small'
-        tooltip='More actions'
+        tooltip={feWords.moreActions}
         items={[
           {
             // a card opened to read is viewed in full, not edited
-            label: readOnly ? 'View fullscreen' : 'Edit fullscreen',
+            label: readOnly ? feWords.viewFullscreen : feWords.editFullscreen,
             icon: 'FullscreenLine',
             className: 'options-readfirst-fullscreen',
             onClick: () => setFocusedEditing(optionName),
@@ -1575,12 +1588,12 @@ export const CompactRow = memo(
           ...(removable && !hidden ?
             [
               {
-                label: 'Remove field',
+                label: feWords.removeField,
                 icon: 'DeleteBinLine',
                 intent: 'danger',
                 onClick: () =>
                   confirmAction({
-                    title: 'Remove field',
+                    title: feWords.removeField,
                     onConfirm: () => removeSelectedOption(optionName),
                   }),
               } as IReqoreDropdownItem,
@@ -1686,7 +1699,7 @@ export const CompactRow = memo(
               <StyledRowLabel
                 role='button'
                 tabIndex={0}
-                aria-label={`Collapse ${label}`}
+                aria-label={feWords.collapse(label)}
                 title={labelHover}
                 $color={cKey}
                 $pointer
@@ -1988,8 +2001,8 @@ export const CompactRow = memo(
                   fixed
                   intent='danger'
                   className='options-readfirst-clear'
-                  aria-label='Clear value'
-                  tooltip='Clear value'
+                  aria-label={feWords.clearValue}
+                  tooltip={feWords.clearValue}
                   onClick={confirmClearValue}
                 />
               : null}
@@ -2022,7 +2035,7 @@ export const CompactRow = memo(
               onClose={() => setFocusedEditing(undefined)}
               description={(schema?.display_name as string) || optionName}
               // a card opened to read is viewed in full, not edited
-              {...(readOnly ? { label: 'Focused View' } : {})}
+              {...(readOnly ? { label: feWords.focusedView } : {})}
             >
               {focusedEditing === optionName ?
                 <Description
@@ -2070,7 +2083,7 @@ export const CompactRow = memo(
     const valueReasons: TInfoMsg[] = [
       ...inlineMessages,
       ...(empty && coveredByLabel ?
-        [{ content: `Covered by “${coveredByLabel}”`, intent: 'success' }]
+        [{ content: feWords.coveredBy(coveredByLabel), intent: 'success' }]
       : []),
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
@@ -2261,7 +2274,7 @@ export const CompactRow = memo(
         typeof optionField?.value === 'string' &&
         isMultilineMarkdown(optionField.value)
       ) ?
-        `${optionField.value.trim().split('\n').length} lines`
+        feWords.lineCount(optionField.value.trim().split('\n').length)
       : undefined;
     // the option's type beside its name, while the form shows field types: in words, as an open option says it
     const typeLabel = typeShown ? typeWords : undefined;
@@ -2281,9 +2294,9 @@ export const CompactRow = memo(
         fieldReadonly ||
         !hasAllDependenciesFullfilled(schema?.depends_on, availableOptions, options || {}));
     const fieldDisabledReason =
-      schema?.disabled ? 'This field is disabled'
-      : fieldReadonly ? 'Set by Qorus — not editable'
-      : 'Disabled — dependencies are not fulfilled';
+      schema?.disabled ? feWords.fieldDisabled
+      : fieldReadonly ? feWords.setByServer
+      : feWords.dependenciesNotFulfilled;
     // Dependency contract: top-level entries must ALL hold; a nested array
     // means ANY of its entries; `name=value` requires that exact value, and
     // `name!=value` requires any other answer. Parsed by the same helper the
@@ -2303,7 +2316,7 @@ export const CompactRow = memo(
         // being unanswered — so it says so, rather than going through the
         // comparison template and reading `Name ≠ undefined`.
         label:
-          op === '!' ? `${depLabel} unset`
+          op === '!' ? feWords.dependencyUnset(depLabel)
           : !op ? depLabel
           : `${depLabel} ${op === '=' ? '=' : '≠'} ${expected}`,
         fulfilled:
@@ -2342,12 +2355,22 @@ export const CompactRow = memo(
             flat
             compact
             icon='LockLine'
-            tooltip='Disabled — depends on other fields. Click to locate them.'
+            tooltip={feWords.dependsOnOthers}
             items={[
-              { divider: true, label: 'Unlocked by:', dividerAlign: 'left' } as IReqoreDropdownItem,
+              {
+                divider: true,
+                label: feWords.unlockedBy,
+                dividerAlign: 'left',
+              } as IReqoreDropdownItem,
               ...dependencyEntries.flatMap((entry): IReqoreDropdownItem[] => [
                 ...(Array.isArray(entry) ?
-                  [{ divider: true, label: 'any of:', dividerAlign: 'left' } as IReqoreDropdownItem]
+                  [
+                    {
+                      divider: true,
+                      label: feWords.anyOf,
+                      dividerAlign: 'left',
+                    } as IReqoreDropdownItem,
+                  ]
                 : []),
                 ...(Array.isArray(entry) ? entry : [entry]).flatMap(
                   (dep): IReqoreDropdownItem[] => {
@@ -2448,7 +2471,8 @@ export const CompactRow = memo(
       required,
       covered: !!coveredByLabel || groupResolved,
       invalid: worstIntent === 'danger',
-      warned: worstIntent === 'warning',
+      // a warning that asks for nothing (`attention: false`) colors the row but does not make it a step left to take
+      warned: allMsgs.some(messageDrawsAttention),
     });
     // No dot at all in a read-only form: the dot reports progress on the
     // form, and a read view has no progress to report.
@@ -2472,9 +2496,9 @@ export const CompactRow = memo(
         role={actsOnClick ? 'button' : undefined}
         tabIndex={actsOnClick ? 0 : undefined}
         aria-label={
-          readOnlyIsAWayIn ? `Edit ${label}`
+          readOnlyIsAWayIn ? feWords.edit(label)
           : readOnlyOpens ?
-            `View ${label}`
+            feWords.view(label)
           : readOnly ?
             undefined
           : label
@@ -2887,7 +2911,7 @@ export const CompactRow = memo(
                 minimal
                 fixed
                 size='tiny'
-                tooltip='Field actions'
+                tooltip={feWords.fieldActions}
                 items={injectedOptionActionMenuItems}
               />
             </StyledActionSlot>
@@ -2904,7 +2928,7 @@ export const CompactRow = memo(
                 minimal
                 compact
                 icon='HistoryLine'
-                tooltip='Revert changes'
+                tooltip={feWords.revertChanges}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   handleValueChange(

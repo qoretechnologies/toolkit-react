@@ -1,3 +1,4 @@
+import { reqraftLabels, useReqraftLabels } from '../helpers/reqraftLabels';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useMemo } from 'react';
 import { useAsyncRetry } from 'react-use';
@@ -12,6 +13,23 @@ export interface IUseTemplates {
 }
 
 export const TemplatesCache = new Map<string, IReqoreFormTemplates>();
+
+/* What each list was built from, and in which words: a list outlives the forms that asked for it, so one built before
+   the host's language changed is built again from what the server said, rather than asked for again. */
+const payloadsBuilt = new Map<
+  string,
+  { payload: ITemplatesPayload; words: ReturnType<typeof reqraftLabels>['templateList'] }
+>();
+
+const cachedTemplates = (interfaceContext: string): IReqoreFormTemplates | undefined => {
+  const built = payloadsBuilt.get(interfaceContext);
+  const words = reqraftLabels().templateList;
+  if (built && built.words !== words && TemplatesCache.has(interfaceContext)) {
+    TemplatesCache.set(interfaceContext, buildTemplates(built.payload) ?? {});
+    payloadsBuilt.set(interfaceContext, { payload: built.payload, words });
+  }
+  return TemplatesCache.get(interfaceContext);
+};
 
 /**
  * Hand this hook a `getContextData` payload the host has already fetched.
@@ -43,6 +61,7 @@ export const seedTemplatesCache = (
 
   if (templates) {
     TemplatesCache.set(interfaceContext, templates);
+    payloadsBuilt.set(interfaceContext, { payload, words: reqraftLabels().templateList });
   }
 };
 
@@ -58,6 +77,7 @@ export const useTemplates = (
   localTemplates: IReqoreFormTemplates = {},
   interfaceContext?: string
 ): IUseTemplates => {
+  const listWords = useReqraftLabels().templateList;
   const shouldFetch = !!allow && !!interfaceContext;
 
   const globalTemplates = useAsyncRetry(async () => {
@@ -65,7 +85,7 @@ export const useTemplates = (
       /* Already answered — by a previous mount or by the host seeding it. The
          cache was consulted for `loading` and for the value but not here, so a
          seeded page still issued the request it had been handed the answer to. */
-      const cached = TemplatesCache.get(interfaceContext!);
+      const cached = cachedTemplates(interfaceContext!);
       if (cached) {
         return cached;
       }
@@ -81,6 +101,10 @@ export const useTemplates = (
         const templates = buildTemplates(serverTemplates.data) ?? {};
 
         TemplatesCache.set(interfaceContext!, templates);
+        payloadsBuilt.set(interfaceContext!, {
+          payload: serverTemplates.data,
+          words: reqraftLabels().templateList,
+        });
 
         return templates;
       }
@@ -105,14 +129,13 @@ export const useTemplates = (
       return undefined;
     }
 
-    const globalTemplatesValue =
-      TemplatesCache.get(interfaceContext!) || globalTemplates.value || {};
+    const globalTemplatesValue = cachedTemplates(interfaceContext!) || globalTemplates.value || {};
 
     return {
       ...globalTemplatesValue,
       items: [...(globalTemplatesValue?.items || []), ...(localTemplates?.items || [])],
     };
-  }, [allow, shouldFetch, interfaceContext, globalTemplates, localTemplates]);
+  }, [allow, shouldFetch, interfaceContext, globalTemplates, localTemplates, listWords]);
 
   return {
     loading: shouldFetch && globalTemplates.loading && !TemplatesCache.has(interfaceContext!),

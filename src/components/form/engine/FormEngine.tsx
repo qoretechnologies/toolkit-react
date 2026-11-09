@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreCollection,
@@ -116,6 +117,7 @@ import {
   describeDependencies,
   getAllowedValueAvailability,
   getShownSchemaMessages,
+  messageDrawsAttention,
 } from './OptionFieldMessages';
 import { OptionsContext } from './optionsContext';
 import {
@@ -467,6 +469,42 @@ export const hasRequiredOptions = (options: IQorusFormSchema = {}) => {
 export { OptionsContext } from './optionsContext';
 export type { IOptionsContext } from './optionsContext';
 
+/** The options a schema entry says cannot be set together with it (`exclusive_with`). */
+const exclusiveWith = (option: unknown): string[] => {
+  const names = (option as { exclusive_with?: unknown } | undefined)?.exclusive_with;
+  return Array.isArray(names) ?
+      names.filter((name): name is string => typeof name === 'string')
+    : [];
+};
+
+/** Whether a form value holds something: a field envelope's value, or a bare value. */
+const holdsValue = (field: unknown): boolean => {
+  const value =
+    isPlainObject(field) && 'value' in (field as object) ? (field as IQorusFormField).value : field;
+  if (value === undefined || value === null || value === '') {
+    return false;
+  }
+  return !(Array.isArray(value) && value.length === 0);
+};
+
+/**
+ * Whether `name` is excluded by an option that already holds a value: one it names in its own
+ * `exclusive_with`, or one that names it in theirs. A schema may declare the pair on one side only
+ * (Discord's `webhook` names `qorus_app_connection`, not the reverse), so both directions count.
+ */
+export const isExcludedBySetOption = (
+  name: string,
+  value: TQorusForm | TQorusFlatForm,
+  options: IQorusFormSchema
+): boolean =>
+  Object.keys(value ?? {}).some(
+    (other) =>
+      other !== name &&
+      holdsValue((value as Record<string, unknown>)[other]) &&
+      (exclusiveWith(options?.[name]).includes(other) ||
+        exclusiveWith(options?.[other]).includes(name))
+  );
+
 export const fixOptions = (
   value: TQorusForm | TQorusFlatForm = {},
   options?: IQorusFormSchema,
@@ -483,6 +521,12 @@ export const fixOptions = (
   }
 
   forEach(options, (option, name) => {
+    // An option that is not in the value and cannot be set together with one that is (`exclusive_with`)
+    // is not added: a Discord message sent through a connection does not also gain an empty webhook
+    // URL, which the form then reported as invalid on every state that used a connection.
+    if (fixedValue[name] === undefined && isExcludedBySetOption(name, fixedValue, options)) {
+      return;
+    }
     if (
       option.value ||
       option.required_groups ||
@@ -1353,6 +1397,16 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * them. Only a remount re-arms it. No-op in classic (non-compact) mode.
    */
   initialExpandedOptions?: string[];
+  /**
+   * Rows to open now, while the form is drawn: each new `key` opens the named rows, alongside those already open.
+   *
+   * `initialExpandedOptions` names where a form starts and is spent once; this is for a host that must take the
+   * reader to a row later - a save refused for a field inside a row the reader has since closed - without
+   * drawing the form again, which would throw away what is open and typed in its other rows. A key seen before
+   * opens nothing again, so a host re-rendering with the same request does not reopen what the reader closed.
+   * No-op in classic (non-compact) mode.
+   */
+  expandOptionsRequest?: { options: string[]; key: string | number };
 
   /**
    * Which record or object `value` belongs to. When it changes, the form takes the new `value` as it is: an
@@ -1451,6 +1505,7 @@ const FormEngineImpl = ({
   autoFocusFirstRequired,
   expandFirstRequired,
   initialExpandedOptions,
+  expandOptionsRequest,
   valueKey,
   maxFieldsShown,
   // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
@@ -1459,6 +1514,7 @@ const FormEngineImpl = ({
   skeletonReason,
   ...rest
 }: IFormEngineProps) => {
+  const feWords = useReqraftLabels().formEngine;
   // Built-ins + whatever the consumer declared for its own injected editors.
   const isRendererOnly = useMemo(
     () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
@@ -1931,7 +1987,7 @@ const FormEngineImpl = ({
           return;
         }
         setOptionsError(
-          error instanceof Error ? error.message : String(error ?? 'Failed to load options')
+          error instanceof Error ? error.message : String(error ?? feWords.failedToLoadOptions)
         );
         setOptionsLoading(false);
       });
@@ -1939,7 +1995,7 @@ const FormEngineImpl = ({
     return () => {
       cancelled = true;
     };
-  }, [optionsLoader]);
+  }, [optionsLoader, feWords]);
 
   // --- Remote schema fetching, ported from IDE Options (systemOptions.tsx
   // lines 394-462 + 504-522). reqraft's `query()` replaces the IDE's
@@ -2360,8 +2416,7 @@ const FormEngineImpl = ({
           intent: 'info',
           size: 'tiny',
           tooltip: {
-            content:
-              'Other options depend on this option, changing it may result in configuration changes.',
+            content: feWords.dependentOptionsWarning,
             delay: 300,
           },
         });
@@ -2369,7 +2424,7 @@ const FormEngineImpl = ({
 
       return badges;
     },
-    [options]
+    [options, feWords]
   );
 
   const fixedValue: TQorusForm = (localValue.fields || {}) as TQorusForm;
@@ -2801,7 +2856,7 @@ const FormEngineImpl = ({
         options
       );
       if (msgs.some((m) => m.intent === 'danger')) return 'danger';
-      if (msgs.some((m) => m.intent === 'warning')) return 'warning';
+      if (msgs.some(messageDrawsAttention)) return 'warning';
       return undefined;
     },
     [JSON.stringify(options), JSON.stringify(availableOptions)]
@@ -3015,6 +3070,27 @@ const FormEngineImpl = ({
     hasAppliedInitialExpansionRef.current = true;
     setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
   }, [initialExpandedOptions, compact, availableOptions]);
+
+  // --- Host-requested rows (opt-in) ----------------------------------------
+  // Each new key opens the rows it names; a key already answered is not answered again. Waits, as the starting
+  // rows do, for a schema that does not yet hold a named row.
+  const answeredExpandRequestRef = useRef<string | number | undefined>(undefined);
+  useEffect(() => {
+    if (!expandOptionsRequest || !compact) {
+      return;
+    }
+    const { options: requested, key } = expandOptionsRequest;
+    if (answeredExpandRequestRef.current === key) {
+      return;
+    }
+    const names = Object.keys(availableOptions);
+    const toExpand = requested.filter((name) => names.includes(name));
+    if (!toExpand.length) {
+      return;
+    }
+    answeredExpandRequestRef.current = key;
+    setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
+  }, [expandOptionsRequest, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
   /** The first row (of `names`, in order: every row by default) that needs an answer and can take one, if any: what
@@ -4183,14 +4259,19 @@ const FormEngineImpl = ({
     }> = [
       {
         key: 'attention',
-        label: compactBoxLabels?.attention ?? 'Needs attention',
+        label: compactBoxLabels?.attention ?? feWords.boxAttention,
         intent: 'warning',
         icon: 'ErrorWarningLine',
       },
-      { key: 'set', label: compactBoxLabels?.set ?? 'Set', intent: 'success', icon: 'CheckLine' },
+      {
+        key: 'set',
+        label: compactBoxLabels?.set ?? feWords.boxSet,
+        intent: 'success',
+        icon: 'CheckLine',
+      },
       {
         key: 'optional',
-        label: compactBoxLabels?.optional ?? 'Optional',
+        label: compactBoxLabels?.optional ?? feWords.boxOptional,
         icon: 'CheckboxBlankCircleLine',
       },
     ];
@@ -4265,7 +4346,7 @@ const FormEngineImpl = ({
             {/* the words and the mark in a shade of the warning that reads on the cluster's tint */}
             <StyledRequiredClusterHeader $color={rowInks.warning}>
               <ReqoreIcon icon='LinkM' size='11px' style={{ color: rowInks.warning }} />
-              One of the below is required
+              {feWords.oneOfRequired}
             </StyledRequiredClusterHeader>
             {railed}
           </StyledRequiredClusterBox>
@@ -4426,9 +4507,7 @@ const FormEngineImpl = ({
                   <HiddenFieldsNote fields={hiddenFieldsWithValues} />
                   {size(groupKeys) === 0 || (readOnly && !bucketCount('set')) ?
                     <ReqoreMessage flat opaque={false} size='small'>
-                      {readOnly && !query ?
-                        'Nothing is set.'
-                      : 'No fields match the current filters.'}
+                      {readOnly && !query ? feWords.nothingSet : feWords.noFieldsMatch}
                     </ReqoreMessage>
                   : null}
 
@@ -4629,9 +4708,8 @@ const FormEngineImpl = ({
                               >
                                 <ReqoreP size='small' effect={{ opacity: 0.8 }}>
                                   {moreOpen ?
-                                    'Show fewer'
-                                  : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
-                                  }
+                                    feWords.showFewer
+                                  : feWords.moreFields(deferredCount, box.key === 'optional')}
                                 </ReqoreP>
                                 <ReqoreIcon
                                   icon='ArrowDownSLine'
@@ -4674,7 +4752,7 @@ const FormEngineImpl = ({
                         effect={{ uppercase: true, spaced: 1 }}
                         intent='warning'
                         icon='EditLine'
-                        label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
+                        label={feWords.unsavedChanges(dirtyOptionNames.length)}
                       />
                       {/* Why Save refuses, as text: a disabled button fires no hover, and a phone has none. */}
                       {validityData.isValid ? null : (
@@ -4697,13 +4775,11 @@ const FormEngineImpl = ({
                         className='options-readfirst-save'
                         disabled={!validityData.isValid}
                         tooltip={
-                          validityData.isValid ?
-                            'Apply the staged changes'
-                          : 'Resolve the invalid fields before saving'
+                          validityData.isValid ? feWords.applyChanges : feWords.resolveInvalid
                         }
                         onClick={handleCommitClick}
                       >
-                        Save
+                        {feWords.save}
                       </ReqoreButton>
                       <ReqoreButton
                         size='small'
@@ -4714,7 +4790,7 @@ const FormEngineImpl = ({
                         className='options-readfirst-discard'
                         onClick={handleRevertChangesClick}
                       >
-                        Discard
+                        {feWords.discard}
                       </ReqoreButton>
                     </ReqoreControlGroup>
                   </StyledCommitDock>
@@ -4764,7 +4840,7 @@ const FormEngineImpl = ({
   if (!options || !size(options)) {
     return (
       <ReqoreMessage intent='warning' opaque={false}>
-        No options available
+        {feWords.noOptions}
       </ReqoreMessage>
     );
   }
@@ -4784,9 +4860,7 @@ const FormEngineImpl = ({
         )}
         {recordRequiresSearchOptions && !readOnly ?
           <>
-            <ReqoreMessage intent='info'>
-              This provider record requires some search options to be set. You can set them below.
-            </ReqoreMessage>
+            <ReqoreMessage intent='info'>{feWords.searchOptionsRequired}</ReqoreMessage>
             <ReqoreVerticalSpacer height={10} />
           </>
         : null}
@@ -4816,15 +4890,14 @@ const FormEngineImpl = ({
                   onClick={() => setShowInvalidOptionsOnly(!showInvalidOptionsOnly)}
                 >
                   {showInvalidOptionsOnly ?
-                    'Showing invalid fields only. Click here again to show all fields.'
-                  : `${size(validityData.invalidFields) < 2 ? 'A field is not valid and requires' : `${size(validityData.invalidFields)} fields are not valid and require`} attention. Click here to only show invalid fields.`
-                  }
+                    feWords.showingInvalidOnly
+                  : feWords.invalidFields(size(validityData.invalidFields))}
                 </ReqoreMessage>
               : null}
               {unavailableOptionsCount.current ?
                 <>
                   <ReqoreMessage intent='warning' opaque={false} size='small' margin='bottom'>
-                    {`${unavailableOptionsCount.current} ${unavailableOptionsCount.current === 1 ? 'field' : 'fields'} hidden because they are not supported on the current instance`}
+                    {feWords.fieldsNotSupported(unavailableOptionsCount.current)}
                   </ReqoreMessage>
                   <ReqoreVerticalSpacer height={10} />
                 </>
@@ -4838,7 +4911,7 @@ const FormEngineImpl = ({
                   <SelectFormField
                     items={optionalFields}
                     onChange={(val) => handleAddOptionalFieldChange('options', val)}
-                    placeholder={placeholder || 'More Options Available'}
+                    placeholder={placeholder || feWords.moreOptions}
                     minimal
                     icon='ListView'
                     showDescription={false}
@@ -4877,7 +4950,7 @@ const FormEngineImpl = ({
                 delay: 300,
                 content: (
                   <Description
-                    longDescription={`${options[optionName]?.short_desc}${options[optionName]?.desc ? '. Click to learn more.' : ''}`}
+                    longDescription={`${options[optionName]?.short_desc}${options[optionName]?.desc ? feWords.clickToLearnMore : ''}`}
                     margin='none'
                   />
                 ),
@@ -4938,14 +5011,14 @@ const FormEngineImpl = ({
                     type !== 'code-editor' &&
                     ((options[optionName] as any)?.ui_type || options[optionName]?.type) !==
                       'code-editor' && {
-                      label: 'Focused editing',
+                      label: feWords.focusedEditing,
                       icon: 'FullscreenLine',
                       className: 'options-item-fullscreen',
                       onClick: () => setFocusedEditing(optionName),
                     },
                   !readOnly &&
                     hasOptionChanged((other as any).value, optionName) && {
-                      label: 'Revert changes',
+                      label: feWords.revertChanges,
                       icon: 'HistoryLine',
                       className: 'options-item-revert',
                       onClick: () => {
@@ -4959,7 +5032,7 @@ const FormEngineImpl = ({
                     (other as any).value &&
                     !isEqual((other as any).value, getDefaultValue(options[optionName])) &&
                     !(options[optionName]?.disabled || (options[optionName] as any)?.readonly) && {
-                      label: 'Remove value',
+                      label: feWords.removeValue,
                       icon: 'CloseLine',
                       className: 'options-item-remove',
                       onClick: () => handleValueChange(optionName, undefined),
@@ -4967,13 +5040,13 @@ const FormEngineImpl = ({
                   !readOnly &&
                     !options[optionName]?.preselected &&
                     !options[optionName]?.required && {
-                      label: 'Remove option',
+                      label: feWords.removeOption,
                       icon: 'DeleteBinLine',
                       intent: 'danger',
                       className: 'options-optional-remove',
                       onClick: () => {
                         confirmAction({
-                          title: 'Remove Selected Option',
+                          title: feWords.removeSelectedOption,
                           onConfirm: () => {
                             removeSelectedOption(optionName);
                           },
@@ -5016,7 +5089,7 @@ const FormEngineImpl = ({
             {
               icon: 'HistoryLine',
               className: 'fields-revert',
-              tooltip: 'Revert Changes',
+              tooltip: feWords.revertChangesTitle,
               minimal: true,
               position: 'right',
               show:
@@ -5030,7 +5103,7 @@ const FormEngineImpl = ({
               icon: 'CodeLine',
               minimal: true,
               className: 'fields-show-types',
-              tooltip: showFieldTypes ? 'Hide field types' : 'Show field types',
+              tooltip: showFieldTypes ? feWords.hideFieldTypes : feWords.showFieldTypes,
               intent: showFieldTypes ? 'info' : undefined,
               show: showTypeToggle,
               position: 'right',

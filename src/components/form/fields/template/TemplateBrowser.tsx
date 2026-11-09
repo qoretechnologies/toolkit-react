@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreDropdown } from '@qoretechnologies/reqore';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
@@ -59,6 +60,7 @@ export const TemplateBrowser = ({
   // the template contexts too, each taken whole or gone into, as typing offers them (qorus#646)
   // with the catalogue of the fields here, where the host gave one (`TemplateCatalogueProvider`)
   const catalogue = useTemplateCatalogue();
+  const treeWords = useReqraftLabels().templateTree;
   const roots = useMemo(
     () =>
       openLoneGroup(
@@ -73,7 +75,7 @@ export const TemplateBrowser = ({
           wholeRecords
         )
       ),
-    [templates, catalogue, wholeRecords]
+    [templates, catalogue, wholeRecords, treeWords]
   );
   const id = useMemo(() => `template-browser-${++templateBrowserCounter}`, []);
   // the popover's own controls: a pick puts it away

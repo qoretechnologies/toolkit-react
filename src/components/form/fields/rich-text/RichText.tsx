@@ -1,3 +1,4 @@
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   IReqoreRichTextEditorProps,
   ReqoreRichTextEditor,
@@ -499,12 +500,13 @@ export const RichTextFormField = memo(({
   const hostCatalogue = useTemplateCatalogue();
   const templateCatalogue = ownCatalogue ?? hostCatalogue;
   // with the field's catalogue's contexts, where it has one: typed and picked alike
+  const treeWords = useReqraftLabels().templateTree;
   const templateRoots = useMemo(
     () =>
       allowTemplates !== false && !readOnly ?
         withTemplateCatalogue(templateTree(templates, { wholeRecords }), templateCatalogue, wholeRecords)
       : [],
-    [allowTemplates, readOnly, templates, templateCatalogue, wholeRecords]
+    [allowTemplates, readOnly, templates, templateCatalogue, wholeRecords, treeWords]
   );
   // a lone group kept whole, for the picker to open only where nothing is added beside it (`openLoneGroup`)
   const templateRootsKept = useMemo(
@@ -516,11 +518,11 @@ export const RichTextFormField = memo(({
           wholeRecords
         )
       : [],
-    [allowTemplates, readOnly, templates, templateCatalogue, wholeRecords]
+    [allowTemplates, readOnly, templates, templateCatalogue, wholeRecords, treeWords]
   );
   const pickerRoots = useMemo(
     () => openLoneGroup(withTemplateContexts(templateRootsKept, wholeRecords)),
-    [templateRootsKept, wholeRecords]
+    [templateRootsKept, wholeRecords, treeWords]
   );
   const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
   // a template's type named in its row by the catalogue the surrounding form has, never its code
