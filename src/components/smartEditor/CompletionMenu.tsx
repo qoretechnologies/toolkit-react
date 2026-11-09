@@ -437,6 +437,9 @@ export const COMPLETION_POPOVER_PROPS = {
   closeOnInsideClick: false,
   minWidth: '300px',
   flat: true,
+  /* The menu is the popover's surface: no wrapper of the popover's own grey around it (Foxhoundn on qlip #477), and
+     the popover's shadow, which it keeps without one, sets it off from the page (Foxhoundn on qlip #476). */
+  noWrapper: true,
 };
 
 export interface ICompletionMenuProps {
