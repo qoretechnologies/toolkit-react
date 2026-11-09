@@ -534,7 +534,11 @@ export const TemplatePicker = memo(
     // heard from the page while the text the picker was opened from keeps the focus
     const handleKeyRef = useRef(handleKey);
     handleKeyRef.current = handleKey;
-    useEffect(() => {
+    /* A layout effect: the picker hears the page's keys from the commit that puts it in the page. The editor hears
+       an Escape while no picker is in the page (`useLspAutocomplete`); a passive effect left a moment between the two
+       in which the picker was drawn and deaf, and an Escape then was lost (CI, DpqlEditor › An Emptied Field Opens
+       The Picker). */
+    useLayoutEffect(() => {
       if (!keysFromPage) return undefined;
       const listener = (event: KeyboardEvent) => {
         // a key in the picker itself (its search box) is the picker's own

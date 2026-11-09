@@ -682,10 +682,25 @@ export function useLspAutocomplete(
   const showsRows = isOpen && filteredItems.length > 0;
   // the list open with what it says in place of rows: Escape puts it away, and nothing else
   const showsMessage = isOpen && !showsRows && !!emptyMessage;
-  useEffect(() => {
+  /* A layout effect, so the key is heard from the commit that opens the list or the picker. The picker comes up in
+     its popover a render or two after it is opened, and hears its own keys from the commit that draws it
+     (`TemplatePicker`); an Escape in the text before then is the editor's, and puts it away - it was heard by
+     nothing, and the picker opened after it (CI, DpqlEditor › An Emptied Field Opens The Picker). */
+  useLayoutEffect(() => {
     if (showsRows) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       const editor = editorRef.current;
+      if (event.key === 'Escape' && browseRef.current && !document.querySelector('.template-picker')) {
+        try {
+          if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+        } catch {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+        return;
+      }
       /* Enter or Tab where the list has nothing more to offer - a context of free keys and its key written,
          `$static:order.id` - takes what is written: a whole reference, drawn as its chip (`commitTyped`), as a row
          taken is (qorus#646, David's review). */
