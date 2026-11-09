@@ -420,15 +420,24 @@ export const CompletionList = memo(
 CompletionList.displayName = 'CompletionList';
 
 /**
- * The box a list is drawn from: the line (chip, control) it was opened at, from its top to its bottom, where its top
- * is known, else a point at its bottom. Below it the list starts under the line; flipped above it, for want of room
- * below, it ends over the line, clear of it - from a point at the line's bottom it covered the line it was opened
- * in (Foxhoundn on qlip #475: "The picker covers the input").
+ * Where a list's popover is placed: against the field it belongs to, below it, from where it was opened (the caret, a
+ * chip) - reqore's targetElement and offsetX - so it is never inside the field over what it holds, and goes with the
+ * field as the page scrolls (Foxhoundn on reqraft #162). Without a field (not drawn), at the point it was opened at.
+ * The wrapper the popover is opened from is a point of no size: it is not what the list is placed against.
  */
-export const openedAtStyle = ({ top, left, lineTop }: { top: number; left: number; lineTop?: number }) => {
-  const from = lineTop !== undefined && lineTop < top ? lineTop : top;
-  return { top: from, left, width: '1px', height: `${top - from + 1}px` };
-};
+export const placedAgainstTheField = (autocomplete: Pick<IUseLspAutocompleteResult, 'field' | 'position'>) => ({
+  wrapperStyle: {
+    position: 'fixed' as const,
+    top: autocomplete.position.top,
+    left: autocomplete.position.left,
+    width: '1px',
+    height: '1px',
+    pointerEvents: 'none' as const,
+  },
+  ...(autocomplete.field?.element.isConnected ?
+    { targetElement: autocomplete.field.element, offsetX: autocomplete.field.offsetX }
+  : {}),
+});
 
 /** How the list's popover is drawn: borderless, arrowless, the menu's own look. */
 export const COMPLETION_POPOVER_PROPS = {
@@ -462,11 +471,7 @@ export const CompletionMenu = memo(
         <ReqorePopover
           key={`browse-${autocomplete.popoverKey}`}
           component='span'
-          wrapperStyle={{
-            position: 'fixed',
-            ...openedAtStyle(autocomplete.position),
-            pointerEvents: 'none',
-          }}
+          {...placedAgainstTheField(autocomplete)}
           content={
             <TemplatePicker
               id={id}
@@ -503,13 +508,7 @@ export const CompletionMenu = memo(
           <ReqorePopover
             key={autocomplete.popoverKey}
             component='span'
-            wrapperStyle={{
-              // `fixed` anchor at the cursor's screen coords — avoids
-              // parent-offset math.
-              position: 'fixed',
-              ...openedAtStyle(autocomplete.position),
-              pointerEvents: 'none',
-            }}
+            {...placedAgainstTheField(autocomplete)}
             content={
               <CompletionList
                 id={id}

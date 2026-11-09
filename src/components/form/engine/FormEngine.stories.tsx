@@ -12421,10 +12421,10 @@ export const TemplateOnlyOptionIsItsValue: Story = {
       expect(browseRows().some((item) => item.textContent?.startsWith('pos'))).toBe(true)
     );
     await animationsSettled();
-    /* The picker leaves the line it was opened at to be read: it is below it or above it, never over it (Foxhoundn
-       on qlip #475, on a phone: "The picker covers the input"). */
+    /* The picker leaves the field it was opened in to be read: it is below it or above it, never inside it over what it
+       holds (Foxhoundn on qlip #475, on a phone: "The picker covers the input"; on #478: "inset inside of the field"). */
     await waitFor(() => {
-      const text = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+      const text = editor.getBoundingClientRect();
       const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
       expect(
         picker.top >= text.bottom - 1 || picker.bottom <= text.top + 1,

@@ -216,5 +216,7 @@ export const expectPickerAtTheTextStart = (editable: HTMLElement) =>
     } else {
       expect(box.left, 'the picker no further right than the start of the text').toBeLessThanOrEqual(start + 2);
     }
-    expect(box.top, 'the picker below the top of the text').toBeGreaterThanOrEqual(editable.getBoundingClientRect().top);
+    expect(box.top, 'the picker below the field, not inside it').toBeGreaterThanOrEqual(
+      editable.getBoundingClientRect().bottom - 1
+    );
   });

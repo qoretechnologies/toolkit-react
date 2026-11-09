@@ -175,6 +175,8 @@ export interface IUseLspAutocompleteResult {
    * line).
    */
   position: { top: number; left: number; lineTop?: number };
+  /** The field the list belongs to, which its popover is placed against, and the list's start in from its left. */
+  field: { element: HTMLElement; offsetX: number } | null;
   /**
    * The row whose documentation is shown under it in the list (its `value`), or null. A row's documentation
    * is otherwise a hover, which a keyboard and a finger cannot reach: its ⓘ, or Ctrl+Space on the row the
@@ -367,7 +369,35 @@ export function useLspAutocomplete(
 
   const [items, setItems] = useState<ICompletionDropdownItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number; lineTop?: number }>({ top: 0, left: 0 });
+  const editorRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
+  const [position, setPositionState] = useState<{ top: number; left: number; lineTop?: number }>({
+    top: 0,
+    left: 0,
+  });
+  /* The field the list belongs to - the editor's text - and how far in from its left the list starts (the caret, the
+     chip, the point it was opened at): the list's popover is placed against the field, below it, and goes with it as
+     the page scrolls (reqore's targetElement). Placed against a point drawn at the caret, it sat inside the field,
+     over what it holds below the caret's line, and stayed behind when the page scrolled (Foxhoundn on reqraft #162). */
+  const [field, setField] = useState<{ element: HTMLElement; offsetX: number } | null>(null);
+  const setPosition = useCallback(
+    (
+      next:
+        | { top: number; left: number; lineTop?: number }
+        | ((was: { top: number; left: number; lineTop?: number }) => { top: number; left: number; lineTop?: number })
+    ) => {
+      setPositionState(next);
+      if (typeof next === 'function') return;
+      const editor = editorRef.current;
+      try {
+        const element = editor ? ReactEditor.toDOMNode(editor as ReactEditor, editor as ReactEditor) : null;
+        setField(element ? { element, offsetX: next.left - element.getBoundingClientRect().left } : null);
+      } catch {
+        // the editor is not drawn: the list has no field to go with
+        setField(null);
+      }
+    },
+    []
+  );
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
   const [emptyMessage, setEmptyMessage] = useState<string>();
@@ -383,7 +413,6 @@ export function useLspAutocomplete(
   // narrows to items whose `filterText || label` matches it.
   const [filterPrefix, setFilterPrefix] = useState('');
   const focusedIndexRef = useRef(0);
-  const editorRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
   // "Replace mode": the user clicked a chip and the chosen completion
   // should replace that node. Holds the chip's Slate path, consumed by
   // the inserter via `ctx.replacementPath`.
@@ -1369,6 +1398,7 @@ export function useLspAutocomplete(
     handleExternalClose,
     popoverKey,
     position,
+    field,
     docsFor,
     toggleDocs,
     browse: isOpen ? browse : null,

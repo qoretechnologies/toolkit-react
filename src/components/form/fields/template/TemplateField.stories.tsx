@@ -2517,9 +2517,9 @@ export const APickerOpenedInTheTextStaysAtTheCaretInItsDrawer: StoryObj<typeof m
       // the popover the picker is drawn in, whose edge is the picker's
       const picker = document.querySelector('.reqore-popover-content')!;
       const box = picker.getBoundingClientRect();
-      // below the caret, never turned to its other side
+      // below the field, never inside it over what it holds, and never turned to the caret's other side
       expect(picker.getAttribute('data-popper-placement')).toBe('bottom-start');
-      expect(box.top).toBeGreaterThanOrEqual(caret.bottom - 1);
+      expect(box.top).toBeGreaterThanOrEqual(editor.getBoundingClientRect().bottom - 1);
       // from the caret, slid left only as far as the window needs: it still reaches the caret
       expect(box.left).toBeLessThanOrEqual(caret.left + 1);
       expect(box.right).toBeGreaterThan(caret.left);
@@ -2527,6 +2527,83 @@ export const APickerOpenedInTheTextStaysAtTheCaretInItsDrawer: StoryObj<typeof m
       expect(box.left).toBeGreaterThanOrEqual(drawer.left - 1);
       expect(box.right).toBeLessThanOrEqual(window.innerWidth);
     });
+    expectNoRowCut();
+  },
+};
+
+/** A drawer of a fixed height that scrolls, with a field of several lines in it. */
+const InAScrollingDrawer = (args: any) => {
+  const [value, setValue] = useState(args.value);
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+      <div className='story-drawer' style={{ width: 420, height: 420, overflow: 'auto', padding: 16, boxSizing: 'border-box' }}>
+        <div style={{ height: 120 }} />
+        <div style={{ width: 300 }}>
+          <TemplateField
+            {...args}
+            value={value}
+            onChange={(name: string, changed: unknown) => {
+              args.onChange?.(name, changed);
+              setValue(changed);
+            }}
+          />
+        </div>
+        <div style={{ height: 900 }} />
+      </div>
+    </div>
+  );
+};
+
+export const APickerIsBelowItsFieldOfSeveralLinesAndGoesWithIt: StoryObj<typeof meta> = {
+  args: {
+    type: 'any',
+    allowTemplates: true,
+    allowCustomValues: true,
+    templates: QOG_FIELD_TEMPLATES as never,
+    filterTemplatesByType: false,
+    value: 'This Qog was run at by and then it wrote to the order of the customer who placed it',
+    name: 'message',
+  },
+  render: InAScrollingDrawer,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field of several lines in a drawer that scrolls, and clicks in its first line: the template picker opens below the field - not under the first line, over the lines below it - from the caret, and goes with the field as the drawer scrolls.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const editor = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(found, 'the field written as text').toBeTruthy();
+      expect(found!.getBoundingClientRect().height, 'a field of several lines').toBeGreaterThan(40);
+      return found!;
+    });
+    // a click in its first line, a few words in
+    const field = editor.getBoundingClientRect();
+    await userEvent.pointer({
+      keys: '[MouseLeft]',
+      target: editor,
+      coords: { clientX: field.left + 60, clientY: field.top + 10 },
+    });
+    await pickerRow('Context Data');
+    const isBelowTheField = () =>
+      waitFor(() => {
+        const box = editor.getBoundingClientRect();
+        const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
+        expect(picker.top, 'below the field, over none of its lines').toBeGreaterThanOrEqual(box.bottom - 1);
+        expect(picker.top - box.bottom).toBeLessThan(20);
+        expect(picker.left).toBeGreaterThanOrEqual(box.left - 1);
+      });
+    await isBelowTheField();
+    const drawer = canvasElement.querySelector('.story-drawer') as HTMLElement;
+    const before = editor.getBoundingClientRect().top;
+    drawer.scrollTop = 60;
+    fireEvent.scroll(drawer);
+    await waitFor(() => expect(editor.getBoundingClientRect().top).toBeLessThan(before));
+    await isBelowTheField();
     expectNoRowCut();
   },
 };
