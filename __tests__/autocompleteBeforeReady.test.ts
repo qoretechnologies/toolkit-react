@@ -222,11 +222,9 @@ describe('the template picker when the window is resized', () => {
     }
   });
 
-  /* A click in the text opens the picker under the text, from its left edge, with nothing it was opened from: it was
-     left at the point of the window it opened at while the window's width moved the text away (qorus-ide #301,
-     qlip #370), and at the caret, a caret at the end of the text left it no room on the right, so it grew to the
-     caret's left, out of the drawer the field is in (qorus-ide #301, qlip #388). */
-  it('opened in the text, is under the text from its left edge, and stays there as the text moves', () => {
+  /* A click in the text opens the picker at the caret, with nothing it was opened from: it was left at the point of the
+     window it opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+  it('opened at the caret, stays where it was opened in the text as the text moves', () => {
     const { hook } = setup(true);
     const text = document.createElement('div');
     document.body.appendChild(text);
@@ -240,12 +238,11 @@ describe('the template picker when the window is resized', () => {
           caret: { path: [0, 0], offset: 2 },
         } as never)
       );
-      // not at the caret: under the text, from its left edge
-      expect(hook.result.current.position).toEqual({ left: 320, top: 58 });
+      expect(hook.result.current.position).toEqual({ left: 360, top: 40 });
 
       measure.mockReturnValue(boxAt(900, 58) as DOMRect);
       resized();
-      expect(hook.result.current.position).toEqual({ left: 900, top: 58 });
+      expect(hook.result.current.position).toEqual({ left: 940, top: 40 });
       expect(hook.result.current.browse).toBeTruthy();
     } finally {
       drawn.mockRestore();

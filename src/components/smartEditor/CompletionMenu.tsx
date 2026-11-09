@@ -419,6 +419,17 @@ export const CompletionList = memo(
 );
 CompletionList.displayName = 'CompletionList';
 
+/**
+ * The box a list is drawn from: the line (chip, control) it was opened at, from its top to its bottom, where its top
+ * is known, else a point at its bottom. Below it the list starts under the line; flipped above it, for want of room
+ * below, it ends over the line, clear of it - from a point at the line's bottom it covered the line it was opened
+ * in (Foxhoundn on qlip #475: "The picker covers the input").
+ */
+export const openedAtStyle = ({ top, left, lineTop }: { top: number; left: number; lineTop?: number }) => {
+  const from = lineTop !== undefined && lineTop < top ? lineTop : top;
+  return { top: from, left, width: '1px', height: `${top - from + 1}px` };
+};
+
 /** How the list's popover is drawn: borderless, arrowless, the menu's own look. */
 export const COMPLETION_POPOVER_PROPS = {
   noArrow: true,
@@ -452,10 +463,7 @@ export const CompletionMenu = memo(
           component='span'
           wrapperStyle={{
             position: 'fixed',
-            top: autocomplete.position.top,
-            left: autocomplete.position.left,
-            width: '1px',
-            height: '1px',
+            ...openedAtStyle(autocomplete.position),
             pointerEvents: 'none',
           }}
           content={
@@ -476,6 +484,10 @@ export const CompletionMenu = memo(
           closeOnOutsideClick
           {...COMPLETION_POPOVER_PROPS}
           minWidth={undefined}
+          /* At the caret, below it, and only slid along as far as the window needs (reqore's preventOverflow).
+             Allowed to flip, a caret near the window's right edge (at the end of a field's text in a drawer)
+             turned it to the caret's left and it grew out of the drawer, over the page (qorus-ide #301). */
+          keepPlacement
           onToggleChange={(open: boolean) =>
             autocomplete.handleExternalClose(open, autocomplete.popoverKey)
           }
@@ -494,10 +506,7 @@ export const CompletionMenu = memo(
               // `fixed` anchor at the cursor's screen coords — avoids
               // parent-offset math.
               position: 'fixed',
-              top: autocomplete.position.top,
-              left: autocomplete.position.left,
-              width: '1px',
-              height: '1px',
+              ...openedAtStyle(autocomplete.position),
               pointerEvents: 'none',
             }}
             content={

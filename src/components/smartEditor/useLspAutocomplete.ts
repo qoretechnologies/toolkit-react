@@ -106,6 +106,13 @@ export interface IUseLspAutocompleteOptions {
   noteAt?: (plainText: string, offset: number) => string | undefined;
 }
 
+/**
+ * Where a list is opened at, in the window: the left and bottom of the line, chip or control it is opened from, and
+ * its top where the caller knows it. A list flipped above it clears the whole of it (Foxhoundn on qlip #475: "The
+ * picker covers the input").
+ */
+export type TOpenedAt = { left: number; bottom: number; top?: number };
+
 export interface IUseLspAutocompleteResult {
   items: ICompletionDropdownItem[];
   groups: ICompletionGroup[];
@@ -137,14 +144,14 @@ export interface IUseLspAutocompleteResult {
   openAtCaret: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     caret: BasePoint,
-    rect: { left: number; bottom: number }
+    rect: TOpenedAt
   ) => void;
   // Open in "replace mode" anchored at an existing tag chip; `chipRect`
   // is the chip's viewport rect, `chipPath` is forwarded to the inserter.
   openAtChip: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     chipPath: number[],
-    chipRect: { left: number; bottom: number },
+    chipRect: TOpenedAt,
     options?: {
       /**
        * Ask what can be written in the chip's place - the text without it, at its start - rather than what could
@@ -162,7 +169,12 @@ export interface IUseLspAutocompleteResult {
   // Bumped on every (re)open; used as the ReqorePopover `key` to force a
   // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
-  position: { top: number; left: number };
+  /**
+   * Where the list is drawn from, in the window: `top` is the bottom of the line it was opened at (the list goes
+   * below it), `lineTop` that line's top where it is known (a list with no room below goes above it, clear of the
+   * line).
+   */
+  position: { top: number; left: number; lineTop?: number };
   /**
    * The row whose documentation is shown under it in the list (its `value`), or null. A row's documentation
    * is otherwise a hover, which a keyboard and a finger cannot reach: its ⓘ, or Ctrl+Space on the row the
@@ -185,7 +197,7 @@ export interface IUseLspAutocompleteResult {
   openBrowse: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     options: {
-      rect: { left: number; bottom: number };
+      rect: TOpenedAt;
       /**
        * What it is opened from (a button, a chip): it stays there as the window resizes. Without one - opened at the
        * caret or at the text - it stays where it was opened in the text, which moves with it.
@@ -355,7 +367,7 @@ export function useLspAutocomplete(
 
   const [items, setItems] = useState<ICompletionDropdownItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState<{ top: number; left: number; lineTop?: number }>({ top: 0, left: 0 });
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
   const [emptyMessage, setEmptyMessage] = useState<string>();
@@ -457,29 +469,6 @@ export function useLspAutocomplete(
      all the templates if it's the only available option"; David: the picker offers every completion in every
      state). Where the list says something with it (no record fields here, what to write after a context), the
      list stays, for what it says. */
-  /* The picker that opens in the place of the list at the caret goes under the field, at the start of the caret's
-     line, as the picker a click in the text opens does: at the caret, a caret at the end of the text left it no room
-     on the right, so it flipped to the caret's left and grew out of the drawer the field is in (qorus-ide #301). It
-     goes with the field as the window resizes. */
-  const putBrowseUnderTheField = useCallback(() => {
-    const editor = editorRef.current;
-    // a chip's list is at the chip, which it replaces: the picker in its place stays there
-    if (!editor || replacingChipPathRef.current) return;
-    try {
-      const root = ReactEditor.toDOMNode(editor as ReactEditor, editor as ReactEditor);
-      const field = root.getBoundingClientRect();
-      let top = field.bottom;
-      if (editor.selection) {
-        const caret = ReactEditor.toDOMRange(editor as ReactEditor, editor.selection).getBoundingClientRect();
-        if (caret.width || caret.height) top = caret.bottom;
-      }
-      browseAnchorRef.current = { element: root, left: 0, bottom: top - field.bottom };
-      setPosition({ left: field.left, top });
-    } catch {
-      // the editor is not drawn, or its caret is not: the picker stays where the list was
-    }
-  }, []);
-
   const onlyBrowseAll =
     isOpen &&
     !browse &&
@@ -501,12 +490,11 @@ export function useLspAutocomplete(
       // the editor is not drawn: the picker opens without the arrows
     }
     setDocsFor(null);
-    putBrowseUnderTheField();
     // in an empty text the arrows have nowhere else to go: they move through the picker, as a click there opens it
     setBrowse({ arrows: empty || undefined });
     popoverKeyRef.current += 1;
     setPopoverKey(popoverKeyRef.current);
-  }, [onlyBrowseAll, converter, setBrowse, putBrowseUnderTheField]);
+  }, [onlyBrowseAll, converter, setBrowse]);
 
   // Fires the LSP request and commits results into state. Separate from
   // the debounced wrapper so imperative callers (`openAtChip`) can bypass
@@ -545,7 +533,7 @@ export function useLspAutocomplete(
           // A 0,0,0,0 rect means the DOM still isn't ready — keep the
           // earlier measure rather than slamming back to origin.
           if (rect.width || rect.height || rect.left || rect.top) {
-            setPosition({ left: rect.left, top: rect.bottom });
+            setPosition({ left: rect.left, top: rect.bottom, lineTop: rect.top });
           }
         } catch {
           // Editor unmounted mid-request.
@@ -743,6 +731,7 @@ export function useLspAutocomplete(
         setPosition({
           left: rect.left,
           top: rect.bottom,
+          lineTop: rect.top,
         });
       } catch {
         // Editor may not be focused / mounted.
@@ -790,7 +779,6 @@ export function useLspAutocomplete(
       const marks = templateRowMarks(item);
       if (marks.opens || marks.browseAll) {
         setDocsFor(null);
-        putBrowseUnderTheField();
         setBrowse({ levelId: marks.opens ? marks.templateNodeId : undefined });
         setIsOpen(true);
         popoverKeyRef.current += 1;
@@ -857,7 +845,7 @@ export function useLspAutocomplete(
         }, 50);
       }
     },
-    [close, inserter, converter, putBrowseUnderTheField]
+    [close, inserter, converter]
   );
 
   const toggleDocs = useCallback(
@@ -1111,7 +1099,7 @@ export function useLspAutocomplete(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       chipPath: number[],
-      chipRect: { left: number; bottom: number },
+      chipRect: TOpenedAt,
       { inItsPlace = false }: { inItsPlace?: boolean } = {}
     ) => {
       // Clicking the chip the dropdown is already anchored to closes it.
@@ -1129,7 +1117,7 @@ export function useLspAutocomplete(
       replacingChipPathRef.current = chipPath;
       anchoredChipPathRef.current = chipPath;
       setFilterPrefix('');
-      setPosition({ left: chipRect.left, top: chipRect.bottom });
+      setPosition({ left: chipRect.left, top: chipRect.bottom, lineTop: chipRect.top });
       // Pre-open for immediate feedback even before the LSP is ready (the
       // popover shows a "Connecting…" stub); items populate on response.
       setItems([]);
@@ -1174,7 +1162,7 @@ export function useLspAutocomplete(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       caret: BasePoint,
-      rect: { left: number; bottom: number }
+      rect: TOpenedAt
     ) => {
       editorRef.current = editor;
       replacingChipPathRef.current = null;
@@ -1202,7 +1190,7 @@ export function useLspAutocomplete(
       setItems([]);
       setFocusedIndex(0);
       setEmptyMessage(undefined);
-      setPosition({ left: rect.left, top: rect.bottom });
+      setPosition({ left: rect.left, top: rect.bottom, lineTop: rect.top });
       popoverKeyRef.current += 1;
       setPopoverKey(popoverKeyRef.current);
       requestCompletions.cancel();
@@ -1257,7 +1245,14 @@ export function useLspAutocomplete(
       // the picker's: the list that typing has put in its place is at the caret
       if (browseRef.current && anchor?.element.isConnected) {
         const { left, bottom } = anchor.element.getBoundingClientRect();
-        setPosition({ left: left + anchor.left, top: bottom + anchor.bottom });
+        setPosition(({ top, lineTop }) => {
+          const moved = bottom + anchor.bottom - top;
+          return {
+            left: left + anchor.left,
+            top: top + moved,
+            ...(lineTop === undefined ? {} : { lineTop: lineTop + moved }),
+          };
+        });
       }
     };
     window.addEventListener('resize', follow);
@@ -1279,16 +1274,8 @@ export function useLspAutocomplete(
           from = null;
         }
       }
-      /* Opened in the text (a click, a tap, Tab), not from a control of its own (a button, a chip): the picker is a
-         list of its own, not a completion of the word at the caret, so it goes under the field, from its left
-         edge, over none of its text. At the caret, a caret at the end of the text left it no room on the right, so
-         it flipped to the caret's left and grew out of the drawer the field is in, over the page (qorus-ide #301). */
-      const inTheText = !anchor && !replacementPath;
       if (from) {
         const at = from.getBoundingClientRect();
-        if (inTheText) {
-          rect = { left: at.left, bottom: at.bottom };
-        }
         browseAnchorRef.current = { element: from, left: rect.left - at.left, bottom: rect.bottom - at.bottom };
       } else {
         browseAnchorRef.current = null;
@@ -1314,7 +1301,7 @@ export function useLspAutocomplete(
       setEmptyMessage(undefined);
       setFilterPrefix('');
       setDocsFor(null);
-      setPosition({ left: rect.left, top: rect.bottom });
+      setPosition({ left: rect.left, top: rect.bottom, lineTop: rect.top });
       setBrowse({ levelId, query, selectedValue, arrows });
       setIsOpen(true);
       popoverKeyRef.current += 1;

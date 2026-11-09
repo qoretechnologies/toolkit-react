@@ -12421,6 +12421,16 @@ export const TemplateOnlyOptionIsItsValue: Story = {
       expect(browseRows().some((item) => item.textContent?.startsWith('pos'))).toBe(true)
     );
     await animationsSettled();
+    /* The picker leaves the line it was opened at to be read: it is below it or above it, never over it (Foxhoundn
+       on qlip #475, on a phone: "The picker covers the input"). */
+    await waitFor(() => {
+      const text = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+      const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
+      expect(
+        picker.top >= text.bottom - 1 || picker.bottom <= text.top + 1,
+        `the picker (${picker.top}-${picker.bottom}) is off the text (${text.top}-${text.bottom})`
+      ).toBe(true);
+    });
   },
 };
 

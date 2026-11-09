@@ -1717,8 +1717,10 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
       expect(anchor?.getBoundingClientRect().left).toBe(button.left);
       const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
       expect(picker.top).toBeGreaterThanOrEqual(button.bottom - 1);
-      // at its button, on the side there is room
-      expect(Math.abs(picker.right - button.left)).toBeLessThan(40);
+      // at its button, below it, slid left only as far as the window needs: it still reaches the button
+      expect(picker.left).toBeLessThanOrEqual(button.left + 1);
+      expect(picker.right).toBeGreaterThan(button.left);
+      expect(picker.right).toBeLessThanOrEqual(window.innerWidth);
     });
     const local = await pickerRow('$local:');
     await expect(local.classList.contains('template-picker-group')).toBe(true);
@@ -2434,7 +2436,7 @@ const InADrawerAtTheRight = (args: any) => {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', minHeight: 640 }}>
       <div className='story-drawer' style={{ width: 420, padding: 16, boxSizing: 'border-box' }}>
-        <div style={{ width: 200 }}>
+        <div style={{ width: 260 }}>
           <TemplateField
             {...args}
             value={value}
@@ -2463,7 +2465,7 @@ const expectNoRowCut = () => {
   }
 };
 
-export const APickerOpenedInTheTextStaysUnderItsField: StoryObj<typeof meta> = {
+export const APickerOpenedInTheTextStaysAtTheCaretInItsDrawer: StoryObj<typeof meta> = {
   args: {
     type: 'any',
     allowTemplates: true,
@@ -2478,7 +2480,7 @@ export const APickerOpenedInTheTextStaysUnderItsField: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a field written as text in a drawer at the right edge of the window, and clicks at the end of its text: the template picker opens under the field, from its left edge, inside the drawer, and its list shows only whole rows.',
+          'Renders a field written as text in a drawer at the right edge of the window, and clicks at the end of its text: the template picker opens at the caret, below it, slid left only as far as the window needs, never out of the drawer over the page, and its list shows only whole rows.',
       },
     },
   },
@@ -2499,15 +2501,19 @@ export const APickerOpenedInTheTextStaysUnderItsField: StoryObj<typeof meta> = {
     await pickerRow('Context Data');
     await waitFor(() => {
       const drawer = canvasElement.querySelector('.story-drawer')!.getBoundingClientRect();
-      const box = editor.getBoundingClientRect();
+      const caret = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
       // the popover the picker is drawn in, whose edge is the picker's
-      const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
-      // under the field, from its left edge
-      expect(picker.top).toBeGreaterThanOrEqual(box.bottom - 1);
-      expect(Math.abs(picker.left - box.left)).toBeLessThanOrEqual(2);
-      // inside the drawer the field is in
-      expect(picker.left).toBeGreaterThanOrEqual(drawer.left - 1);
-      expect(picker.right).toBeLessThanOrEqual(drawer.right + 1);
+      const picker = document.querySelector('.reqore-popover-content')!;
+      const box = picker.getBoundingClientRect();
+      // below the caret, never turned to its other side
+      expect(picker.getAttribute('data-popper-placement')).toBe('bottom-start');
+      expect(box.top).toBeGreaterThanOrEqual(caret.bottom - 1);
+      // from the caret, slid left only as far as the window needs: it still reaches the caret
+      expect(box.left).toBeLessThanOrEqual(caret.left + 1);
+      expect(box.right).toBeGreaterThan(caret.left);
+      // never out of the drawer to its left, over the page; on its right the drawer is the window's edge
+      expect(box.left).toBeGreaterThanOrEqual(drawer.left - 1);
+      expect(box.right).toBeLessThanOrEqual(window.innerWidth);
     });
     expectNoRowCut();
   },

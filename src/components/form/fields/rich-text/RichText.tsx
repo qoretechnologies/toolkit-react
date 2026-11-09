@@ -607,10 +607,10 @@ export const RichTextFormField = memo(({
         const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
         const textBefore = (leaf.text ?? '').slice(0, caret.anchor.offset);
         if (REFERENCE_BEING_TYPED.test(textBefore)) {
-          openAtCaret(editor as any, caret.anchor, { left: at.left, bottom: at.bottom });
+          openAtCaret(editor as any, caret.anchor, { left: at.left, bottom: at.bottom, top: at.top });
           return;
         }
-        openBrowse(editor as any, { rect: { left: at.left, bottom: at.bottom }, caret: caret.anchor, arrows: empty });
+        openBrowse(editor as any, { rect: { left: at.left, bottom: at.bottom, top: at.top }, caret: caret.anchor, arrows: empty });
       } catch {
         // the editor is not drawn, or the page's caret is not in it: nothing opens
       }
@@ -649,7 +649,7 @@ export const RichTextFormField = memo(({
       if (!ReactEditor.isFocused(editor)) return;
       const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
       openBrowse(editor as any, {
-        rect: { left: at.left, bottom: at.bottom },
+        rect: { left: at.left, bottom: at.bottom, top: at.top },
         caret: Editor.start(editor as unknown as Editor, []),
         arrows: true,
       });
@@ -679,7 +679,7 @@ export const RichTextFormField = memo(({
           if (!path) return;
           const rect = event.currentTarget.getBoundingClientRect();
           current.openBrowse(editor as any, {
-            rect: { left: rect.left, bottom: rect.bottom },
+            rect: { left: rect.left, bottom: rect.bottom, top: rect.top },
             replacementPath: path as number[],
             levelId: listed.trailIds[listed.trailIds.length - 1],
             selectedValue: tag.value as string,

@@ -284,7 +284,7 @@ const TemplateButton = ({
   /** A value can be written at the caret: the button can be pressed. */
   insertable: boolean;
   notInsertable?: string;
-  open: (rect: { left: number; bottom: number }, anchor: Element) => void;
+  open: (rect: { left: number; bottom: number; top?: number }, anchor: Element) => void;
 }) => {
   const editorWords = useReqraftLabels().editor;
   return (
@@ -298,8 +298,8 @@ const TemplateButton = ({
       disabled={!insertable}
       onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-        const { left, bottom } = event.currentTarget.getBoundingClientRect();
-        open({ left, bottom }, event.currentTarget);
+        const { left, bottom, top } = event.currentTarget.getBoundingClientRect();
+        open({ left, bottom, top }, event.currentTarget);
       }}
     />
   );
@@ -591,7 +591,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (!editor || !at) return;
         try {
           const rect = ReactEditor.toDOMRange(editor, at).getBoundingClientRect();
-          autocomplete.openAtCaret(editor as any, at.anchor, { left: rect.left, bottom: rect.bottom });
+          autocomplete.openAtCaret(editor as any, at.anchor, { left: rect.left, bottom: rect.bottom, top: rect.top });
         } catch {
           // the caret is not drawn: nothing is asked
         }
@@ -869,7 +869,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               return;
             }
             autocomplete.openBrowse(editor as any, {
-              rect: { left: rect.left, bottom: rect.bottom },
+              rect: { left: rect.left, bottom: rect.bottom, top: rect.top },
               anchor: domNode as HTMLElement,
               replacementPath: tagPath,
               levelId: listed.trailIds[listed.trailIds.length - 1],
@@ -883,7 +883,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           autocomplete.openAtChip(
             editor,
             tagPath,
-            { left: rect.left, bottom: rect.bottom },
+            { left: rect.left, bottom: rect.bottom, top: rect.top },
             { inItsPlace: completeOnClick }
           );
         } catch {
@@ -907,7 +907,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (!ReactEditor.isFocused(editor)) return;
         const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
         openBrowse(editor as any, {
-          rect: { left: at.left, bottom: at.bottom },
+          rect: { left: at.left, bottom: at.bottom, top: at.top },
           anchor: ReactEditor.toDOMNode(editor, editor),
           caret: Editor.start(editor as unknown as Editor, []),
           arrows: true,
@@ -950,13 +950,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           const writing = /[$@][\w.:{}*-]*$/.test((leaf.text ?? '').slice(0, caret.anchor.offset));
           if (browsesOnClick && !writing && (empty || !completeOnClick)) {
             openBrowse(editor as any, {
-              rect: { left: at.left, bottom: at.bottom },
+              rect: { left: at.left, bottom: at.bottom, top: at.top },
               caret: caret.anchor,
               arrows: empty,
             });
             return;
           }
-          openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom });
+          openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom, top: at.top });
         } catch {
           // the editor is not drawn, or the page's caret is not in it: nothing is asked
         }
