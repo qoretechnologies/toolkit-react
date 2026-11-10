@@ -4,6 +4,7 @@ import { omit, size } from 'lodash';
 import { memo, useState } from 'react';
 import { conversionText, getArgumentType } from '../../../../helpers/expressions';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { IExpression, IExpressionSchema } from '../types';
 
 export interface IConfirmMismatchedTypesModalProps extends Omit<IReqoreModalProps, 'onSubmit'> {
@@ -27,11 +28,12 @@ const ANSWER = { responsive: false } as const;
 
 /** How many arguments will be transformed, in words: "1 argument will be transformed." */
 export const transformedCountText = (count: number): string =>
-  `${count} ${count === 1 ? 'argument' : 'arguments'} will be transformed.`;
+  reqraftLabels().expressions.transformedCount(count);
 
 export const ConfirmMismatchedTypesModal = memo(
   ({ args, expression, expressions, onSubmit, ...rest }: IConfirmMismatchedTypesModalProps) => {
     const types = useQorusTypes();
+    const words = useReqraftLabels().expressions;
     const [fixedArgs, setFixedArgs] = useState<IExpression[]>(() =>
       args.map((a) => (a.types_mismatch ? { ...a, types_mismatch: false } : a))
     );
@@ -47,7 +49,7 @@ export const ConfirmMismatchedTypesModal = memo(
         isOpen
         intent='warning'
         icon='ErrorWarningLine'
-        label='Confirm type selection for mismatched arguments'
+        label={words.confirmMismatchedTitle}
         width={CONFIRM_DIALOG_WIDTH_CSS}
         {...rest}
         customZIndex={1000000}
@@ -55,7 +57,7 @@ export const ConfirmMismatchedTypesModal = memo(
           {
             position: 'left',
             ...ANSWER,
-            label: 'Discard all',
+            label: words.discardAll,
             icon: 'CloseLine',
             // it clears every argument's value: a discard (BRAND_DESIGN §7)
             intent: 'danger',
@@ -66,7 +68,7 @@ export const ConfirmMismatchedTypesModal = memo(
           {
             position: 'right',
             ...ANSWER,
-            label: 'Accept all',
+            label: words.acceptAll,
             icon: 'CheckDoubleLine',
             onClick: () => {
               // We need to fix the values now - we accept all transformations
@@ -78,7 +80,7 @@ export const ConfirmMismatchedTypesModal = memo(
           {
             position: 'right',
             ...ANSWER,
-            label: 'Confirm selection',
+            label: words.confirmSelection,
             icon: 'CheckLine',
             onClick: () => {
               // We need to fix the values now - if an arg still has types_mismatch true, we need to clear its value and type
@@ -98,10 +100,8 @@ export const ConfirmMismatchedTypesModal = memo(
       >
         {/* read as a dialog's text is read: from the left, as the arguments listed under it are */}
         <ReqoreControlGroup vertical fluid gapSize='big'>
-          <ReqoreP>
-            These values have other types than expected. Qorus converts them when it runs.
-          </ReqoreP>
-          <ReqoreP>Please deselect the arguments you do not wish to transform:</ReqoreP>
+          <ReqoreP>{words.mismatchedExplanation}</ReqoreP>
+          <ReqoreP>{words.mismatchedInstruction}</ReqoreP>
           <ReqoreControlGroup vertical fluid>
             {args.map((arg, index) => (
               <ReqoreButton
@@ -123,8 +123,8 @@ export const ConfirmMismatchedTypesModal = memo(
                         types.getTypeSentenceForm(expression.args[index].ui_type)
                       )
                     : fixedArgs[index].types_mismatch === true
-                      ? 'Cleared, not converted'
-                      : 'No conversion needed'
+                      ? words.clearedNotConverted
+                      : words.noConversionNeeded
                 }
                 disabled={!arg.types_mismatch}
                 onClick={() => handleArgToggle(fixedArgs[index])}

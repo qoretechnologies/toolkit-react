@@ -6,7 +6,7 @@ import {
   ReqoreMenuItem,
 } from '@qoretechnologies/reqore';
 import { memo, useState } from 'react';
-import { ordinal } from '../../../../helpers/common';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 /** Positions offered as one-click segments before the typed field takes over. */
 export const QUICK_POSITIONS = 4;
@@ -24,7 +24,7 @@ const positionItems = (index: number, from: number, count: number) =>
     const to = from + i;
 
     return {
-      label: ordinal(to + 1),
+      label: reqraftLabels().expressions.ordinal(to + 1),
       className: `expression-arg-move-to-${to + 1}`,
       selected: to === index,
       disabled: to === index,
@@ -42,6 +42,7 @@ const positionItems = (index: number, from: number, count: number) =>
 export const ExpressionMoveToPositionStrip = memo(
   ({ index, count, onMoveTo }: IExpressionMoveToPositionStripProps) => {
     const [draft, setDraft] = useState('');
+    const words = useReqraftLabels().expressions;
     const target = Number(draft);
     const canGo =
       draft !== '' &&
@@ -55,7 +56,7 @@ export const ExpressionMoveToPositionStrip = memo(
     const label = (
       <ReqoreMenuItem
         icon='ListOrdered'
-        label='Move to position'
+        label={words.moveToPosition}
         readOnly
         fluid={false}
         style={{ cursor: 'default' }}
@@ -74,7 +75,7 @@ export const ExpressionMoveToPositionStrip = memo(
           <ReqoreDropdown
             compact
             className='expression-arg-move-to-picker'
-            label={ordinal(index + 1)}
+            label={words.ordinal(index + 1)}
             caretPosition='right'
             items={positionItems(index, 0, count).map((item) => ({
               ...item,
@@ -105,7 +106,7 @@ export const ExpressionMoveToPositionStrip = memo(
                 active={to === index}
                 disabled={to === index}
                 label={String(to + 1)}
-                tooltip={to === index ? 'Current position' : `Move to ${ordinal(to + 1)}`}
+                tooltip={to === index ? words.currentPosition : words.moveToOrdinal(to + 1)}
                 onClick={() => onMoveTo(to)}
               />
             ))}
@@ -131,7 +132,7 @@ export const ExpressionMoveToPositionStrip = memo(
                   compact
                   className='expression-arg-move-to-go'
                   icon='ArrowRightLine'
-                  tooltip='Move to that position'
+                  tooltip={words.moveToThatPosition}
                   disabled={!canGo}
                   onClick={go}
                 />
@@ -139,7 +140,7 @@ export const ExpressionMoveToPositionStrip = memo(
               <ReqoreDropdown
                 compact
                 className='expression-arg-move-to-more'
-                label='More'
+                label={words.morePositions}
                 caretPosition='right'
                 filterable={count - QUICK_POSITIONS > 8}
                 items={positionItems(index, QUICK_POSITIONS, count).map((item) => ({

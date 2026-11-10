@@ -1,5 +1,6 @@
 import { ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/reqore';
 import { useEffect, useRef, useState } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { ImageLightbox } from '../imageLightbox';
 
 /*
@@ -24,6 +25,7 @@ export interface IAttachmentChipsProps {
 }
 
 export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttachmentChipsProps) => {
+  const words = useReqraftLabels().supportTicket;
   const [thumbnails, setThumbnails] = useState<string[]>([]);
   // index into the image subset that's open in the lightbox, or null when closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -111,7 +113,7 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
               ? [
                   {
                     icon: 'Edit2Line' as const,
-                    tooltip: 'Rename',
+                    tooltip: words.rename,
                     onClick: (event: React.MouseEvent<HTMLDivElement>) => {
                       event.stopPropagation();
                       startRename(index);
@@ -126,7 +128,7 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
               leftIconProps={thumbnail ? { image: thumbnail } : undefined}
               label={file.name}
               size='small'
-              tooltip={thumbnail ? 'Click to preview' : undefined}
+              tooltip={thumbnail ? words.clickToPreview : undefined}
               actions={actions}
               onClick={thumbnail ? () => setPreviewIndex(imageIndex) : undefined}
               onRemoveClick={disabled ? undefined : () => onRemove(index)}

@@ -6,6 +6,20 @@ import {
   IReqraftTemplateListLabels,
   ITemplatePickerLabels,
 } from './templateListLabels';
+import { DEFAULT_VALIDATION_LABELS, IValidationLabels } from './validationLabels';
+import { DEFAULT_EXPRESSION_LABELS, IExpressionLabels } from '../components/form/expressions/labels';
+import { DEFAULT_FIELD_LABELS, IFieldLabels } from '../components/form/fields/labels';
+import {
+  DEFAULT_SCHEMA_DEFINITION_LABELS,
+  ISchemaDefinitionLabels,
+} from '../components/form/fields/schema-definition/labels';
+import { DEFAULT_LOG_LABELS, ILogLabels } from '../components/log/labels';
+import { DEFAULT_COMPOSER_LABELS, IComposerLabels } from '../components/composer/labels';
+import {
+  DEFAULT_SUPPORT_TICKET_LABELS,
+  ISupportTicketLabels,
+} from '../components/supportTicket/labels';
+import { DEFAULT_AB_TEST_LABELS, IAbTestLabels } from '../tracking/ui/labels';
 
 /**
  * The words of the template tree: what a row says a node is, its groups, and what a template's color means. Read by
@@ -31,6 +45,10 @@ export interface ITemplateTreeLabels {
   intentMeanings: { success: string; custom1: string; info: string };
   /** What a diagnostic says of a reference that names nothing here. */
   referenceNamesNothing: (written: string) => string;
+  /** A template's or a value's hover where nothing describes it: why, never a blank. */
+  noValueDescription: string;
+  /** A record field's hover where nothing describes it. */
+  noFieldDescription: string;
 }
 
 /** The words of a template field's own controls and of the picker's search, levels and states. */
@@ -145,6 +163,8 @@ export interface IEditorLabels {
   noTemplates: string;
   unfinishedParts: (hole: string) => string;
   browseAllTemplates: string;
+  /** What that row says it opens. */
+  browseAllTemplatesDescription: string;
   allOf: (context: string) => string;
   inTrail: (trail: string) => string;
   fromSource: (source: string) => string;
@@ -315,6 +335,14 @@ export interface IFormEngineLabels {
   calmRequired: string;
   /** `calmRequired` in a read-only form, where the reader cannot add anything: only what is the case. */
   calmRequiredRead: string;
+  /** An empty field of a required group: it, or one of the `others` (their names), is required. */
+  requiredOrOthers: (others: string[]) => string;
+  /** Why a stored value is not one of the field's choices: the value, as it is named (quoted). */
+  notAChoice: (name: string) => string;
+  /** The same of several values of a list. */
+  notAmongTheChoices: (names: string[]) => string;
+  /** Why a value cannot be picked, where its refusal gives no reason of its own. */
+  valueNotAvailable: string;
   /**
    * A value that is not one of a field's choices, in a form where it can be changed: the reason (`"gone" is not one
    * of the choices`) and what to do about it. A read view says the reason alone, because a reader cannot pick
@@ -356,6 +384,12 @@ export interface IFormEngineLabels {
   knownWhenItRuns: string;
 }
 
+/** The words of the navigation menu. */
+export interface IMenuLabels {
+  /** Its search box: `shortcut` is the key that moves the focus to it. */
+  filterMenu: (shortcut: string) => string;
+}
+
 /** Every word Reqraft draws that a host can give in its own language, by where it is drawn. */
 export interface IReqraftLabels {
   templateList: IReqraftTemplateListLabels;
@@ -367,6 +401,19 @@ export interface IReqraftLabels {
   templateBrowser: ITemplateBrowserLabels;
   editor: IEditorLabels;
   formEngine: IFormEngineLabels;
+  /** Why a value is refused, said under its field. */
+  validation: IValidationLabels;
+  /** An expression field and its builder. */
+  expressions: IExpressionLabels;
+  /** The field editors a form draws: lists, files, choices, objects. */
+  fields: IFieldLabels;
+  schemaDefinition: ISchemaDefinitionLabels;
+  log: ILogLabels;
+  menu: IMenuLabels;
+  composer: IComposerLabels;
+  supportTicket: ISupportTicketLabels;
+  /** The A/B test card and overlay. */
+  abTest: IAbTestLabels;
 }
 
 /** What a host gives: any of the words of any part, and one or more entries of a part's maps. */
@@ -415,6 +462,8 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     },
     referenceNamesNothing: (written) =>
       `No template here is called \`${written}\`: pick one from the list, or remove it.`,
+    noValueDescription: 'No description was given for this value.',
+    noFieldDescription: 'No description was given for this field.',
   },
   templateField: {
     setCustomValue: 'Set Custom Value',
@@ -501,6 +550,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     noTemplates: 'No templates here',
     unfinishedParts: (hole) => `Fill in each ${hole} (the parts not chosen yet).`,
     browseAllTemplates: 'Browse all templates',
+    browseAllTemplatesDescription: 'Every template and field this value can use, by group.',
     allOf: (context) => `all of ${context}`,
     inTrail: (trail) => `in ${trail}`,
     fromSource: (source) => `from ${source}`,
@@ -700,6 +750,11 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     required: 'This field is required',
     calmRequired: 'Required · add a value',
     calmRequiredRead: 'Required · not set',
+    requiredOrOthers: (others) => `This field or ${others.join(' or ')} is required`,
+    notAChoice: (name) => `${name} is not one of the choices`,
+    notAmongTheChoices: (names) =>
+      `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are not among the choices`,
+    valueNotAvailable: 'This value is not available',
     unlistedChoice: (reason) => `${reason} · pick one from the list`,
     defaultMark: 'Default',
     noStructuredData: 'No structured data.',
@@ -729,6 +784,17 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     thisValue: 'this value',
     knownWhenItRuns: 'Depends on the incoming data, so it is checked when this runs.',
   },
+  validation: DEFAULT_VALIDATION_LABELS,
+  expressions: DEFAULT_EXPRESSION_LABELS,
+  fields: DEFAULT_FIELD_LABELS,
+  schemaDefinition: DEFAULT_SCHEMA_DEFINITION_LABELS,
+  log: DEFAULT_LOG_LABELS,
+  menu: {
+    filterMenu: (shortcut) => `Filter menu "${shortcut}"`,
+  },
+  composer: DEFAULT_COMPOSER_LABELS,
+  supportTicket: DEFAULT_SUPPORT_TICKET_LABELS,
+  abTest: DEFAULT_AB_TEST_LABELS,
 };
 
 const merged = (given: TReqraftLabelOverrides): IReqraftLabels => {
@@ -773,6 +839,12 @@ const subscribe = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
+
+/**
+ * Hears every change of the words, for what keeps something worded outside React (a memoized reason, a list built
+ * once): it is worded again, or dropped, when the host gives other words. Returns what stops hearing.
+ */
+export const onReqraftLabelsChange = (listener: () => void): (() => void) => subscribe(listener);
 
 /** The words now, and a new render when a host gives others. */
 export const useReqraftLabels = (): IReqraftLabels =>

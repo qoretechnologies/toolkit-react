@@ -19,6 +19,7 @@ import { READABLE_ICON } from '../../helpers/readableColors';
 import { copyText } from '../../helpers/secureContextApis';
 import { useReadableIntentShade } from '../../hooks/useReadableIntentShade';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 
 /** How faded reqore draws a panel's title icon. */
 const PANEL_TITLE_ICON_ALPHA = 0.7;
@@ -137,8 +138,8 @@ export const ReqraftLog = ({
   autoScroll,
   allowMessageDeletion,
   allowMessageCopy,
-  copyMessageNotificationContent = 'Log message copied to clipboard',
-  copyMessageFailedNotificationContent = 'Could not copy the log message: the browser did not allow access to the clipboard. Select the message and copy it yourself.',
+  copyMessageNotificationContent: givenCopiedContent,
+  copyMessageFailedNotificationContent: givenCopyFailedContent,
   filterable,
   filterProps,
   showTimestamps,
@@ -155,6 +156,10 @@ export const ReqraftLog = ({
   size = 'small',
   ...panelProps
 }: IReqraftLogProps) => {
+  const words = useReqraftLabels().log;
+  // what the log is given says it, before the host's words
+  const copyMessageNotificationContent = givenCopiedContent ?? words.copied;
+  const copyMessageFailedNotificationContent = givenCopyFailedContent ?? words.copyFailed;
   // a message's time, softer than the message: as soft as it still reads (main:lighten:8 was 2.6:1; qorus#646)
   const timestampOpacity = useReadableOpacity(0.35);
   const [query, setQuery] = useState<string>('');
@@ -296,7 +301,7 @@ export const ReqraftLog = ({
           show:
             contentRef &&
             contentRef.scrollHeight - contentRef.scrollTop !== contentRef.clientHeight,
-          tooltip: 'Scroll to bottom',
+          tooltip: words.scrollToBottom,
           className: 'reqraft-log-scroll-to-bottom',
         },
         {
@@ -304,7 +309,7 @@ export const ReqraftLog = ({
           show: !!filterable,
           props: {
             icon: 'SearchLine',
-            placeholder: 'Filter messages',
+            placeholder: words.filterMessages,
             ...filterProps,
             value: query,
             onChange: (e) => setQuery(e.target.value),
@@ -315,14 +320,14 @@ export const ReqraftLog = ({
         {
           icon: status === 'PAUSED' ? 'PlayLine' : 'PauseFill',
           onClick: status === 'PAUSED' ? resume : pause,
-          tooltip: status === 'PAUSED' ? 'Resume' : 'Pause',
+          tooltip: status === 'PAUSED' ? words.resume : words.pause,
           intent: status === 'PAUSED' ? 'warning' : 'success',
           className: 'reqraft-log-pause-resume',
         },
         {
           icon: 'DeleteBinLine',
           onClick: clear,
-          tooltip: 'Clear log',
+          tooltip: words.clear,
           className: 'reqraft-log-clear',
         },
       ]}
@@ -330,7 +335,7 @@ export const ReqraftLog = ({
       <StyledLogList vertical fluid size={size} style={listStyle}>
         {count(filteredMessages) === 0 ?
           <ReqoreParagraph size={size} style={{ fontFamily: ReqoreFonts.mono }}>
-            No messages
+            {words.noMessages}
           </ReqoreParagraph>
         : null}
         {filteredMessages.map(({ message, timestamp, ...paragraphProps }, index) => (
@@ -392,7 +397,7 @@ export const ReqraftLog = ({
           <ReqoreControlGroup>
             <ReqoreInput
               size={size}
-              placeholder='Send a message'
+              placeholder={words.sendMessage}
               icon='SendPlaneLine'
               {...sendMessageProps}
               value={message}

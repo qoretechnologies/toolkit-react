@@ -58,6 +58,7 @@ import { StringFormField } from '../string/String';
 import { UrlFormField } from '../url/Url';
 import { FormFieldsSkeleton } from '../../engine/FormFieldsSkeleton';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 /** UI superset of `TQorusType` — the IDE's `Field/systemOptions` `IQorusType`. */
 export type IQorusType = TQorusType | string;
@@ -268,6 +269,7 @@ function AutoField<T = any>({
   onSubFormAttentionChange,
   ...rest
 }: IAutoFieldProps & T) {
+  const fieldWords = useReqraftLabels().fields;
   // drawn as declared from the first render; see `resolveAutoFieldTypes`
   const [mountTypes] = useState(() =>
     resolveAutoFieldTypes(defaultType, defaultInternalType, value)
@@ -340,7 +342,7 @@ function AutoField<T = any>({
             setError(undefined);
             setFinalArgSchema(schema.data);
           } else {
-            setError(schema.error ?? `The schema "${arg_schema}" could not be loaded.`);
+            setError(schema.error ?? reqraftLabels().fields.schemaNotLoaded(String(arg_schema)));
           }
         } catch (fetchError) {
           // abandoned (the query cache was cleared mid-flight), not refused:
@@ -351,7 +353,7 @@ function AutoField<T = any>({
           setError(
             fetchError instanceof Error ?
               fetchError.message
-            : `The schema "${arg_schema}" could not be loaded.`
+            : reqraftLabels().fields.schemaNotLoaded(String(arg_schema))
           );
         }
       })();
@@ -755,7 +757,7 @@ function AutoField<T = any>({
               placeholder={
                 currentType === 'binary' ?
                   ((rest as { placeholder?: string }).placeholder ??
-                  'Base64, 0x hex, or data: URL')
+                  fieldWords.binaryPlaceholder)
                 : (rest as { placeholder?: string }).placeholder
               }
               type={currentType}
@@ -1157,7 +1159,7 @@ function AutoField<T = any>({
           if (baseType && baseType !== currentType) {
             return renderField(baseType);
           }
-          return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
+          return <ReqoreTag intent='danger' icon='SpamLine' label={fieldWords.unknownType} />;
         }
       }
     };
@@ -1250,7 +1252,7 @@ function AutoField<T = any>({
             onClick={handleNullToggle}
             fixed
           >
-            {isSetToNull ? 'Unset null' : 'Set as null'}
+            {isSetToNull ? fieldWords.unsetNull : fieldWords.setAsNull}
           </ReqoreButton>
         )}
       </ReqoreControlGroup>

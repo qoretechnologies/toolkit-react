@@ -18,6 +18,7 @@ import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { rgba } from 'polished';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   getReadableFaded,
   getReadableShade,
@@ -28,6 +29,7 @@ import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
 import { ImageLightbox } from '../imageLightbox';
+import type { ISupportTicketLabels } from '../supportTicket/labels';
 import {
   dedupeInterfaceReferences,
   IInterfaceReference,
@@ -172,14 +174,19 @@ const authorIcon = (message: ITicketThreadMessage): IReqoreIconName =>
 /** The label above a message. The customer view masks staff identity as "Qorus
  *  Support"; the staff view shows the real author with a role prefix. Internal
  *  notes always label as "Internal note" regardless of viewer. */
-const authorLabel = (message: ITicketThreadMessage, viewerRole: TTicketViewerRole): string => {
+const authorLabel = (
+  message: ITicketThreadMessage,
+  viewerRole: TTicketViewerRole,
+  words: ISupportTicketLabels
+): string => {
   if (message.internal) {
-    return 'Internal note';
+    return words.internalNote;
   }
   if (viewerRole === 'customer') {
-    return message.author_type === 'customer' ? 'You' : 'Qorus Support';
+    return message.author_type === 'customer' ? words.you : words.supportName;
   }
-  return `${message.author_type === 'staff' ? 'Support' : 'Customer'} · ${message.author_name ?? message.author_id}`;
+  const name = message.author_name ?? message.author_id;
+  return message.author_type === 'staff' ? words.staffAuthor(name) : words.customerAuthor(name);
 };
 
 /**
@@ -275,8 +282,8 @@ const StyledSkeletonLines = styled.div`
   align-items: flex-start;
 `;
 
-const ConversationSkeleton = () => (
-  <StyledSkeletonThread aria-busy='true' aria-label='Loading conversation'>
+const ConversationSkeleton = ({ label }: { label: string }) => (
+  <StyledSkeletonThread aria-busy='true' aria-label={label}>
     {SKELETON_BUBBLES.map((bubble, index) => {
       const avatar = <ReqoreSkeleton circle width='30px' height='30px' />;
       return (
@@ -441,18 +448,22 @@ const AttachmentChip = ({
 }: {
   attachment: ITicketThreadAttachment;
   onDownloadAttachment?: (attachmentId: string, filename: string) => void;
-}) => (
-  <ReqoreButton
-    icon='Download2Line'
-    size='small'
-    flat
-    badge={formatBytes(attachment.size_bytes)}
-    tooltip={`${attachment.content_type} · download`}
-    onClick={() => onDownloadAttachment?.(attachment.attachment_id, attachment.filename)}
-  >
-    {attachment.filename}
-  </ReqoreButton>
-);
+}) => {
+  const words = useReqraftLabels().supportTicket;
+
+  return (
+    <ReqoreButton
+      icon='Download2Line'
+      size='small'
+      flat
+      badge={formatBytes(attachment.size_bytes)}
+      tooltip={words.downloadFile(attachment.content_type)}
+      onClick={() => onDownloadAttachment?.(attachment.attachment_id, attachment.filename)}
+    >
+      {attachment.filename}
+    </ReqoreButton>
+  );
+};
 
 const StyledThumb = styled.button`
   appearance: none;
@@ -491,6 +502,7 @@ const ImageThumb = ({
   onOpen: () => void;
   onDownloadAttachment?: (attachmentId: string, filename: string) => void;
 }) => {
+  const words = useReqraftLabels().supportTicket;
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState<boolean>(false);
 
@@ -512,7 +524,7 @@ const ImageThumb = ({
     return <ReqoreSkeleton width='180px' height='120px' />;
   }
   return (
-    <StyledThumb type='button' title={`${attachment.filename} — click to enlarge`} onClick={onOpen}>
+    <StyledThumb type='button' title={words.clickToEnlarge(attachment.filename)} onClick={onOpen}>
       <img src={url} alt={attachment.filename} />
     </StyledThumb>
   );
@@ -619,6 +631,8 @@ const SystemMessage = ({
   /** whose side the line is read from: the end of a grant says "by you" to the one who ended it */
   viewerRole: TTicketViewerRole;
 }) => {
+  // drawn again when a host gives other words: the event's mark and line read them
+  useReqraftLabels();
   const meta = ticketSystemEventMeta(message.system_event);
   if (message.system_event === 'support_access.requested') {
     return (
@@ -726,6 +740,7 @@ export const TicketThread = ({
   // end rather than scrollIntoView on a sentinel — scrollIntoView also drags any outer scroll
   // container around and stops one bottom-padding short of the real end.
   const threadRef = useRef<HTMLDivElement>(null);
+  const words = useReqraftLabels().supportTicket;
   /* The empty state's deboss (its icon and title washed back), the system notes and the message count: as
      faint as they still read - 3:1 the icon, 4.5:1 the text (qorus#646). */
   const emptyIconOpacity = useReadableOpacity(0.28, READABLE_ICON);
@@ -780,13 +795,13 @@ export const TicketThread = ({
   // reading — replacing it with pulsing placeholders — is the single worst moment to
   // do it. The new message simply appears when the refetch resolves.
   if (loading && !messages.length) {
-    return <ConversationSkeleton />;
+    return <ConversationSkeleton label={words.loadingConversation} />;
   }
 
   if (!messages.length) {
     return (
       <StyledEmpty $iconOpacity={emptyIconOpacity} $titleOpacity={emptyTitleOpacity}>
-        <ReqoreEmptyState icon='Chat3Line' title='No messages yet' flat transparent />
+        <ReqoreEmptyState icon='Chat3Line' title={words.noMessagesYet} flat transparent />
       </StyledEmpty>
     );
   }
@@ -814,7 +829,7 @@ export const TicketThread = ({
                 maxWidth='76%'
                 align={message.author_type === viewerRole ? 'right' : 'left'}
                 avatar={{ icon: authorIcon(message) }}
-                label={authorLabel(message, viewerRole)}
+                label={authorLabel(message, viewerRole, words)}
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
                 // Both sides are neutral cards; an internal note is amber, so it can
                 // never be mistaken for a reply the customer sees.
@@ -849,7 +864,7 @@ export const TicketThread = ({
         )
       )}
       <ReqoreP size='tiny' effect={{ opacity: countOpacity, textAlign: 'center' }}>
-        {messages.length} message{messages.length === 1 ? '' : 's'}
+        {words.messageCount(messages.length)}
       </ReqoreP>
     </StyledThread>
   );

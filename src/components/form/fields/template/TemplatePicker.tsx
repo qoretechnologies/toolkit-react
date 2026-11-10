@@ -149,6 +149,7 @@ const RowDescription = ({
   showWhere: boolean;
   renderMarkdown?: TMarkdownRenderer;
 }) => {
+  const editorWords = useReqraftLabels().editor;
   const where = showWhere && node.trail.length ? node.trail.join(' › ') : undefined;
   if (!where && !node.description && !node.source) {
     return null;
@@ -157,7 +158,7 @@ const RowDescription = ({
     <span className='template-picker-row-description' style={{ display: 'block' }}>
       {where ?
         <span className='template-picker-row-where' style={{ display: 'block', opacity: 0.7 }}>
-          in {where}
+          {editorWords.inTrail(where)}
         </span>
       : null}
       {node.description ?
@@ -170,7 +171,7 @@ const RowDescription = ({
       : null}
       {node.source ?
         <span className='template-picker-row-source' style={{ display: 'block', opacity: 0.7 }}>
-          from {node.source}
+          {editorWords.fromSource(node.source)}
         </span>
       : null}
     </span>

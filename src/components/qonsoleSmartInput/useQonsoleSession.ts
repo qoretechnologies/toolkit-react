@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { IUseLspSessionResult, useLspSession } from '../smartEditor/useLspSession';
 import {
   IQonsoleAssistContext,
@@ -96,7 +97,7 @@ export function useQonsoleSession(
     errors?: Array<{ message: string }>;
   }> => {
     if (!session.client) {
-      return { valid: false, errors: [{ message: 'No LSP connection' }] };
+      return { valid: false, errors: [{ message: reqraftLabels().editor.noLspConnection }] };
     }
     try {
       const result = await session.client.customRequest<{
@@ -111,7 +112,7 @@ export function useQonsoleSession(
       }
       return { valid: true };
     } catch {
-      return { valid: false, errors: [{ message: 'Validation request failed' }] };
+      return { valid: false, errors: [{ message: reqraftLabels().editor.validationFailed }] };
     }
   }, [session.client, session.uri]);
 

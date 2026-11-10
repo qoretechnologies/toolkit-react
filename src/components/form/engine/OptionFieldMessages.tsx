@@ -20,7 +20,7 @@ import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import {
-  UNAVAILABLE_VALUE_FALLBACK_REASON,
+  unavailableValueFallbackReason,
   getRefusalMessage,
   getRequiredOptionMessage,
 } from '../../../helpers/options';
@@ -297,7 +297,7 @@ export const getAllowedValueAvailability = (
       // A refusal with no message at all still has to say something: silence
       // over a value that will not respond is the defect this whole mechanism
       // exists to remove.
-      reason: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+      reason: explanation?.content || unavailableValueFallbackReason(),
     };
   }
 

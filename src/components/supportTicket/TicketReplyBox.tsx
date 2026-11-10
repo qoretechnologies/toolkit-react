@@ -1,5 +1,6 @@
 import type { TReqoreDropdownItems } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { ReactNode } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   Composer,
   IComposerProps,
@@ -92,8 +93,8 @@ export const TicketReplyBox = ({
   fileToAttachment = defaultFileToAttachment,
   sending,
   disabled,
-  disabledReason = 'This ticket is closed. Open a new ticket to continue the conversation.',
-  placeholder = 'Write a reply…',
+  disabledReason,
+  placeholder,
   sendLabel,
   allowInternalNote,
   attachMenuItems,
@@ -104,8 +105,11 @@ export const TicketReplyBox = ({
   defaultText,
   defaultFiles,
 }: ITicketReplyBoxProps) => {
+  const words = useReqraftLabels().supportTicket;
   const resolvedPlaceholder =
-    typeof placeholder === 'function' ? placeholder(false) : placeholder;
+    placeholder === undefined ? words.writeAReply
+    : typeof placeholder === 'function' ? placeholder(false)
+    : placeholder;
   // Label for a given send mode: `false` = public reply, `true` = internal note.
   const labelFor = (note: boolean): string =>
     sendLabel !== undefined
@@ -113,8 +117,8 @@ export const TicketReplyBox = ({
         ? sendLabel(note)
         : sendLabel
       : note
-        ? 'Add internal note'
-        : 'Send reply';
+        ? words.addInternalNote
+        : words.sendReply;
 
   // Staff surface splits the send button; customer surface is a single "Send reply".
   // Both send the reply as the white primary (`REPLY_SEND_STYLE`); the internal note
@@ -157,7 +161,7 @@ export const TicketReplyBox = ({
       placeholder={resolvedPlaceholder}
       sending={sending}
       disabled={disabled}
-      disabledReason={disabledReason}
+      disabledReason={disabledReason ?? words.ticketClosed}
       onSend={handleSend}
       sendLabel={labelFor(false)}
       sendIntent={REPLY_SEND_STYLE.intent}

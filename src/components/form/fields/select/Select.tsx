@@ -22,6 +22,7 @@ import {
   UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
 import { useUnavailableLabelOpacity } from './unavailableRow';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 /** The color the anchored list of choices is drawn in. */
 export const ANCHORED_LIST_MAIN = '#010811';
@@ -112,6 +113,7 @@ export const SelectFormField = memo(
     size: componentSize,
     ...rest
   }: ISelectFormFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
     // the name of an item that cannot be picked is dimmed, as far as it still reads (qorus#646)
     const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
@@ -492,7 +494,7 @@ export const SelectFormField = memo(
         <ReqoreTag
           {...(rest as any)}
           intent='muted'
-          label='No data available'
+          label={fieldWords.noDataAvailable}
           icon='ForbidLine'
           fixed
           size={componentSize}
@@ -595,7 +597,7 @@ export const SelectFormField = memo(
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || fieldWords.pleaseSelect
             : undefined}
           </ReqoreButton>
         : <ReqoreDropdown
@@ -640,7 +642,7 @@ export const SelectFormField = memo(
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || fieldWords.pleaseSelect
             : undefined}
           </ReqoreDropdown>
         }

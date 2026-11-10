@@ -12,6 +12,7 @@ import { rgba } from 'polished';
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { usePhoneViewport } from '../../hooks/usePhoneViewport';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 import { READABLE_ICON } from '../../helpers/readableColors';
@@ -319,15 +320,22 @@ export const ReferencePicker = ({
   onRemove,
   disabled,
   resolveInterfaceIcon = defaultInterfaceIcon,
-  resolveKindLabel = defaultInterfaceKindLabel,
+  resolveKindLabel: resolveKindLabelProp,
   accent,
   header,
   onClose,
-  title = 'Reference interfaces',
+  title,
   layout = 'auto',
   presentation = 'auto',
 }: IReferencePickerProps) => {
   const theme = useReqoreTheme();
+  const words = useReqraftLabels().supportTicket;
+  /* The built-in reading names are the host's words (`defaultInterfaceKindLabel` reads them), so the default is
+     made again when they change: the kinds are matched and listed by what is drawn. */
+  const resolveKindLabel = useMemo(
+    () => resolveKindLabelProp ?? ((candidate: string) => defaultInterfaceKindLabel(candidate)),
+    [resolveKindLabelProp, words]
+  );
   const readable = getReadableColor(theme);
   const [query, setQuery] = useState<string>('');
   // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1; qorus#646)
@@ -425,12 +433,12 @@ export const ReferencePicker = ({
 
   const emptyNote = () => {
     if (!needle) {
-      return `No ${label.toLowerCase()} on this instance`;
+      return words.noneOfKind(label);
     }
 
-    return otherKindsMatch
-      ? `No ${label.toLowerCase()} match “${query.trim()}” — other types do`
-      : `Nothing matches “${query.trim()}”`;
+    return otherKindsMatch ?
+        words.noneOfKindMatch(label, query.trim())
+      : words.nothingMatches(query.trim());
   };
 
   /* Both panes are `ReqoreMenu`s of `ReqoreMenuItem`s — a vertical selectable list is
@@ -492,7 +500,7 @@ export const ReferencePicker = ({
             icon='ErrorWarningLine'
             rightIcon={onRetry ? 'RefreshLine' : undefined}
             intent='danger'
-            label={`Couldn't load ${label.toLowerCase()}`}
+            label={words.couldNotLoadKind(label)}
             /* the specific failure is the tooltip — the pane states the outcome */
             tooltip={error}
             onClick={onRetry}
@@ -504,7 +512,7 @@ export const ReferencePicker = ({
     if (loading) {
       return (
         <ReqoreSpinner iconColor='info' size='small' centered>
-          Loading {label.toLowerCase()}…
+          {words.loadingKind(label)}
         </ReqoreSpinner>
       );
     }
@@ -530,11 +538,10 @@ export const ReferencePicker = ({
               badge={badge}
               disabled={disabled}
               tooltip={
-                isPicked
-                  ? removable
-                    ? `Remove “${name}”`
-                    : `“${name}” is already referenced`
-                  : `Reference “${name}”`
+                isPicked ?
+                  removable ? words.removePicked(name)
+                  : words.alreadyReferenced(name)
+                : words.referenceItem(name)
               }
               onClick={!isPicked || removable ? () => toggle(name) : undefined}
               {...pickedItemProps(isPicked)}
@@ -569,7 +576,7 @@ export const ReferencePicker = ({
         <ReqoreInput
           value={query}
           onChange={(event) => setQuery((event.target as HTMLInputElement).value)}
-          placeholder='Search types and interfaces…'
+          placeholder={words.searchKindsAndInterfaces}
           icon='SearchLine'
           minimal
           flat
@@ -611,7 +618,14 @@ export const ReferencePicker = ({
   }
 
   return (
-    <ReqoreModal isOpen icon='LinksLine' label={title} width='100%' blur={3} onClose={onClose}>
+    <ReqoreModal
+      isOpen
+      icon='LinksLine'
+      label={title ?? words.referenceInterfaces}
+      width='100%'
+      blur={3}
+      onClose={onClose}
+    >
       {body}
     </ReqoreModal>
   );

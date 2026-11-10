@@ -12,6 +12,7 @@ import isEqual from 'lodash/isEqual';
 import { isRendererOnlyUiType } from '../components/form/engine/rendererTypes';
 import { richtextHasTag, richtextToString } from './common';
 import { getListElementValue } from './options';
+import { reqraftLabels } from './reqraftLabels';
 import { isValueTemplate } from './templates';
 
 const isStructured = (value: unknown): boolean => value !== null && typeof value === 'object';
@@ -297,8 +298,6 @@ export const getUnlistedChoiceReason = (
     return undefined;
   }
   const names = unlisted.map((item) => `"${describeChoiceValue(item)}"`);
-  if (names.length === 1) {
-    return `${names[0]} is not one of the choices`;
-  }
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are not among the choices`;
+  const words = reqraftLabels().formEngine;
+  return names.length === 1 ? words.notAChoice(names[0]) : words.notAmongTheChoices(names);
 };

@@ -20,12 +20,14 @@ import {
 } from '@qoretechnologies/reqore';
 import { memo, ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { describedPanelProps } from '../../../Description/describedControl';
 import { Hint } from './Hint';
 import Loader from './Loader';
 import { CatalogGroupBody, CatalogNodeEditor } from './CatalogNodeEditor';
 import { SECTION_ICONS, sectionCount } from './helpers';
 import { InlineValidationBanner } from './InlineValidationBanner';
+import { TSchemaDefinitionTab } from './labels';
 import { createMigrationBlock, MigrationsTab } from './MigrationsTab';
 import { SchemaDefinitionProvider } from './referenceSuggestions';
 import { createEmptyDefinition } from './starterTemplate';
@@ -71,16 +73,15 @@ const PRIMARY_SECTIONS = [
   'migrations',
 ];
 
-/** Extracts a human-readable message from a catalogue fetch error. */
-const errorMessage = (error: unknown): string => {
-  if (!error) return 'The schema option catalog could not be loaded.';
+/**
+ * Extracts a human-readable message from a catalogue fetch error: what the
+ * server said, or `fallback` (the host's words) when it said nothing.
+ */
+const errorMessage = (error: unknown, fallback: string): string => {
+  if (!error) return fallback;
   if (typeof error === 'string') return error;
   const e = error as { desc?: string; message?: string };
-  return (
-    e.desc ??
-    e.message ??
-    'The schema option catalog could not be loaded.'
-  );
+  return e.desc ?? e.message ?? fallback;
 };
 
 interface ISchemaEditorBodyProps
@@ -101,6 +102,7 @@ const SchemaEditorBody = memo(
   }: ISchemaEditorBodyProps) => {
     // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
+    const words = useReqraftLabels().schemaDefinition;
     const definition = useMemo<IDataSchemaDefinition>(
       () => value ?? createEmptyDefinition(wrapperName),
       [value, wrapperName]
@@ -177,32 +179,32 @@ const SchemaEditorBody = memo(
 
     const tabs = useMemo(() => {
       const list: Array<{
-        id: string;
+        id: TSchemaDefinitionTab;
         label: string;
         icon: (typeof SECTION_ICONS)[string];
         badge?: number;
       }> = [
-        { id: 'schema', label: 'Schema', icon: SECTION_ICONS.schema },
+        { id: 'schema', label: words.tabs.schema, icon: SECTION_ICONS.schema },
         {
           id: 'tables',
-          label: 'Tables',
+          label: words.tabs.tables,
           icon: SECTION_ICONS.tables,
           badge: sectionCount(definition.tables) || undefined,
         },
         {
           id: 'sequences',
-          label: 'Sequences',
+          label: words.tabs.sequences,
           icon: SECTION_ICONS.sequences,
           badge: sectionCount(definition.sequences) || undefined,
         },
         {
           id: 'reference_data',
-          label: 'Reference data',
+          label: words.tabs.reference_data,
           icon: SECTION_ICONS.reference_data,
         },
         {
           id: 'migrations',
-          label: 'Migrations',
+          label: words.tabs.migrations,
           icon: SECTION_ICONS.migrations,
           badge: definition.migrations?.length || undefined,
         },
@@ -210,12 +212,12 @@ const SchemaEditorBody = memo(
       if (showAdvanced) {
         list.push({
           id: 'advanced',
-          label: 'Advanced',
+          label: words.tabs.advanced,
           icon: SECTION_ICONS.advanced,
         });
       }
       return list;
-    }, [definition, showAdvanced]);
+    }, [definition, showAdvanced, words]);
 
     return (
       <SchemaDefinitionProvider value={definition}>
@@ -234,18 +236,10 @@ const SchemaEditorBody = memo(
           {!readOnly ? (
             <Hint
               id='hint.schema-editor'
-              title='Building a database schema'
+              title={words.editorHintTitle}
               icon='Database2Line'
-            >
-              This editor builds a <b>DataSchema document</b> — the
-              definition of the tables, sequences, and reference data this
-              schema manages. Each tab is one section: lay out your tables
-              and their columns, add sequences, seed reference data, and
-              record migrations so databases on an older version can be
-              upgraded. <b>Click any row to edit it in a side panel.</b>{' '}
-              Once saved, the schema can be aligned to a datasource to
-              create or update those objects.
-            </Hint>
+              text={words.editorHint}
+            />
           ) : null}
 
           <ReqoreTabs
@@ -307,18 +301,10 @@ const SchemaEditorBody = memo(
                   {!readOnly ? (
                     <Hint
                       id='hint.schema-reference-data'
-                      title='Reference data modes'
+                      title={words.referenceDataHintTitle}
                       icon='SeedlingLine'
-                    >
-                      Reference data is the set of rows the schema
-                      guarantees exist in a table — lookup values, enums,
-                      seed records. The <b>mode</b> decides how an align
-                      treats rows already in the database:{' '}
-                      <b>strict</b> removes any row not in the schema,{' '}
-                      <b>normal</b> inserts and updates, <b>create_only</b>{' '}
-                      only inserts missing rows, and <b>insert_only</b>{' '}
-                      inserts but never updates existing rows.
-                    </Hint>
+                      text={words.referenceDataHint}
+                    />
                   ) : null}
                   <CatalogNodeEditor
                     name='reference_data'
@@ -397,9 +383,10 @@ export const SchemaDefinitionEditor = memo(
       catalogOverride,
       catalogError
     );
+    const words = useReqraftLabels().schemaDefinition;
 
     if (loading) {
-      return <Loader text='Loading schema editor…' />;
+      return <Loader text={words.loadingEditor} />;
     }
 
     if (error || !catalog) {
@@ -408,8 +395,8 @@ export const SchemaDefinitionEditor = memo(
           intent='danger'
           icon='ErrorWarningLine'
           flat
-          label='Could not load schema options'
-          description={errorMessage(error)}
+          label={words.catalogUnavailable}
+          description={errorMessage(error, words.catalogUnavailableReason)}
         />
       );
     }

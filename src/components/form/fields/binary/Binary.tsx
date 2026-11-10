@@ -5,6 +5,7 @@ import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IReqraftBinaryFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange' | 'value'> {
   value?: string;
@@ -29,6 +30,7 @@ const stripDataUrlPrefix = (dataUrl: string): string => {
  */
 export const ReqraftBinaryFormField = memo(
   ({ value, onChange, ...rest }: IReqraftBinaryFormFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
     const [localValue, setLocalValue] = useState<string>(value ?? '');
     // The parent's echo of an emit still in flight is not a change: copying it
     // over the local value lost what was typed since. See `EmittedValues`.
@@ -103,7 +105,7 @@ export const ReqraftBinaryFormField = memo(
             emitted.record('');
             onChange?.('');
           }}
-          placeholder='Base64-encoded binary value'
+          placeholder={fieldWords.binaryValuePlaceholder}
           {...rest}
         />
         <ReqraftFileFormField disabled={rest.disabled} onChange={handleFileChange} />

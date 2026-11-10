@@ -68,6 +68,7 @@ export const ExpressionBuilderArgumentLabel = ({
   // server cannot tell some operations' type before they run (`known: false`): such a value is not judged here, and
   // the note under it says it depends on the incoming data
   const knownWhenItRuns = useArgumentKnownWhenItRuns(arg);
+  const words = useReqraftLabels().expressions;
 
   if (!schema) {
     return (
@@ -130,7 +131,7 @@ export const ExpressionBuilderArgumentLabel = ({
           tooltip={
             isValid ?
               !matchesType ?
-                `This value is not ${acceptedTypeNames}. Put it inside an expression that converts it`
+                words.operandNotOfType(acceptedTypeNames)
               : undefined
             : reason
           }
@@ -166,7 +167,7 @@ export const ExpressionBuilderArgumentLabel = ({
               color={pendingMark}
               size='10px'
               margin='both'
-              tooltip='The type fits; Qorus may convert the value'
+              tooltip={words.operandMayConvert}
             />
           : null}
 
@@ -179,12 +180,7 @@ export const ExpressionBuilderArgumentLabel = ({
             }}
             intent={matchesType ? 'pending' : 'warning'}
             tooltip={
-              matchesType ? 'The type fits; Qorus may convert the value'
-              : acceptedTypeNames ?
-                // the sentence starts with them
-                `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
-                // a place whose types are not known names none
-              : 'A value of another type is needed here'
+              matchesType ? words.operandMayConvert : words.operandNeedsType(acceptedTypeNames)
             }
           >
             {types.getTypeDisplayName(argumentType)}

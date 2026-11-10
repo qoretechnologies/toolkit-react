@@ -1,6 +1,7 @@
 import { ReqoreControlGroup, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { ComponentProps } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   defaultInterfaceIcon,
   IInterfaceReference,
@@ -91,6 +92,7 @@ export const InterfaceReferenceTags = ({
   resolveInterfaceImage,
   preferKindImage = false,
 }: IInterfaceReferenceTagsProps) => {
+  const words = useReqraftLabels().supportTicket;
   const resolveIcon = resolveInterfaceIcon ?? defaultInterfaceIcon;
   const marks = (references ?? []).map((reference) => {
     const mark = toInterfaceKindMark(resolveIcon(reference.interface_kind));
@@ -120,7 +122,6 @@ export const InterfaceReferenceTags = ({
         // A refused chip keeps its look and says why, instead of opening nothing.
         const linkable = !!onInterfaceClick && (isInterfaceLinkable?.(reference) ?? true);
         const reason = onInterfaceClick && !linkable ? unlinkableReason?.(reference) : undefined;
-        const described = `${reference.interface_kind}: ${reference.interface_name}`;
         return (
           <ReqoreTag
             key={reference.reference_id ?? interfaceReferenceKey(reference)}
@@ -133,15 +134,14 @@ export const InterfaceReferenceTags = ({
             intent={intent}
             customTheme={customTheme}
             tooltip={
-              linkable
-                ? `Open ${reference.interface_kind} ${reference.interface_name}`
-                : reason
-                  ? `${described} — ${reason}`
-                  : described
+              linkable ? words.openReference(reference.interface_kind, reference.interface_name)
+              : reason ?
+                words.referenceUnlinkable(reference.interface_kind, reference.interface_name, reason)
+              : words.referenceWritten(reference.interface_kind, reference.interface_name)
             }
             onClick={linkable ? () => onInterfaceClick(reference) : undefined}
             onRemoveClick={onRemove ? () => onRemove(reference) : undefined}
-            removeTooltip={`Remove ${reference.interface_kind} ${reference.interface_name}`}
+            removeTooltip={words.removeReference(reference.interface_kind, reference.interface_name)}
           />
         );
       })}

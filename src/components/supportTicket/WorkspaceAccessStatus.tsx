@@ -2,6 +2,7 @@ import { ReqoreButton, ReqoreIcon, ReqoreSpan } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { reqraftLabels, useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   formatInstant,
   formatRelativeTime,
@@ -84,12 +85,14 @@ export interface IWorkspaceAccessStatusProps {
   className?: string;
 }
 
-const grantedBy = (grant: IWorkspaceAccessGrantSummary, viewerRole: TTicketViewerRole): string => {
-  if (grant.created_by_type === 'system') return 'automatically';
+/** Who granted it, from the viewer's side: "Granted by you", "Granted automatically". */
+const grantedLine = (grant: IWorkspaceAccessGrantSummary, viewerRole: TTicketViewerRole): string => {
+  const words = reqraftLabels().supportTicket;
+  if (grant.created_by_type === 'system') return words.grantedAutomatically;
   if (grant.created_by_type === 'customer' || !grant.created_by_type) {
-    return viewerRole === 'customer' ? 'by you' : 'by the customer';
+    return viewerRole === 'customer' ? words.grantedByYou : words.grantedByCustomer;
   }
-  return 'by support';
+  return words.grantedBySupport;
 };
 
 /** The sentence, its mark and its colour for the state the props describe. */
@@ -105,22 +108,23 @@ export const describeWorkspaceAccess = (
   icon: IReqoreIconName;
   muted?: boolean;
 } => {
+  const words = reqraftLabels().supportTicket;
   if (grant && grant.state === 'active') {
     const left = millisUntil(grant.expires_at, now);
     if (!Number.isNaN(left) && left <= 0) {
       return {
-        text: `Access ended ${formatRelativeTime(grant.expires_at, now)}`,
+        text: words.accessEndedAgo(formatRelativeTime(grant.expires_at, now)),
         tooltip: formatInstant(grant.expires_at),
         intent: 'muted',
         attention: 'idle',
         icon: 'HourglassLine',
       };
     }
-    const ends = grant.expires_at ? ` · ends ${formatRelativeTime(grant.expires_at, now)}` : '';
+    const ends = grant.expires_at ? ` · ${words.grantEnds(formatRelativeTime(grant.expires_at, now))}` : '';
     return {
-      text: `Granted ${grantedBy(grant, viewerRole)}${ends}`,
+      text: `${grantedLine(grant, viewerRole)}${ends}`,
       tooltip: grant.expires_at
-        ? `Until ${formatInstant(grant.expires_at)}${grant.until_resolved ? ', or when the ticket is resolved' : ''}`
+        ? words.grantUntil(formatInstant(grant.expires_at), !!grant.until_resolved)
         : undefined,
       intent: grantTimeIntent(grant.expires_at, now),
       attention: grantTimeAttention(grant.expires_at, now),
@@ -131,8 +135,9 @@ export const describeWorkspaceAccess = (
     const meta = supportGrantStateMeta(grant.state);
     const cause = supportGrantEndCauseLabel(grant.end_cause, viewerRole);
     const when = formatRelativeTime(grant.ended_at ?? grant.expires_at, now);
+    const ended = cause ? words.accessEndedBecause(cause) : words.accessInState(meta.label);
     return {
-      text: `Access ${cause ?? meta.label.toLowerCase()}${when ? ` · ${when}` : ''}`,
+      text: `${ended}${when ? ` · ${when}` : ''}`,
       tooltip: formatInstant(grant.ended_at ?? grant.expires_at) || undefined,
       intent: meta.intent,
       // revoked or run out: over, whoever ended it
@@ -142,12 +147,12 @@ export const describeWorkspaceAccess = (
   }
   if (request) {
     const since = formatRelativeTime(request.requested_at, now);
-    const duration = request.suggested_duration ? ` for ${supportAccessDurationLabel(request.suggested_duration)}` : '';
+    const duration = request.suggested_duration ? supportAccessDurationLabel(request.suggested_duration) : undefined;
     return {
       text:
         viewerRole === 'customer'
-          ? `Qorus Support asks for access${duration} · ${since}`
-          : `Requested${duration} · awaiting the customer · ${since}`,
+          ? `${words.supportAsksForAccess(words.supportName, duration)} · ${since}`
+          : `${words.accessRequested(duration)} · ${words.awaitingTheCustomer} · ${since}`,
       tooltip: formatInstant(request.requested_at),
       intent: 'pending',
       // the customer has to answer it; support only waits
@@ -157,13 +162,13 @@ export const describeWorkspaceAccess = (
   }
   if (policy === 'never') {
     return {
-      text: viewerRole === 'customer' ? 'Off: your setting is never' : "Not allowed: the account's setting is never",
+      text: viewerRole === 'customer' ? words.accessOffForCustomer : words.accessNotAllowed,
       intent: 'danger',
       attention: 'quiet',
       icon: 'ShieldCrossLine',
     };
   }
-  return { text: 'None', intent: 'muted', attention: 'idle', icon: 'ShieldLine', muted: true };
+  return { text: words.noAccess, intent: 'muted', attention: 'idle', icon: 'ShieldLine', muted: true };
 };
 
 export const WorkspaceAccessStatus = ({
@@ -177,6 +182,8 @@ export const WorkspaceAccessStatus = ({
   appearance = 'calm',
   className,
 }: IWorkspaceAccessStatusProps) => {
+  // drawn again when a host gives other words; `describeWorkspaceAccess` reads them
+  useReqraftLabels();
   const inks = useTicketAttentionInks();
   const { text, tooltip, intent, attention, icon, muted } = describeWorkspaceAccess({
     grant,

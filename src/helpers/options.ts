@@ -1,4 +1,5 @@
 import { IQorusFormSchema, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import { reqraftLabels } from './reqraftLabels';
 
 export const getOptionsFromRequiredGroups = (
   schema: IQorusFormSchema,
@@ -19,15 +20,16 @@ export const getRequiredOptionMessage = (
   groups: string[],
   currentField: string
 ): string => {
+  const words = reqraftLabels().formEngine;
   if ((schema[currentField] as TQorusFormFieldSchema).required) {
-    return 'This field is required';
+    return words.required;
   }
 
-  const requiredOptions = getOptionsFromRequiredGroups(schema, groups, currentField)
-    .map((option) => (schema[option] as TQorusFormFieldSchema).display_name)
-    .join(' or ');
+  const requiredOptions = getOptionsFromRequiredGroups(schema, groups, currentField).map(
+    (option) => (schema[option] as TQorusFormFieldSchema).display_name as string
+  );
 
-  return `This field or ${requiredOptions} is required`;
+  return words.requiredOrOthers(requiredOptions);
 };
 
 /**
@@ -130,8 +132,9 @@ export interface ISchemaMessage {
   content?: string;
 }
 
-/** The sentence a refusal with no reason of its own falls back to. */
-export const UNAVAILABLE_VALUE_FALLBACK_REASON = 'This value is not available';
+/** The sentence a refusal with no reason of its own falls back to, in the host's words. */
+export const unavailableValueFallbackReason = (): string =>
+  reqraftLabels().formEngine.valueNotAvailable;
 
 /**
  * Which of a refused value's messages is the REASON it was refused.

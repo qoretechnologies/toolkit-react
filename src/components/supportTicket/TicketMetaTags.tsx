@@ -2,6 +2,7 @@ import { ReqoreControlGroup, ReqoreIcon, ReqoreSpan, ReqoreTag } from '@qoretech
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { Fragment } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   TICKET_CATEGORY_META,
   TICKET_PRIORITY_META,
@@ -71,6 +72,7 @@ export const TicketMetaTags = ({
   minimal = true,
   flat = false,
 }: ITicketMetaTagsProps) => {
+  const labels = useReqraftLabels().supportTicket;
   const inks = useTicketAttentionInks();
   const status = TICKET_STATUS_META[ticket.status];
   const priority = TICKET_PRIORITY_META[ticket.priority];
@@ -91,7 +93,7 @@ export const TicketMetaTags = ({
         <ReqoreTag
           icon={priority.icon}
           intent={priority.intent}
-          label={priority.label}
+          label={labels.priorities[ticket.priority]}
           size={size}
           minimal={minimal}
           flat={flat}
@@ -99,7 +101,7 @@ export const TicketMetaTags = ({
         {!hideCategory && (
           <ReqoreTag
             icon={category.icon}
-            label={category.label}
+            label={labels.categories[ticket.category]}
             size={size}
             minimal={minimal}
             flat={flat}
@@ -119,12 +121,20 @@ export const TicketMetaTags = ({
     {
       key: 'priority',
       icon: priority.icon,
-      label: priority.label,
+      label: labels.priorities[ticket.priority],
       attention: ticketPriorityAttention(ticket.priority),
     },
     ...(hideCategory ?
       []
-    : [{ key: 'category', icon: category.icon, label: category.label, attention: 'quiet', fact: true } as const]),
+    : [
+        {
+          key: 'category',
+          icon: category.icon,
+          label: labels.categories[ticket.category],
+          attention: 'quiet',
+          fact: true,
+        } as const,
+      ]),
   ];
 
   return (

@@ -17,10 +17,11 @@ import { useMemo, useState } from 'react';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import styled from 'styled-components';
 import {
-  UNAVAILABLE_VALUE_FALLBACK_REASON,
+  unavailableValueFallbackReason,
   getRefusalMessage,
 } from '../../../../helpers/options';
 import { Description } from '../../../Description';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 /**
  * The size the picker cannot be dragged below, measured on its own content.
@@ -327,7 +328,7 @@ export const getSelectItemUnavailability = (
   return {
     intent: explanation?.intent || 'warning',
     title: explanation?.title,
-    content: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+    content: explanation?.content || unavailableValueFallbackReason(),
   };
 };
 
@@ -414,7 +415,13 @@ export const buildSelectItemTooltip = (
 };
 
 /** The mark of the item a field holds, beside its own badge: a tick and a word. */
-export const CHOSEN_BADGE = { icon: 'CheckLine', label: 'Chosen' } as const;
+export const CHOSEN_BADGE: { readonly icon: 'CheckLine'; readonly label: string } = {
+  icon: 'CheckLine',
+  // in the host's words, when it is drawn
+  get label() {
+    return reqraftLabels().fields.chosen;
+  },
+};
 
 export const SelectFieldCollection = ({
   onClose,
@@ -423,6 +430,7 @@ export const SelectFieldCollection = ({
   onItemSelect,
   filters,
 }: ISelectFieldCollectionProps) => {
+  const fieldWords = useReqraftLabels().fields;
   const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
   // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
   const unavailableOpacity = useReadableOpacity(0.55);
@@ -454,7 +462,7 @@ export const SelectFieldCollection = ({
       className='reqraft-select-dialog'
       icon='ListOrdered'
       onClose={onClose}
-      label='Select from items'
+      label={fieldWords.selectFromItems}
       badge={size(items)}
       width='700px'
       customTheme={{ main: '#010811' }}

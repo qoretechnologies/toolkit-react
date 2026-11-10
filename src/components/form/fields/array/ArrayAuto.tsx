@@ -32,6 +32,7 @@ import { ItemAttention } from '../../engine/ItemAttention';
 import { recordIdentity } from '../../engine/readFirst';
 import { AutoFormField } from '../auto/AutoFormField';
 import { TemplateField } from '../template/TemplateField';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export const allowedTypes: string[] = ['string', 'int', 'float', 'date', 'file'];
 const defaultValueByType = {
@@ -68,6 +69,7 @@ export const ArrayAuto = ({
   display_name,
   ...rest
 }: IArrayAutoProps): any => {
+  const fieldWords = useReqraftLabels().fields;
   const confirmAction = useReqoreProperty('confirmAction');
   const [localValue, setLocalValue] = useState(value);
   // The row this component just created, so its sub-form can open the field it
@@ -229,7 +231,7 @@ export const ArrayAuto = ({
               icon: 'DeleteBinLine',
               intent: 'danger',
               className: 'array-auto-item-remove',
-              tooltip: 'Remove item',
+              tooltip: fieldWords.removeItem,
               onClick: () =>
                 confirmAction({
                   onConfirm: () => handleRemoveClick(Number(idx)),
@@ -274,7 +276,7 @@ export const ArrayAuto = ({
           size={rest.size}
           disabled={rest.disabled || rest.readOnly}
         >
-          Add new item {display_name || name ? `for "${display_name || name}"` : null}
+          {fieldWords.addNewItem(display_name || name)}
         </ReqoreButton>
       </ReqoreControlGroup>
     </ReqoreControlGroup>

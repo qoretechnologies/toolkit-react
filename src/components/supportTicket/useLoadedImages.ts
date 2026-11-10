@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 
 /* What is known about each image URL, shared by every surface for the life of
    the page: an image that loaded once is drawn at once the next time, and one
@@ -81,7 +82,7 @@ export const loadedImageUrl = async (src: string): Promise<string> => {
     if (src.startsWith('blob:')) {
       URL.revokeObjectURL(src);
     }
-    throw new Error('The attachment is not an image that can be shown');
+    throw new Error(reqraftLabels().supportTicket.notAnImage);
   }
   return src;
 };

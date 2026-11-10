@@ -26,6 +26,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import styled from 'styled-components';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { activatesRow } from './anchor';
 import { READABLE_ICON, readableShade, themeSurfaces } from './readable';
 import {
@@ -71,11 +72,11 @@ export interface IExperimentCardProps {
   loadError?: string | null;
   /** An "Open in …" link at the start of the footer (a new tab). */
   detailsUrl?: string | null;
-  /** The link's label. Default `Open in admin portal`. */
+  /** The link's label. Default: the host's words (`Open in admin portal`). */
   detailsLabel?: string;
   /** One version's analytics (a new tab): a "Show analytics" action on each row; none without it. */
   versionDetailsUrl?: (variant: string) => string | null | undefined;
-  /** Where the full analytics live, in the help's words. Default `the admin portal`. */
+  /** Where the full analytics live, in the help's words. Default: the host's words (`the admin portal`). */
   analyticsLabel?: string;
   /** Best first (conversion on the primary metric, then visitors). Default true. */
   sort?: boolean;
@@ -216,9 +217,9 @@ export const ExperimentCard = ({
   maxHeight,
   loadError,
   detailsUrl,
-  detailsLabel = 'Open in admin portal',
+  detailsLabel: detailsLabelProp,
   versionDetailsUrl,
-  analyticsLabel = 'the admin portal',
+  analyticsLabel,
   sort = true,
   notSetUpText,
   actorLabels,
@@ -233,6 +234,8 @@ export const ExperimentCard = ({
   onClose,
 }: IExperimentCardProps) => {
   const entry = test ?? undefined;
+  const words = useReqraftLabels().abTest;
+  const detailsLabel = detailsLabelProp ?? words.detailsLink;
   const confirmAction = useReqoreProperty('confirmAction');
   const addNotification = useReqoreProperty('addNotification');
   const theme = useReqoreTheme();
@@ -335,13 +338,8 @@ export const ExperimentCard = ({
     if (!callback) return;
     const isVersion = action === 'accept' || action === 'remove';
     const copy = isVersion ? confirmCopy(action, entry, variant) : lifecycleCopy(action, entry);
-    const titles: Record<TExperimentAction, [string, string]> = {
-      accept: ['Winner accepted', 'Could not accept'],
-      remove: ['Version removed', 'Could not remove'],
-      start: [status === 'paused' ? 'Test resumed' : 'Test started', 'Could not start'],
-      pause: ['Test paused', 'Could not pause'],
-      stop: ['Test stopped', 'Could not stop'],
-    };
+    const done = action === 'start' && status === 'paused' ? words.done.resume : words.done[action];
+    const failed = words.failed[action];
     const run = async () => {
       setBusy(`${action}:${variant ?? ''}`);
       try {
@@ -350,14 +348,10 @@ export const ExperimentCard = ({
           const content =
             isVersion ?
               actionOutcome(action, result as TExperimentActionResult, variant)
-            : `“${title}” is ${
-                action === 'start' ? 'running'
-                : action === 'pause' ? 'paused'
-                : 'stopped'
-              }.`;
+            : words.outcomeLifecycle[action](title);
           addNotification?.({
             intent: 'success',
-            title: titles[action][0],
+            title: done,
             content,
             duration: 8000,
           });
@@ -366,7 +360,7 @@ export const ExperimentCard = ({
         if (notify) {
           addNotification?.({
             intent: 'danger',
-            title: titles[action][1],
+            title: failed,
             content: (err as Error)?.message ?? String(err),
             duration: 10000,
           });
@@ -402,7 +396,7 @@ export const ExperimentCard = ({
       'aria-label': detailsLabel,
       responsive: false,
       ...quiet(),
-      tooltip: 'This test’s details (a new tab)',
+      tooltip: words.detailsTooltip,
       onClick: () => window.open(detailsUrl, '_blank', 'noopener'),
     });
   }
@@ -413,14 +407,11 @@ export const ExperimentCard = ({
         position: 'right',
         icon: 'PlayLine',
         intent: 'success',
-        label: status === 'paused' ? 'Resume' : 'Start test',
+        label: status === 'paused' ? words.resume : words.startTest,
         responsive: false,
         disabled: !!busy,
         loading: busyOn('start'),
-        tooltip:
-          status === 'paused' ?
-            'Split visitors between the versions again'
-          : 'Start splitting visitors between the versions and counting',
+        tooltip: status === 'paused' ? words.resumeTooltip : words.startTooltip,
         onClick: () => act('start'),
       });
     }
@@ -429,12 +420,12 @@ export const ExperimentCard = ({
         position: 'right',
         icon: 'PauseLine',
         intent: 'warning',
-        label: 'Pause',
+        label: words.pause,
         responsive: false,
         ...quiet('warning'),
         disabled: !!busy,
         loading: busyOn('pause'),
-        tooltip: 'Everybody sees the original until you resume',
+        tooltip: words.pauseTooltip,
         onClick: () => act('pause'),
       });
     }
@@ -443,12 +434,12 @@ export const ExperimentCard = ({
         position: 'right',
         icon: 'StopLine',
         intent: 'danger',
-        label: 'Stop',
+        label: words.stop,
         responsive: false,
         ...quiet('danger'),
         disabled: !!busy,
         loading: busyOn('stop'),
-        tooltip: 'End the test without a winner',
+        tooltip: words.stopTooltip,
         onClick: () => act('stop'),
       });
     }
@@ -477,15 +468,15 @@ export const ExperimentCard = ({
       padded
       collapsible={false}
       onClose={onClose}
-      closeTooltip='Close (Esc)'
-      closeButtonProps={{ 'aria-label': 'Close the test card', minimal: true } as never}
+      closeTooltip={words.closeTooltip}
+      closeButtonProps={{ 'aria-label': words.close, minimal: true } as never}
       actions={[
         {
           icon: 'QuestionLine',
           minimal: true,
           flat: true,
-          tooltip: 'How A/B tests work',
-          'aria-label': 'How A/B tests work',
+          tooltip: words.help,
+          'aria-label': words.help,
           onClick: () => setHelpOpen(true),
         } as never,
       ]}
@@ -510,14 +501,14 @@ export const ExperimentCard = ({
       )}
       <ReqoreVerticalSpacer height={10} />
       <ReqoreP size='small' effect={{ opacity: 0.75, weight: 500 }}>
-        {`${rows.length} versions${metric?.name ? ` · goal: “${metric.name}”` : ''}`}
+        {words.versionsLine(rows.length, metric?.name || null)}
       </ReqoreP>
       <ReqoreVerticalSpacer height={6} />
       <StyledVersions
         ref={versionsList}
         $max={listMax}
         role='list'
-        aria-label='Versions'
+        aria-label={words.versions}
         className='reqraft-experiment-versions'
       >
         {rows.map((r, i) => {
@@ -527,13 +518,13 @@ export const ExperimentCard = ({
           if (leader?.key === r.key) {
             badges.push(
               leader.kind === 'winner' ?
-                { label: 'Winner', icon: 'TrophyLine', ...soft('success') }
-              : { label: 'Leading', icon: 'ArrowUpLine', ...soft('success') }
+                { label: words.winner, icon: 'TrophyLine', ...soft('success') }
+              : { label: words.leading, icon: 'ArrowUpLine', ...soft('success') }
             );
           }
-          if (r.control) badges.push({ label: 'Original', icon: 'HomeLine', ...soft('muted') });
+          if (r.control) badges.push({ label: words.original, icon: 'HomeLine', ...soft('muted') });
           if (!r.inCode)
-            badges.push({ label: 'Not in the code', icon: 'AlertLine', ...soft('warning') });
+            badges.push({ label: words.notInCode, icon: 'AlertLine', ...soft('warning') });
           // The whole row shows its version; Accept and Remove stop the click (Reqore's row actions do).
           const showable = !!onShow && r.inCode && !isShown;
           const actions: IReqoreEntityRowAction[] = [];
@@ -542,10 +533,10 @@ export const ExperimentCard = ({
             actions.push({
               size: 'small',
               icon: 'BarChartBoxLine',
-              label: 'Show analytics',
+              label: words.showAnalytics,
               ...quiet(),
-              tooltip: `Show analytics for “${r.name}” (a new tab)`,
-              'aria-label': `Show analytics for ${r.name}`,
+              tooltip: words.showAnalyticsTooltip(r.name),
+              'aria-label': words.showAnalyticsFor(r.name),
               onClick: () => window.open(analytics, '_blank', 'noopener'),
             } as IReqoreEntityRowAction);
           }
@@ -554,14 +545,11 @@ export const ExperimentCard = ({
               size: 'small',
               icon: 'TrophyLine',
               intent: 'success',
-              label: 'Accept',
+              label: words.accept,
               ...quiet('success'),
               disabled: !accept || !!busy,
               loading: busyOn('accept', r.key),
-              tooltip:
-                accept ?
-                  `End the test: every visitor sees “${r.name}”`
-                : 'Only a started test can be accepted',
+              tooltip: accept ? words.acceptTooltip(r.name) : words.acceptUnavailable,
               onClick: () => act('accept', r.key),
             });
           }
@@ -571,15 +559,12 @@ export const ExperimentCard = ({
               icon: 'DeleteBinLine',
               intent: 'danger',
               ...quiet('danger'),
-              'aria-label': `Remove version ${r.name}`,
+              'aria-label': words.removeVersion(r.name),
               // At the far end of the row, away from Accept, so it is not clicked by accident.
               style: { marginLeft: 'auto' },
               disabled: !remove || !!busy,
               loading: busyOn('remove', r.key),
-              tooltip:
-                remove ?
-                  `Remove version: drop “${r.name}” from the test`
-                : 'This version cannot be removed now',
+              tooltip: remove ? words.removeTooltip(r.name) : words.removeUnavailable,
               onClick: () => act('remove', r.key),
             } as IReqoreEntityRowAction);
           }
@@ -618,7 +603,7 @@ export const ExperimentCard = ({
                           'muted'
                         : 'success'
                       }
-                      aria-label={`${r.name}: conversion compared with the best version`}
+                      aria-label={words.barLabel(r.name)}
                     />
                   : undefined
                 }
@@ -629,8 +614,8 @@ export const ExperimentCard = ({
                   {
                     role: 'button',
                     tabIndex: 0,
-                    'aria-label': `Show “${r.name}” on this page`,
-                    tooltip: `Show “${r.name}” on this page (only here, never counted)`,
+                    'aria-label': words.showVersion(r.name),
+                    tooltip: words.showVersionTooltip(r.name),
                     onClick: () => onShow(r.key),
                     onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
                       if (!activatesRow(e.key, e.target === e.currentTarget)) return;
@@ -648,16 +633,14 @@ export const ExperimentCard = ({
         <>
           <ReqoreVerticalSpacer height={8} />
           <ReqoreP size='small' effect={{ opacity: 0.7 }}>
-            {unreachable ?
-              'Start, Accept and Remove come back once the analytics service answers.'
-            : 'Start, Accept and Remove appear once the test is set up.'}
+            {unreachable ? words.controlsUnreachable : words.controlsNotSetUp}
           </ReqoreP>
         </>
       )}
       <ReqoreModal
         isOpen={helpOpen}
         onClose={() => setHelpOpen(false)}
-        label='How A/B tests work'
+        label={words.help}
         icon='QuestionLine'
         width='640px'
         blur={2}

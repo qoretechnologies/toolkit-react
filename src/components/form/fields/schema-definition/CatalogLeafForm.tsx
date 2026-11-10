@@ -15,6 +15,7 @@ import { ReqoreDescriptionList, ReqoreP, ReqoreTag } from '@qoretechnologies/req
 import { IReqoreDescriptionListRow } from '@qoretechnologies/reqore/dist/components/DescriptionList';
 import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit/dist/types/forms';
 import { memo, useCallback, useMemo } from 'react';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { flattenOptions, FormEngine, IOptionsSchema } from '../../engine/FormEngine';
 import {
@@ -25,6 +26,7 @@ import {
   unwrapListValues,
 } from './catalog';
 import { formatValue } from './helpers';
+import { ISchemaDefinitionLabels } from './labels';
 import { useSuggestionResolver } from './referenceSuggestions';
 import { ICatalogOptions } from './types';
 
@@ -64,10 +66,11 @@ export interface ICatalogLeafFormProps {
   nameField?: ICatalogLeafFormNameField;
 }
 
-/** Renders one leaf value for the read-only viewer. */
+/** Renders one leaf value for the read-only viewer, in the host's words. */
 const renderReadOnlyValue = (
   leaf: ICatalogOptions[string],
-  raw: unknown
+  raw: unknown,
+  words: ISchemaDefinitionLabels
 ): React.ReactNode => {
   if (!isCatalogLeaf(leaf)) return null;
   if (typeof raw === 'boolean') {
@@ -78,7 +81,7 @@ const renderReadOnlyValue = (
         minimal
         asBadge
         intent={raw ? 'success' : 'muted'}
-        label={raw ? 'yes' : 'no'}
+        label={raw ? words.yes : words.no}
       />
     );
   }
@@ -97,6 +100,7 @@ export const CatalogLeafForm = memo(
     const suggestionResolver = useSuggestionResolver();
     // "No values set", softer: as soft as it still reads (qorus#646)
     const emptyOpacity = useReadableOpacity(0.55);
+    const words = useReqraftLabels().schemaDefinition;
 
     /** The catalogue leaf schema, without the synthetic name field. */
     const leafSchema = useMemo(() => leavesToOptionsSchema(leaves), [leaves]);
@@ -114,8 +118,8 @@ export const CatalogLeafForm = memo(
         ? {
             [NAME_KEY]: catalogLeafToFieldSchema({
               display_name: nameField.label,
-              short_desc: 'Unique name within the schema',
-              desc: 'The unique name identifying this entry.',
+              short_desc: words.nameShortDescription,
+              desc: words.nameDescription,
               type: 'string',
               required: true,
             }),
@@ -150,7 +154,7 @@ export const CatalogLeafForm = memo(
         }
       });
       return enhanced;
-    }, [leafSchema, nameField, suggestionResolver, value]);
+    }, [leafSchema, nameField, suggestionResolver, value, words]);
 
     const optionsValue = useMemo(() => {
       const wrapped = hashToOptionsValue(value, leafSchema);
@@ -212,13 +216,13 @@ export const CatalogLeafForm = memo(
             key,
             label: isCatalogLeaf(leaf) ? leaf.display_name : key,
             intent: isCatalogLeaf(leaf) && leaf.required ? 'info' : undefined,
-            content: renderReadOnlyValue(leaf, value?.[key]),
+            content: renderReadOnlyValue(leaf, value?.[key], words),
           });
         });
       if (rows.length === 0) {
         return (
           <ReqoreP size='small' effect={{ opacity: emptyOpacity }}>
-            No values set.
+            {words.noValues}
           </ReqoreP>
         );
       }

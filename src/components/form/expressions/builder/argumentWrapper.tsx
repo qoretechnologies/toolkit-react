@@ -7,7 +7,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { createContext, memo, useCallback, useContext, useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { ordinal } from '../../../../helpers/common';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import {
   IExpression,
   IExpressionSchema,
@@ -96,6 +96,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
     onArgDragEnd,
   }: IExpressionBuilderArgumentWrapperProps) => {
     const theme = useReqoreTheme();
+    const words = useReqraftLabels().expressions;
     const type = arg?.type || schema?.ui_type || 'context';
     // an expression whose type only shows when it runs: the note under its value says so, unless an argument nested
     // in it already does
@@ -156,7 +157,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
             transparent
             className='expression-arg-drag-handle'
             icon='Draggable'
-            tooltip='Drag to reorder'
+            tooltip={words.dragToReorder}
             // As tight as the field's `⋮` button next to it.
             style={{ cursor: 'grab', paddingLeft: 0, paddingRight: 0, minWidth: '10px' }}
             draggable
@@ -179,10 +180,10 @@ export const ExpressionBuilderArgumentWrapper = memo(
             minimal
             flat
             className='expression-arg-position'
-            label={ordinal(argIndex + 1)}
-            tooltip='Position — pick a new one to move this argument'
+            label={words.ordinal(argIndex + 1)}
+            tooltip={words.positionTooltip}
             items={Array.from({ length: argCount }, (_, target) => ({
-              label: ordinal(target + 1),
+              label: words.ordinal(target + 1),
               selected: target === argIndex,
               disabled: target === argIndex,
               onClick: () => onMoveArg?.(argIndex, target),
@@ -272,7 +273,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
                 icon='DeleteBinLine'
                 flat
                 transparent
-                tooltip='Remove argument'
+                tooltip={words.removeArgument}
                 onClick={onRemoveArgClick}
                 disabled={readOnly}
               />

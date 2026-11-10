@@ -32,6 +32,7 @@ import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
 import { ChoiceGroupHeading, useSelectedChoiceIntent } from '../ChoiceGroupHeading';
 import type { IReqraftAllowedValue } from '../Field';
 import { useSavedValueChoices } from './savedValues';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IFieldAllowedValuesProps extends Pick<
   IReqoreButtonProps,
@@ -117,6 +118,7 @@ export const FieldAllowedValuesCheckGroup = memo(
     label?: string;
   }) => {
     const selectedChoiceIntent = useSelectedChoiceIntent();
+    const fieldWords = useReqraftLabels().fields;
 
     // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
     const unavailableOpacity = useReadableOpacity(0.55);
@@ -135,8 +137,8 @@ export const FieldAllowedValuesCheckGroup = memo(
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ChoiceGroupHeading>
           {label ? `${label}:`
-          : multiSelect ? 'Select one or more:'
-          : 'Select one:'}
+          : multiSelect ? fieldWords.selectOneOrMore
+          : fieldWords.selectOne}
         </ChoiceGroupHeading>
         {items?.map((item, index) => {
           const unavailable = getSelectItemUnavailability(item);
@@ -240,6 +242,7 @@ export const FieldAllowedValues = memo(
     readOnly,
     label,
   }: IFieldAllowedValuesProps) => {
+    const fieldWords = useReqraftLabels().fields;
     /* Resolved against the form this field stands in — the value's own
        `depends_on`, and a refusal the server had already decided. Both end up
        as one state on the item: no click handler, and a reason to read. */
@@ -353,7 +356,7 @@ export const FieldAllowedValues = memo(
         forceDropdown={forceDropdown}
         style={style}
         minimal
-        placeholder={'Saved & Suggested Values'}
+        placeholder={fieldWords.savedAndSuggestedValues}
         size={size}
         disabled={disabled}
         icon='SaveFill'

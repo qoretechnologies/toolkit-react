@@ -15,6 +15,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { memo, useMemo, useState } from 'react';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { describedControl } from '../../../Description/describedControl';
 import { partitionCatalogOptions } from './catalog';
 import { CatalogNodeEditor, RenameField } from './CatalogNodeEditor';
@@ -61,6 +62,7 @@ export const TableEditor = memo(
   }: ITableEditorProps) => {
     // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
+    const words = useReqraftLabels().schemaDefinition;
     const sections = useMemo(
       () => partitionCatalogOptions(options).nested,
       [options]
@@ -73,7 +75,7 @@ export const TableEditor = memo(
       <ReqoreControlGroup vertical fluid gapSize='normal'>
         {readOnly ? (
           <ReqoreControlGroup verticalAlign='center' gapSize='small'>
-            <ReqoreTag fixed minimal size='small' icon='Table2' label='Table' />
+            <ReqoreTag fixed minimal size='small' icon='Table2' label={words.table} />
             <ReqoreTag size='small' label={tableName} />
           </ReqoreControlGroup>
         ) : (
@@ -81,7 +83,7 @@ export const TableEditor = memo(
             value={tableName}
             taken={taken}
             onRename={onRename}
-            label='Table name'
+            label={words.tableName}
           />
         )}
 

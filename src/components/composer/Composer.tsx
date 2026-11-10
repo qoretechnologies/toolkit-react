@@ -34,6 +34,7 @@ import {
   useState,
 } from 'react';
 import styled from 'styled-components';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import {
   clipboardImages,
   EMPTY_RICH_VALUE,
@@ -240,9 +241,9 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
     editor = 'rich',
     defaultText,
     defaultFiles,
-    placeholder = 'Write a message…',
+    placeholder: placeholderProp,
     onSend,
-    sendLabel = 'Send',
+    sendLabel: sendLabelProp,
     sendIcon = 'SendPlane2Line',
     sendIntent,
     sendMinimal = true,
@@ -274,6 +275,9 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
   ref
 ) {
   const theme = useReqoreTheme();
+  const words = useReqraftLabels().composer;
+  const placeholder = placeholderProp ?? words.placeholder;
+  const sendLabel = sendLabelProp ?? words.send;
   const [richValue, setRichValue] = useState<IReqoreRichTextEditorProps['value']>(() =>
     defaultText ? richValueFromString(defaultText) : EMPTY_RICH_VALUE
   );
@@ -447,7 +451,7 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
                     leftIconProps={{ size: 'tiny' }}
                     circle
                     onClick={() => removeFile(index)}
-                    tooltip='Remove attachment'
+                    tooltip={words.removeAttachment}
                   />
                 </StyledAttachmentRemoveWrapper>
               </StyledAttachment>
@@ -506,10 +510,10 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
                     flat
                     transparent
                     disabled={sending}
-                    tooltip='Attach'
+                    tooltip={words.attach}
                     items={[
                       {
-                        label: 'Upload files',
+                        label: words.uploadFiles,
                         icon: 'Upload2Line',
                         onClick: () => fileInput.current?.click(),
                       },
@@ -522,7 +526,7 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
                     flat
                     transparent
                     disabled={sending}
-                    tooltip='Attach files'
+                    tooltip={words.attachFiles}
                     onClick={() => fileInput.current?.click()}
                   />
                 ))}
@@ -541,7 +545,7 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
                     customTheme={primary.customTheme}
                     minimal={primary.minimal}
                     disabled={!canSend}
-                    tooltip='More send options'
+                    tooltip={words.moreSendOptions}
                     items={actions.map((action) => ({
                       label: action.label,
                       icon: action.icon,
