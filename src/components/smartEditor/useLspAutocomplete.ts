@@ -106,6 +106,13 @@ export interface IUseLspAutocompleteOptions {
   noteAt?: (plainText: string, offset: number) => string | undefined;
 }
 
+/**
+ * Where a list is opened at, in the window: the left and bottom of the line, chip or control it is opened from, and
+ * its top where the caller knows it. A list flipped above it clears the whole of it (Foxhoundn on qlip #475: "The
+ * picker covers the input").
+ */
+export type TOpenedAt = { left: number; bottom: number; top?: number };
+
 export interface IUseLspAutocompleteResult {
   items: ICompletionDropdownItem[];
   groups: ICompletionGroup[];
@@ -137,14 +144,14 @@ export interface IUseLspAutocompleteResult {
   openAtCaret: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     caret: BasePoint,
-    rect: { left: number; bottom: number }
+    rect: TOpenedAt
   ) => void;
   // Open in "replace mode" anchored at an existing tag chip; `chipRect`
   // is the chip's viewport rect, `chipPath` is forwarded to the inserter.
   openAtChip: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     chipPath: number[],
-    chipRect: { left: number; bottom: number },
+    chipRect: TOpenedAt,
     options?: {
       /**
        * Ask what can be written in the chip's place - the text without it, at its start - rather than what could
@@ -162,7 +169,14 @@ export interface IUseLspAutocompleteResult {
   // Bumped on every (re)open; used as the ReqorePopover `key` to force a
   // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
-  position: { top: number; left: number };
+  /**
+   * Where the list is drawn from, in the window: `top` is the bottom of the line it was opened at (the list goes
+   * below it), `lineTop` that line's top where it is known (a list with no room below goes above it, clear of the
+   * line).
+   */
+  position: { top: number; left: number; lineTop?: number };
+  /** The field the list belongs to, which its popover is placed against, and the list's start in from its left. */
+  field: { element: HTMLElement; offsetX: number } | null;
   /**
    * The row whose documentation is shown under it in the list (its `value`), or null. A row's documentation
    * is otherwise a hover, which a keyboard and a finger cannot reach: its ⓘ, or Ctrl+Space on the row the
@@ -185,7 +199,7 @@ export interface IUseLspAutocompleteResult {
   openBrowse: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     options: {
-      rect: { left: number; bottom: number };
+      rect: TOpenedAt;
       /**
        * What it is opened from (a button, a chip): it stays there as the window resizes. Without one - opened at the
        * caret or at the text - it stays where it was opened in the text, which moves with it.
@@ -362,7 +376,35 @@ export function useLspAutocomplete(
 
   const [items, setItems] = useState<ICompletionDropdownItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const editorRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
+  const [position, setPositionState] = useState<{ top: number; left: number; lineTop?: number }>({
+    top: 0,
+    left: 0,
+  });
+  /* The field the list belongs to - the editor's text - and how far in from its left the list starts (the caret, the
+     chip, the point it was opened at): the list's popover is placed against the field, below it, and goes with it as
+     the page scrolls (reqore's targetElement). Placed against a point drawn at the caret, it sat inside the field,
+     over what it holds below the caret's line, and stayed behind when the page scrolled (Foxhoundn on reqraft #162). */
+  const [field, setField] = useState<{ element: HTMLElement; offsetX: number } | null>(null);
+  const setPosition = useCallback(
+    (
+      next:
+        | { top: number; left: number; lineTop?: number }
+        | ((was: { top: number; left: number; lineTop?: number }) => { top: number; left: number; lineTop?: number })
+    ) => {
+      setPositionState(next);
+      if (typeof next === 'function') return;
+      const editor = editorRef.current;
+      try {
+        const element = editor ? ReactEditor.toDOMNode(editor as ReactEditor, editor as ReactEditor) : null;
+        setField(element ? { element, offsetX: next.left - element.getBoundingClientRect().left } : null);
+      } catch {
+        // the editor is not drawn: the list has no field to go with
+        setField(null);
+      }
+    },
+    []
+  );
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
   const [emptyMessage, setEmptyMessage] = useState<string>();
@@ -378,7 +420,6 @@ export function useLspAutocomplete(
   // narrows to items whose `filterText || label` matches it.
   const [filterPrefix, setFilterPrefix] = useState('');
   const focusedIndexRef = useRef(0);
-  const editorRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
   // "Replace mode": the user clicked a chip and the chosen completion
   // should replace that node. Holds the chip's Slate path, consumed by
   // the inserter via `ctx.replacementPath`.
@@ -528,7 +569,7 @@ export function useLspAutocomplete(
           // A 0,0,0,0 rect means the DOM still isn't ready — keep the
           // earlier measure rather than slamming back to origin.
           if (rect.width || rect.height || rect.left || rect.top) {
-            setPosition({ left: rect.left, top: rect.bottom });
+            setPosition({ left: rect.left, top: rect.bottom, lineTop: rect.top });
           }
         } catch {
           // Editor unmounted mid-request.
@@ -745,6 +786,7 @@ export function useLspAutocomplete(
     if (showsRows) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       const editor = editorRef.current;
+      // a picker asked for and not yet listening has its keys heard above, Escape among them
       /* Enter or Tab where the list has nothing more to offer - a context of free keys and its key written,
          `$static:order.id` - takes what is written: a whole reference, drawn as its chip (`commitTyped`), as a row
          taken is (qorus#646, David's review). */
@@ -790,6 +832,7 @@ export function useLspAutocomplete(
         setPosition({
           left: rect.left,
           top: rect.bottom,
+          lineTop: rect.top,
         });
       } catch {
         // Editor may not be focused / mounted.
@@ -1157,7 +1200,7 @@ export function useLspAutocomplete(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       chipPath: number[],
-      chipRect: { left: number; bottom: number },
+      chipRect: TOpenedAt,
       { inItsPlace = false }: { inItsPlace?: boolean } = {}
     ) => {
       // Clicking the chip the dropdown is already anchored to closes it.
@@ -1175,7 +1218,7 @@ export function useLspAutocomplete(
       replacingChipPathRef.current = chipPath;
       anchoredChipPathRef.current = chipPath;
       setFilterPrefix('');
-      setPosition({ left: chipRect.left, top: chipRect.bottom });
+      setPosition({ left: chipRect.left, top: chipRect.bottom, lineTop: chipRect.top });
       // Pre-open for immediate feedback even before the LSP is ready (the
       // popover shows a "Connecting…" stub); items populate on response.
       setItems([]);
@@ -1220,7 +1263,7 @@ export function useLspAutocomplete(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       caret: BasePoint,
-      rect: { left: number; bottom: number }
+      rect: TOpenedAt
     ) => {
       editorRef.current = editor;
       replacingChipPathRef.current = null;
@@ -1248,7 +1291,7 @@ export function useLspAutocomplete(
       setItems([]);
       setFocusedIndex(0);
       setEmptyMessage(undefined);
-      setPosition({ left: rect.left, top: rect.bottom });
+      setPosition({ left: rect.left, top: rect.bottom, lineTop: rect.top });
       popoverKeyRef.current += 1;
       setPopoverKey(popoverKeyRef.current);
       requestCompletions.cancel();
@@ -1303,7 +1346,14 @@ export function useLspAutocomplete(
       // the picker's: the list that typing has put in its place is at the caret
       if (browseRef.current && anchor?.element.isConnected) {
         const { left, bottom } = anchor.element.getBoundingClientRect();
-        setPosition({ left: left + anchor.left, top: bottom + anchor.bottom });
+        setPosition(({ top, lineTop }) => {
+          const moved = bottom + anchor.bottom - top;
+          return {
+            left: left + anchor.left,
+            top: top + moved,
+            ...(lineTop === undefined ? {} : { lineTop: lineTop + moved }),
+          };
+        });
       }
     };
     window.addEventListener('resize', follow);
@@ -1352,7 +1402,7 @@ export function useLspAutocomplete(
       setEmptyMessage(undefined);
       setFilterPrefix('');
       setDocsFor(null);
-      setPosition({ left: rect.left, top: rect.bottom });
+      setPosition({ left: rect.left, top: rect.bottom, lineTop: rect.top });
       setBrowse({ levelId, query, selectedValue, arrows });
       setIsOpen(true);
       popoverKeyRef.current += 1;
@@ -1405,6 +1455,7 @@ export function useLspAutocomplete(
     handleExternalClose,
     popoverKey,
     position,
+    field,
     docsFor,
     toggleDocs,
     browse: isOpen ? browse : null,

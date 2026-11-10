@@ -421,6 +421,26 @@ export const CompletionList = memo(
 );
 CompletionList.displayName = 'CompletionList';
 
+/**
+ * Where a list's popover is placed: against the field it belongs to, below it, from where it was opened (the caret, a
+ * chip) - reqore's targetElement and offsetX - so it is never inside the field over what it holds, and goes with the
+ * field as the page scrolls (Foxhoundn on reqraft #162). Without a field (not drawn), at the point it was opened at.
+ * The wrapper the popover is opened from is a point of no size: it is not what the list is placed against.
+ */
+export const placedAgainstTheField = (autocomplete: Pick<IUseLspAutocompleteResult, 'field' | 'position'>) => ({
+  wrapperStyle: {
+    position: 'fixed' as const,
+    top: autocomplete.position.top,
+    left: autocomplete.position.left,
+    width: '1px',
+    height: '1px',
+    pointerEvents: 'none' as const,
+  },
+  ...(autocomplete.field?.element.isConnected ?
+    { targetElement: autocomplete.field.element, offsetX: autocomplete.field.offsetX }
+  : {}),
+});
+
 /** How the list's popover is drawn: borderless, arrowless, the menu's own look. */
 export const COMPLETION_POPOVER_PROPS = {
   noArrow: true,
@@ -428,8 +448,9 @@ export const COMPLETION_POPOVER_PROPS = {
   closeOnInsideClick: false,
   minWidth: '300px',
   flat: true,
-  // Transparent so the popover wrapper doesn't frame the menu.
-  transparent: true,
+  /* The menu is the popover's surface: no wrapper of the popover's own grey around it (Foxhoundn on qlip #477), and
+     the popover's shadow, which it keeps without one, sets it off from the page (Foxhoundn on qlip #476). */
+  noWrapper: true,
 };
 
 export interface ICompletionMenuProps {
@@ -452,14 +473,7 @@ export const CompletionMenu = memo(
         <ReqorePopover
           key={`browse-${autocomplete.popoverKey}`}
           component='span'
-          wrapperStyle={{
-            position: 'fixed',
-            top: autocomplete.position.top,
-            left: autocomplete.position.left,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
+          {...placedAgainstTheField(autocomplete)}
           content={
             <TemplatePicker
               id={id}
@@ -480,6 +494,10 @@ export const CompletionMenu = memo(
           closeOnOutsideClick
           {...COMPLETION_POPOVER_PROPS}
           minWidth={undefined}
+          /* At the caret, below it, and only slid along as far as the window needs (reqore's preventOverflow).
+             Allowed to flip, a caret near the window's right edge (at the end of a field's text in a drawer)
+             turned it to the caret's left and it grew out of the drawer, over the page (qorus-ide #301). */
+          keepPlacement
           onToggleChange={(open: boolean) =>
             autocomplete.handleExternalClose(open, autocomplete.popoverKey)
           }
@@ -494,16 +512,7 @@ export const CompletionMenu = memo(
           <ReqorePopover
             key={autocomplete.popoverKey}
             component='span'
-            wrapperStyle={{
-              // `fixed` anchor at the cursor's screen coords — avoids
-              // parent-offset math.
-              position: 'fixed',
-              top: autocomplete.position.top,
-              left: autocomplete.position.left,
-              width: '1px',
-              height: '1px',
-              pointerEvents: 'none',
-            }}
+            {...placedAgainstTheField(autocomplete)}
             content={
               <CompletionList
                 id={id}

@@ -12,6 +12,7 @@ import { FocusEvent, KeyboardEvent, memo, useCallback, useEffect, useMemo, useRe
 import { useDebounce } from 'react-use';
 import { Editor, Path } from 'slate';
 import { ReactEditor } from 'slate-react';
+import { caretBoxAt } from '../../../smartEditor/caretBox';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
@@ -596,7 +597,7 @@ export const RichTextFormField = memo(({
         if (!caret) return;
         const box = page.getRangeAt(0).getBoundingClientRect();
         // a caret in an empty line has no box of its own: the text's
-        const at = box.width || box.height ? box : root.getBoundingClientRect();
+        const at = box.width || box.height ? box : caretBoxAt(editor, caret.anchor);
         // in an empty text the arrows have nowhere else to go: they move through the picker
         const empty = !defaultSlateConverter.fromSlateNodes(editor.children as any).trim();
         /* A reference being written at the caret is completed where it is: what is listed of it, what to write
@@ -606,10 +607,10 @@ export const RichTextFormField = memo(({
         const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
         const textBefore = (leaf.text ?? '').slice(0, caret.anchor.offset);
         if (REFERENCE_BEING_TYPED.test(textBefore)) {
-          openAtCaret(editor as any, caret.anchor, { left: at.left, bottom: at.bottom });
+          openAtCaret(editor as any, caret.anchor, { left: at.left, bottom: at.bottom, top: at.top });
           return;
         }
-        openBrowse(editor as any, { rect: { left: at.left, bottom: at.bottom }, caret: caret.anchor, arrows: empty });
+        openBrowse(editor as any, { rect: { left: at.left, bottom: at.bottom, top: at.top }, caret: caret.anchor, arrows: empty });
       } catch {
         // the editor is not drawn, or the page's caret is not in it: nothing opens
       }
@@ -646,10 +647,10 @@ export const RichTextFormField = memo(({
     if (!before?.trim() || text.trim() || !templateRoots.length || readOnly || !editor) return;
     try {
       if (!ReactEditor.isFocused(editor)) return;
-      const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
+      const start = Editor.start(editor as unknown as Editor, []);
       openBrowse(editor as any, {
-        rect: { left: at.left, bottom: at.bottom },
-        caret: Editor.start(editor as unknown as Editor, []),
+        rect: caretBoxAt(editor, start),
+        caret: start,
         arrows: true,
       });
     } catch {
@@ -678,7 +679,7 @@ export const RichTextFormField = memo(({
           if (!path) return;
           const rect = event.currentTarget.getBoundingClientRect();
           current.openBrowse(editor as any, {
-            rect: { left: rect.left, bottom: rect.bottom },
+            rect: { left: rect.left, bottom: rect.bottom, top: rect.top },
             replacementPath: path as number[],
             levelId: listed.trailIds[listed.trailIds.length - 1],
             selectedValue: tag.value as string,

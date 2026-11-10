@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
 import { defaultQorusTypes, IQorusTypeObject } from '../../../../hooks/useQorusTypes';
 import { storyCopiedTexts, withStoryClipboard } from '../../../../stories/clipboard';
-import { atTheCaptureSize, hasBrowserMouse } from '../../../../stories/mouse';
+import { atTheCaptureSize } from '../../../../stories/mouse';
 import { storyApiUrl } from '../../../../stories/storyNetwork';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { mockExpressions } from '../../expressions/mockExpressions';
@@ -1698,28 +1698,28 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
   },
   async play({ canvasElement, parameters }) {
     await openTemplateContexts(canvasElement);
-    /* The window's width changes with the picker open: it stays at its button (Foxhoundn on qlip #456). The picture is
-       taken at this size. */
-    const buttonLeft = () =>
-      canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect().left;
-    const before = buttonLeft();
+    /* Where the pick goes: the start of the empty text, inside its padding. The picker opens there, from the button as
+       from a click in the text, the first time as every time (David on #162: the picker opened at the far right end of
+       the empty text, by its button, and a click in the text then opened it at the start). */
+    const textStart = () => {
+      const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!;
+      const leaf = text.querySelector<HTMLElement>('[data-slate-leaf]') ?? text;
+      return leaf.getBoundingClientRect().left;
+    };
+    const pickerLeft = () => document.querySelector('.reqore-popover-content')!.getBoundingClientRect().left;
+    const atTheTextStart = () =>
+      waitFor(() => {
+        expect(Math.abs(pickerLeft() - textStart()), 'the picker at the start of the text').toBeLessThanOrEqual(2);
+        const text = canvasElement.querySelector('[data-slate-editor]')!.getBoundingClientRect();
+        expect(document.querySelector('.reqore-popover-content')!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+          text.top
+        );
+      });
+    await atTheTextStart();
+    /* The window's width changes with the picker open: it stays where it was opened (Foxhoundn on qlip #456). The
+       picture is taken at this size. */
     await atTheCaptureSize(parameters);
-    // only the test runner resizes the frame (`atTheCaptureSize`): the button moves there, before what is checked
-    if (await hasBrowserMouse()) {
-      await waitFor(() => expect(buttonLeft()).not.toBe(before));
-    }
-    await waitFor(() => {
-      const button = canvasElement.querySelector('.smart-editor-template-button')!.getBoundingClientRect();
-      // the fixed point the picker is drawn at, which only what follows the button moves
-      const anchor = Array.from(document.querySelectorAll('span')).find(
-        (span) => span.style.position === 'fixed' && span.style.width === '1px'
-      );
-      expect(anchor?.getBoundingClientRect().left).toBe(button.left);
-      const picker = document.querySelector('.template-picker')!.getBoundingClientRect();
-      expect(picker.top).toBeGreaterThanOrEqual(button.bottom - 1);
-      // at its button, on the side there is room
-      expect(Math.abs(picker.right - button.left)).toBeLessThan(40);
-    });
+    await atTheTextStart();
     const local = await pickerRow('$local:');
     await expect(local.classList.contains('template-picker-group')).toBe(true);
     await expect(useOfRow(local)).toBeTruthy();
@@ -1730,6 +1730,20 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
     const rest = await pickerRow('$rest:');
     await expect(rest.classList.contains('template-picker-group')).toBe(false);
     await expect(useOfRow(rest)).toBeNull();
+    // put away and opened again from the button, and then by a click in the text: where it was the first time
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+    await pickerRow('Template contexts');
+    await atTheTextStart();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!);
+    await pickerRow('Template contexts');
+    await atTheTextStart();
+    // the picture is of the contexts, open
+    await userEvent.click(await pickerRow('Template contexts'));
+    await pickerRow('$local:');
   },
 };
 
@@ -2422,5 +2436,174 @@ export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
     await waitFor(() => expect(document.querySelectorAll('.template-picker')).toHaveLength(0));
     await userEvent.click(await canvas.findByText('Receive order'));
     await waitFor(() => expect(uses()).toEqual(['Use Look up customer', 'Use Receive order']));
+  },
+};
+
+/**
+ * A field in a drawer at the window's right edge, written as text, as a Qog state's options are: its template picker
+ * is opened by a click at the end of its text (qorus-ide #301).
+ */
+const InADrawerAtTheRight = (args: any) => {
+  const [value, setValue] = useState(args.value);
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', minHeight: 640 }}>
+      <div className='story-drawer' style={{ width: 420, padding: 16, boxSizing: 'border-box' }}>
+        <div style={{ width: 260 }}>
+          <TemplateField
+            {...args}
+            value={value}
+            onChange={(name: string, changed: unknown) => {
+              args.onChange?.(name, changed);
+              setValue(changed);
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** No row of the picker's list is cut through by its edge: each is wholly in view, or wholly scrolled out of it. */
+const expectNoRowCut = () => {
+  const list = document.querySelector<HTMLElement>('.template-picker .template-picker-list')!;
+  const box = list.getBoundingClientRect();
+  const rows = Array.from(list.querySelectorAll<HTMLElement>('.template-picker-row'));
+  expect(rows.length, 'the rows').toBeGreaterThan(0);
+  for (const row of rows) {
+    const at = row.getBoundingClientRect();
+    const whole = at.top >= box.top - 1 && at.bottom <= box.bottom + 1;
+    const out = at.top >= box.bottom - 1 || at.bottom <= box.top + 1;
+    expect(whole || out, `the row ${row.getAttribute('data-label')} is not cut by the list's edge`).toBe(true);
+  }
+};
+
+export const APickerOpenedInTheTextStaysAtTheCaretInItsDrawer: StoryObj<typeof meta> = {
+  args: {
+    type: 'any',
+    allowTemplates: true,
+    allowCustomValues: true,
+    templates: QOG_FIELD_TEMPLATES as never,
+    filterTemplatesByType: false,
+    value: 'This Qog was run at by',
+    name: 'message',
+  },
+  render: InADrawerAtTheRight,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field written as text in a drawer at the right edge of the window, and clicks at the end of its text: the template picker opens at the caret, below it, slid left only as far as the window needs, never out of the drawer over the page, and its list shows only whole rows.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const editor = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(found, 'the field written as text').toBeTruthy();
+      return found!;
+    });
+    // a click right of the text puts the caret at its end, as a click in a Qog's message did
+    const field = editor.getBoundingClientRect();
+    await userEvent.pointer({
+      keys: '[MouseLeft]',
+      target: editor,
+      coords: { clientX: field.right - 4, clientY: field.top + field.height / 2 },
+    });
+    await pickerRow('Context Data');
+    await waitFor(() => {
+      const drawer = canvasElement.querySelector('.story-drawer')!.getBoundingClientRect();
+      const caret = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+      // the popover the picker is drawn in, whose edge is the picker's
+      const picker = document.querySelector('.reqore-popover-content')!;
+      const box = picker.getBoundingClientRect();
+      // below the field, never inside it over what it holds, and never turned to the caret's other side
+      expect(picker.getAttribute('data-popper-placement')).toBe('bottom-start');
+      expect(box.top).toBeGreaterThanOrEqual(editor.getBoundingClientRect().bottom - 1);
+      // from the caret, slid left only as far as the window needs: it still reaches the caret
+      expect(box.left).toBeLessThanOrEqual(caret.left + 1);
+      expect(box.right).toBeGreaterThan(caret.left);
+      // never out of the drawer to its left, over the page; on its right the drawer is the window's edge
+      expect(box.left).toBeGreaterThanOrEqual(drawer.left - 1);
+      expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+    });
+    expectNoRowCut();
+  },
+};
+
+/** A drawer of a fixed height that scrolls, with a field of several lines in it. */
+const InAScrollingDrawer = (args: any) => {
+  const [value, setValue] = useState(args.value);
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+      <div className='story-drawer' style={{ width: 420, height: 420, overflow: 'auto', padding: 16, boxSizing: 'border-box' }}>
+        <div style={{ height: 120 }} />
+        <div style={{ width: 300 }}>
+          <TemplateField
+            {...args}
+            value={value}
+            onChange={(name: string, changed: unknown) => {
+              args.onChange?.(name, changed);
+              setValue(changed);
+            }}
+          />
+        </div>
+        <div style={{ height: 900 }} />
+      </div>
+    </div>
+  );
+};
+
+export const APickerIsBelowItsFieldOfSeveralLinesAndGoesWithIt: StoryObj<typeof meta> = {
+  args: {
+    type: 'any',
+    allowTemplates: true,
+    allowCustomValues: true,
+    templates: QOG_FIELD_TEMPLATES as never,
+    filterTemplatesByType: false,
+    value: 'This Qog was run at by and then it wrote to the order of the customer who placed it',
+    name: 'message',
+  },
+  render: InAScrollingDrawer,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field of several lines in a drawer that scrolls, and clicks in its first line: the template picker opens below the field - not under the first line, over the lines below it - from the caret, and goes with the field as the drawer scrolls.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const editor = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(found, 'the field written as text').toBeTruthy();
+      expect(found!.getBoundingClientRect().height, 'a field of several lines').toBeGreaterThan(40);
+      return found!;
+    });
+    // a click in its first line, a few words in
+    const field = editor.getBoundingClientRect();
+    await userEvent.pointer({
+      keys: '[MouseLeft]',
+      target: editor,
+      coords: { clientX: field.left + 60, clientY: field.top + 10 },
+    });
+    await pickerRow('Context Data');
+    const isBelowTheField = () =>
+      waitFor(() => {
+        const box = editor.getBoundingClientRect();
+        const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
+        expect(picker.top, 'below the field, over none of its lines').toBeGreaterThanOrEqual(box.bottom - 1);
+        expect(picker.top - box.bottom).toBeLessThan(20);
+        expect(picker.left).toBeGreaterThanOrEqual(box.left - 1);
+      });
+    await isBelowTheField();
+    const drawer = canvasElement.querySelector('.story-drawer') as HTMLElement;
+    const before = editor.getBoundingClientRect().top;
+    drawer.scrollTop = 60;
+    fireEvent.scroll(drawer);
+    await waitFor(() => expect(editor.getBoundingClientRect().top).toBeLessThan(before));
+    await isBelowTheField();
+    expectNoRowCut();
   },
 };

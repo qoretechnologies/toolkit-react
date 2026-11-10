@@ -35,6 +35,7 @@ import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
 import { useEmittedValues } from '../form/fields/emittedValues';
+import { caretBoxAt } from './caretBox';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
 import { useTemplateBrowseListProps } from '../form/fields/rich-text/useTemplateTags';
 import { CompletionMenu } from './CompletionMenu';
@@ -284,7 +285,7 @@ const TemplateButton = ({
   /** A value can be written at the caret: the button can be pressed. */
   insertable: boolean;
   notInsertable?: string;
-  open: (rect: { left: number; bottom: number }, anchor: Element) => void;
+  open: (rect: { left: number; bottom: number; top?: number }, anchor: Element) => void;
 }) => {
   const editorWords = useReqraftLabels().editor;
   return (
@@ -298,8 +299,8 @@ const TemplateButton = ({
       disabled={!insertable}
       onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-        const { left, bottom } = event.currentTarget.getBoundingClientRect();
-        open({ left, bottom }, event.currentTarget);
+        const { left, bottom, top } = event.currentTarget.getBoundingClientRect();
+        open({ left, bottom, top }, event.currentTarget);
       }}
     />
   );
@@ -591,7 +592,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (!editor || !at) return;
         try {
           const rect = ReactEditor.toDOMRange(editor, at).getBoundingClientRect();
-          autocomplete.openAtCaret(editor as any, at.anchor, { left: rect.left, bottom: rect.bottom });
+          autocomplete.openAtCaret(editor as any, at.anchor, { left: rect.left, bottom: rect.bottom, top: rect.top });
         } catch {
           // the caret is not drawn: nothing is asked
         }
@@ -869,7 +870,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               return;
             }
             autocomplete.openBrowse(editor as any, {
-              rect: { left: rect.left, bottom: rect.bottom },
+              rect: { left: rect.left, bottom: rect.bottom, top: rect.top },
               anchor: domNode as HTMLElement,
               replacementPath: tagPath,
               levelId: listed.trailIds[listed.trailIds.length - 1],
@@ -883,7 +884,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           autocomplete.openAtChip(
             editor,
             tagPath,
-            { left: rect.left, bottom: rect.bottom },
+            { left: rect.left, bottom: rect.bottom, top: rect.top },
             { inItsPlace: completeOnClick }
           );
         } catch {
@@ -905,11 +906,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       if (!browsesOnClick || readOnly || !editor) return;
       try {
         if (!ReactEditor.isFocused(editor)) return;
-        const at = ReactEditor.toDOMNode(editor, editor).getBoundingClientRect();
+        const start = Editor.start(editor as unknown as Editor, []);
         openBrowse(editor as any, {
-          rect: { left: at.left, bottom: at.bottom },
+          rect: caretBoxAt(editor, start),
           anchor: ReactEditor.toDOMNode(editor, editor),
-          caret: Editor.start(editor as unknown as Editor, []),
+          caret: start,
           arrows: true,
         });
       } catch {
@@ -938,7 +939,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           if (!caret) return;
           const box = page.getRangeAt(0).getBoundingClientRect();
           // a caret in an empty line has no box of its own: the text's
-          const at = box.width || box.height ? box : root.getBoundingClientRect();
+          const at = box.width || box.height ? box : caretBoxAt(editor, caret.anchor);
           /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
              empty field shows the templates, the record's fields among them). */
           const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
@@ -950,13 +951,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           const writing = /[$@][\w.:{}*-]*$/.test((leaf.text ?? '').slice(0, caret.anchor.offset));
           if (browsesOnClick && !writing && (empty || !completeOnClick)) {
             openBrowse(editor as any, {
-              rect: { left: at.left, bottom: at.bottom },
+              rect: { left: at.left, bottom: at.bottom, top: at.top },
               caret: caret.anchor,
               arrows: empty,
             });
             return;
           }
-          openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom });
+          openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom, top: at.top });
         } catch {
           // the editor is not drawn, or the page's caret is not in it: nothing is asked
         }
@@ -1187,9 +1188,29 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   autocomplete.close();
                   return;
                 }
+                /* It opens where its pick goes - the caret the text keeps while the button is pressed, else the
+                   text's end - as a click there opens it; at the button it opened at the far right end of the text
+                   (David on reqraft #162). It goes with the text as the window resizes. */
+                let at;
+                try {
+                  at = editor.selection?.anchor ?? Editor.end(editor as unknown as Editor, []);
+                } catch {
+                  at = undefined;
+                }
+                /* At the caret across, and clear of the button down and up: the button is as tall as the field, and a
+                   picker under the caret's line alone overlapped it on a phone. */
+                const caret = at ? caretBoxAt(editor, at) : undefined;
                 openBrowse(editor as any, {
-                  rect,
-                  anchor,
+                  rect:
+                    caret ?
+                      {
+                        left: caret.left,
+                        top: Math.min(caret.top ?? rect.top ?? caret.bottom, rect.top ?? caret.bottom),
+                        bottom: Math.max(caret.bottom, rect.bottom),
+                      }
+                    : rect,
+                  anchor: at ? ReactEditor.toDOMNode(editor, editor) : anchor,
+                  caret: at,
                   arrows: !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim(),
                 });
               }}
