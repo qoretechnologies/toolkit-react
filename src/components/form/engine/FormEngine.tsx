@@ -136,6 +136,7 @@ import {
   getCalmIntentText,
   getCalmPanelHairline,
   getCalmPanelSurface,
+  getThemeTextColour,
   TFormEngineAppearance,
   useFormAppearance,
   useIsCalmForm,
@@ -3089,6 +3090,19 @@ const FormEngineImpl = ({
       ).length,
     [JSON.stringify(availableOptions), getOptionBucket, getOptionStatus]
   );
+  /* Fields whose value fails but that are not in the first box: an optional field its host says is wrong
+     (`invalid_reason`) stays among the optional ones. They make the form "Incomplete", so the readiness line counts
+     them with the faults: it said "Incomplete" and nothing else, with nothing to tell the reader what. */
+  const readFirstFaultsOutsideBox = useMemo(
+    () =>
+      validityData.invalidFields.filter(
+        ({ fieldName }) =>
+          !!availableOptions?.[fieldName] &&
+          !dependencyLockedNames.includes(fieldName) &&
+          getOptionBucket(fieldName) !== 'attention'
+      ).length,
+    [validityData, JSON.stringify(availableOptions), dependencyLockedNames, getOptionBucket]
+  );
   // The same two numbers, to a host that draws its own submit control from them.
   const onAttentionChangeRef = useRef(onAttentionChange);
   onAttentionChangeRef.current = onAttentionChange;
@@ -3974,7 +3988,7 @@ const FormEngineImpl = ({
 
   // Compact (read-first) rendering.
   // Theme-derived colors so the flat-row layout adapts to light/dark/custom themes.
-  const cText = theme?.text?.color || '#f1f0ee';
+  const cText = getThemeTextColour(theme, '#f1f0ee');
   // Text emphasis tiers via reqore's readable-color helper (key = full readable
   // text, muted = its dimmed variant, faint = the dimmed variant softened
   // further) instead of hand-rolled hex-alpha suffixes on the raw text color.
@@ -4151,8 +4165,8 @@ const FormEngineImpl = ({
     () => ({
       readOnly,
       invalidCount: size(validityData.invalidFields),
-      attentionCount: readFirstAttentionCount,
-      attentionFaultCount: readFirstAttentionFaultCount,
+      attentionCount: readFirstAttentionCount + readFirstFaultsOutsideBox,
+      attentionFaultCount: readFirstAttentionFaultCount + readFirstFaultsOutsideBox,
       outsideAttentionCount,
       onRevealOutside: outsideAttention?.onReveal,
       completion: readFirstCompletion,
@@ -4203,6 +4217,7 @@ const FormEngineImpl = ({
       validityData,
       readFirstAttentionCount,
       readFirstAttentionFaultCount,
+      readFirstFaultsOutsideBox,
       readFirstCompletion,
       showInvalidOptionsOnly,
       handleToggleInvalidOnly,
@@ -4241,13 +4256,16 @@ const FormEngineImpl = ({
   );
   const renderCompact = () => {
     // Calm: the host's own colour (see `compactHostColour`), so the pinned
-    // toolbar's glass is invisible until something scrolls under it.
+    // toolbar is invisible until something scrolls under it - and opaque, so
+    // what scrolls under it does not read through. At 88% with a blur the rows
+    // still showed through crisply around the readiness line and the search
+    // wherever the blur did not apply (headless captures, a browser or a
+    // compositor without backdrop-filter): the blur was never something to
+    // count on, the host's color is.
     const headerBg =
-      calm && compactHostColour ?
-        `rgba(${compactHostColour.join(', ')}, 0.88)`
-      : `${
-          calm ? getMainBackgroundColor(theme) : changeDarkness(getMainBackgroundColor(theme), 0.02)
-        }${percentToHexAlpha(88)}`;
+      calm && compactHostColour ? `rgb(${compactHostColour.join(', ')})`
+      : calm ? getMainBackgroundColor(theme)
+      : `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
     // Toolbar filters narrow the listed rows; the meter reflects the full set.
     const query = compactQuery.trim().toLowerCase();
     const matchesQuery = (optionName: string): boolean =>
@@ -4700,6 +4718,9 @@ const FormEngineImpl = ({
       $divider: cDivider,
       $hover: cHover,
       $focus: cWarning,
+      // Calm: the text color's wash, as a hovered row has; amber would say the group is wrong (a satisfied one
+      // stayed amber under the pointer)
+      $groupHighlight: calm ? cHover : `${cWarning}1f`,
       $success: cSuccess,
       $rowBg: cRowBg,
       $lineColor: cGroupLine,

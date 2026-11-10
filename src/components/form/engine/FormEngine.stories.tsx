@@ -1462,6 +1462,43 @@ const LANGUAGE_CHOICE_OPTIONS = {
  * issues recognizing colors"): each is a radio whose own mark is not its picture, the picture beside its name; the
  * chosen one's radio is checked and its mark is another shape than the others'.
  */
+/** A computed `rgb()` / `rgba()` color as its channels and alpha. */
+const channelsOf = (color: string): [number, number, number, number] => {
+  const [r, g, b, a = 1] = (color.match(/[\d.]+/g) || []).map(Number);
+  return [r, g, b, a];
+};
+
+/** WCAG contrast of an element's text on what is painted behind it: every translucent layer down to an opaque one. */
+const textContrast = (element: HTMLElement): number => {
+  const layers: number[][] = [];
+  for (let at = element.parentElement; at; at = at.parentElement) {
+    const behind = channelsOf(getComputedStyle(at).backgroundColor);
+    if (behind[3] > 0) {
+      layers.push(behind);
+      if (behind[3] >= 1) break;
+    }
+  }
+  // composited from the bottom up, over white where nothing opaque is found
+  const surface = layers
+    .reverse()
+    .reduce(
+      (below, [r, g, b, a]) => [r, g, b].map((channel, index) => channel * a + below[index] * (1 - a)),
+      [255, 255, 255]
+    );
+  const [r, g, b, a] = channelsOf(getComputedStyle(element).color);
+  // the text as it is drawn: its alpha over the surface
+  const drawn = [r, g, b].map((channel, index) => channel * a + surface[index] * (1 - a));
+  const luminance = (rgb: number[]) => {
+    const [lr, lg, lb] = rgb.map((channel) => {
+      const c = channel / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+  };
+  const [light, dark] = [luminance(drawn), luminance(surface)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+};
+
 const expectChosenWithoutColor = async (root: HTMLElement, chosen: string) => {
   await waitFor(() => {
     const choices = Array.from(root.querySelectorAll<HTMLElement>('.reqore-checkbox'));
@@ -1583,7 +1620,7 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosenInALightTheme: Story = {
     docs: {
       description: {
         story:
-          'The same form in a light theme: the radios, the filled one chosen, read on a light surface as on a dark one.',
+          'The same form in a light theme: the radios, the filled one chosen, read on a light surface as on a dark one, and so do the field\'s name and the readiness line. The open card names the field once, with no "Language:" heading over its choices.',
       },
     },
   },
@@ -1599,6 +1636,14 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosenInALightTheme: Story = {
       return el as HTMLElement;
     });
     await expectChosenWithoutColor(row, 'Python');
+    // the field's name and the readiness line read on the light panel: they took a light theme's missing text
+    // color as near-white, and all but vanished (Qlip build 480)
+    const name = row.querySelector<HTMLElement>('.options-readfirst-card-label')!;
+    const status = canvasElement.querySelector<HTMLElement>('.options-readfirst-status')!;
+    await expect(textContrast(name)).toBeGreaterThanOrEqual(4.5);
+    await expect(textContrast(status)).toBeGreaterThanOrEqual(4.5);
+    // the card names the field once: its choices are not headed "Language:" under "Language"
+    await expect(row.querySelector('.reqraft-choice-group-heading')).toBeNull();
   },
 };
 
@@ -2931,7 +2976,7 @@ export const CompactReasonBesideItsDash: Story = {
     docs: {
       description: {
         story:
-          'Renders a check whose Expected value is empty, with the reason its host gives for it. The row shows no value, a dash, and beside it the reason, which wraps in its own space. The reason starts on the dash\'s line rather than below it, where the dash read as a bullet with its text on the next line.',
+          'Renders a check whose Expected value is empty, with the reason its host gives for it. The row shows no value, a dash, and beside it the reason, which wraps in its own space. The reason starts on the dash\'s line rather than below it, where the dash read as a bullet with its text on the next line. The readiness line counts it: "Incomplete · 1 need attention".',
       },
     },
   },
@@ -2969,6 +3014,13 @@ export const CompactReasonBesideItsDash: Story = {
     const dashBox = dash.getBoundingClientRect();
     await expect(reason.getBoundingClientRect().top).toBeLessThan(dashBox.bottom);
     await expect(reason.getBoundingClientRect().left).toBeGreaterThan(dashBox.right);
+    // the readiness line says what is incomplete: the field the host says is wrong is counted, though it sits among
+    // the optional ones (it said "Incomplete" and nothing else)
+    await waitFor(() =>
+      expect(document.querySelector('.options-readfirst-completion')?.textContent).toContain(
+        '1 need attention'
+      )
+    );
   },
 };
 
@@ -7022,7 +7074,7 @@ export const CompactRequiredGroups: Story = {
     docs: {
       description: {
         story:
-          "Renders a compact form whose options belong to required_groups — the group's one-of-required indicator appears in the row rail and clears once any member is filled.",
+          "Renders a compact form whose options belong to required_groups — the group's one-of-required indicator appears in the row rail and clears once any member is filled. Hovering a member of the satisfied group lights its members in a neutral wash, not amber.",
       },
     },
   },
@@ -7131,6 +7183,23 @@ export const CompactRequiredGroups: Story = {
     await _testsWaitForText('Covers');
     await _testsWaitForTextToNotExist('One of');
     await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(1);
+
+    // A satisfied group under the pointer lights its members in the text color's wash, as a hovered row is lit:
+    // not amber, which says the group still needs something (Qlip build 480)
+    await userEvent.hover(document.querySelector<HTMLElement>('.readfirst-row[data-field="byHost"]')!);
+    const lit = await waitFor(() => {
+      const rows = Array.from(
+        document.querySelectorAll<HTMLElement>('.readfirst-row-group-highlight')
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      return rows;
+    });
+    for (const row of lit) {
+      const [r, g, b] = channelsOf(getComputedStyle(row).backgroundColor);
+      // a grey: its channels within a few steps of each other
+      await expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(6);
+    }
+    await userEvent.unhover(lit[0]);
   },
 };
 
@@ -7893,7 +7962,7 @@ export const CompactFieldSortWithinGroups: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with grouped options that carry sort ordinals — rows within each group render in sort order, not schema-declaration order.',
+          'Renders a compact form with grouped options that carry sort ordinals — rows within each group render in sort order, not schema-declaration order. The unmet one-of group nobody has been to says so once, on its own line; its members show only their dashes.',
       },
     },
     chromatic: { disable: true },
@@ -7915,6 +7984,14 @@ export const CompactFieldSortWithinGroups: Story = {
     await waitFor(() =>
       expect(order()).toEqual(['email', 'slack', 'webhook', 'sms', 'apiKey', 'oauthToken'])
     );
+    // Nobody has been to the unmet group yet: its members say nothing under their dashes - the group's own line
+    // says it once, quietly - where each said "This field or … is required" in amber (Qlip build 480)
+    for (const field of ['email', 'slack', 'webhook', 'sms']) {
+      await expect(
+        document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-reason`)
+      ).toBeNull();
+    }
+    await expect(document.body.textContent).not.toContain('This field or');
 
     // Open the Fields menu, drill into the (collapsed) "Sort by" submenu, then
     // pick "Name A→Z". Match the exact LEAF — the menu wraps items, so a

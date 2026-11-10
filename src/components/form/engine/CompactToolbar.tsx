@@ -16,7 +16,7 @@ import styled, { css } from 'styled-components';
 import { useContext } from 'use-context-selector';
 import { getCompactToolbarInks } from './compactToolbarColors';
 import { CompactToolbarContext, TCompactSort } from './compactToolbarContext';
-import { getCalmAttentionColours, useIsCalmForm } from './formAppearance';
+import { getCalmAttentionColours, getThemeTextColour, useIsCalmForm } from './formAppearance';
 
 // Field sort modes, listed in the Fields menu's "Sort by" submenu. 'schema' is
 // the default (the schema's declared order); the rest reorder within each group.
@@ -195,7 +195,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   };
   const cSuccess = intents.success || '#4a7110';
   const { fault: cWarning, pending: cQuiet } = getCalmAttentionColours(theme);
-  const cText = (theme.text?.color as string) || '#e8e8e8';
+  const cText = getThemeTextColour(theme, '#e8e8e8');
   // the summary's words in shades that read (the meter keeps the intents themselves)
   const inks = React.useMemo(() => getCompactToolbarInks(theme), [theme]);
   const cTrack = `${cText}1f`;

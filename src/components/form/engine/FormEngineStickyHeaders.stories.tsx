@@ -246,7 +246,7 @@ export const BoxHeaderClearsTheToolbar: Story = {
     docs: {
       description: {
         story:
-          'The form’s toolbar and the status-box headers are both pinned in the same scroller. The box header is offset by the toolbar’s measured height, so the two stack instead of overlapping and the search stays reachable.',
+          'The form’s toolbar and the status-box headers are both pinned in the same scroller. The box header is offset by the toolbar’s measured height, so the two stack instead of overlapping and the search stays reachable. The pinned toolbar is opaque, in the host’s color, so the rows scrolled under it do not read through the readiness line and the search.',
       },
     },
   },
@@ -261,6 +261,12 @@ export const BoxHeaderClearsTheToolbar: Story = {
     expect(box.top).toBeGreaterThanOrEqual(Math.floor(bar.bottom) - 1);
     /* And the toolbar is itself still pinned, not scrolled away. */
     expect(bar.top).toBeGreaterThanOrEqual(scroller().getBoundingClientRect().top - 1);
+    /* What scrolls under it does not read through it: it paints an opaque surface. At 88% the rows showed through
+       crisply wherever the blur behind it did not apply (Qlip build 480). */
+    const [, , , alpha = 1] = (getComputedStyle(toolbar()).backgroundColor.match(/[\d.]+/g) || []).map(
+      Number
+    );
+    expect(alpha).toBe(1);
   },
 };
 

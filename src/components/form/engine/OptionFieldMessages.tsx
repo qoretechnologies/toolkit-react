@@ -405,6 +405,11 @@ export interface IOptionFieldMessage extends IReqoreTagProps {
    * appearance's amber words, `CompactRow`) leaves it out of its reasons, so the requirement is said once.
    */
   requirement?: boolean;
+  /**
+   * It says the field is one of a required group (`required_groups`) none of whose members is set. A calm row says
+   * that once for the group, in its value column, and not under each member.
+   */
+  requiredGroup?: boolean;
 }
 
 /**
@@ -516,6 +521,7 @@ export const getOptionFieldMessages = ({
       result.push({
         label: requiredOptionsMessage,
         intent: 'warning',
+        requiredGroup: true,
       });
     }
   }
@@ -620,7 +626,7 @@ export const OptionFieldMessages = ({
             minimal
             icon='ErrorWarningLine'
             key={index}
-            {...omit(message, 'requirement')}
+            {...omit(message, ['requirement', 'requiredGroup'])}
           />
         ))}
       </ReqoreControlGroup>

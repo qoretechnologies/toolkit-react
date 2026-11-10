@@ -106,3 +106,68 @@ describe('a calm row of an empty required field', () => {
     expect(container.querySelector('.options-readfirst-valuetext')?.textContent).toBe('Pflicht');
   });
 });
+
+/*
+ * A one-of group (`required_groups`) in a calm form says what it needs once, on its own line, until the person has
+ * been to it; then each member says it where its value would be, as a required field does. Its members never say
+ * "This field or … is required" under a dash (Qlip build 480).
+ */
+describe('a calm one-of group', () => {
+  const GROUP = {
+    email: { type: 'string', display_name: 'Email', required_groups: ['target'], preselected: true },
+    slack: { type: 'string', display_name: 'Slack', required_groups: ['target'], preselected: true },
+  } as never;
+
+  it('flags its message as the group’s', () => {
+    const [message] = getOptionFieldMessages({
+      schema: GROUP,
+      option: { type: 'string' } as never,
+      name: 'email',
+      allOptions: {} as never,
+      getType: (type: string) => type,
+      calm: true,
+    });
+    expect(message).toMatchObject({ requiredGroup: true, intent: 'warning' });
+    expect(message.requirement).toBeFalsy();
+  });
+
+  const groupForm = (revealRequired?: boolean) =>
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={emptyFetchContext()}>
+          <FormEngine
+            compact
+            name='one-of'
+            value={{} as never}
+            options={GROUP}
+            revealRequired={revealRequired}
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+  const valueOf = (container: HTMLElement, field: string) =>
+    container.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-valuetext`)
+      ?.textContent;
+
+  it('says nothing on its members before anyone has been to it', async () => {
+    const { container } = groupForm();
+    await waitFor(() => expect(valueOf(container, 'email')).toBe('—'));
+    expect(valueOf(container, 'slack')).toBe('—');
+    expect(container.querySelectorAll('.options-readfirst-reason')).toHaveLength(0);
+    expect(container.textContent).not.toContain('This field or');
+  });
+
+  it('says on each member what the group needs once it has been to', async () => {
+    const { container } = groupForm(true);
+    await waitFor(() => expect(valueOf(container, 'email')).toBe('One of these · add a value'));
+    expect(valueOf(container, 'slack')).toBe('One of these · add a value');
+    expect(container.textContent).not.toContain('This field or');
+  });
+
+  it('says it in the host’s words', async () => {
+    setReqraftLabels({ formEngine: { calmOneOf: 'Eines davon · Wert eingeben' } });
+    const { container } = groupForm(true);
+    await waitFor(() => expect(valueOf(container, 'email')).toBe('Eines davon · Wert eingeben'));
+  });
+});

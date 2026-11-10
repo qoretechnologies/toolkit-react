@@ -780,6 +780,8 @@ export const StyledGroupBody = styled.div<{
   $divider: string;
   $hover: string;
   $focus: string;
+  /** The wash over a required group's members while one of them is hovered. */
+  $groupHighlight: string;
   $success: string;
   $rowBg: string;
   $lineColor: string;
@@ -928,7 +930,7 @@ export const StyledGroupBody = styled.div<{
   /* Required-group linkage: hovering a member highlights every sibling row —
      just a background tint, no left stripe (that reads as an intent edge). */
   .readfirst-row-group-highlight {
-    background: ${({ $focus }) => `${$focus}1f`};
+    background: ${({ $groupHighlight }) => $groupHighlight};
   }
   .readfirst-row-flash {
     animation: readfirstRowFlash 1.4s ease;

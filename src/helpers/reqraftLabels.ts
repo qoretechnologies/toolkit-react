@@ -335,6 +335,13 @@ export interface IFormEngineLabels {
   calmRequired: string;
   /** `calmRequired` in a read-only form, where the reader cannot add anything: only what is the case. */
   calmRequiredRead: string;
+  /**
+   * `calmRequired` for a member of a one-of group (`required_groups`) none of whose members is set: one of them is
+   * required, not this one. Said once the person has been to the group; until then the group's own line says it.
+   */
+  calmOneOf: string;
+  /** `calmOneOf` in a read-only form. */
+  calmOneOfRead: string;
   /** An empty field of a required group: it, or one of the `others` (their names), is required. */
   requiredOrOthers: (others: string[]) => string;
   /** Why a stored value is not one of the field's choices: the value, as it is named (quoted). */
@@ -750,6 +757,8 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     required: 'This field is required',
     calmRequired: 'Required · add a value',
     calmRequiredRead: 'Required · not set',
+    calmOneOf: 'One of these · add a value',
+    calmOneOfRead: 'One of these · not set',
     requiredOrOthers: (others) => `This field or ${others.join(' or ')} is required`,
     notAChoice: (name) => `${name} is not one of the choices`,
     notAmongTheChoices: (names) =>

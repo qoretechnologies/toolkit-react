@@ -272,6 +272,20 @@ export const CompactRow = memo(
       CompactRowContext,
       (v) => v.revealRequired || !!v.visitedOptions?.includes(optionName)
     );
+    /* A one-of group has been to once the person has been to any of its members (or a save was refused): its
+       members then all say what the group needs, as the group's line turns amber (`clusterVisited`). */
+    const groupVisited = useContextSelector(CompactRowContext, (v) => {
+      const groups = (v.options?.[optionName]?.required_groups as string[] | undefined) || [];
+      return (
+        !!groups.length &&
+        (v.revealRequired ||
+          groups.some((group) =>
+            (v.requiredGroupsInfo.members[group] || []).some((member) =>
+              v.visitedOptions?.includes(member)
+            )
+          ))
+      );
+    });
 
     // An absorbed field keeps its own name — it is a different field, not a
     // property of its host — so the label comes from its schema exactly as it
@@ -1436,6 +1450,8 @@ export const CompactRow = memo(
       attention?: boolean;
       /** It says the field is required and empty (`IOptionFieldMessage.requirement`). */
       requirement?: boolean;
+      /** It says the field's one-of group is still unset (`IOptionFieldMessage.requiredGroup`). */
+      requiredGroup?: boolean;
     };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
@@ -1468,11 +1484,17 @@ export const CompactRow = memo(
           readOnly,
           // Until the person has been to the field, its requirement is stated plainly.
           requirementPending: !visited,
-        }).map((m) => ({
-          intent: m.intent as string,
-          content: String(m.label),
-          requirement: m.requirement,
-        }))
+        })
+          /* Calm: a one-of group nobody has been to says nothing on its rows - the group's own line ("One of the
+             below is required") says it once, quietly - and so colors nothing: no amber edge for a group that is
+             only still to fill in. */
+          .filter((m) => !(calm && m.requiredGroup && !groupVisited))
+          .map((m) => ({
+            intent: m.intent as string,
+            content: String(m.label),
+            requirement: m.requirement,
+            requiredGroup: m.requiredGroup,
+          }))
       : [];
     // TWO display channels, matching the Focus prototype:
     //  • dedicated schema `messages` → prominent colored PANELS below the row;
@@ -1989,7 +2011,11 @@ export const CompactRow = memo(
             }}
           >
             <StyledCardHeading>
-              <StyledCardLabel $color={cLabel} title={labelHover}>
+              <StyledCardLabel
+                className='options-readfirst-card-label'
+                $color={cLabel}
+                title={labelHover}
+              >
                 {(
                   (schema as { icon?: string } | undefined)?.icon ||
                   (schema as { image?: string } | undefined)?.image
@@ -2141,7 +2167,11 @@ export const CompactRow = memo(
               : null}
               <RowMenuContext.Provider value={rowMenu}>
                 <PendingEditsContext.Provider value={pendingEdits}>
-                  {renderOption(optionName, optionField)}
+                  {/* The card's header names the field, as the inline row's label does: a choice group under it
+                      does not say its name again ("Language:" under "Language"). */}
+                  <RowLabelledContext.Provider value>
+                    {renderOption(optionName, optionField)}
+                  </RowLabelledContext.Provider>
                 </PendingEditsContext.Provider>
               </RowMenuContext.Provider>
             </FocusedEditing>
@@ -2589,6 +2619,19 @@ export const CompactRow = memo(
       calm && empty && !hidden && !!schema?.required && !fieldDisabled && !formattedDefault ?
         readOnly ? feWords.calmRequiredRead
         : feWords.calmRequired
+      /* A member of a one-of group still unset, once the person has been to it (the group's message is only kept
+         then, above): said in the value column as a required field is, in the group's words, in place of "This
+         field or … is required" under a dash. */
+      : (
+        calm &&
+        empty &&
+        !hidden &&
+        !fieldDisabled &&
+        !formattedDefault &&
+        fieldMessages.some((m) => m.requiredGroup)
+      ) ?
+        readOnly ? feWords.calmOneOfRead
+        : feWords.calmOneOf
       : undefined;
     const dotColor =
       dotStatus === 'invalid' ? cDanger
@@ -2777,7 +2820,10 @@ export const CompactRow = memo(
           : null}
           {/* the requirement is said by the value column's words: told by its flag, never by comparing the words,
               which are the host's and may be the same as another reason's */}
-          {(calmRequiredWord ? valueReasons.filter((m) => !m.requirement) : valueReasons).map(
+          {(calmRequiredWord ?
+            valueReasons.filter((m) => !m.requirement && !m.requiredGroup)
+          : valueReasons
+          ).map(
             (m, i) => (
             <span
               key={`${m.content}-${i}`}

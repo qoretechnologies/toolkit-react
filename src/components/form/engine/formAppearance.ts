@@ -3,6 +3,7 @@ import {
   changeDarkness,
   changeLightness,
   getMainBackgroundColor,
+  getReadableColor,
 } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { darken, lighten } from 'polished';
 import { createContext, useContext } from 'react';
@@ -17,7 +18,13 @@ import { DEFAULT_REQRAFT_LABELS } from '../../../helpers/reqraftLabels';
  *   rows split by hairlines; labels are grey; a missing required value is an
  *   amber word instead of a red asterisk and message; counts are quiet numbers;
  *   a healthy row carries no dot; Yes/No are plain words; nothing is forced
- *   into uppercase.
+ *   into uppercase. A one-of group (`required_groups`) says what it needs once,
+ *   on its own line, until someone has been to it; then its members say it as a
+ *   required field does. The pinned toolbar is opaque, in the host's color. No
+ *   blue but for a filter that is on, no purple but for an AI or Qonsole
+ *   action. The expression builder follows: names as written, neutral cards,
+ *   a missing operand said quietly on itself, what is wrong said in words.
+ *   Every color is read from the theme, a light one included.
  * - `'classic'` — the earlier read-first look, for a host that asks for it:
  *   tinted status boxes, an intent-coloured completion meter, a status dot on
  *   every row.
@@ -78,7 +85,7 @@ export const getCalmAttentionColours = (
   theme: IReqoreTheme
 ): { fault: string; pending: string } => ({
   fault: getCalmIntentText(theme, 'warning'),
-  pending: `${(theme.text?.color as string) || '#e8e8e8'}a6`,
+  pending: `${getThemeTextColour(theme, '#e8e8e8')}a6`,
 });
 
 /** `#rgb` as `#rrggbb` (polished shortens the colours it returns when it can). */
@@ -90,6 +97,21 @@ const fullHex = (hex: string): string =>
       .map((digit) => digit + digit)
       .join('')}`
   : hex;
+
+/**
+ * The theme's text color, as `#rrggbb` so an alpha can follow it: the theme's own (`text.color`) when it gives
+ * one; else the text that reads on its `main` - Reqore's dark text on a light theme (a light theme gave none, and
+ * the calm labels and the readiness line were drawn near-white on a light panel), and `dark` on a dark one, the
+ * light text the form always drew there.
+ */
+export const getThemeTextColour = (theme: IReqoreTheme, dark: string): string => {
+  const own = theme.text?.color as string | undefined;
+  if (own) {
+    return own;
+  }
+  const main = fullHex(getMainBackgroundColor(theme));
+  return /^#[0-9a-f]{6}/i.test(main) && luminance(main) > 0.4 ? fullHex(getReadableColor(theme)) : dark;
+};
 
 /** WCAG relative luminance of a `#rrggbb` colour (any alpha suffix ignored). */
 const luminance = (hex: string): number => {
