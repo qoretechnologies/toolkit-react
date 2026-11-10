@@ -3116,11 +3116,14 @@ const FormEngineImpl = ({
   // What the host found wrong outside the fields: in the line and in what the host is told.
   const outsideAttentionCount = Math.max(0, outsideAttention?.count ?? 0);
   useEffect(() => {
+    /* The line's numbers, to the one: a field its host says is wrong outside the first box (`readFirstFaultsOutsideBox`)
+       is counted in the line, and so in what the host is told - the host's submit read ready while the line said
+       "Incomplete · 1 need attention". */
     onAttentionChangeRef.current?.({
-      count: readFirstAttentionCount + outsideAttentionCount,
-      faults: readFirstAttentionFaultCount + outsideAttentionCount,
+      count: readFirstAttentionCount + readFirstFaultsOutsideBox + outsideAttentionCount,
+      faults: readFirstAttentionFaultCount + readFirstFaultsOutsideBox + outsideAttentionCount,
     });
-  }, [readFirstAttentionCount, readFirstAttentionFaultCount, outsideAttentionCount]);
+  }, [readFirstAttentionCount, readFirstAttentionFaultCount, readFirstFaultsOutsideBox, outsideAttentionCount]);
 
   const getIntent = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
