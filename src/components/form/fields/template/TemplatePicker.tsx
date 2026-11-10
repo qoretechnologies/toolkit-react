@@ -36,7 +36,7 @@ import {
   templateNodeFor,
   unbracedReference,
 } from '../../../../helpers/templateTree';
-import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME } from '../../../smartEditor/completionStyle';
+import { COMPLETION_ITEM_STYLE, useCompletionListTheme } from '../../../smartEditor/completionStyle';
 import { SMART_EDITOR_OVERLAY_EFFECT } from '../../../smartEditor/styling';
 import { useTypeLabel } from '../../typeSentenceForm';
 import {
@@ -236,6 +236,8 @@ export const TemplatePicker = memo(
     labels,
   }: ITemplatePickerProps) => {
     const browserWords = useReqraftLabels().templateBrowser;
+    // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
+    const listTheme = useCompletionListTheme();
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
@@ -554,7 +556,7 @@ export const TemplatePicker = memo(
         style={{
           width: fill ? '100%' : TEMPLATE_PICKER_WIDTH,
           maxWidth: '100%',
-          background: COMPLETION_LIST_THEME.main as string,
+          background: listTheme.main as string,
           borderRadius: 6,
         }}
         onKeyDown={(event) => {
@@ -570,7 +572,7 @@ export const TemplatePicker = memo(
             keepTheFocus(event);
         }}
       >
-        <ReqoreControlGroup vertical fluid size='small' customTheme={COMPLETION_LIST_THEME}>
+        <ReqoreControlGroup vertical fluid size='small' customTheme={listTheme}>
           <ReqoreControlGroup
             fluid
             wrap
@@ -750,7 +752,7 @@ export const TemplatePicker = memo(
           maxHeight='300px'
           width='100%'
           effect={SMART_EDITOR_OVERLAY_EFFECT}
-          customTheme={COMPLETION_LIST_THEME}
+          customTheme={listTheme}
         >
           {!visible.length && !shownFailure ?
             <ReqoreMenuItem

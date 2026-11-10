@@ -89,6 +89,7 @@ import {
   IUseReqraftWebSocketOptions,
   useReqraftWebSocket,
 } from '../../hooks/useWebSocket/useWebSocket';
+import { useDestructiveButtonProps } from '../../hooks/useDestructiveButtonProps';
 
 export interface IReqraftLogMessage extends IReqoreParagraphProps {
   message: string;
@@ -157,6 +158,8 @@ export const ReqraftLog = ({
   ...panelProps
 }: IReqraftLogProps) => {
   const words = useReqraftLabels().log;
+  // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+  const destructive = useDestructiveButtonProps();
   // what the log is given says it, before the host's words
   const copyMessageNotificationContent = givenCopiedContent ?? words.copied;
   const copyMessageFailedNotificationContent = givenCopyFailedContent ?? words.copyFailed;
@@ -326,6 +329,7 @@ export const ReqraftLog = ({
         },
         {
           icon: 'DeleteBinLine',
+          ...destructive,
           onClick: clear,
           tooltip: words.clear,
           className: 'reqraft-log-clear',
@@ -387,6 +391,7 @@ export const ReqraftLog = ({
                     minimal
                     size={size}
                     flat
+                    {...destructive}
                   />
                 )}
               </ReqoreControlGroup>

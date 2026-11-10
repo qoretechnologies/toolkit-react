@@ -16,6 +16,7 @@ import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export interface IArrayAutoFieldProps {
   name: string;
@@ -74,6 +75,8 @@ export const ArrayAutoField = memo(
     renderItem,
   }: IArrayAutoFieldProps) => {
     const fieldWords = useReqraftLabels().fields;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
     const confirmAction = useReqoreProperty('confirmAction');
     const [localValue, setLocalValue] = useState(value);
     // Compact mode state: staging value for the input field and optional editing index
@@ -256,7 +259,7 @@ export const ArrayAutoField = memo(
                         },
                         {
                           icon: 'DeleteBinLine',
-                          intent: 'danger',
+                          ...destructive,
                           tooltip: fieldWords.remove,
                           className: 'array-auto-compact-remove',
                           onClick: () => handleRemoveTag(idx),
@@ -355,7 +358,7 @@ export const ArrayAutoField = memo(
               {
                 show: size(localValue) !== 1 && !disabled && !readOnly,
                 icon: 'DeleteBinLine',
-                intent: 'danger',
+                ...destructive,
                 className: 'array-auto-item-remove',
                 tooltip: fieldWords.removeItem,
                 onClick: () => confirmAction({ onConfirm: () => removeItem(idx) }),

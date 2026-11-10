@@ -98,7 +98,8 @@ import {
   useRowMenuPublisher,
 } from '../../engine/rowMenuContext';
 import { SavedValuesContext } from '../allowed-values/savedValues';
-import { useIsCalmForm } from '../../engine/formAppearance';
+import { useTemplatesListProps } from './templatesListProps';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
@@ -112,24 +113,7 @@ export type { IQorusFormType as IQorusType };
  */
 const DPQL_DETECT_DEBOUNCE_MS = 400;
 
-/** The template list's own surface: a dark purple in the classic look. The calm look draws none of its own (no
- *  purple but for an AI or Qonsole action): see `useTemplatesListProps`. */
-export const TemplatesListProps: IReqoreDropdownProps = {
-  useTargetWidth: true,
-  handler: 'focus',
-  minWidth: '300px',
-  listCustomTheme: {
-    main: '#1e0d29',
-  },
-};
-
-/** `TemplatesListProps` for the look in force: without the purple surface in the calm look. */
-const CALM_TEMPLATES_LIST_PROPS: IReqoreDropdownProps = {
-  ...TemplatesListProps,
-  listCustomTheme: undefined,
-};
-const useTemplatesListProps = (): IReqoreDropdownProps =>
-  useIsCalmForm() ? CALM_TEMPLATES_LIST_PROPS : TemplatesListProps;
+export { TemplatesListProps, useTemplatesListProps } from './templatesListProps';
 
 // IDE leaf-field modules take `onChange(name, value)` and a `name` prop;
 // reqraft leaf fields are single-arg. These wrappers restore the IDE API for
@@ -692,6 +676,8 @@ const TemplateFieldImpl = memo(
   }: ITemplateFieldProps & { rowMenu?: IRowMenuRegistration }) => {
     const fieldLabels = useReqraftLabels();
     const templatesListProps = useTemplatesListProps();
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
     const fieldWords = fieldLabels.templateField;
     const qorusTypes = useQorusTypes();
     const functions = useExpressions({
@@ -1429,7 +1415,7 @@ const TemplateFieldImpl = memo(
                 {
                   rightAction: {
                     icon: 'DeleteBinLine' as const,
-                    intent: 'danger' as const,
+                    ...destructive,
                     minimal: true,
                     className: 'saved-value-remove',
                     tooltip: savedWords.remove,
@@ -2051,7 +2037,7 @@ const TemplateFieldImpl = memo(
                           savedValues?.onRemove ?
                             {
                               icon: 'DeleteBinLine',
-                              intent: 'danger',
+                              ...destructive,
                               minimal: true,
                               className: 'saved-value-remove',
                               tooltip: savedWords.remove,

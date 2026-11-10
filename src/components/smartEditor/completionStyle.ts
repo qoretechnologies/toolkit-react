@@ -1,5 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-import { ReqoreFonts } from '@qoretechnologies/reqore';
+import { ReqoreFonts, useReqoreTheme } from '@qoretechnologies/reqore';
+import { useMemo } from 'react';
+import { getCalmPanelSurface, useIsCalmForm } from '../form/engine/formAppearance';
 import { IReqoreCustomTheme } from '@qoretechnologies/reqore/dist/constants/theme';
 import { TReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import type React from 'react';
@@ -16,8 +18,25 @@ import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
  * take their color, their rows' font, and their kinds' icons and chips from here, so they cannot drift.
  */
 
-/** The lists' own color. */
+/** The lists' own color in the classic look: a dark purple. */
 export const COMPLETION_LIST_THEME: IReqoreCustomTheme = { main: '#1e0d29' };
+
+/**
+ * The lists' own color in the look in force, for every list a field offers what can be written in: the completion
+ * list, the template picker and browser, a rich-text field's and a number field's template lists. The classic look's
+ * dark purple (`COMPLETION_LIST_THEME`); in the calm look the theme's panel surface, neutral - purple is for an AI or
+ * a Qonsole action, and a list of values is neither. Its rows, its search box and the row under the pointer are
+ * drawn from it, so none of them is purple either.
+ */
+export const useCompletionListTheme = (): IReqoreCustomTheme => {
+  const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
+  return useMemo(
+    (): IReqoreCustomTheme =>
+      calm ? { main: getCalmPanelSurface(theme) as IReqoreCustomTheme['main'] } : COMPLETION_LIST_THEME,
+    [calm, theme]
+  );
+};
 
 /** A row's text: reqore's mono stack, as what it writes. Module-scoped, so a memoized row keeps its reference. */
 export const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: ReqoreFonts.mono };

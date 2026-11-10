@@ -898,6 +898,35 @@ export interface IReadFirstCompletion {
   pct: number;
 }
 
+/**
+ * Whether the person has been to a field, as its requirement is judged: they opened it and left it, or the host
+ * reported a submit attempt (`revealRequired`). A member of a one-of group (`required_groups`) has been to as soon as
+ * any member of its group has: the group is one requirement, so its members are still to fill in together, and
+ * become faults together - the group's line, each member's words and color, the box they are in and the readiness
+ * line's count all say the same. Shared by the row (CompactRow) and the form's status and counts (FormEngine).
+ */
+export const hasBeenToTheField = (
+  name: string,
+  {
+    visitedOptions,
+    revealRequired,
+    requiredGroups,
+    groupMembers,
+  }: {
+    visitedOptions?: string[];
+    revealRequired?: boolean;
+    /** The field's own one-of groups. */
+    requiredGroups?: string[];
+    /** Each one-of group's members, by group. */
+    groupMembers?: Record<string, string[]>;
+  }
+): boolean =>
+  !!revealRequired ||
+  !!visitedOptions?.includes(name) ||
+  !!requiredGroups?.some((group) =>
+    (groupMembers?.[group] || []).some((member) => visitedOptions?.includes(member))
+  );
+
 /** Read-first row status, shared by the status DOT (CompactRow) and the
  * status BOX bucketing (FormEngine) so the two can never disagree:
  *   invalid  — a value fails validation, or a danger message is present (red)

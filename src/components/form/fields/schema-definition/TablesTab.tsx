@@ -17,6 +17,7 @@ import { Hint } from './Hint';
 import { TableEditor } from './TableEditor';
 import { removeKey, renameKey, sectionCount, setKey, uniqueKey } from './helpers';
 import { ICatalogMap } from './types';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export interface ITablesTabProps {
   /** The `tables` map node from the catalogue. */
@@ -31,6 +32,8 @@ export const TablesTab = memo(
     const tables = Object.entries(value ?? {});
     const confirmAction = useReqoreProperty('confirmAction');
     const words = useReqraftLabels().schemaDefinition;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
 
     const addTable = useCallback(() => {
       onChange(setKey(value, uniqueKey(value, 'new_table'), {}));
@@ -94,7 +97,7 @@ export const TablesTab = memo(
                         icon: 'DeleteBinLine',
                         minimal: true,
                         flat: true,
-                        intent: 'danger',
+                        ...destructive,
                         size: 'small',
                         tooltip: words.removeTable,
                         onClick: () => confirmRemoveTable(tableName),

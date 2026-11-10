@@ -36,7 +36,7 @@ import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
 import { useEmittedValues } from '../form/fields/emittedValues';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
-import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
+import { useTemplateBrowseListProps } from '../form/fields/rich-text/useTemplateTags';
 import { CompletionMenu } from './CompletionMenu';
 import { MarkdownDoc } from './MarkdownDoc';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
@@ -978,6 +978,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       }
     }, []);
 
+    // the template list's color in the look in force: neutral in the calm one
+    const browseListProps = useTemplateBrowseListProps();
     const handleCompletionSelect = useCallback(
       (item: ICompletionDropdownItem) => {
         if (!editorRef.current) return;
@@ -1063,7 +1065,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
               // drawn as the completion list is
               tags={tags}
-              tagsListProps={{ useTargetWidth: true, ...TEMPLATE_BROWSE_LIST_PROPS }}
+              tagsListProps={{ useTargetWidth: true, ...browseListProps }}
               // what is typed is completed in the list at the caret: a screen reader is told it completes, and where
               aria-autocomplete='list'
               aria-expanded={autocomplete.isOpen}

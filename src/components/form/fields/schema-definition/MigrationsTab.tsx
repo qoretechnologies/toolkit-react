@@ -21,6 +21,7 @@ import { CatalogGroupBody } from './CatalogNodeEditor';
 import { moveItem } from '../../../../helpers/common';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ICatalogList } from './types';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export interface IMigrationsTabProps {
   /** The `migrations` list node from the catalogue. */
@@ -40,6 +41,8 @@ export const MigrationsTab = memo(
     const blocks = value ?? [];
     const confirmAction = useReqoreProperty('confirmAction');
     const words = useReqraftLabels().schemaDefinition;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
 
     const addBlock = useCallback(() => {
       onChange([...blocks, createMigrationBlock('')]);
@@ -148,7 +151,7 @@ export const MigrationsTab = memo(
                         icon: 'DeleteBinLine',
                         minimal: true,
                         flat: true,
-                        intent: 'danger',
+                        ...destructive,
                         size: 'small',
                         tooltip: words.removeMigrationBlock,
                         onClick: () => confirmRemoveBlock(index),

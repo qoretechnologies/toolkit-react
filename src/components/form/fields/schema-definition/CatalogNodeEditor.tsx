@@ -59,6 +59,7 @@ import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { describedPanelProps } from '../../../Description/describedControl';
 import { ISchemaDefinitionLabels } from './labels';
 import { ICatalogLeaf, ICatalogNode, ICatalogOptions } from './types';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 /** Translucent, blurred drawer styling — matches the IDE's detail-page drawers. */
 const DRAWER_STYLE = { opacity: 0.6, contentEffect: { backgroundBlur: 20 } } as const;
@@ -355,6 +356,8 @@ const CatalogEntryDrawer = memo(
   }: ICatalogEntryDrawerProps) => {
     const confirmAction = useReqoreProperty('confirmAction');
     const words = useReqraftLabels().schemaDefinition;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
     const handleRemove = useCallback(() => {
       if (!onRemove) return;
       confirmAction({
@@ -398,9 +401,9 @@ const CatalogEntryDrawer = memo(
         {onRemove && !readOnly ? (
           <ReqoreButton
             icon='DeleteBinLine'
-            intent='danger'
             minimal
             fixed
+            {...destructive}
             onClick={handleRemove}
           >
             {words.removeEntry(noun)}

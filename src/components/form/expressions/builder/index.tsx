@@ -94,6 +94,7 @@ import { RowLabelledContext } from '../../engine/rowLabelled';
 import { ExpressionItem } from './item';
 import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 const noopUseRegisterHintView = (...args: unknown[]): void => {
   void args;
@@ -268,6 +269,8 @@ export const Expression = ({
   ...props
 }: IExpressionProps) => {
   const words = useReqraftLabels().expressions;
+  // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+  const destructive = useDestructiveButtonProps();
   const calm = useIsCalmForm();
   const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
@@ -1156,7 +1159,7 @@ export const Expression = ({
         },
         {
           className: 'expression-group-remove',
-          intent: 'danger',
+          ...destructive,
           textAlign: 'center',
           icon: 'DeleteBinLine',
           tooltip: words.removeExpressionTooltip,
@@ -1178,7 +1181,10 @@ export const Expression = ({
             {
               flat: true,
               className: 'expression-and',
-              label: 'AND',
+              // sentence case in the calm look, capitals in the classic one
+              label: words.joinWithAnd,
+              labelEffect: calm ? undefined : { uppercase: true },
+              tooltip: words.joinWithAndTooltip,
               textAlign: 'center',
               icon: 'AddLine',
               fixed: true,
@@ -1190,7 +1196,9 @@ export const Expression = ({
             {
               flat: true,
               className: 'expression-or',
-              label: 'OR',
+              label: words.joinWithOr,
+              labelEffect: calm ? undefined : { uppercase: true },
+              tooltip: words.joinWithOrTooltip,
               textAlign: 'center',
               icon: 'AddLine',
               show: (!group || group === '&&') && !readOnly,
@@ -1808,7 +1816,8 @@ const ExpressionBuilderBody = ({
                 />
                 {index < size(value.value.args) - 1 && (
                   <ExpressionArgumentDetail
-                    label={value.value.exp === '||' ? 'OR' : 'AND'}
+                    // small in the calm look; `ExpressionArgumentDetail` draws it in capitals in the classic one
+                    label={value.value.exp === '||' ? words.joinedByOr : words.joinedByAnd}
                     align='left'
                     style={{
                       marginLeft: 10,

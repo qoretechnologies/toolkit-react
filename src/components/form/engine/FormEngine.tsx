@@ -158,6 +158,7 @@ import {
   getReadFirstBucket,
   getReadFirstCompletion,
   getReadFirstStatus,
+  hasBeenToTheField,
   isOptionValueEmpty,
   describeBlockedSave,
   isFixedCompactAllowedValueOption,
@@ -3041,7 +3042,13 @@ const FormEngineImpl = ({
         covered,
         invalid,
         warned: msgIntent === 'warning',
-        visited: revealRequired || visitedOptions.includes(name),
+        // a one-of member, once anyone has been to its group (`hasBeenToTheField`)
+        visited: hasBeenToTheField(name, {
+          visitedOptions,
+          revealRequired,
+          requiredGroups: reqGroups,
+          groupMembers: requiredGroupsInfo.members,
+        }),
       });
     },
     [

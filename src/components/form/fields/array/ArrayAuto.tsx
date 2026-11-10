@@ -33,6 +33,7 @@ import { recordIdentity } from '../../engine/readFirst';
 import { AutoFormField } from '../auto/AutoFormField';
 import { TemplateField } from '../template/TemplateField';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export const allowedTypes: string[] = ['string', 'int', 'float', 'date', 'file'];
 const defaultValueByType = {
@@ -70,6 +71,8 @@ export const ArrayAuto = ({
   ...rest
 }: IArrayAutoProps): any => {
   const fieldWords = useReqraftLabels().fields;
+  // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+  const destructive = useDestructiveButtonProps();
   const confirmAction = useReqoreProperty('confirmAction');
   const [localValue, setLocalValue] = useState(value);
   // The row this component just created, so its sub-form can open the field it
@@ -229,7 +232,7 @@ export const ArrayAuto = ({
             {
               show: size(localValue) !== 1 && !rest.disabled && !rest.readOnly,
               icon: 'DeleteBinLine',
-              intent: 'danger',
+              ...destructive,
               className: 'array-auto-item-remove',
               tooltip: fieldWords.removeItem,
               onClick: () =>

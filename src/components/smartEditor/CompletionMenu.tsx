@@ -6,7 +6,7 @@ import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover'
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, { memo, useCallback, useMemo } from 'react';
 import { useCoarsePointer } from '../../hooks/useCoarsePointer';
-import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME, kindBadge } from './completionStyle';
+import { COMPLETION_ITEM_STYLE, kindBadge, useCompletionListTheme } from './completionStyle';
 import { MarkdownDoc } from './MarkdownDoc';
 import { SMART_EDITOR_OVERLAY_EFFECT } from './styling';
 import {
@@ -339,6 +339,8 @@ export const CompletionList = memo(
     onToggleDocs,
   }: ICompletionListProps) => {
     const coarse = useCoarsePointer();
+    // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
+    const listTheme = useCompletionListTheme();
     // Flatten groups into rows carrying a flat index to compare against
     // `focusedIndex` (which is flat across all groups).
     const completionGroups = useMemo(() => {
@@ -359,7 +361,7 @@ export const CompletionList = memo(
         maxHeight='300px'
         width={TEMPLATE_PICKER_WIDTH}
         effect={SMART_EDITOR_OVERLAY_EFFECT}
-        customTheme={COMPLETION_LIST_THEME}
+        customTheme={listTheme}
       >
         {note && completionGroups.length > 0 ?
           <ReqoreMenuItem

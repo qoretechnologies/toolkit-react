@@ -85,6 +85,17 @@ export interface IExpressionLabels {
   /** The heading of a group of conditions, one of which must be true (OR), all of which (AND), and the top one. */
   anyOfConditions: string;
   allOfConditions: string;
+  /**
+   * The two actions that join another condition to an expression: one that must also be true, and one that can be
+   * true instead. Written in sentence case; the classic look draws them in capitals.
+   */
+  joinWithAnd: string;
+  joinWithOr: string;
+  joinWithAndTooltip: string;
+  joinWithOrTooltip: string;
+  /** Between two parts of a group: what joins them. Small; the classic look draws them in capitals. */
+  joinedByAnd: string;
+  joinedByOr: string;
   ifConditions: string;
   addCondition: string;
   /** An operand's position: 1st, 2nd, 3rd. */
@@ -193,6 +204,12 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
   loading: 'Loading...',
   anyOfConditions: 'At least one of these is true (OR)',
   allOfConditions: 'All of these are true (AND)',
+  joinWithAnd: 'And',
+  joinWithOr: 'Or',
+  joinWithAndTooltip: 'Add a condition that must also be true',
+  joinWithOrTooltip: 'Add a condition that can be true instead',
+  joinedByAnd: 'and',
+  joinedByOr: 'or',
   ifConditions: 'If',
   addCondition: 'Add a condition',
   ordinal: englishOrdinal,

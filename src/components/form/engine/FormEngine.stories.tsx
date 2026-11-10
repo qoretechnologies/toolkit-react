@@ -1499,6 +1499,21 @@ const textContrast = (element: HTMLElement): number => {
   return (light + 0.05) / (dark + 0.05);
 };
 
+/**
+ * A row's destructive control (its bin, Clear value) reads as one in the theme it is drawn in: its icon red, at 3:1
+ * on what is behind it. It was a pale pink icon on a pale pink square in a light theme (Qlip build 482).
+ */
+const expectDestructiveReads = async (row: HTMLElement) => {
+  const icon = await waitFor(() => {
+    const element = row.querySelector<HTMLElement>('.options-readfirst-clear .reqore-icon svg');
+    expect(element).toBeTruthy();
+    return element!;
+  });
+  const [r, g, b] = channelsOf(getComputedStyle(icon).color);
+  await expect(r - Math.max(g, b), 'the bin is red').toBeGreaterThan(40);
+  await expect(textContrast(icon)).toBeGreaterThanOrEqual(3);
+};
+
 const expectChosenWithoutColor = async (root: HTMLElement, chosen: string) => {
   await waitFor(() => {
     const choices = Array.from(root.querySelectorAll<HTMLElement>('.reqore-checkbox'));
@@ -1569,6 +1584,8 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosen: Story = {
       return el as HTMLElement;
     });
     await expectChosenWithoutColor(row, 'Python');
+    // its Clear value bin is red, and reads on the dark panel
+    await expectDestructiveReads(row);
 
     // a pick moves the mark (the row closes on a pick: opened again, it shows the choice)
     const open = await pickTheChoiceAndOpenAgain(canvasElement, 'Qore');
@@ -1620,7 +1637,7 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosenInALightTheme: Story = {
     docs: {
       description: {
         story:
-          'The same form in a light theme: the radios, the filled one chosen, read on a light surface as on a dark one, and so do the field\'s name and the readiness line. The open card names the field once, with no "Language:" heading over its choices.',
+          'The same form in a light theme: the radios, the filled one chosen, read on a light surface as on a dark one, and so do the field\'s name and the readiness line. The open card names the field once, with no "Language:" heading over its choices, and its Clear value bin is a red icon that reads, not a pale pink square.',
       },
     },
   },
@@ -1644,6 +1661,8 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosenInALightTheme: Story = {
     await expect(textContrast(status)).toBeGreaterThanOrEqual(4.5);
     // the card names the field once: its choices are not headed "Language:" under "Language"
     await expect(row.querySelector('.reqraft-choice-group-heading')).toBeNull();
+    // its Clear value bin is red, and reads on the light panel
+    await expectDestructiveReads(row);
   },
 };
 
@@ -7306,7 +7325,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an option that depends on a required-group member: it is not in the form until the required-group option holds a value (qorus#646), and filling it brings the row in and satisfies the group.',
+          'Renders a compact form with an option that depends on a required-group member: it is not in the form until the required-group option holds a value (qorus#646), and filling it brings the row in and satisfies the group. Reverted, the group someone has been to says what it needs on all four members, in amber, and the readiness line counts the four as needing attention; the other group, which nobody has been to, is still to fill in.',
       },
     },
     chromatic: { disable: true },
@@ -7371,6 +7390,28 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
     // each member's asterisk on its name's line, and its (?) at the column's right edge (Foxhoundn, qlip #392)
     expectLabelChromeInPlace(canvasElement);
+
+    /* The readiness line and the rows agree (Qlip build 482): a person has been to the group of options 1-4 (to
+       Option 2), so all four say what it needs in amber and are counted as needing attention; Option 5's other
+       group nobody has been to is still to fill in, quietly. */
+    const said = (field: string) =>
+      compactRow(field)?.querySelector<HTMLElement>('.options-readfirst-valuetext') ?? null;
+    const amber = (element: HTMLElement) => {
+      const [r, , b] = (getComputedStyle(element).color.match(/[\d.]+/g) || []).map(Number);
+      return r - b > 40;
+    };
+    await waitFor(() => {
+      const line = document.querySelector('.options-readfirst-completion')?.textContent ?? '';
+      expect(line).toContain('4 need attention');
+      expect(line).toContain('1 to fill in');
+    });
+    const members = ['RequiredOption1', 'RequiredOption2', 'RequiredOption3', 'RequiredOption4'];
+    for (const field of members) {
+      expect(said(field)?.textContent).toBe('One of these · add a value');
+    }
+    expect(members.filter((field) => amber(said(field)!))).toEqual(members);
+    expect(said('RequiredOption5')?.textContent).toBe('—');
+    expect(amber(said('RequiredOption5')!)).toBe(false);
   },
 };
 

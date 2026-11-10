@@ -402,13 +402,23 @@ export const Readonly: Story = {
     docs: {
       description: {
         story:
-          'Renders the nested expression tree with readOnly enabled — the tree is visible but the AND/OR add-group controls are hidden so the operator cannot mutate it.',
+          'Renders the nested expression tree with readOnly enabled — the tree is visible but the AND/OR add-group controls are hidden so the operator cannot mutate it. An empty required operand says "Required · not set", a fact, as the calm form says it in read mode, not the next step a reader cannot take.',
       },
     },
   },
   play: async (args) => {
     await WithComplexValue.play!(args);
     expect(document.querySelector('.expression-and')).toBeNull();
+    // what an empty operand lacks, said as a fact: a reader cannot add a value (Qlip build 482)
+    const said = await waitFor(() => {
+      const words = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-required')).map(
+        (word) => word.textContent?.trim()
+      );
+      expect(words.length).toBeGreaterThan(0);
+      return words;
+    });
+    expect(new Set(said)).toEqual(new Set(['Required · not set']));
+    expect(document.body.textContent).not.toContain('Required · add a value');
   },
 };
 
@@ -453,7 +463,7 @@ export const WithArgWithAllowedValues: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex Options") carries element_allowed_values and renders the "Select one or more" picker. Calm, as the calm form: the operands named in sentence case, a neutral card with no red frame, the empty required String value saying "Required · add a value" quietly on itself, and no blue on the chosen operation or purple on the template picker.',
+          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex options") carries element_allowed_values and renders the "Select one or more" picker. Calm, as the calm form: the catalog\'s Title Case operand names said in sentence case with no "[Text]" type tag, a neutral card with no red frame, the empty required String value saying "Required · add a value" quietly on itself, "And" / "Or" as words rather than capitals, and no blue on the chosen operation or purple on the template picker.',
       },
     },
   },
@@ -462,15 +472,36 @@ export const WithArgWithAllowedValues: Story = {
 
     await selectOperation('Select operation', 'Matches Regular Expression');
 
-    await waitForText('Regex Options');
+    await waitForText('Regex options');
     await waitForText('Select one or more:');
 
     // calm (Filip, 10 Nov: "the expression builder could be made calm")
     const names = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-label'));
     await expect(names.length).toBeGreaterThan(0);
     for (const name of names) {
-      // as written, not forced into capitals
+      // not forced into capitals, and no "[Text]" type tag written as code after the name
       await expect(getComputedStyle(name).textTransform).not.toBe('uppercase');
+      await expect(name.textContent).not.toContain('[');
+    }
+    // the catalog's Title Case names said in sentence case (Qlip build 482)
+    await expect(
+      Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-name')).map(
+        (name) => name.textContent
+      )
+    ).toEqual(['String value', 'Regular expression', 'Regex options']);
+    // the actions that join a condition are words in sentence case, not capitals
+    for (const [selector, word] of [
+      ['.expression-and', 'And'],
+      ['.expression-or', 'Or'],
+    ] as const) {
+      const join = document.querySelector<HTMLElement>(selector)!;
+      await expect(join.textContent?.trim()).toBe(word);
+      // drawn as written: nothing in the button turns the word into capitals
+      await expect(
+        [join, ...Array.from(join.querySelectorAll<HTMLElement>('*'))].some(
+          (part) => getComputedStyle(part).textTransform === 'uppercase'
+        )
+      ).toBe(false);
     }
     // what an operand lacks, on the operand, in the calm form's words - not a red note under the card
     await waitFor(() =>
@@ -552,7 +583,7 @@ export const ArgsChangeWhenOperatorChanges: Story = {
 
     await selectOperation('String Contains', 'Matches Regular Expression');
 
-    await waitForText('Regex Options');
+    await waitForText('Regex options');
   },
 };
 
@@ -1022,7 +1053,7 @@ export const AddValueSlot: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args. The new operand\'s template list stays closed until its picker is clicked, and then it opens.',
+          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args. The new operand\'s template list stays closed until its picker is clicked, and then it opens, neutral: no purple surface, crumb, highlighted row or search edge.',
       },
     },
   },
@@ -1069,6 +1100,29 @@ export const AddValueSlot: Story = {
     await waitFor(() => expect(document.querySelector('.reqore-popover-content')).toBeTruthy(), {
       timeout: 10000,
     });
+
+    /* Neutral, as every list of values in the calm look: purple is for an AI or Qonsole action, and the open list
+       was purple - its surface, the "Templates" crumb, the row under the pointer and the search box's edge (Qlip
+       build 482). A row's kind chip keeps the color of what it is. */
+    const picker = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('.template-picker');
+      expect(element?.querySelector('.template-picker-row')).toBeTruthy();
+      return element!;
+    });
+    const surfaces = [
+      picker,
+      ...Array.from(picker.querySelectorAll<HTMLElement>('.template-picker-crumb, .template-picker-row')),
+    ];
+    await userEvent.hover(picker.querySelector<HTMLElement>('.template-picker-row')!);
+    for (const surface of surfaces) {
+      await expect(colorfulness(getComputedStyle(surface).backgroundColor)).toBeLessThanOrEqual(12);
+    }
+    for (const search of Array.from(picker.querySelectorAll<HTMLElement>('input'))) {
+      const box = search.closest<HTMLElement>('.reqore-input') ?? search;
+      for (const edge of [getComputedStyle(box).borderTopColor, getComputedStyle(search).borderTopColor]) {
+        await expect(colorfulness(edge)).toBeLessThanOrEqual(24);
+      }
+    }
   },
 };
 
@@ -1608,7 +1662,7 @@ export const ExpressionCanBeWrapped: Story = {
   play: async ({ canvasElement }) => {
     // Seeded base op + its operand render.
     await waitFor(() => expect(expressionCount(canvasElement)).toBe(1), { timeout: 10000 });
-    await waitForText('Value To Convert', canvasElement);
+    await waitForText('Value to convert', canvasElement);
 
     // Hover the card to reveal the floating "Wrap" picker, then wrap it in
     // `Join List Elements` — the wrapped op becomes its first operand and the
@@ -1616,7 +1670,7 @@ export const ExpressionCanBeWrapped: Story = {
     await userEvent.hover(canvasElement.querySelectorAll('.expression')[0]);
     await sleep(500);
     await selectOperation('Wrap', 'Join List Elements', canvasElement.ownerDocument);
-    await waitForText('List To Join', canvasElement);
+    await waitForText('List to join', canvasElement);
     await waitFor(() => expect(expressionCount(canvasElement)).toBe(2), { timeout: 10000 });
   },
 };
@@ -1753,7 +1807,7 @@ export const NestedInListWithARichTextOperand: Story = {
     const listOperand = await waitFor(
       () => {
         const operand = Array.from(canvasElement.querySelectorAll('.expression-arg')).find((arg) =>
-          arg.textContent?.includes('List of Values')
+          arg.textContent?.includes('List of values')
         );
         expect(operand).toBeTruthy();
         expect(within(operand as HTMLElement).queryAllByText('Richtext Template')[0]).toBeTruthy();
@@ -1863,7 +1917,7 @@ export const FunctionArgsArePassedToNewFunctionAndNeedConfirmation: Story = {
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
-    await waitForText('Date To Format');
+    await waitForText('Date to format');
 
     await selectOperation('Format Date', 'Matches Regular Expression');
 

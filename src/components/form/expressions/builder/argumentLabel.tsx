@@ -11,6 +11,7 @@ import { useReadableIntentShade } from '../../../../hooks/useReadableIntentShade
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { READABLE_ICON } from '../../../../helpers/readableColors';
 import { IExpression, IExpressionSchema, IExpressionSchemaArg, IExpressionValue } from '../types';
+import { toSentenceCase } from '../../../../helpers/sentenceCase';
 import { useExpressionType } from '../useExpressionType';
 
 /**
@@ -50,6 +51,8 @@ export interface IExpressionBuilderArgumentLabelProps {
   expressions: IExpressionSchema[];
   schema?: IExpressionSchemaArg;
   type?: string;
+  /** The builder is read-only: what an operand lacks is said as a fact, not as a next step. */
+  readOnly?: boolean;
 }
 
 export const ExpressionBuilderArgumentLabel = ({
@@ -58,6 +61,7 @@ export const ExpressionBuilderArgumentLabel = ({
   schema,
   expressions,
   type,
+  readOnly,
 }: IExpressionBuilderArgumentLabelProps) => {
   // the type and the hint after a name, light and softer: as soft as they still read (qorus#646)
   const hintOpacity = useReadableOpacity(0.5);
@@ -89,7 +93,7 @@ export const ExpressionBuilderArgumentLabel = ({
         className='expression-arg-label'
         effect={{ ...nameEffect, opacity: calm ? 0.75 : 0.6 }}
       >
-        {label}
+        {calm ? toSentenceCase(label) : label}
       </ReqoreP>
     );
   }
@@ -125,18 +129,83 @@ export const ExpressionBuilderArgumentLabel = ({
     (arg?.value === undefined || arg?.value === null || arg?.value === '');
   // calm: a missing operand is not an error, it is the next step - said in words, quietly; anything else is a fault
   const fault = !isValid && !(calm && missing);
+  /* The operand holds a value of another type than the argument names: the one place its type matters to the
+     reader (it may be converted, or it does not fit). Elsewhere the control itself says what it takes. */
+  const typeDiffers =
+    !knownWhenItRuns &&
+    !!(argumentType || (arg?.is_expression && arg.value?.exp)) &&
+    types.getTypeDisplayName(argumentType) !==
+      types.getTypeDisplayName(schema.ui_type, schema.base_type) &&
+    !matchesTypeExactly;
+
+  if (calm) {
+    const quiet = getCalmAttentionColours(theme).pending as TReqoreEffectColor;
+    /* Calm: the name in sentence case (the catalogue writes it in Title Case), in the quiet label color, and no
+       "[Text]" tag after it - a type written as code. Where the value's type differs from the argument's, that
+       type as one quiet word (amber when it does not fit, with what the argument takes in its hover); where the
+       operand is empty and needed, the calm form's words for it - a fact in a read-only builder, the next step
+       otherwise. */
+    return (
+      <ReqoreP size='small' className='expression-arg-label' effect={nameEffect}>
+        {fault && (
+          <ReqoreIcon icon='ErrorWarningLine' color={dangerMark} size='10px' margin='right' />
+        )}
+        {schema.display_name && (
+          <ReqoreSpan
+            className='expression-arg-name'
+            effect={{ opacity: 0.75 }}
+            tooltip={
+              isValid ?
+                !matchesType ?
+                  words.operandNotOfType(acceptedTypeNames)
+                : undefined
+              : reason
+            }
+          >
+            {toSentenceCase(schema.display_name)}
+          </ReqoreSpan>
+        )}
+        {label ? ` ${label}` : null}
+        {typeDiffers ?
+          <ReqoreSpan
+            className='expression-arg-type'
+            effect={{
+              weight: 'normal',
+              color:
+                matchesType ? quiet : (getCalmIntentText(theme, 'warning') as TReqoreEffectColor),
+            }}
+            tooltip={
+              matchesType ? words.operandMayConvert : words.operandNeedsType(acceptedTypeNames)
+            }
+            style={{ marginLeft: 6 }}
+          >
+            {types.getTypeDisplayName(argumentType)}
+          </ReqoreSpan>
+        : null}
+        {missing ?
+          <ReqoreSpan
+            className='expression-arg-required'
+            effect={{ color: quiet, weight: 'normal' }}
+            // apart from the name before it, as a word of its own
+            style={{ marginLeft: 6 }}
+          >
+            {readOnly ? engineWords.calmRequiredRead : engineWords.calmRequired}
+          </ReqoreSpan>
+        : null}
+      </ReqoreP>
+    );
+  }
 
   return (
-    <ReqoreP size={calm ? 'small' : 'tiny'} className='expression-arg-label' effect={nameEffect}>
+    <ReqoreP size='tiny' className='expression-arg-label' effect={nameEffect}>
       {fault && (
         <ReqoreIcon icon='ErrorWarningLine' color={dangerMark} size='10px' margin='right' />
       )}
       {schema.display_name && (
         <ReqoreSpan
           effect={{
-            // calm: the name in the quiet label color, as a calm form's names are
-            opacity: calm ? 0.75 : 1,
-            underline: !calm && (!isValid || !matchesType) ? 'underline solid red' : undefined,
+            opacity: 1,
+            underline: !isValid || !matchesType ? 'underline solid red' : undefined,
           }}
           tooltip={
             isValid ?
@@ -149,9 +218,7 @@ export const ExpressionBuilderArgumentLabel = ({
           {schema.display_name}
         </ReqoreSpan>
       )}{' '}
-      {schema.required && !calm ?
-        <ReqoreIcon icon='Asterisk' color={dangerMark} size='10px' />
-      : null}{' '}
+      {schema.required && <ReqoreIcon icon='Asterisk' color={dangerMark} size='10px' />}{' '}
       {label}
       <ReqoreSpan
         effect={{
@@ -166,19 +233,12 @@ export const ExpressionBuilderArgumentLabel = ({
       {!matchesType ?
         <ReqoreIcon icon='ErrorWarningLine' color={warningMark} size='10px' margin='both' />
       : null}
-      {(
-        !knownWhenItRuns &&
-        (argumentType || (arg?.is_expression && arg.value?.exp)) &&
-        types.getTypeDisplayName(argumentType) !==
-          types.getTypeDisplayName(schema.ui_type, schema.base_type) &&
-        !matchesTypeExactly
-      ) ?
+      {typeDiffers ?
         <>
           {matchesType ?
             <ReqoreIcon
               icon='CheckLine'
-              // calm: no purple - it is no AI or Qonsole action - the quiet text color
-              color={calm ? (getCalmAttentionColours(theme).pending as TReqoreEffectColor) : pendingMark}
+              color={pendingMark}
               size='10px'
               margin='both'
               tooltip={words.operandMayConvert}
@@ -191,17 +251,8 @@ export const ExpressionBuilderArgumentLabel = ({
               weight: 'light',
               opacity: 1,
               underline: 'underline 1px dotted',
-              // calm: the type that fits is said in the text color; one that does not, in amber as a word
-              ...(calm && !matchesType ?
-                { color: getCalmIntentText(theme, 'warning') as TReqoreEffectColor }
-              : {}),
             }}
-            intent={
-              calm ? undefined
-              : matchesType ?
-                'pending'
-              : 'warning'
-            }
+            intent={matchesType ? 'pending' : 'warning'}
             tooltip={
               matchesType ? words.operandMayConvert : words.operandNeedsType(acceptedTypeNames)
             }
@@ -219,19 +270,6 @@ export const ExpressionBuilderArgumentLabel = ({
       >
         {']'}
       </ReqoreSpan>
-      {calm && missing ?
-        <ReqoreSpan
-          className='expression-arg-required'
-          effect={{
-            color: getCalmAttentionColours(theme).pending as TReqoreEffectColor,
-            weight: 'normal',
-          }}
-          // apart from the type before it, as a word of its own
-          style={{ marginLeft: 6 }}
-        >
-          {engineWords.calmRequired}
-        </ReqoreSpan>
-      : null}
     </ReqoreP>
   );
 };

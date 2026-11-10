@@ -19,6 +19,7 @@ import {
   ExpressionBuilderArgumentRuntimeNote,
   useArgumentKnownWhenItRuns,
 } from './argumentLabel';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 /**
  * An operand's field row: the field (a value or a field reference, its clear button, its ⋮ menu) shrinks
@@ -97,6 +98,8 @@ export const ExpressionBuilderArgumentWrapper = memo(
   }: IExpressionBuilderArgumentWrapperProps) => {
     const theme = useReqoreTheme();
     const words = useReqraftLabels().expressions;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
     const type = arg?.type || schema?.ui_type || 'context';
     // an expression whose type only shows when it runs: the note under its value says so, unless an argument nested
     // in it already does
@@ -213,6 +216,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
                 label={label || ''}
                 expressions={expressions}
                 type={type}
+                readOnly={readOnly}
               />
               {reorder && renderReorderControls()}
             </ReqoreControlGroup>
@@ -256,6 +260,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
             schema={schema}
             label={label}
             expressions={expressions}
+            readOnly={readOnly}
           />
           {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
               the field takes what is left; wrapping would put the grip on a
@@ -266,13 +271,13 @@ export const ExpressionBuilderArgumentWrapper = memo(
             {hasMultipleArgs && (
               <ReqoreButton
                 compact
-                intent='danger'
                 minimal
                 fixed
                 className='expression-remove-arg'
                 icon='DeleteBinLine'
                 flat
                 transparent
+                {...destructive}
                 tooltip={words.removeArgument}
                 onClick={onRemoveArgClick}
                 disabled={readOnly}

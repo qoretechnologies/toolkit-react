@@ -22,8 +22,11 @@ import { DEFAULT_REQRAFT_LABELS } from '../../../helpers/reqraftLabels';
  *   on its own line, until someone has been to it; then its members say it as a
  *   required field does. The pinned toolbar is opaque, in the host's color. No
  *   blue but for a filter that is on, no purple but for an AI or Qonsole
- *   action. The expression builder follows: names as written, neutral cards,
- *   a missing operand said quietly on itself, what is wrong said in words.
+ *   action: the lists of values (templates, completions) are neutral too. A
+ *   destructive control is a red icon with no fill (`useDestructiveButtonProps`).
+ *   The expression builder follows: names in sentence case with no type tag,
+ *   neutral cards, "And" / "Or" as words, a missing operand said quietly on
+ *   itself (as a fact in a read-only builder), what is wrong said in words.
  *   Every color is read from the theme, a light one included.
  * - `'classic'` — the earlier read-first look, for a host that asks for it:
  *   tinted status boxes, an intent-coloured completion meter, a status dot on

@@ -40,7 +40,7 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
-import { TEMPLATE_BROWSE_LIST_PROPS } from './useTemplateTags';
+import { useTemplateBrowseListProps } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
 import {
@@ -856,6 +856,8 @@ export const RichTextFormField = memo(({
      editor's `tags` is the template catalogue this component computes. */
   const editorProps = { ...rest };
   delete (editorProps as { tags?: unknown }).tags;
+  // the template list's color in the look in force: neutral in the calm one
+  const browseListProps = useTemplateBrowseListProps();
 
   return (
     <>
@@ -885,7 +887,7 @@ export const RichTextFormField = memo(({
       {...(editorProps as Omit<typeof editorProps, 'tags'>)}
       tagsListProps={{
         useTargetWidth: true,
-        ...TEMPLATE_BROWSE_LIST_PROPS,
+        ...browseListProps,
         ...(rest.tagsListProps || {}),
       }}
       getTagProps={handleGetTagProps}

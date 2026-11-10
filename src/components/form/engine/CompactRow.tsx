@@ -1,4 +1,5 @@
 import { useReqraftLabels } from '../../../helpers/reqraftLabels';
+import { useDestructiveButtonProps } from '../../../hooks/useDestructiveButtonProps';
 import {
   ReqoreButton,
   ReqoreCollapsibleContent,
@@ -83,6 +84,7 @@ import {
   getFileSize,
   getHashEntries,
   getReadFirstStatus,
+  hasBeenToTheField,
   getValueType,
   isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
@@ -268,24 +270,18 @@ export const CompactRow = memo(
     // Whether this field's emptiness is a fault yet: the person has opened it and left,
     // or the host reported a submit attempt. Before that a required field is only to
     // fill in, and says so in the quiet colour.
-    const visited = useContextSelector(
-      CompactRowContext,
-      (v) => v.revealRequired || !!v.visitedOptions?.includes(optionName)
+    // a destructive control's look, the same as every other reqraft draws (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
+    /* Whether the person has been to this field, as the form judges it (`hasBeenToTheField`): a one-of member
+       once anyone has been to its group, so its words, its color and the form's counts agree. */
+    const visited = useContextSelector(CompactRowContext, (v) =>
+      hasBeenToTheField(optionName, {
+        visitedOptions: v.visitedOptions,
+        revealRequired: v.revealRequired,
+        requiredGroups: v.options?.[optionName]?.required_groups as string[] | undefined,
+        groupMembers: v.requiredGroupsInfo.members,
+      })
     );
-    /* A one-of group has been to once the person has been to any of its members (or a save was refused): its
-       members then all say what the group needs, as the group's line turns amber (`clusterVisited`). */
-    const groupVisited = useContextSelector(CompactRowContext, (v) => {
-      const groups = (v.options?.[optionName]?.required_groups as string[] | undefined) || [];
-      return (
-        !!groups.length &&
-        (v.revealRequired ||
-          groups.some((group) =>
-            (v.requiredGroupsInfo.members[group] || []).some((member) =>
-              v.visitedOptions?.includes(member)
-            )
-          ))
-      );
-    });
 
     // An absorbed field keeps its own name — it is a different field, not a
     // property of its host — so the label comes from its schema exactly as it
@@ -1351,7 +1347,7 @@ export const CompactRow = memo(
           flat
           minimal
           icon='DeleteBinLine'
-          intent='danger'
+          {...destructive}
           aria-label={feWords.clearValue}
           tooltip={feWords.clearValue}
           onClick={confirmClearValue}
@@ -1488,7 +1484,7 @@ export const CompactRow = memo(
           /* Calm: a one-of group nobody has been to says nothing on its rows - the group's own line ("One of the
              below is required") says it once, quietly - and so colors nothing: no amber edge for a group that is
              only still to fill in. */
-          .filter((m) => !(calm && m.requiredGroup && !groupVisited))
+          .filter((m) => !(calm && m.requiredGroup && !visited))
           .map((m) => ({
             intent: m.intent as string,
             content: String(m.label),
@@ -2115,7 +2111,7 @@ export const CompactRow = memo(
                   minimal
                   flat
                   fixed
-                  intent='danger'
+                  {...destructive}
                   className='options-readfirst-clear'
                   aria-label={feWords.clearValue}
                   tooltip={feWords.clearValue}
