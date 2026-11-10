@@ -373,7 +373,7 @@ export const ViaFormEngine: Story = {
 };
 
 /**
- * The ⋮ on that same field holds one group — "Set Custom Value" and the data
+ * The ⋮ on that same field holds one group — "Set custom value" and the data
  * types under it — and opens it, rather than asking for a click to reach the
  * only thing on offer.
  */
@@ -382,7 +382,7 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
     docs: {
       description: {
         story:
-          'The untyped field\'s ⋮ holds nothing but the "Set Custom Value" section, so that section is already open: the data types are one click from the menu, not two. Where a menu holds more than one group the sections stay shut, because there the click is the choice.',
+          'The untyped field\'s ⋮ holds nothing but the "Set custom value" section, so that section is already open: the data types are one click from the menu, not two. Where a menu holds more than one group the sections stay shut, because there the click is the choice.',
       },
     },
   },
@@ -422,7 +422,7 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
 
     // The section still names its rows...
     await waitFor(
-      () => expect(document.body.textContent).toContain('Set Custom Value'),
+      () => expect(document.body.textContent).toContain('Set custom value'),
       { timeout: 10000 }
     );
     // ...and the rows are there to click, with no header click in between: each type with the description the

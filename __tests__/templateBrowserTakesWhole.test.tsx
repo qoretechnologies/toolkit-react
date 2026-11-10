@@ -57,7 +57,7 @@ describe('a state taken whole from the template picker', () => {
     expect(container.querySelectorAll('.template-picker-use')).toHaveLength(0);
   });
 
-  /* An expression's "Select Field" offers one action's record: it is opened, its fields what there is to choose
+  /* An expression's "Select field" offers one action's record: it is opened, its fields what there is to choose
      from (as before a record could be taken whole), and Back shows it, to take whole. */
   it('opens a lone state at its data, and Back shows it with Use', () => {
     const items = (QOG_FIELD_TEMPLATES as { items: Array<{ label?: string }> }).items.filter(

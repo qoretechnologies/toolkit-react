@@ -653,7 +653,7 @@ export const FormField = <T extends TFormFieldType>({
       );
     }
 
-    // Creatable but not chip-shaped: "Saved & Suggested Values" style — the
+    // Creatable but not chip-shaped: "Saved & suggested values" style — the
     // raw field holds the value, and a pick replaces it
     if (allowed_values_creatable) {
       return (

@@ -221,10 +221,10 @@ describe('the tabs a form option offers', () => {
     // the field has published its menu
     await waitFor(() => expect(Object.keys(published)).toHaveLength(1));
     for (const mode of [
-      'Use Template',
-      'Use Expression',
-      'Use Custom Value',
-      'Use Template / Expression',
+      'Use template',
+      'Use expression',
+      'Use custom value',
+      'Use template / expression',
     ]) {
       expect(menuLabels()).not.toContain(mode);
     }

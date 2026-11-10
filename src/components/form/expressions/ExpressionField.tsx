@@ -121,7 +121,7 @@ export interface IExpressionFieldProps {
   defaultMode?: TExpressionMode;
   /**
    * The Text view's text when the value is not an expression yet: a template or a literal the field held
-   * when "Use Template / Expression" opened it. Nothing is emitted until it is edited.
+   * when "Use template / expression" opened it. Nothing is emitted until it is edited.
    */
   initialText?: string;
   /**

@@ -95,6 +95,7 @@ import { ExpressionItem } from './item';
 import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
 import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
+import { toSentenceCase } from '../../../../helpers/sentenceCase';
 
 const noopUseRegisterHintView = (...args: unknown[]): void => {
   void args;
@@ -351,7 +352,10 @@ export const Expression = ({
         if (arg?.is_expression) {
           const operation = expressions.value?.find((exp) => exp.name === arg.value?.exp);
           return {
-            label: operation?.display_name ? `"${operation.display_name}"` : undefined,
+            label:
+              operation?.display_name ?
+                `"${calm ? toSentenceCase(operation.display_name) : operation.display_name}"`
+              : undefined,
             type: getCachedExpressionType(arg.value)?.inferred_type,
             isOperation: true,
           };
@@ -365,7 +369,7 @@ export const Expression = ({
           type: arg?.type,
         };
       }),
-    [JSON.stringify(value), JSON.stringify(expressions.value), localTemplates, serverType]
+    [JSON.stringify(value), JSON.stringify(expressions.value), localTemplates, serverType, calm]
   );
   // An empty card gives nothing, which is known without asking: it does not fit a place that takes something.
   const typeNotKnownYet = !!value.value?.exp && !serverType;
@@ -680,7 +684,7 @@ export const Expression = ({
   const isDragOverArg = (index: number) =>
     dragOverArg === index && dragArg.current !== null && dragArg.current !== index;
 
-  // The `⋮` menu's "Move Argument" section, one per operand. The wording is
+  // The `⋮` menu's "Move argument" section, one per operand. The wording is
   // axis-free on purpose — the operands wrap into a column on narrow screens.
   const argMenuActions = useMemo((): ITemplateMenuActions[] | undefined => {
     if (!canReorderArgs || !reorderSurfaces.includes('overflowMenu')) {
@@ -808,7 +812,8 @@ export const Expression = ({
         .map((exp) => ({
           name: exp.name,
           value: exp.name,
-          display_name: exp.display_name,
+          // calm: the catalog's Title Case name in sentence case, as an operand's is (`toSentenceCase`)
+          display_name: calm ? toSentenceCase(exp.display_name) : exp.display_name,
           short_desc: exp.short_desc,
           desc: exp.desc,
           badge: exp.symbol,
@@ -828,6 +833,7 @@ export const Expression = ({
       isChild,
       returnType,
       value?.value?.exp,
+      calm,
     ]
   );
 

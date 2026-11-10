@@ -30,13 +30,13 @@ describe('the row-menu channel', () => {
       <RowMenuContext.Provider
         value={{ registerRowMenuItems: register, unregisterRowMenuItems: vi.fn() }}
       >
-        <Publisher itemKey={itemKey} items={[{ label: 'Use Expression' }]} />
+        <Publisher itemKey={itemKey} items={[{ label: 'Use expression' }]} />
       </RowMenuContext.Provider>
     );
 
     const { rerender } = render(<Harness itemKey='expression' />);
     expect(register).toHaveBeenCalledWith(expect.any(String), 'expression', [
-      { label: 'Use Expression' },
+      { label: 'Use expression' },
     ]);
 
     rerender(<Harness itemKey='expression,template' />);
@@ -53,7 +53,7 @@ describe('the row-menu channel', () => {
       <RowMenuContext.Provider
         value={{ registerRowMenuItems: vi.fn(), unregisterRowMenuItems: unregister }}
       >
-        <Publisher itemKey='expression' items={[{ label: 'Use Expression' }]} />
+        <Publisher itemKey='expression' items={[{ label: 'Use expression' }]} />
       </RowMenuContext.Provider>
     );
     expect(unregister).not.toHaveBeenCalled();
@@ -65,7 +65,7 @@ describe('the row-menu channel', () => {
     // Outside a row — the classic form path, or a field rendered alone — the
     // context is absent and the editor must go on drawing its own menu, or its
     // actions become unreachable.
-    render(<Publisher itemKey='expression' items={[{ label: 'Use Expression' }]} />);
+    render(<Publisher itemKey='expression' items={[{ label: 'Use expression' }]} />);
     expect(screen.queryByText('own menu')).not.toBeNull();
   });
 
@@ -74,7 +74,7 @@ describe('the row-menu channel', () => {
       <RowMenuContext.Provider
         value={{ registerRowMenuItems: vi.fn(), unregisterRowMenuItems: vi.fn() }}
       >
-        <Publisher itemKey='expression' items={[{ label: 'Use Expression' }]} />
+        <Publisher itemKey='expression' items={[{ label: 'Use expression' }]} />
       </RowMenuContext.Provider>
     );
     expect(screen.queryByText('published')).not.toBeNull();
@@ -122,13 +122,13 @@ describe('the row-menu channel', () => {
           onItems={(next) => (items = next)}
           editors={() => (
             <>
-              <Editor itemKey='expression' label='Use Expression' />
-              <Editor itemKey='template' label='Use Template' />
+              <Editor itemKey='expression' label='Use expression' />
+              <Editor itemKey='template' label='Use template' />
             </>
           )}
         />
       );
-      expect(items.map((item) => item.label).sort()).toEqual(['Use Expression', 'Use Template']);
+      expect(items.map((item) => item.label).sort()).toEqual(['Use expression', 'Use template']);
     });
 
     it('calls the handler of the editor on screen, not one that has unmounted', () => {
@@ -141,7 +141,7 @@ describe('the row-menu channel', () => {
       const { rerender } = render(
         <Row
           onItems={(next) => (items = next)}
-          editors={() => <Editor key='first' itemKey='template' label='Use Template' onClick={stale} />}
+          editors={() => <Editor key='first' itemKey='template' label='Use template' onClick={stale} />}
         />
       );
       rerender(<Row onItems={(next) => (items = next)} editors={() => null} />);
@@ -150,7 +150,7 @@ describe('the row-menu channel', () => {
       rerender(
         <Row
           onItems={(next) => (items = next)}
-          editors={() => <Editor key='second' itemKey='template' label='Use Template' onClick={current} />}
+          editors={() => <Editor key='second' itemKey='template' label='Use template' onClick={current} />}
         />
       );
       act(() => items[0]?.onClick?.());
@@ -166,13 +166,13 @@ describe('the row-menu channel', () => {
       const { rerender } = render(
         <Row
           onItems={(next) => (items = next)}
-          editors={() => <Editor itemKey='template' label='Use Template' onClick={first} />}
+          editors={() => <Editor itemKey='template' label='Use template' onClick={first} />}
         />
       );
       rerender(
         <Row
           onItems={(next) => (items = next)}
-          editors={() => <Editor itemKey='template' label='Use Template' onClick={latest} />}
+          editors={() => <Editor itemKey='template' label='Use template' onClick={latest} />}
         />
       );
       act(() => items[0]?.onClick?.());

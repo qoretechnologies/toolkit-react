@@ -55,6 +55,16 @@ const waitForText = async (text: string | RegExp, scope: HTMLElement = document.
  * toolkit `Select` opens a `SelectFieldCollection` modal (not an inline
  * dropdown) — the item is a collection button with the display name as text.
  */
+/**
+ * An operation's name, found whatever its case: the calm look says the catalog's Title Case names in sentence case
+ * ("Matches regular expression"), the classic one as the catalog writes them, and a play names the operation, not its
+ * case.
+ */
+const operationNamed = (label: string) => {
+  const literal = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${literal}$`, 'i');
+};
+
 const selectOperation = async (
   currentLabel: string,
   itemLabel: string,
@@ -62,12 +72,12 @@ const selectOperation = async (
 ) => {
   const body = within(ownerDocument.body);
   // Open the picker (placeholder when empty, or the current operation name).
-  const trigger = await body.findByText(currentLabel, undefined, { timeout: 10000 });
+  const trigger = await body.findByText(operationNamed(currentLabel), undefined, { timeout: 10000 });
   await fireEvent.click(trigger);
   // Click the item inside the now-open collection modal.
   const item = await waitFor(
     () => {
-      const el = within(ownerDocument.body).queryAllByText(itemLabel)[0];
+      const el = within(ownerDocument.body).queryAllByText(operationNamed(itemLabel))[0];
       if (!el) throw new Error(`collection item "${itemLabel}" not ready`);
       return el;
     },
@@ -438,7 +448,7 @@ export const FocusedEditing: Story = {
     await userEvent.hover(document.querySelectorAll('.expression')[0]);
     await sleep(500);
     await clickSelector('.expression-item-fullscreen', 3);
-    await waitForText('Focused Editing');
+    await waitForText('Focused editing');
   },
 };
 
@@ -815,10 +825,10 @@ const operandValues = () =>
 
 const count = (selector: string) => document.querySelectorAll(selector).length;
 
-/** Open the `⋮` menu of the nth operand field and expand its "Move Argument" section. */
+/** Open the `⋮` menu of the nth operand field and expand its "Move argument" section. */
 const openMoveMenu = async (nth: number) => {
   await clickSelector('.template-more', nth);
-  await waitForText('Move Argument');
+  await waitForText('Move argument');
   // The section's className lands on its toggle button.
   await clickSelector('.template-menu-actions');
 };
@@ -858,7 +868,7 @@ export const ConcatExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
       },
     },
   },
@@ -903,7 +913,7 @@ export const ReorderLongConcat: Story = {
     docs: {
       description: {
         story:
-          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -970,7 +980,7 @@ export const ReorderViaOverflowMenu: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1012,7 +1022,7 @@ export const ReorderViaDragHandle: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with a drag grip before each operand and no "Move argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1023,7 +1033,7 @@ export const ReorderViaDragHandle: Story = {
     expect(count('.expression-arg-position')).toBe(0);
 
     await openFieldMenu(1);
-    await waitForText('Use Template');
+    await waitForText('Use template');
     expect(count('.template-menu-actions')).toBe(0);
 
     const handles = document.querySelectorAll('.expression-arg-drag-handle');
@@ -1412,7 +1422,7 @@ export const RemoveValueOnPhone: Story = {
     // Desktop viewport during play: every operand removes inline.
     expect(count('.expression-remove-arg')).toBe(3);
     await openFieldMenu(1);
-    await waitForText('Use Template');
+    await waitForText('Use template');
   },
 };
 
@@ -1568,7 +1578,7 @@ export const ReorderAllSurfaces: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move argument" section in the ⋮ menu, opened and expanded on the second operand. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1593,7 +1603,7 @@ export const ReorderDisabled: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move argument" section; only the remove buttons remain. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1605,7 +1615,7 @@ export const ReorderDisabled: Story = {
     expect(count('.expression-arg-position')).toBe(0);
 
     await openFieldMenu(1);
-    await waitForText('Use Template');
+    await waitForText('Use template');
     expect(count('.template-menu-actions')).toBe(0);
   },
 };
@@ -1618,7 +1628,7 @@ export const ReorderOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move argument" section, so reordering needs no hover or drag. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1800,7 +1810,7 @@ export const NestedInListWithARichTextOperand: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.queryAllByText('In List')[0]).toBeTruthy(), {
+    await waitFor(() => expect(canvas.queryAllByText(operationNamed('In List'))[0]).toBeTruthy(), {
       timeout: 10000,
     });
     // the list operand holds the template as a chip in rich text
@@ -2214,14 +2224,15 @@ export const WildcardPathAloneIsItsPath: Story = {
 };
 
 /** The entries the open operation list offers, by name. */
+/** What the operation list offers, once opened from `trigger`, in lower case: an operation is named, not its case. */
 const offeredOperations = async (trigger: string) => {
   const body = within(document.body);
-  await fireEvent.click(await body.findByText(trigger, undefined, { timeout: 10000 }));
+  await fireEvent.click(await body.findByText(operationNamed(trigger), undefined, { timeout: 10000 }));
   return waitFor(
     () => {
-      const offered = body.queryAllByText('list wildcard ([*])');
+      const offered = body.queryAllByText(operationNamed('list wildcard ([*])'));
       if (!offered.length) throw new Error('the operation list is not open');
-      return document.body.textContent ?? '';
+      return (document.body.textContent ?? '').toLowerCase();
     },
     { timeout: 10000 }
   );
@@ -2252,7 +2263,7 @@ export const WildcardItemIsNeverOffered: Story = {
     expect(operations).not.toContain('wildcard item');
     await userEvent.keyboard('{Escape}');
     await waitFor(() =>
-      expect(within(document.body).queryAllByText('list wildcard ([*])')).toHaveLength(0)
+      expect(within(document.body).queryAllByText(operationNamed('list wildcard ([*])'))).toHaveLength(0)
     );
 
     // the Wrap list: the same entries

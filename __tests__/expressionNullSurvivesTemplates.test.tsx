@@ -112,6 +112,6 @@ describe('an argument holding the DPQL null literal', () => {
 
     const editor = document.querySelector('[data-slate-editor]');
     expect(editor).not.toBeNull();
-    expect(editor?.getAttribute('aria-label')).toContain('Select Template');
+    expect(editor?.getAttribute('aria-label')).toContain('Select template');
   });
 });

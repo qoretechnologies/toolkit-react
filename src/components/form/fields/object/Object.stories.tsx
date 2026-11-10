@@ -54,13 +54,13 @@ export const Object: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field in JSON object mode with no value. Clicking "New Object" seeds an empty JSON object in the editor.',
+          'Renders the Object field in JSON object mode with no value. Clicking "New object" seeds an empty JSON object in the editor.',
       },
     },
   },
   async play() {
-    await testsWaitForText('New Object');
-    await testsClickButton({ label: 'New Object' });
+    await testsWaitForText('New object');
+    await testsClickButton({ label: 'New object' });
     await testsWaitForText('{');
     await testsWaitForText('}');
   },
@@ -79,13 +79,13 @@ export const List: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field in YAML list mode with no value. Clicking "New List" seeds an empty list in the editor.',
+          'Renders the Object field in YAML list mode with no value. Clicking "New list" seeds an empty list in the editor.',
       },
     },
   },
   async play() {
-    await testsWaitForText('New List');
-    await testsClickButton({ label: 'New List' });
+    await testsWaitForText('New list');
+    await testsClickButton({ label: 'New list' });
     await testsWaitForText('[');
     await testsWaitForText(']');
   },
@@ -203,14 +203,14 @@ export const ValueCanBeRemoved: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field with a populated native array. Clicking Remove clears the value and the field falls back to the "New List" placeholder.',
+          'Renders the Object field with a populated native array. Clicking Remove clears the value and the field falls back to the "New list" placeholder.',
       },
     },
   },
   async play() {
     await testsWaitForText('"value"');
     await testsClickButton({ label: 'Remove' });
-    await testsWaitForText('New List');
+    await testsWaitForText('New list');
   },
 };
 

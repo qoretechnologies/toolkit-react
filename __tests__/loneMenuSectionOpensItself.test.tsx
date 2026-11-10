@@ -3,7 +3,7 @@
 //
 // Two of the menu's groups are collapsed sections, so a menu holding nothing
 // but one of them asked for a click to reach the only thing on offer: on an
-// untyped field, "Set Custom Value" hiding the data types behind it, with no
+// untyped field, "Set custom value" hiding the data types behind it, with no
 // other choice to weigh it against. Where the menu holds more than one group
 // the sections stay shut — there the click IS the choice.
 //
@@ -38,7 +38,7 @@ beforeEach(() => {
   section.props = undefined;
 });
 
-describe('the "Set Custom Value" section', () => {
+describe('the "Set custom value" section', () => {
   it('is open when it is the menu’s only group', () => {
     render(
       <CustomMenuItems
@@ -51,7 +51,7 @@ describe('the "Set Custom Value" section', () => {
 
     expect(section.props?.isCollapsed).toBe(false);
     // Still named, so the rows say what they are.
-    expect(section.props?.label).toBe('Set Custom Value');
+    expect(section.props?.label).toBe('Set custom value');
   });
 
   it('is shut when the menu offers something else too', () => {

@@ -189,7 +189,7 @@ export interface ITemplateFieldProps extends Partial<
   menuItems?: TCustomTemplateItems;
   /**
    * SEAM (reqraft, additive): a collapsed section in the field's `⋮` menu,
-   * rendered before "Set Custom Value"; a row click closes the menu. The
+   * rendered before "Set custom value"; a row click closes the menu. The
    * expression builder puts its operand reorder actions here.
    */
   menuActions?: ITemplateMenuActions;
@@ -724,7 +724,7 @@ const TemplateFieldImpl = memo(
       }
 
       /* A lone category is opened, once, HERE — where this control resolves the
-         templates every one of its pickers then reads: the "Select Template"
+         templates every one of its pickers then reads: the "Select template"
          dropdown, the in-editor `$` list, the numeric field's focus dropdown and
          the expression builder's argument picker. Applying it per picker meant
          each new one had to remember, and the ones that forgot made the author
@@ -773,7 +773,7 @@ const TemplateFieldImpl = memo(
     // want is a reference to something else whose type is not theirs to pick.
     //
     // So an untyped field that accepts templates now opens on the template
-    // selector, which is the answer most of them want, and "Set Custom Value"
+    // selector, which is the answer most of them want, and "Set custom value"
     // in the ⋮ menu is the way to a literal of a chosen type. That is the
     // reverse of the old default, and it is the right way round: choosing a
     // template is picking from a list, choosing a literal is a decision.
@@ -956,7 +956,7 @@ const TemplateFieldImpl = memo(
        two paths ran the rule.
 
        Watched as a TRANSITION from a value to no value, not as "the value is
-       empty": an author who picks `Set Custom Value` on an empty field is
+       empty": an author who picks `Set custom value` on an empty field is
        asking for the type picker, and re-asserting the template view on every
        render while the field sat empty would take it away again immediately. */
     const hadValue = useRef(!isEmptyValue);
@@ -1070,7 +1070,7 @@ const TemplateFieldImpl = memo(
       }
     }, [JSON.stringify(templateValue)]);
 
-    // an editor that takes templates into its own text has no template mode to switch to: "Use Template"
+    // an editor that takes templates into its own text has no template mode to switch to: "Use template"
     // there emptied the field and showed nothing in its place
     const showTemplateToggle =
       allowCustomValues && allowTemplates && !rest.arg_schema && !editorHandlesTemplates;
@@ -1081,7 +1081,7 @@ const TemplateFieldImpl = memo(
        arbitrary text, and `any`/`auto` can — it is the type that has not been
        narrowed yet, not a type that excludes text. Restricting this to
        `string` meant an empty untyped field opened on template mode with no
-       editor to offer, so it fell through to the pick-only "Select Template"
+       editor to offer, so it fell through to the pick-only "Select template"
        dropdown: a control that can only choose from a list, on exactly the
        fields where an author most often needs to write something the list
        cannot hold — a deeper walk, a literal, or an expression.
@@ -1220,7 +1220,7 @@ const TemplateFieldImpl = memo(
 
     const handleRemoveTemplateClick = useCallback(() => {
       /* This is the `×` ON the template control, and it means "I do not want a
-         template here" — on a field whose menu offers no `Set Custom Value` it
+         template here" — on a field whose menu offers no `Set custom value` it
          is the ONLY way to reach a literal. So it still drops to the custom
          value editor, and it tells the empty-field rule below to keep its hands
          off this particular clear: that rule watches the value going away, and
@@ -1266,7 +1266,7 @@ const TemplateFieldImpl = memo(
       value,
     ]);
 
-    /* Leaving template mode from the ⋮ — the counterpart of "Use Template".
+    /* Leaving template mode from the ⋮ — the counterpart of "Use template".
        Template mode's editor has no `×` of its own, so without this the author
        who switched to a template had no way back and no menu to ask with. */
     const handleUseCustomValueClick = useCallback(() => {

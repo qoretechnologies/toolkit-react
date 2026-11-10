@@ -292,7 +292,7 @@ export const Optional: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with only the optional half of the basic schema — the More Options Available collapsible box is shown but not opened.',
+          'Renders FormEngine with only the optional half of the basic schema — the More options available collapsible box is shown but not opened.',
       },
     },
   },
@@ -307,7 +307,7 @@ export const OptionalOpened: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with only the optional half of the basic schema, then clicks the More Options Available banner — the optional fields drop down into the form.',
+          'Renders FormEngine with only the optional half of the basic schema, then clicks the More options available banner — the optional fields drop down into the form.',
       },
     },
   },
@@ -319,11 +319,11 @@ export const OptionalOpened: Story = {
     const canvas = within(canvasElement);
 
     await waitFor(
-      () => expect(canvas.queryAllByText(/More Options Available/)[0]).toBeInTheDocument(),
+      () => expect(canvas.queryAllByText(/More options available/)[0]).toBeInTheDocument(),
       { timeout: 10000 }
     );
 
-    await fireEvent.click(canvas.queryAllByText(/More Options Available/)[0]);
+    await fireEvent.click(canvas.queryAllByText(/More options available/)[0]);
   },
 };
 
@@ -376,7 +376,7 @@ export const FocusedEditing: Story = {
     docs: {
       description: {
         story:
-          "Renders the Basic FormEngine, opens an option's ⋯ menu and picks Focused editing — the Focused Editing modal opens over that single field.",
+          "Renders the Basic FormEngine, opens an option's ⋯ menu and picks Focused editing — the Focused editing modal opens over that single field.",
       },
     },
   },
@@ -384,7 +384,7 @@ export const FocusedEditing: Story = {
     await Basic.play!(args);
     await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-fullscreen', nth: 0 });
-    await _testsWaitForText('Focused Editing');
+    await _testsWaitForText('Focused editing');
   },
 };
 
@@ -707,7 +707,7 @@ export const OptionalWithValues: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with only the optional half of the basic schema plus pre-existing values — the optional fields are already populated and the More Options Available banner is hidden.',
+          'Renders FormEngine with only the optional half of the basic schema plus pre-existing values — the optional fields are already populated and the More options available banner is hidden.',
       },
     },
   },
@@ -824,7 +824,7 @@ export const OptionWithAnyType: Story = {
     ).toBe(true);
 
     // Another's field menu sets a value of a type: True or false gives the yes / no control.
-    // "Set Custom Value" is its only group, so that section opens itself rather than asking for a click first.
+    // "Set custom value" is its only group, so that section opens itself rather than asking for a click first.
     await userEvent.click(last.querySelector('.template-more') as HTMLElement);
     await _testsClickButton({ label: 'True or false' });
     await waitFor(() => expect(canvasElement.querySelector('.value-tabs-field .reqore-checkbox')).toBeTruthy());
@@ -3576,7 +3576,7 @@ export const CompactFocusedEditingInline: Story = {
     docs: {
       description: {
         story:
-          'Renders the compact form, opens the Name row for inline editing and picks "Edit fullscreen" from its More menu — the Focused Editing modal opens over that single scalar field with its long description above the editor.',
+          'Renders the compact form, opens the Name row for inline editing and picks "Edit fullscreen" from its More menu — the Focused editing modal opens over that single scalar field with its long description above the editor.',
       },
     },
     chromatic: { disable: true },
@@ -5997,7 +5997,8 @@ export const CompactExpressions: Story = {
         ).toBeInTheDocument(),
       { timeout: 10000 }
     );
-    await _testsWaitForText('Logical Equals');
+    // the operation named as the calm look says it (the catalog's name in sentence case)
+    await _testsWaitForText(/^logical equals$/i);
 
     // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
     await fireEvent.click(toggle('Text'));
@@ -10061,7 +10062,7 @@ export const CreatablePickerIsOneControl: Story = {
     docs: {
       description: {
         story:
-          'A creatable select-string with candidates renders a single picker that both holds the value and offers the list — not a picker plus a second "Saved & Suggested Values" control listing the same items.',
+          'A creatable select-string with candidates renders a single picker that both holds the value and offers the list — not a picker plus a second "Saved & suggested values" control listing the same items.',
       },
     },
   },
@@ -10101,7 +10102,7 @@ export const CreatablePickerIsOneControl: Story = {
     // …and the second way to set the same field is gone. Asserting the label
     // rather than a count: it is what the duplicate control announces itself as,
     // and what a reader saw twice.
-    expect(row.textContent).not.toContain('Saved & Suggested Values');
+    expect(row.textContent).not.toContain('Saved & suggested values');
   },
 };
 
@@ -14108,7 +14109,7 @@ const viewFullscreen = async (press: (element: HTMLElement) => Promise<void>) =>
   await press(item);
   const modal = await waitFor(() => {
     const el = Array.from(document.querySelectorAll<HTMLElement>('.reqore-modal')).find((each) =>
-      each.textContent?.includes('Focused View')
+      each.textContent?.includes('Focused view')
     );
     expect(el, 'the fullscreen view').toBeTruthy();
     return el!;
@@ -14449,7 +14450,7 @@ export const PickFromSetAllowedValuesRow: Story = {
 };
 
 /**
- * A rich-text option's choices are picked from "Saved & Suggested Values",
+ * A rich-text option's choices are picked from "Saved & suggested values",
  * and picking one writes the choice's value: an author who chose the Slack
  * channel "general" read `C07ERBFS0P6` in the editor. The value is what the
  * server resolves, so it stays the value; the editor draws it by the name it
@@ -14479,25 +14480,25 @@ const RICH_TEXT_CHOICE_OPTIONS = {
   },
 } as never;
 
-/** The open list of Saved & Suggested Values: the popover that offers the channels. */
+/** The open list of Saved & suggested values: the popover that offers the channels. */
 const suggestionList = (): HTMLElement | undefined =>
   [...document.querySelectorAll<HTMLElement>('.reqore-popover-content')].find(
     (popover) => !!within(popover).queryByText('random', { exact: true })
   );
 
-/** Picks a channel from Saved & Suggested Values, opening the list unless it is open. */
+/** Picks a channel from Saved & suggested values, opening the list unless it is open. */
 const pickSuggestion = async (name: string, { listOpen = false } = {}) => {
   if (!listOpen) {
-    await _testsClickText('Saved & Suggested Values');
+    await _testsClickText('Saved & suggested values');
   }
   await waitFor(() => expect(suggestionList()).toBeTruthy(), { timeout: 10000 });
   await fireEvent.click(within(suggestionList()!).getByText(name, { exact: true }));
   await waitFor(() => expect(suggestionList()).toBeUndefined());
 };
 
-/** Opens Saved & Suggested Values and checks that it ticks the channel held, and only that one. */
+/** Opens Saved & suggested values and checks that it ticks the channel held, and only that one. */
 const expectSuggestionTicked = async (held: string) => {
-  await _testsClickText('Saved & Suggested Values');
+  await _testsClickText('Saved & suggested values');
   await waitFor(
     () => {
       const list = suggestionList();
@@ -14560,7 +14561,7 @@ export const PickingARichTextChoiceShowsItsName: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an empty rich-text Channel option. When "general" is picked from Saved & Suggested Values, the editor shows a chip reading "general" rather than the channel id it stores. The option takes one channel: opened again, the list ticks "general" as the one held, a pick of "random" replaces it (the chip reads "random", the form holds its id and the list ticks "random"), and a pick of "general" puts it back.',
+          'Renders a compact form with an empty rich-text Channel option. When "general" is picked from Saved & suggested values, the editor shows a chip reading "general" rather than the channel id it stores. The option takes one channel: opened again, the list ticks "general" as the one held, a pick of "random" replaces it (the chip reads "random", the form holds its id and the list ticks "random"), and a pick of "general" puts it back.',
       },
     },
   },

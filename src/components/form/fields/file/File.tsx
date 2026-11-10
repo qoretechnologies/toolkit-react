@@ -34,7 +34,7 @@ export interface IReqraftFileFormFieldProps extends Omit<IReqorePanelProps, 'onC
   readonly?: boolean;
   options?: DropzoneOptions;
   valueButtonProps?: IReqoreButtonProps;
-  /** If provided, shows the "Build a File" tab with a FormEngine */
+  /** If provided, shows the "Build a file" tab with a FormEngine */
   argSchema?: IQorusFormSchema;
   /** While the arg_schema is being fetched from the API */
   argSchemaLoading?: boolean;

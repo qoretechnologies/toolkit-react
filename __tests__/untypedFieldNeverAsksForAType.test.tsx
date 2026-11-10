@@ -119,7 +119,7 @@ describe('an empty untyped field', () => {
 
     await waitFor(() => expect(typableControl(container)).toBeTruthy());
     expect(asksForDataType(container)).toBe(false);
-    expect(container.textContent).not.toContain('Select Template');
+    expect(container.textContent).not.toContain('Select template');
   });
 
   it('opens on a typable editor when it does not take templates', async () => {

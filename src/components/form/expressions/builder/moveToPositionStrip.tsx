@@ -33,7 +33,7 @@ const positionItems = (index: number, from: number, count: number) =>
   });
 
 /**
- * The "Move to position" row of the ⋮ menu's "Move Argument" section: an
+ * The "Move to position" row of the ⋮ menu's "Move argument" section: an
  * icon and label in the shape of the rows above it. Up to three operands the
  * position sits beside the label as a small dropdown; past that the strip
  * follows under the label — the first four positions as segments, a number

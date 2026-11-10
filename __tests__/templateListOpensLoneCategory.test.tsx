@@ -8,7 +8,7 @@
  * the only other thing there.
  *
  * Asserted on what the field hands DOWN, because that is where the rule now
- * lives: every picker this control offers — the "Select Template" dropdown, the
+ * lives: every picker this control offers — the "Select template" dropdown, the
  * in-editor `$` list, the numeric focus dropdown, the expression builder's
  * argument picker — reads the same resolved list.
  */

@@ -29,7 +29,7 @@ export interface IQorusTypeObject {
 }
 
 /**
- * The types a value's own type menu offers ("Set Custom Value"), in the order it lists them: text first. The menu
+ * The types a value's own type menu offers ("Set custom value"), in the order it lists them: text first. The menu
  * follows this order, not the catalogue's, so the server moving a type in its catalogue does not move it in the menu
  * (richtext, which follows the Qorus object types in the catalogue since qorus ed0f9ba62).
  */

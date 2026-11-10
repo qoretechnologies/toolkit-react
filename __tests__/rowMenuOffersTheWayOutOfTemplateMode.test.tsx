@@ -2,7 +2,7 @@
 // Inside a form ROW, the way out of template mode is published too.
 //
 // A field in a compact row draws no menu of its own — it publishes its items
-// into the row's ⋮ (`rowMenuContext`) and renders nothing. "Use Custom Value"
+// into the row's ⋮ (`rowMenuContext`) and renders nothing. "Use custom value"
 // was added to the menu the field draws for itself and not to the list it
 // publishes, so on the surface where most options are actually edited,
 // template mode stayed a one-way door.
@@ -67,22 +67,22 @@ describe("what a field publishes into its row's menu", () => {
   it('offers the way out while the field is on a template', async () => {
     fieldInARow({ value: '$local:name' });
 
-    await waitFor(() => expect(labels()).toContain('Use Custom Value'));
+    await waitFor(() => expect(labels()).toContain('Use custom value'));
     // The way IN is not offered at the same time — the field is already there.
-    expect(labels()).not.toContain('Use Template');
+    expect(labels()).not.toContain('Use template');
   });
 
   it('offers the way in while the field holds a typed value', async () => {
     fieldInARow({ value: 'already typed' });
 
-    await waitFor(() => expect(labels()).toContain('Use Template'));
-    expect(labels()).not.toContain('Use Custom Value');
+    await waitFor(() => expect(labels()).toContain('Use template'));
+    expect(labels()).not.toContain('Use custom value');
   });
 
   it('draws no menu of its own either way', async () => {
     const { container } = fieldInARow({ value: '$local:name' });
 
-    await waitFor(() => expect(labels()).toContain('Use Custom Value'));
+    await waitFor(() => expect(labels()).toContain('Use custom value'));
     // One menu per control: the row already draws a ⋮.
     expect(container.querySelector('.template-more')).toBeNull();
   });
@@ -90,14 +90,14 @@ describe("what a field publishes into its row's menu", () => {
 
 describe('a field that takes templates where none is on offer', () => {
   it('shows the way in, not to be taken, and says why', async () => {
-    // a context whose catalogue has none: "Use Template" led to an empty, disabled list (qorus#646)
+    // a context whose catalogue has none: "Use template" led to an empty, disabled list (qorus#646)
     fieldInARow({ value: 'already typed', templates: { items: [] } as never });
 
-    await waitFor(() => expect(labels()).toContain('Use Template'));
+    await waitFor(() => expect(labels()).toContain('Use template'));
     const item = Object.values(published)
       .flat()
       .find(
-        (entry) => (entry as { label?: unknown }).label === 'Use Template'
+        (entry) => (entry as { label?: unknown }).label === 'Use template'
       ) as IReqoreDropdownItem;
     expect(item.disabled).toBe(true);
     expect(item.description).toBe(NO_TEMPLATES_ON_OFFER);
@@ -106,11 +106,11 @@ describe('a field that takes templates where none is on offer', () => {
   it('takes the way in where one is on offer', async () => {
     fieldInARow({ value: 'already typed' });
 
-    await waitFor(() => expect(labels()).toContain('Use Template'));
+    await waitFor(() => expect(labels()).toContain('Use template'));
     const item = Object.values(published)
       .flat()
       .find(
-        (entry) => (entry as { label?: unknown }).label === 'Use Template'
+        (entry) => (entry as { label?: unknown }).label === 'Use template'
       ) as IReqoreDropdownItem;
     expect(item.disabled).toBeFalsy();
   });

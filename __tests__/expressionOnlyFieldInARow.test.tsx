@@ -2,7 +2,7 @@
 // A field that takes only an expression shows its way in, inside a form row too.
 //
 // No value typed in, no template: an expression is the only input such a field
-// takes, and "Create New Expression" is its editor. In a form ROW the field's
+// takes, and "Create new expression" is its editor. In a form ROW the field's
 // controls give way to the row's ⋮, and this one went with them, so the row
 // read "Required · add a value" over nothing to add it with.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
@@ -47,10 +47,10 @@ describe('a field that takes only an expression, in a form row', () => {
     );
 
     await waitFor(() => expect(container.querySelectorAll('.function-selector')).toHaveLength(1));
-    expect(screen.queryAllByText('Create New Expression').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Create new expression').length).toBeGreaterThan(0);
     const labels = Object.values(published)
       .flat()
       .map((item) => String((item as { label?: unknown }).label ?? ''));
-    expect(labels).not.toContain('Use Expression');
+    expect(labels).not.toContain('Use expression');
   });
 });

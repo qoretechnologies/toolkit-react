@@ -57,7 +57,7 @@ export interface ISelectFormFieldProps {
   valueLabel?: string;
   /**
    * The value the list marks as held, for a list whose trigger does not draw it: the suggestions beside an editor
-   * that holds the field's value ("Saved & Suggested Values"). The trigger keeps its own name, and the list ticks
+   * that holds the field's value ("Saved & suggested values"). The trigger keeps its own name, and the list ticks
    * the suggestion the field holds, so a pick reads as replacing it (qorus#646, David: "if this option takes a
    * single value, then selecting another value should replace the one that's there").
    */

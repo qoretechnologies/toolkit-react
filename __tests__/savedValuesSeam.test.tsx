@@ -47,7 +47,7 @@ describe('the saved values a field offers', () => {
       )
     );
 
-    expect(screen.queryAllByText('Saved & Suggested Values').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Saved & suggested values').length).toBeGreaterThan(0);
   });
 
   it('are offered as text to every editor that stores text', () => {
@@ -65,14 +65,14 @@ describe('the saved values a field offers', () => {
       )
     );
 
-    expect(screen.queryAllByText('Saved & Suggested Values').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Saved & suggested values').length).toBeGreaterThan(0);
   });
 
   it('are not offered without a host, by a read-only field, or of another type', () => {
     const { unmount } = render(
       withSavedValues(<FieldAllowedValues items={[]} value={undefined} type='string' name='url' showSavedValues onChange={vi.fn()} />)
     );
-    expect(screen.queryAllByText('Saved & Suggested Values')).toHaveLength(0);
+    expect(screen.queryAllByText('Saved & suggested values')).toHaveLength(0);
     unmount();
 
     const readOnly = render(
@@ -81,7 +81,7 @@ describe('the saved values a field offers', () => {
         { items: SAVED }
       )
     );
-    expect(screen.queryAllByText('Saved & Suggested Values')).toHaveLength(0);
+    expect(screen.queryAllByText('Saved & suggested values')).toHaveLength(0);
     readOnly.unmount();
 
     render(
@@ -90,7 +90,7 @@ describe('the saved values a field offers', () => {
         { items: SAVED }
       )
     );
-    expect(screen.queryAllByText('Saved & Suggested Values')).toHaveLength(0);
+    expect(screen.queryAllByText('Saved & suggested values')).toHaveLength(0);
   });
 });
 
