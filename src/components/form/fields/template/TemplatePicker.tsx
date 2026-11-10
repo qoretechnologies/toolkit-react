@@ -92,6 +92,12 @@ export interface ITemplatePickerProps {
    */
   arrowsFromPage?: boolean;
   /**
+   * With `keysFromPage`: told in the commit the picker starts hearing the page's keys. A picker is drawn some
+   * commits after it is asked for (a popover opens once it is mounted); whoever opened it hears the keys until
+   * then, and hands them on now (`useLspAutocomplete`'s `pickerHears`), so a key pressed in between is not lost.
+   */
+  onKeysHeard?: () => void;
+  /**
    * Fills the surface it is drawn in (a dropdown's popover, as wide as its field within the popover's bounds)
    * instead of keeping its own width, which left the popover's far side empty (qorus#646, David's review).
    */
@@ -230,6 +236,7 @@ export const TemplatePicker = memo(
     focusFilter,
     keysFromPage,
     arrowsFromPage,
+    onKeysHeard,
     fill,
     id,
     typeLabel: givenTypeLabel,
@@ -368,8 +375,10 @@ export const TemplatePicker = memo(
     );
     const visible = rows.slice(0, shown);
 
-    // a new level or search starts at its top, or at the value already chosen
-    useEffect(() => {
+    /* a new level or search starts at its top, or at the value already chosen - in the commit that draws it, before
+       the page's keys are heard (below): a passive effect ran after the keys heard on the picker's first commit, and
+       put the keyboard's row back at the top under an arrow already pressed */
+    useLayoutEffect(() => {
       setShown(TEMPLATE_PICKER_PAGE);
       const chosen = selectedValue ? templateNodeFor(visible, selectedValue) : undefined;
       const at = chosen ? visible.indexOf(chosen) : -1;
@@ -511,6 +520,8 @@ export const TemplatePicker = memo(
     // heard from the page while the text the picker was opened from keeps the focus
     const handleKeyRef = useRef(handleKey);
     handleKeyRef.current = handleKey;
+    const onKeysHeardRef = useRef(onKeysHeard);
+    onKeysHeardRef.current = onKeysHeard;
     /* Heard from the commit that draws the picker, not after it is painted: a passive effect left a window in which
        the rows were on the page and a key was not heard - an Escape pressed then left the picker open, and a person
        quick on the keyboard (or a loaded machine, where the effect waits longer) met it (DpqlEditor · An Emptied
@@ -529,6 +540,8 @@ export const TemplatePicker = memo(
         }
       };
       document.addEventListener('keydown', listener, true);
+      // heard from now on: whoever opened the picker hands on what it heard until now
+      onKeysHeardRef.current?.();
       return () => document.removeEventListener('keydown', listener, true);
     }, [keysFromPage, arrowsFromPage]);
 

@@ -469,6 +469,8 @@ export const CompletionMenu = memo(
               selectedValue={autocomplete.browse.selectedValue}
               keysFromPage
               arrowsFromPage={autocomplete.browse.arrows}
+              // until it hears the page's keys, the opener does: what it heard is handed on now
+              onKeysHeard={() => autocomplete.pickerHears(autocomplete.popoverKey)}
               onPick={autocomplete.pickTemplate}
               onClose={autocomplete.close}
             />

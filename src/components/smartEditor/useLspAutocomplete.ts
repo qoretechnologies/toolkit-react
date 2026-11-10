@@ -197,6 +197,11 @@ export interface IUseLspAutocompleteResult {
   ) => void;
   /** A node chosen in the template picker, written as a pick from the rows is (`written`: a key written for it). */
   pickTemplate: (node: ITemplateNode, written?: string) => void;
+  /**
+   * The picker drawn under `key` (`popoverKey` as it was drawn) hears the page's keys now
+   * (`TemplatePicker.onKeysHeard`): the keys heard for it until then are handed on to it, in order.
+   */
+  pickerHears: (key: number) => void;
 }
 
 /** Where the template picker is open (`IUseLspAutocompleteResult.browse`). */
@@ -665,6 +670,69 @@ export function useLspAutocomplete(
     requestGenerationRef.current++;
     pendingRequestRef.current = false;
   }, [requestCompletions]);
+
+  /* The picker is drawn some commits after it is asked for - by a click, an emptied text, a chip, or a list that
+     holds only Browse all templates and becomes the picker: its popover opens once it is mounted (`openOnMount`),
+     and its rows after that. Until the picker hears the page's keys itself (`pickerHears`), its keys are heard
+     here, so none pressed in between is lost: Escape puts it away, and the others are kept and handed to it, in
+     order, the moment it listens. They reached nothing before: the completion keys are not the picker's, the
+     Escape below waits for a request, and an Escape pressed as a list of Browse all became the picker left it open
+     (DpqlEditor · An Emptied Field Opens The Picker, flaky in CI). */
+  const pickerHearsRef = useRef<number | null>(null);
+  const heldKeysRef = useRef<KeyboardEvent[]>([]);
+  const browseOpen = isOpen && !!browse;
+  useLayoutEffect(() => {
+    if (!browseOpen) {
+      heldKeysRef.current = [];
+      return undefined;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // the picker drawn now hears its own keys
+      if (pickerHearsRef.current === popoverKeyRef.current) return;
+      // the keys the picker takes from the page (`TemplatePicker.keysFromPage`)
+      const keys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'];
+      if (browseRef.current?.arrows) keys.push('ArrowLeft', 'ArrowRight', 'Backspace');
+      if (!keys.includes(event.key)) return;
+      const editor = editorRef.current;
+      try {
+        if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+      } catch {
+        // the editor is not drawn: nothing of it is in the page to have had the key
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Escape') {
+        heldKeysRef.current = [];
+        close();
+        return;
+      }
+      heldKeysRef.current.push(event);
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [browseOpen, close]);
+  const pickerHears = useCallback((key: number) => {
+    // a picker since replaced by another is not the one the keys were for
+    if (key !== popoverKeyRef.current) return;
+    pickerHearsRef.current = key;
+    const held = heldKeysRef.current;
+    heldKeysRef.current = [];
+    held.forEach((event) =>
+      event.target?.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: event.key,
+          code: event.code,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          metaKey: event.metaKey,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    );
+  }, []);
 
   /* Escape in the editor before the list has come puts the request away, as Escape puts a list with rows
      away (`useCompletionKeys`, which hears it then). Not taken from the page: with no list shown, an Escape
@@ -1342,5 +1410,6 @@ export function useLspAutocomplete(
     browse: isOpen ? browse : null,
     openBrowse,
     pickTemplate,
+    pickerHears,
   };
 }
