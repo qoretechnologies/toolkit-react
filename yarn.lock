@@ -1234,10 +1234,10 @@
   resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-beta.20261030134407.tgz#5d65ef1f70da68b57fe997f9beb3fbaff14e2a5d"
   integrity sha512-Bu0xtv6pb9DB67BkXPVHILrmhj8zHvKZNBA08z16hpDToakuQUMLF7nrwiQ7OaQul4mtwxSlSTS834HCln39+g==
 
-"@qoretechnologies/reqore@^0.78.18":
-  version "0.78.18"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.78.18.tgz#f69d89c7043e538a8f4a98490c44b643d61fff4e"
-  integrity sha512-T3UM7MfjI6KSjl+hZCRWq7Neca+TZh05v7KWULrNFfsut5KwWVcKxrPJ5fiCoh+TbctCnxxqoNy1YI1nnf1gTg==
+"@qoretechnologies/reqore@^0.78.21":
+  version "0.78.21"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.78.21.tgz#727a1c7507e77a2c6e8e6d2de652c13f2c13efa2"
+  integrity sha512-rw2MvEOx7Kc+usev+Xu1bz9GH7C6XW6WR4rCDqMYBAal5wMiBA5yFfsqIGeirrMINUIxGvwdPZEb/zbR9sSk4w==
   dependencies:
     "@emotion/is-prop-valid" "^1.2.1"
     "@internationalized/date" "^3.5.3"
