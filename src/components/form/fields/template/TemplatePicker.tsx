@@ -36,7 +36,12 @@ import {
   templateNodeFor,
   unbracedReference,
 } from '../../../../helpers/templateTree';
-import { COMPLETION_ITEM_STYLE, useCompletionListTheme } from '../../../smartEditor/completionStyle';
+import {
+  COMPLETION_ITEM_STYLE,
+  listKindIntent,
+  useCompletionListTheme,
+} from '../../../smartEditor/completionStyle';
+import { useIsCalmForm } from '../../engine/formAppearance';
 import { SMART_EDITOR_OVERLAY_EFFECT } from '../../../smartEditor/styling';
 import { useTypeLabel } from '../../typeSentenceForm';
 import {
@@ -135,15 +140,22 @@ const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
  * A row's badges: what it is (State data, Context, Field...) and its type, named; a group's app, as its catalogue
  * badges it (the app it comes from, never a type: qorus#646, 8909de2f).
  */
-const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel): TReqoreBadge[] => {
+const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel, calm: boolean): TReqoreBadge[] => {
   const kind = templateNodeKindLabel(node.kind);
   const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
   const app = !node.row?.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
   return [
     ...(app ? [{ label: app, minimal: true, size: 'small' as const }] : []),
     ...(kind ?
-      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`)
-      [{ label: kind, minimal: true, size: 'small' as const, intent: templateNodeIntent(node) }]
+      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`); none in the calm look (`listKindIntent`)
+      [
+        {
+          label: kind,
+          minimal: true,
+          size: 'small' as const,
+          intent: listKindIntent(templateNodeIntent(node), calm),
+        },
+      ]
     : []),
     ...(type ? [{ label: type, minimal: true, size: 'small' as const }] : []),
   ] as TReqoreBadge[];
@@ -271,6 +283,7 @@ export const TemplatePicker = memo(
     const browserWords = useReqraftLabels().templateBrowser;
     // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
     const listTheme = useCompletionListTheme();
+    const calm = useIsCalmForm();
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
@@ -844,7 +857,7 @@ export const TemplatePicker = memo(
                     renderMarkdown={renderMarkdown}
                   />
                 }
-                badge={rowBadges(node, typeLabel) as any}
+                badge={rowBadges(node, typeLabel, calm) as any}
                 /* a group opens; a context only the server knows goes on into what is in it as it is typed. One whose
                    catalogue lists nothing in it is no submenu: what follows it is written (`$rest:`) */
                 rightIcon={group || (node.continues && !node.catalogue) ? 'ArrowRightSLine' : undefined}

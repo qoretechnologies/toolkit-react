@@ -126,6 +126,45 @@ export const DrillDownAndBack: Story = {
   },
 };
 
+/** How far a computed color is from a grey: the spread of its channels (0 for a grey). */
+const colorfulness = (color: string): number => {
+  const [r = 0, g = 0, b = 0, a = 1] = (color.match(/[\d.]+/g) || []).map(Number);
+  return a === 0 ? 0 : Math.max(r, g, b) - Math.min(r, g, b);
+};
+
+/**
+ * In the calm look a row's kind chip (Context, State data, Field) carries no color of its own: its word says what the
+ * row is, blue is for a filter that is on, and purple only for an AI or Qonsole action. Context Data's rows were
+ * tagged "Context" in purple inside the neutral list (Qlip build 489).
+ */
+export const KindChipsCarryNoColor: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard; the list is pictured by the stories around it.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Opens Context Data and Receive order: each row\'s kind chip ("Context", "State data") is drawn neutral, ' +
+          'with no purple or blue of its own, as the rest of the calm list is.',
+      },
+    },
+  },
+  play: async () => {
+    const kindChips = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker-row .reqore-tag'));
+    for (const group of ['Context Data', 'Receive order']) {
+      await userEvent.click(await pickerRow(group));
+      await waitFor(() => expect(kindChips().length).toBeGreaterThan(0));
+      for (const chip of kindChips()) {
+        await expect(colorfulness(getComputedStyle(chip).backgroundColor)).toBeLessThanOrEqual(12);
+        await expect(colorfulness(getComputedStyle(chip).color)).toBeLessThanOrEqual(24);
+      }
+      await userEvent.click(document.querySelector<HTMLElement>('.template-picker-back')!);
+      await waitFor(() => expect(pickerLabels()).toContain(group));
+    }
+  },
+};
+
 /** A search finds a template at any depth by its name, and says where it is. */
 export const SearchReachesDeepPaths: Story = {
   args: { onPick: fn() },

@@ -45,14 +45,29 @@ export const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: ReqoreFo
 export const FIELD_KIND = 5;
 export const TEMPLATE_KIND = 6;
 
+/** The LSP kind Qonsole draws its wizard items as: its chip keeps its purple in either look (a Qonsole action). */
+const QONSOLE_SNIPPET_KIND = 15;
+
+/**
+ * The color a row's kind chip takes in the lists of values (`useCompletionListTheme`): its kind's in the classic look;
+ * none in the calm one, where the chip's words already say what the row is - blue says only "a filter is on", and
+ * purple only an AI or Qonsole action, so Qonsole's own items keep theirs. A value's chip in the text it is written
+ * in keeps its color either way (Filip, 10 Nov: the template chips stay as they are).
+ */
+export const listKindIntent = <T extends string | undefined>(
+  intent: T,
+  calm: boolean,
+  kind?: number
+): T | undefined => (calm && kind !== QONSOLE_SNIPPET_KIND ? undefined : intent);
+
 /** A row's kind chip (Field, Variable, Function...), as the completion list draws it. */
-export const kindBadge = (kind: number | undefined) =>
+export const kindBadge = (kind: number | undefined, calm = false) =>
   kind !== undefined && COMPLETION_KIND_CHIPS[kind] ?
     {
       label: COMPLETION_KIND_CHIPS[kind],
       minimal: true as const,
       size: 'small' as const,
-      intent: COMPLETION_KIND_INTENTS[kind],
+      intent: listKindIntent(COMPLETION_KIND_INTENTS[kind], calm, kind),
     }
   : undefined;
 
