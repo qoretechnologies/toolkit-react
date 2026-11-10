@@ -270,3 +270,62 @@ describe('the template picker when the window is resized', () => {
     }
   });
 });
+
+/**
+ * Escape pressed in the text as the picker opens, before the picker is drawn to hear it, puts it away: the picker
+ * comes up in a popover a render or two after the click, and an Escape in that time was heard by nothing, so the
+ * picker opened after it (DpqlEditor › An Emptied Field Opens The Picker, on a loaded CI runner).
+ */
+describe('the template picker before it is drawn', () => {
+  it('is put away by an Escape in the text', () => {
+    const { hook } = setup(true);
+    const text = document.createElement('div');
+    document.body.appendChild(text);
+    const drawn = vi.spyOn(ReactEditor, 'toDOMNode').mockReturnValue(text);
+    try {
+      act(() =>
+        hook.result.current.openBrowse(editorWith('1 + 2') as never, {
+          rect: { left: 10, bottom: 20 },
+          caret: { path: [0, 0], offset: 5 },
+        } as never)
+      );
+      expect(hook.result.current.browse).toBeTruthy();
+      // no picker in the page yet
+      expect(document.querySelector('.template-picker')).toBeNull();
+      act(() => {
+        text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      });
+      expect(hook.result.current.isOpen).toBe(false);
+      expect(hook.result.current.browse).toBeFalsy();
+    } finally {
+      drawn.mockRestore();
+      text.remove();
+    }
+  });
+
+  it('is left to the picker once it is drawn, which hears its own Escape', () => {
+    const { hook } = setup(true);
+    const text = document.createElement('div');
+    const picker = document.createElement('div');
+    picker.className = 'template-picker';
+    document.body.append(text, picker);
+    const drawn = vi.spyOn(ReactEditor, 'toDOMNode').mockReturnValue(text);
+    try {
+      act(() =>
+        hook.result.current.openBrowse(editorWith('1 + 2') as never, {
+          rect: { left: 10, bottom: 20 },
+          caret: { path: [0, 0], offset: 5 },
+        } as never)
+      );
+      act(() => {
+        text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      });
+      // the picker's own listener decides (it may close a key box first); the editor's does nothing
+      expect(hook.result.current.browse).toBeTruthy();
+    } finally {
+      drawn.mockRestore();
+      text.remove();
+      picker.remove();
+    }
+  });
+});
