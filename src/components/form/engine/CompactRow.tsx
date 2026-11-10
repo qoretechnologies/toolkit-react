@@ -1429,7 +1429,14 @@ export const CompactRow = memo(
     const infoActive = !hidden || isExpanded;
     /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
        take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
-    type TInfoMsg = { intent?: string; title?: string; content: string; attention?: boolean };
+    type TInfoMsg = {
+      intent?: string;
+      title?: string;
+      content: string;
+      attention?: boolean;
+      /** It says the field is required and empty (`IOptionFieldMessage.requirement`). */
+      requirement?: boolean;
+    };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
         (getShownSchemaMessages((schema as any)?.messages as any[], availableOptions, options).map(
@@ -1461,7 +1468,11 @@ export const CompactRow = memo(
           readOnly,
           // Until the person has been to the field, its requirement is stated plainly.
           requirementPending: !visited,
-        }).map((m) => ({ intent: m.intent as string, content: String(m.label) }))
+        }).map((m) => ({
+          intent: m.intent as string,
+          content: String(m.label),
+          requirement: m.requirement,
+        }))
       : [];
     // TWO display channels, matching the Focus prototype:
     //  • dedicated schema `messages` → prominent colored PANELS below the row;
@@ -2764,10 +2775,10 @@ export const CompactRow = memo(
               : plainTextNode(readOnlyChoiceDesc)}
             </div>
           : null}
-          {(calmRequiredWord ?
-            valueReasons.filter((m) => m.content !== calmRequiredWord)
-          : valueReasons
-          ).map((m, i) => (
+          {/* the requirement is said by the value column's words: told by its flag, never by comparing the words,
+              which are the host's and may be the same as another reason's */}
+          {(calmRequiredWord ? valueReasons.filter((m) => !m.requirement) : valueReasons).map(
+            (m, i) => (
             <span
               key={`${m.content}-${i}`}
               className='options-readfirst-reason'

@@ -72,6 +72,11 @@ export interface IValidationResult {
   isValid: boolean;
   reason?: string;
   reasons: string[];
+  /**
+   * The value is refused because it is not one of the field's fixed choices (`getUnlistedChoiceReason`): said so by
+   * this flag, not by the words of `reason`, which are the host's and may be in any language.
+   */
+  unlistedChoice?: boolean;
 }
 
 interface IFieldValidationProps {
@@ -435,7 +440,7 @@ export const _validateField = (
   const unlistedChoiceReason =
     type === 'expression' ? undefined : getUnlistedChoiceReason(value, field);
   if (unlistedChoiceReason) {
-    return invalidResult(unlistedChoiceReason);
+    return { ...invalidResult(unlistedChoiceReason), unlistedChoice: true };
   }
 
   // An interface type names another Qorus object by its name, so a non-empty
