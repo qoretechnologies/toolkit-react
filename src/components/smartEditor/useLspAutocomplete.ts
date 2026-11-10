@@ -297,7 +297,9 @@ export const useCompletionKeys = ({
 }) => {
   const handlers = useRef({ onAccept, onClose, onOtherKey });
   handlers.current = { onAccept, onClose, onOtherKey };
-  useEffect(() => {
+  /* Heard from the commit that draws the rows, not after they are painted: with a passive effect a key pressed
+     between the two (a quick hand, a loaded machine) reached nothing, and an Escape left the list open. */
+  useLayoutEffect(() => {
     if (!isOpen || count === 0) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       const take = () => {
@@ -670,7 +672,8 @@ export function useLspAutocomplete(
   const showsRows = isOpen && filteredItems.length > 0;
   // the list open with what it says in place of rows: Escape puts it away, and nothing else
   const showsMessage = isOpen && !showsRows && !!emptyMessage;
-  useEffect(() => {
+  // from the commit that changes what is shown, as the list's own keys are (`useCompletionKeys`)
+  useLayoutEffect(() => {
     if (showsRows) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       const editor = editorRef.current;

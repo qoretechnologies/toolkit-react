@@ -13,7 +13,16 @@ import {
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { flushSync } from 'react-dom';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { TTypeLabel } from '../../../../helpers/qorusTypeCatalogue';
@@ -500,7 +509,11 @@ export const TemplatePicker = memo(
     // heard from the page while the text the picker was opened from keeps the focus
     const handleKeyRef = useRef(handleKey);
     handleKeyRef.current = handleKey;
-    useEffect(() => {
+    /* Heard from the commit that draws the picker, not after it is painted: a passive effect left a window in which
+       the rows were on the page and a key was not heard - an Escape pressed then left the picker open, and a person
+       quick on the keyboard (or a loaded machine, where the effect waits longer) met it (DpqlEditor · An Emptied
+       Field Opens The Picker, flaky on develop). */
+    useLayoutEffect(() => {
       if (!keysFromPage) return undefined;
       const listener = (event: KeyboardEvent) => {
         // a key in the picker itself (its search box) is the picker's own
