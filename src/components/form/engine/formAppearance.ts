@@ -6,6 +6,7 @@ import {
 } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { darken, lighten } from 'polished';
 import { createContext, useContext } from 'react';
+import { DEFAULT_REQRAFT_LABELS } from '../../../helpers/reqraftLabels';
 
 /**
  * How a form looks. The look only: which fields exist, how they bucket, what a
@@ -170,9 +171,10 @@ export const calmNoteIntent = <T extends string | undefined>(
   calm && (!intent || intent === 'info' || intent === 'success') ? undefined : intent;
 
 /**
- * What a calm form writes in place of an empty required value. Editable: what
+ * What a calm form writes in place of an empty required value, in English. Editable: what
  * to do about it. Read-only: only what is the case, because the reader cannot
- * add anything.
+ * add anything. What a form draws is the host's words for them
+ * (`setReqraftLabels({ formEngine: { calmRequired, calmRequiredRead } })`).
  */
-export const CALM_REQUIRED_LABEL = 'Required · add a value';
-export const CALM_REQUIRED_READ_LABEL = 'Required · not set';
+export const CALM_REQUIRED_LABEL = DEFAULT_REQRAFT_LABELS.formEngine.calmRequired;
+export const CALM_REQUIRED_READ_LABEL = DEFAULT_REQRAFT_LABELS.formEngine.calmRequiredRead;

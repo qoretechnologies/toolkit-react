@@ -4,6 +4,11 @@
 // SaveValueButton / useGetAppActionData). Full seam list:
 // `.tasks/FIELD_STACK_REPORT.md`.
 import {
+  DEFAULT_REQRAFT_LABELS,
+  IValueTabsLabels,
+  useReqraftLabels,
+} from '../../../../helpers/reqraftLabels';
+import {
   ReqoreButton,
   ReqoreControlGroup,
   ReqoreErrorBoundary,
@@ -280,52 +285,10 @@ export const ComponentMap = {
   file: FileField,
 };
 
-/**
- * The words of the value tabs (qorus#646). A host that translates its interface passes its own; a label that
- * holds a value is a function of it, so the host keeps its language's word order.
- */
-export interface IValueTabsLabels {
-  value: string;
-  expression: string;
-  visual: string;
-  template: string;
-  expressionTooltip: string;
-  visualTooltip: string;
-  templateTooltip: string;
-  /** Said on the Value tab for an expression that is not a lone value or template. */
-  cannotShowExpression: string;
-  /**
-   * The Expression tab's tooltip, in a field that is a condition (`isConditionOption`). The tab keeps its name:
-   * a condition is written as an expression, and the hover says so (qorus#646, David: "what is "Condition"? Is
-   * it meant to be an expression?").
-   */
-  conditionTooltip: string;
-  /** The Visual tab's tooltip, in a condition field. */
-  conditionVisualTooltip: string;
-  /** Said on the Value tab for a condition that is not a lone value or template. */
-  cannotShowCondition: string;
-  /** Said on the Value tab for a template it cannot show; `tab` is the tab's own label. */
-  templateShownOn: (tab: string) => string;
-  replaceWithAValue: string;
-  /** A template of another type than the field's; `from` and `to` name the types inside the sentence. */
-  conversion: (from: string, to: string) => string;
-  /**
-   * The name of a type inside `conversion`'s sentence. Unless a host gives its own, it is the type catalogue's
-   * sentence form ("a whole number"), in the language the server answered in (qorus#646).
-   */
-  typeName?: (type: string) => string;
-  undo: string;
-  /** The undo's tooltip; `text` is what was typed. */
-  undoTooltip: (text: string) => string;
-  /**
-   * Said on the Value tab while the Expression tab holds text that does not parse: the field keeps the value
-   * shown here, and the text waits there with its error (qorus#646).
-   */
-  expressionDraftNotUsed?: string;
-}
+export type { IValueTabsLabels };
 
 /** Why a field that takes templates offers none here: its context's catalogue has none of its type. */
-export const NO_TEMPLATES_ON_OFFER = 'No templates are offered here for this field.';
+export const NO_TEMPLATES_ON_OFFER = DEFAULT_REQRAFT_LABELS.templateField.noTemplatesOnOffer;
 
 /** The keyboard a whole number or a number is typed on, on the Value tab. */
 const TEXTABLE_INPUT_MODES: Record<string, 'numeric' | 'decimal'> = {
@@ -338,28 +301,7 @@ const TEXTABLE_INPUT_MODES: Record<string, 'numeric' | 'decimal'> = {
   softnumber: 'decimal',
 };
 
-export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
-  value: 'Value',
-  expression: 'Expression',
-  visual: 'Visual',
-  template: 'Template',
-  expressionTooltip: 'Write an expression - it also takes templates',
-  visualTooltip: 'Build the expression visually',
-  templateTooltip: 'Choose a template',
-  cannotShowExpression: "This expression can't be shown as a value.",
-  conditionTooltip: 'Write the condition as an expression',
-  conditionVisualTooltip: 'Build the condition visually',
-  cannotShowCondition: "This condition can't be shown as a value.",
-  templateShownOn: (tab) => `A template is shown on the ${tab} tab, not here.`,
-  replaceWithAValue: 'Replace it with a value',
-  // the sentence starts with the first type
-  conversion: (from, to) =>
-    `${from.charAt(0).toUpperCase()}${from.slice(1)} is converted to ${to} when the value is used; a value that does not convert fails`,
-  undo: 'Undo',
-  undoTooltip: (text) => `Keep "${text}" as a value instead`,
-  expressionDraftNotUsed:
-    'The Expression tab holds text that does not parse, so the field keeps this value until it does.',
-};
+export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = DEFAULT_REQRAFT_LABELS.valueTabs;
 
 /** A value the host keeps for reuse (qorus#646): saved from one field, offered in every field of its type. */
 export interface ITemplateFieldSavedValue {
@@ -386,13 +328,6 @@ export interface ITemplateFieldSavedValues {
 
 /** A form host's saved values are the field's choices, not its menu's (see `savedValues` in the field). */
 const NO_SAVED_VALUE_ITEMS: ITemplateFieldSavedValue[] = [];
-
-const DEFAULT_SAVED_VALUES_LABELS = {
-  save: 'Save this value',
-  saveTooltip: 'Save this value to use it again',
-  use: 'Use a saved value',
-  remove: 'Remove saved value',
-};
 
 /** SEAM (reqraft): the badge a template shows in the template picker - where it comes from, as the host knows. */
 export type TTemplateBadge = (
@@ -565,9 +500,10 @@ export const CustomMenuItems = memo(
     /** @see `loneSectionStartsExpanded` — the menu's only group opens itself. */
     startExpanded?: boolean;
   }) => {
+    const fieldWords = useReqraftLabels().templateField;
     return (
       <ReqoreMenuSection
-        label='Set Custom Value'
+        label={fieldWords.setCustomValue}
         isCollapsed={!startExpanded}
         transparent
         icon='Text'
@@ -608,6 +544,7 @@ export const TemplateDropdownSelector = memo(
     wholeRecords,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
+    const fieldWords = useReqraftLabels().templateField;
     /* The catalogue browsed: `TemplateBrowser` draws its descriptions at the hand-off to Reqore. */
     const browsed = useMemo(() => ({ items }) as IReqoreFormTemplates, [items]);
 
@@ -617,7 +554,7 @@ export const TemplateDropdownSelector = memo(
     // the row is closed cannot read as `$data:{…}` the moment it is opened.
     const resolved = describeTemplateReference(templates, value);
     const template = resolved.item;
-    const label = resolved.label || rest.label || 'Select Template';
+    const label = resolved.label || rest.label || fieldWords.selectTemplate;
     const leftIconProps = useMemo(
       (): IReqoreButtonProps['leftIconProps'] => ({
         image: template?.metadata?.image,
@@ -633,8 +570,7 @@ export const TemplateDropdownSelector = memo(
       <ReqoreControlGroup vertical fluid>
         {hasOnlyAllowedValues && (
           <ReqoreMessage intent='warning' size='small' opaque={false}>
-            This field has pre-defined allowed values, make sure the template you select is
-            compatible with those
+            {fieldWords.allowedValuesWarning}
           </ReqoreMessage>
         )}
         <ReqoreControlGroup stack>
@@ -659,7 +595,7 @@ export const TemplateDropdownSelector = memo(
               customTheme={TemplatesListProps.listCustomTheme}
               fixed
               icon='CloseLine'
-              tooltip='Remove template value'
+              tooltip={fieldWords.removeTemplateValue}
               minimal
               className='template-remove'
               compact
@@ -742,6 +678,8 @@ const TemplateFieldImpl = memo(
     label,
     ...rest
   }: ITemplateFieldProps & { rowMenu?: IRowMenuRegistration }) => {
+    const fieldLabels = useReqraftLabels();
+    const fieldWords = fieldLabels.templateField;
     const qorusTypes = useQorusTypes();
     const functions = useExpressions({
       allow: !!allowFunctions,
@@ -1435,7 +1373,7 @@ const TemplateFieldImpl = memo(
     );
 
     // the values saved for this field's type, and whether this value can be saved
-    const savedWords = { ...DEFAULT_SAVED_VALUES_LABELS, ...savedValues?.labels };
+    const savedWords = { ...fieldLabels.savedValues, ...savedValues?.labels };
     const savedForType = useMemo(
       () => (savedValues?.items ?? []).filter((item) => item.type === type),
       [savedValues?.items, type]
@@ -1629,17 +1567,17 @@ const TemplateFieldImpl = memo(
             icon='Functions'
             intent='info'
             className='dpql-detected-offer'
-            tooltip={`"${dpqlOffer.text}" could be an expression. It is kept as text; use it as an expression instead?`}
+            tooltip={fieldWords.expressionOffer(dpqlOffer.text)}
             onClick={acceptDpqlOffer}
           >
-            Use as expression
+            {fieldWords.useAsExpression}
           </ReqoreButton>
           <ReqoreButton
             compact
             icon='CloseLine'
             intent='info'
             className='dpql-detected-dismiss'
-            tooltip='Keep it as plain text'
+            tooltip={fieldWords.keepAsPlainText}
             onClick={declineDpqlOffer}
           />
         </ReqoreControlGroup>
@@ -1770,9 +1708,10 @@ const TemplateFieldImpl = memo(
               [
                 {
                   // in a condition field the label says what it is for; the value's tooltip would only repeat it
-                  label: isConditionOption(rest) ? 'Write a condition' : 'Use Expression',
+                  label:
+                    isConditionOption(rest) ? fieldWords.writeCondition : fieldWords.useExpression,
                   icon: 'Functions' as const,
-                  ...(isConditionOption(rest) ? {} : { tooltip: 'Run a function on this value' }),
+                  ...(isConditionOption(rest) ? {} : { tooltip: fieldWords.runFunction }),
                   onClick: handleSelectFunctionChange,
                 },
               ]
@@ -1780,17 +1719,17 @@ const TemplateFieldImpl = memo(
             ...(canOfferTemplate ?
               [
                 {
-                  label: 'Use Template',
+                  label: fieldWords.useTemplate,
                   icon: 'MoneyDollarCircleLine' as const,
                   /* With no template on offer here - a context whose catalogue has none, or none of this
                      type - the way in leads to an empty list: it is shown, not taken, and says why
                      (qorus#646, David: "Are there cases where no templates or fields are available?"). */
                   ...(hasTemplatesOnOffer ?
-                    { tooltip: 'Use a template' }
+                    { tooltip: fieldWords.useTemplateTooltip }
                   : {
                       disabled: true,
-                      description: NO_TEMPLATES_ON_OFFER,
-                      tooltip: NO_TEMPLATES_ON_OFFER,
+                      description: fieldWords.noTemplatesOnOffer,
+                      tooltip: fieldWords.noTemplatesOnOffer,
                     }),
                   onClick: handleTemplateToggleClick,
                 },
@@ -1800,9 +1739,9 @@ const TemplateFieldImpl = memo(
         ...(canOfferCustomValue && !tabsKind ?
           [
             {
-              label: 'Use Custom Value',
+              label: fieldWords.useCustomValue,
               icon: 'EditLine' as const,
-              tooltip: 'Write the value here instead of choosing a template',
+              tooltip: fieldWords.useCustomValueTooltip,
               onClick: handleUseCustomValueClick,
             },
           ]
@@ -1840,6 +1779,7 @@ const TemplateFieldImpl = memo(
         savedForType,
         takeSavedValue,
         hasOnlyExpressions,
+        fieldWords,
       ]
     );
 
@@ -1906,10 +1846,10 @@ const TemplateFieldImpl = memo(
             : <ReqoreButton
                 compact
                 minimal
-                label='Create New Expression'
+                label={fieldWords.createNewExpression}
                 className='function-selector'
                 icon='Functions'
-                tooltip='This field takes an expression.'
+                tooltip={fieldWords.takesExpression}
                 onClick={() => {
                   setIsTemplate(false);
                   setTemplateValue(null);
@@ -1968,7 +1908,7 @@ const TemplateFieldImpl = memo(
                    beside. There it goes to the top, which is where the shell's
                    own toolbar is. */
                 alignSelf: effectiveIsFunction ? 'flex-start' : 'center',
-                label: hasInputAffordance || !hasValueRows ? undefined : 'Set value',
+                label: hasInputAffordance || !hasValueRows ? undefined : fieldWords.setValue,
                 style:
                   hasInputAffordance ?
                     {
@@ -1999,10 +1939,14 @@ const TemplateFieldImpl = memo(
                   : <ReqoreButton
                       compact
                       transparent
-                      label={isConditionOption(rest) ? 'Write a condition' : 'Use Expression'}
+                      label={
+                        isConditionOption(rest) ?
+                          fieldWords.writeCondition
+                        : fieldWords.useExpression
+                      }
                       className='function-selector'
                       icon='Functions'
-                      tooltip={isConditionOption(rest) ? undefined : 'Run a function on this value'}
+                      tooltip={isConditionOption(rest) ? undefined : fieldWords.runFunction}
                       onClick={handleSelectFunctionChange}
                     />
 
@@ -2014,14 +1958,18 @@ const TemplateFieldImpl = memo(
                     icon='MoneyDollarCircleLine'
                     className='template-toggle'
                     // none on offer: shown, not taken, and saying why (as the menu's item does)
-                    tooltip={hasTemplatesOnOffer ? 'Use a template' : NO_TEMPLATES_ON_OFFER}
+                    tooltip={
+                      hasTemplatesOnOffer ?
+                        fieldWords.useTemplateTooltip
+                      : fieldWords.noTemplatesOnOffer
+                    }
                     disabled={!hasTemplatesOnOffer}
                     compact
                     size={rest.size}
                     onClick={handleTemplateToggleClick}
                   >
                     {' '}
-                    Use Template{' '}
+                    {fieldWords.useTemplate}{' '}
                   </ReqoreButton>
                 : null}
 
@@ -2030,13 +1978,13 @@ const TemplateFieldImpl = memo(
                     transparent
                     icon='EditLine'
                     className='template-custom-value'
-                    tooltip='Write the value here instead of choosing a template'
+                    tooltip={fieldWords.useCustomValueTooltip}
                     compact
                     size={rest.size}
                     onClick={handleUseCustomValueClick}
                   >
                     {' '}
-                    Use Custom Value{' '}
+                    {fieldWords.useCustomValue}{' '}
                   </ReqoreButton>
                 : null}
 
@@ -2148,6 +2096,7 @@ const TemplateFieldImpl = memo(
       savedForType,
       takeSavedValue,
       savedValues,
+      fieldWords,
     ]);
 
     // When the type is a list, and it has an element type - that element type is different
@@ -2178,7 +2127,7 @@ const TemplateFieldImpl = memo(
 
     // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
     if (tabsKind && !rest.disabled) {
-      const words: IValueTabsLabels = { ...DEFAULT_VALUE_TABS_LABELS, ...valueTabsLabels };
+      const words: IValueTabsLabels = { ...fieldLabels.valueTabs, ...valueTabsLabels };
       /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form (none for no type). */
       const typeInSentence: (type: string | undefined) => string | undefined =
         words.typeName ?? qorusTypes.getTypeSentenceForm;
@@ -2535,10 +2484,10 @@ const TemplateFieldImpl = memo(
                 // `muted` as TEXT is 1.3:1 on the app surface.
                 size={rest.size}
                 className='dpql-detected-undo'
-                tooltip={`Keep "${expressionFromText}" as plain text instead`}
+                tooltip={fieldWords.keepAsPlainTextInstead(expressionFromText)}
                 onClick={undoExpressionFromText}
               >
-                Undo
+                {fieldWords.undo}
               </ReqoreButton>
             : null}
             {renderControls()}
@@ -2633,8 +2582,8 @@ const TemplateFieldImpl = memo(
             fixed
             compact
             size={rest.size}
-            tooltip='Use a template'
-            aria-label='Use a template'
+            tooltip={fieldWords.useTemplateTooltip}
+            aria-label={fieldWords.useTemplateTooltip}
             templates={filteredTemplates}
             focusFilter
             onItemSelect={handleSelectDateTemplate}

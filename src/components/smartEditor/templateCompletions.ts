@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from '../../helpers/reqraftLabels';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { BaseEditor, Editor, Path, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
@@ -6,14 +7,13 @@ import { builtInTypeLabel, TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import { templateBaseType, templateType } from '../../helpers/templateType';
 import {
   ITemplateNode,
-  RECORD_FIELDS_LABEL,
   searchTemplateReferences,
   allTemplateNodes,
   templateContextOf,
   templateContextsOf,
   WHOLE_TEMPLATE_CONTEXTS,
   wholeContextValue,
-  TEMPLATE_NODE_KIND_LABELS,
+  templateNodeKindLabel,
   templateNodeIntent,
   TTemplateIntent,
   unbracedReference,
@@ -277,7 +277,7 @@ export interface ITemplateRowData {
 }
 
 /** The label of the row that opens the picker at the top of the field's templates. */
-export const BROWSE_ALL_TEMPLATES = 'Browse all templates';
+export const BROWSE_ALL_TEMPLATES = DEFAULT_REQRAFT_LABELS.editor.browseAllTemplates;
 
 /**
  * The rows typing a reference offers (`$`, `$data:`, `$data:receive_order.`, `@na`): the nodes of the field's
@@ -369,13 +369,15 @@ const onceEach = (rows: ILspCompletionItem[]): ILspCompletionItem[] => {
 const wholeContextRow = (context: string): ILspCompletionItem => ({
   label: wholeContextValue(context),
   kind: TEMPLATE_KIND,
-  detail: `all of ${context}`,
+  detail: reqraftLabels().editor.allOf(context),
   insertText: wholeContextValue(context),
   filterText: wholeContextValue(context),
-  data: { whole: true, section: 'Templates', kindLabel: 'Template context' } as Record<
-    string,
-    unknown
-  >,
+  data: {
+    whole: true,
+    section: reqraftLabels().editor.templatesSection,
+    kindLabel: reqraftLabels().editor.templateContext,
+    isTemplateContext: true,
+  } as Record<string, unknown>,
 });
 
 /** A context of a catalogue with no key to choose, taken whole in the picker: its context's row here, not a value's. */
@@ -398,9 +400,11 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
     isContext ? node.reference
     : group && node.reference && /^(?:\$[^:]*:.|@.)/.test(node.reference) ? `${node.reference}.`
     : undefined;
-  const kindLabel = isContext ? 'Template context' : TEMPLATE_NODE_KIND_LABELS[node.kind];
+  const kindLabel =
+    isContext ? reqraftLabels().editor.templateContext : templateNodeKindLabel(node.kind);
   const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
-  const where = node.trail.length ? `in ${node.trail.join(' › ')}` : undefined;
+  const where =
+    node.trail.length ? reqraftLabels().editor.inTrail(node.trail.join(' › ')) : undefined;
   const data: ITemplateRowData = {
     templateNodeId: node.id,
     opens: group && !continuation,
@@ -408,16 +412,21 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
     // a context of keys written freely has none listed, and is taken whole all the same (`$dynamic:*`)
     takesWhole: wholeHere || (group && !!node.takesWhole),
     wholeValue: wholeHere || (group && node.takesWhole) ? node.value : undefined,
-    section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
+    section:
+      node.kind === 'field' ?
+        reqraftLabels().templateTree.recordFields
+      : reqraftLabels().editor.templatesSection,
     kindLabel,
     kindIntent: templateNodeIntent(node),
     typeLabel: type,
   };
   /* Under its name: where it is, what it is and where it comes from - in the row, never a hover over its edge
      (qorus#646, David's review). */
-  const said = [where, node.description, node.source ? `from ${node.source}` : undefined].filter(
-    Boolean
-  );
+  const said = [
+    where,
+    node.description,
+    node.source ? reqraftLabels().editor.fromSource(node.source) : undefined,
+  ].filter(Boolean);
   return {
     label: isContext ? (node.reference ?? node.label) : node.label,
     kind: node.kind === 'field' ? FIELD_KIND : TEMPLATE_KIND,
@@ -431,7 +440,7 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
 
 /** The row that opens the picker at the top of the field's templates: every template, browsed as they nest. */
 export const browseAllTemplatesItem = (): ILspCompletionItem => ({
-  label: BROWSE_ALL_TEMPLATES,
+  label: reqraftLabels().editor.browseAllTemplates,
   kind: 19,
   insertText: '',
   filterText: '',
@@ -449,7 +458,5 @@ export const browseAllTemplatesItem = (): ILspCompletionItem => ({
 export const unlistedContextMessage = (before: string): string | undefined => {
   const context = /(\$[\w-]+:)[\w.]*$/.exec(before)?.[1];
   // said with the rows there are (the whole of it, Browse all templates) or in their place: true either way
-  return context ?
-      `Write what ${context} refers to after the ':', or pick from the list`
-    : undefined;
+  return context ? reqraftLabels().editor.writeInContext(context) : undefined;
 };

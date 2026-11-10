@@ -5,7 +5,7 @@ import {
   ReqorePanel,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
-import { memo } from 'react';
+import { createContext, memo, useCallback, useContext, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { ordinal } from '../../../../helpers/common';
 import {
@@ -14,7 +14,11 @@ import {
   IExpressionSchemaArg,
   TExpressionReorderSurface,
 } from '../types';
-import { ExpressionBuilderArgumentLabel } from './argumentLabel';
+import {
+  ExpressionBuilderArgumentLabel,
+  ExpressionBuilderArgumentRuntimeNote,
+  useArgumentKnownWhenItRuns,
+} from './argumentLabel';
 
 /**
  * An operand's field row: the field (a value or a field reference, its clear button, its ⋮ menu) shrinks
@@ -62,6 +66,14 @@ export interface IExpressionBuilderArgumentWrapperProps {
   onArgDragEnd?: () => void;
 }
 
+/**
+ * How an argument tells the argument it is nested in that a note "depends on the incoming data" is shown below it.
+ * The note is said once, on the innermost value it is about: an expression wrapping one that already says it (a Size
+ * of a data path, an Addition of that Size) depends on the same data, and repeating the sentence at every level
+ * says nothing new.
+ */
+const RuntimeNoteBelowContext = createContext<((change: 1 | -1) => void) | undefined>(undefined);
+
 export const ExpressionBuilderArgumentWrapper = memo(
   ({
     children,
@@ -85,6 +97,24 @@ export const ExpressionBuilderArgumentWrapper = memo(
   }: IExpressionBuilderArgumentWrapperProps) => {
     const theme = useReqoreTheme();
     const type = arg?.type || schema?.ui_type || 'context';
+    // an expression whose type only shows when it runs: the note under its value says so, unless an argument nested
+    // in it already does
+    const knownWhenItRuns = useArgumentKnownWhenItRuns(arg);
+    const [notesBelow, setNotesBelow] = useState(0);
+    const reportNoteBelow = useCallback(
+      (change: 1 | -1) => setNotesBelow((count) => count + change),
+      []
+    );
+    const reportToParent = useContext(RuntimeNoteBelowContext);
+    const showsRuntimeNote = knownWhenItRuns && notesBelow === 0;
+    const hasRuntimeNote = knownWhenItRuns || notesBelow > 0;
+    useEffect(() => {
+      if (!hasRuntimeNote || !reportToParent) {
+        return undefined;
+      }
+      reportToParent(1);
+      return () => reportToParent(-1);
+    }, [hasRuntimeNote, reportToParent]);
     const draggable = !!reorder?.includes('dragHandle');
 
     // Only the grip is `draggable`, so a drag never starts from inside the
@@ -164,82 +194,92 @@ export const ExpressionBuilderArgumentWrapper = memo(
 
     if (arg?.is_expression) {
       return (
-        <ReqoreControlGroup
-          vertical
-          fluid
-          gapSize='small'
-          className='expression-arg'
-          {...dragProps}
-        >
-          <ReqoreControlGroup verticalAlign='center' gapSize='small'>
-            <ExpressionBuilderArgumentLabel
-              arg={arg}
-              schema={schema}
-              label={label || ''}
-              expressions={expressions}
-              type={type}
-            />
-            {reorder && renderReorderControls()}
-          </ReqoreControlGroup>
-          <ReqorePanel
-            minimal
+        // The provider wraps the whole argument, never a child of a control group: a group lays out its direct
+        // children one by one, and one more wrapper among them moved every operand's field and button (qlip #473).
+        <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+          {/* the value comes first; a note on it (that it depends on the incoming data) is under it */}
+          <ReqoreControlGroup
+            vertical
             fluid
-            wrapperPadding='top'
-            responsiveTitle={false}
-            responsiveActions={false}
-            size='small'
-            flat
-            padded={false}
-            transparent
+            gapSize='small'
+            className='expression-arg'
+            {...dragProps}
           >
-            {children}
-          </ReqorePanel>
-        </ReqoreControlGroup>
+            <ReqoreControlGroup verticalAlign='center' gapSize='small'>
+              <ExpressionBuilderArgumentLabel
+                arg={arg}
+                schema={schema}
+                label={label || ''}
+                expressions={expressions}
+                type={type}
+              />
+              {reorder && renderReorderControls()}
+            </ReqoreControlGroup>
+            <ReqorePanel
+              minimal
+              fluid
+              wrapperPadding='top'
+              responsiveTitle={false}
+              responsiveActions={false}
+              size='small'
+              flat
+              padded={false}
+              transparent
+            >
+              {children}
+            </ReqorePanel>
+            {showsRuntimeNote ?
+              <ExpressionBuilderArgumentRuntimeNote />
+            : null}
+          </ReqoreControlGroup>
+        </RuntimeNoteBelowContext.Provider>
       );
     }
 
     return (
-      <ReqoreControlGroup
-        vertical
-        wrap
-        fluid={fluid}
-        size='small'
-        className='expression-arg'
-        // the builder gives a value just added the focus here when it has no text field (see `focusNewArgIn`)
-        tabIndex={-1}
-        {...dragProps}
-        // at most the width of the expression it is in: a narrow column shrinks its field instead
-        style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%', ...dragProps.style }}
-      >
-        <ExpressionBuilderArgumentLabel
-          arg={arg}
-          schema={schema}
-          label={label}
-          expressions={expressions}
-        />
-        {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
-            the field takes what is left; wrapping would put the grip on a
-            line of its own above a full-width field. */}
-        <StyledOperandFieldRow verticalAlign='flex-start' wrap={!fluid} fluid className='expression-arg-field'>
-          {reorder && renderReorderControls()}
-          {children}
-          {hasMultipleArgs && (
-            <ReqoreButton
-              compact
-              intent='danger'
-              minimal
-              fixed
-              className='expression-remove-arg'
-              icon='DeleteBinLine'
-              flat
-              transparent
-              tooltip='Remove argument'
-              onClick={onRemoveArgClick}
-              disabled={readOnly}
-            />
-          )}
-        </StyledOperandFieldRow>
-      </ReqoreControlGroup>
+      <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
+        <ReqoreControlGroup
+          vertical
+          wrap
+          fluid={fluid}
+          size='small'
+          className='expression-arg'
+          // the builder gives a value just added the focus here when it has no text field (see `focusNewArgIn`)
+          tabIndex={-1}
+          {...dragProps}
+          // at most the width of the expression it is in: a narrow column shrinks its field instead
+          style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%', ...dragProps.style }}
+        >
+          <ExpressionBuilderArgumentLabel
+            arg={arg}
+            schema={schema}
+            label={label}
+            expressions={expressions}
+          />
+          {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
+              the field takes what is left; wrapping would put the grip on a
+              line of its own above a full-width field. */}
+          <StyledOperandFieldRow verticalAlign='flex-start' wrap={!fluid} fluid className='expression-arg-field'>
+            {reorder && renderReorderControls()}
+            {children}
+            {hasMultipleArgs && (
+              <ReqoreButton
+                compact
+                intent='danger'
+                minimal
+                fixed
+                className='expression-remove-arg'
+                icon='DeleteBinLine'
+                flat
+                transparent
+                tooltip='Remove argument'
+                onClick={onRemoveArgClick}
+                disabled={readOnly}
+              />
+            )}
+          </StyledOperandFieldRow>
+        </ReqoreControlGroup>
+      </RuntimeNoteBelowContext.Provider>
     );
   }
 );

@@ -1,9 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { useTemplatePickerLabels } from '../../../../helpers/templateCatalogueContext';
-import {
-  DEFAULT_TEMPLATE_PICKER_LABELS,
-  ITemplatePickerLabels,
-} from '../../../../helpers/templateListLabels';
+import { ITemplatePickerLabels } from '../../../../helpers/templateListLabels';
 import { rowTitle } from '../../../smartEditor/contextTitle';
 import {
   ReqoreButton,
@@ -23,7 +21,7 @@ import {
   ITemplateNode,
   loadTemplateChildren,
   searchTemplateTree,
-  TEMPLATE_NODE_KIND_LABELS,
+  templateNodeKindLabel,
   templateNodeById,
   templateNodeIntent,
   templateNodeFor,
@@ -123,7 +121,7 @@ const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
  * badges it (the app it comes from, never a type: qorus#646, 8909de2f).
  */
 const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel): TReqoreBadge[] => {
-  const kind = TEMPLATE_NODE_KIND_LABELS[node.kind];
+  const kind = templateNodeKindLabel(node.kind);
   const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
   const app = !node.row?.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
   return [
@@ -189,7 +187,7 @@ export const USE_WHOLE_STYLE: React.CSSProperties = {
 };
 
 /** What "Use" beside a group says on hover. */
-export const useWholeSays = (label: string) => `Use the whole record: all of ${label} as one value`;
+export const useWholeSays = (label: string) => reqraftLabels().templateBrowser.useWhole(label);
 
 /** What a row says it is: up to three lines, wrapped, never past the row (the reqraft row rule). */
 const ROW_WHAT_STYLE: React.CSSProperties = {
@@ -227,13 +225,15 @@ export const TemplatePicker = memo(
     typeLabel: givenTypeLabel,
     labels,
   }: ITemplatePickerProps) => {
+    const browserWords = useReqraftLabels().templateBrowser;
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
+    const pickerWords = useReqraftLabels().templatePicker;
     const hostLabels = useTemplatePickerLabels();
     const words = useMemo(
-      () => ({ ...DEFAULT_TEMPLATE_PICKER_LABELS, ...hostLabels, ...labels }),
-      [hostLabels, labels]
+      () => ({ ...pickerWords, ...hostLabels, ...labels }),
+      [pickerWords, hostLabels, labels]
     );
     const renderMarkdown = useMarkdownRenderer();
     const rootRef = useRef<HTMLDivElement>(null);
@@ -563,7 +563,7 @@ export const TemplatePicker = memo(
             size='small'
             className='template-picker-crumbs'
             role='navigation'
-            aria-label='Where you are in the templates'
+            aria-label={browserWords.whereYouAre}
           >
             {levels.length ?
               <ReqoreButton
@@ -573,8 +573,8 @@ export const TemplatePicker = memo(
                 compact
                 minimal
                 flat
-                aria-label='Back'
-                tooltip={coarse ? undefined : 'Back'}
+                aria-label={browserWords.back}
+                tooltip={coarse ? undefined : browserWords.back}
                 onClick={up}
               />
             : null}
@@ -590,7 +590,7 @@ export const TemplatePicker = memo(
                 setQuery('');
               }}
             >
-              Templates
+              {browserWords.templates}
             </ReqoreButton>
             {crumbsHidden ?
               <ReqoreButton
@@ -625,8 +625,8 @@ export const TemplatePicker = memo(
           <ReqoreInput
             className='template-picker-search'
             icon='SearchLine'
-            placeholder={level ? `Search in ${level.label}` : 'Search templates'}
-            aria-label={level ? `Search in ${level.label}` : 'Search templates'}
+            placeholder={level ? browserWords.searchIn(level.label) : browserWords.searchTemplates}
+            aria-label={level ? browserWords.searchIn(level.label) : browserWords.searchTemplates}
             aria-controls={id}
             aria-activedescendant={visible.length ? optionId(focused) : undefined}
             value={query}
@@ -646,7 +646,7 @@ export const TemplatePicker = memo(
               icon={everywhere ? 'FolderOpenLine' : 'GlobalLine'}
               onClick={() => setEverywhere((current) => !current)}
             >
-              {everywhere ? `Only in ${level.label}` : 'Search everywhere'}
+              {everywhere ? browserWords.onlyIn(level.label) : browserWords.searchEverywhere}
             </ReqoreButton>
           : null}
         </ReqoreControlGroup>
@@ -662,14 +662,14 @@ export const TemplatePicker = memo(
               {
                 // a context whose argument has a format of its own says it (`$rest:` <URI path>[.<key>...])
                 keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ?
-                  `Write what ${keyName} reads: ${keyFor.catalogue.arg_format}.`
-                : `${keyName} holds any keys: write the key to use (a path: order.id).`
+                  browserWords.keyReads(keyName, keyFor.catalogue.arg_format)
+                : browserWords.keyFree(keyName)
               }
             </ReqoreP>
             <ReqoreControlGroup fluid size='small'>
               <ReqoreInput
                 className='template-picker-key-input'
-                aria-label={`Key in ${keyName}`}
+                aria-label={browserWords.keyIn(keyName)}
                 placeholder={
                   keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ? '' : 'order.id'
                 }
@@ -696,7 +696,7 @@ export const TemplatePicker = memo(
                 disabled={!keyText.trim()}
                 onClick={writeKey}
               >
-                Use
+                {browserWords.use}
               </ReqoreButton>
             </ReqoreControlGroup>
           </ReqoreControlGroup>
@@ -710,9 +710,7 @@ export const TemplatePicker = memo(
             style={{ padding: 8 }}
           >
             <ReqoreP size='small' role='alert'>
-              {`Could not load what is in ${shownFailure.node.label}${
-                shownFailure.reason ? `: ${shownFailure.reason}` : '.'
-              }`}
+              {browserWords.loadFailed(shownFailure.node.label, shownFailure.reason)}
             </ReqoreP>
             <ReqoreButton
               className='template-picker-retry'
@@ -724,14 +722,14 @@ export const TemplatePicker = memo(
                 retryLoad();
               }}
             >
-              Retry
+              {browserWords.retry}
             </ReqoreButton>
           </ReqoreControlGroup>
         : null}
         <ReqoreMenu
           id={id}
           role='listbox'
-          aria-label={level ? level.label : 'Templates'}
+          aria-label={level ? level.label : browserWords.templates}
           className='template-picker-list'
           rounded
           flat
@@ -744,10 +742,10 @@ export const TemplatePicker = memo(
             <ReqoreMenuItem
               icon={loading ? 'LoaderLine' : 'InformationLine'}
               label={
-                loading ? 'Loading…'
+                loading ? browserWords.loading
                 : query.trim() ?
-                  `No template matches "${query.trim()}"`
-                : 'Nothing here'
+                  browserWords.noMatch(query.trim())
+                : browserWords.nothingHere
               }
               className='template-picker-empty'
               disabled
@@ -811,9 +809,9 @@ export const TemplatePicker = memo(
                     } as any)
                   : (group || node.continues) && node.takesWhole ?
                     ({
-                      label: 'Use',
+                      label: browserWords.use,
                       className: 'template-picker-use',
-                      'aria-label': `Use ${node.label}`,
+                      'aria-label': browserWords.useNamed(node.label),
                       tooltip: coarse ? undefined : useWholeSays(node.label),
                       compact: true,
                       onMouseDown: keysFromPage ? keepTheFocus : undefined,
@@ -838,7 +836,10 @@ export const TemplatePicker = memo(
               selected={focused === visible.length}
               className='template-picker-more'
               icon='MoreLine'
-              label={`Show ${Math.min(TEMPLATE_PICKER_PAGE, rows.length - shown)} more of ${rows.length - shown}`}
+              label={browserWords.showMore(
+                Math.min(TEMPLATE_PICKER_PAGE, rows.length - shown),
+                rows.length - shown
+              )}
               compact
               minimal
               onMouseDown={keysFromPage ? keepTheFocus : undefined}

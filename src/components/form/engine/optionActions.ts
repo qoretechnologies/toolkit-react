@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../../helpers/reqraftLabels';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import {
   IReqorePanelAction,
@@ -21,8 +22,7 @@ export interface IOptionActionsContext {
  * every option, or a factory invoked once per option with that option's context.
  */
 export type TOptionActions =
-  | IReqorePanelAction[]
-  | ((context: IOptionActionsContext) => IReqorePanelAction[]);
+  IReqorePanelAction[] | ((context: IOptionActionsContext) => IReqorePanelAction[]);
 
 /**
  * Resolve the `optionActions` seam for one option.
@@ -79,7 +79,7 @@ export const optionActionAsMenuItem = (
   label:
     action.label ??
     (typeof action.tooltip === 'string' ? action.tooltip : undefined) ??
-    `Action ${index + 1}`,
+    reqraftLabels().formEngine.actionNumber(index + 1),
   icon: action.icon,
   intent: action.intent,
   disabled: action.disabled,
@@ -120,7 +120,7 @@ export const optionRowActions = ({
     minimal: true,
     flat: true,
     className: 'options-item-more',
-    tooltip: 'More actions',
+    tooltip: reqraftLabels().formEngine.moreActions,
     actions: items,
   };
 

@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /* The picker is drawn where the dropdown would draw it (see templateBrowserTakesWhole.test.tsx): Reqore's dropdown
    portal never opens in jsdom. */
@@ -17,6 +17,7 @@ const { TemplateBrowser } = await import('../src/components/form/fields/template
 const { TemplatePicker } = await import('../src/components/form/fields/template/TemplatePicker');
 const { TemplateCatalogueProvider } = await import('../src/helpers/templateCatalogueContext');
 const { withTemplateCatalogue } = await import('../src/helpers/templateCatalogue');
+const { setReqraftLabels } = await import('../src/helpers/reqraftLabels');
 
 /**
  * A control that cannot be typed into (a template-only value, a number's input) writes a key for a context of free
@@ -114,5 +115,40 @@ describe('the Key action of a control that cannot be typed into', () => {
     );
     expect(container.querySelector('.template-picker-row[data-label="$dynamic:*"]')).toBeTruthy();
     expect(container.querySelector('.template-picker-key-action')).toBeNull();
+  });
+});
+
+describe('the picker in a host’s words', () => {
+  afterEach(() => {
+    setReqraftLabels();
+  });
+
+  it('names its groups and actions as the host gives them, and again when the language changes', () => {
+    setReqraftLabels({
+      templateTree: { templateContexts: 'Vorlagenkontexte' },
+      templatePicker: { writeKey: 'Schlüssel' },
+    });
+    const { container } = render(
+      <ReqoreUIProvider>
+        <TemplateCatalogueProvider catalogue={CATALOGUE}>
+          <TemplateBrowser
+            templates={{ items: [{ label: 'One', value: '$local:one' }] } as never}
+            onItemSelect={vi.fn()}
+          />
+        </TemplateCatalogueProvider>
+      </ReqoreUIProvider>
+    );
+    const row = (label: string) =>
+      container.querySelector<HTMLElement>(`.template-picker-row[data-label="${label}"]`);
+    expect(row('Vorlagenkontexte')).toBeTruthy();
+    act(() => setReqraftLabels({ templateTree: { templateContexts: 'Contextes' } }));
+    expect(row('Vorlagenkontexte')).toBeNull();
+    expect(row('Contextes')).toBeTruthy();
+  });
+
+  it('prefers the words the provider gives over the host’s', () => {
+    setReqraftLabels({ templatePicker: { writeKey: 'Host' } });
+    const { keyAction } = renderBrowser({ writeKey: 'Provider' });
+    expect(keyAction('$dynamic:*')?.textContent).toContain('Provider');
   });
 });

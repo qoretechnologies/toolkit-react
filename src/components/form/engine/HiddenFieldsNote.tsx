@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels } from '../../../helpers/reqraftLabels';
 import { ReqoreMessage } from '@qoretechnologies/reqore';
 import { memo } from 'react';
 
@@ -24,11 +25,11 @@ export const hiddenFieldNoteText = ({
   conditions,
   invalidReason,
 }: IHiddenFieldWithValue): string =>
-  `"${label}" is hidden until it applies (${conditions}). Its value is kept${
-    invalidReason ?
-      `, but it is not valid: ${invalidReason.replace(/\.$/, '')}`
-    : ', and not used until then'
-  }.`;
+  reqraftLabels().formEngine.hiddenUntilItApplies(
+    label,
+    conditions,
+    invalidReason?.replace(/\.$/, '')
+  );
 
 export interface IHiddenFieldsNoteProps {
   fields: IHiddenFieldWithValue[];

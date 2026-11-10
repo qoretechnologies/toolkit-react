@@ -16,6 +16,8 @@
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 import { ReqraftLspClient } from '../../../utils/lspClient';
+import type { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { templateType } from '../../../helpers/templateType';
 import { IExpressionValue } from './types';
 
 /** Coalesce rapid changes per consumer (live editing) — trailing edge. */
@@ -49,7 +51,84 @@ const getTypeClient = (): ReqraftLspClient => {
   return typeClient;
 };
 
-const cacheKey = (value: IExpressionValue): string => JSON.stringify(value);
+/**
+ * The types of the templates the reader is offered, as the lists of templates name them: what a template, as
+ * written, holds (`$local:id` a whole number). The server types an operation by its operands, and a template it
+ * cannot type itself is typed by what the IDE shows for it (`template_types`); one it can type keeps its own type.
+ * Kept for the page: a template is the same value wherever a list offers it.
+ */
+/** The template types each list registered, by the list: rebuilt on each registration, gone with the list. */
+const registeredTemplateTypes = new Map<string, Map<string, string>>();
+
+/** The type a template has in the lists that offer it now: the latest registration that types it. */
+const templateTypeNow = (template: string): string | undefined => {
+  let type: string | undefined;
+  registeredTemplateTypes.forEach((types) => {
+    type = types.get(template) ?? type;
+  });
+  return type;
+};
+
+/**
+ * Notes the types of the templates a list offers (`buildTemplates` rows: `metadata.type`, else the badge), in place of
+ * what the same list (`list`, the builder that offers it) said before: a template whose type became any, or that the
+ * list no longer offers, is no longer typed by it.
+ */
+export const registerTemplateTypes = (
+  templates: IReqoreFormTemplates | undefined,
+  list = 'default'
+): void => {
+  const types = new Map<string, string>();
+  const walk = (items: unknown[] | undefined) => {
+    (items ?? []).forEach((item) => {
+      const row = item as { value?: unknown; items?: unknown[] };
+      if (typeof row?.value === 'string' && row.value.startsWith('$')) {
+        const type = templateType(row as never);
+        // a template of any type says nothing the server could use
+        if (type && !/^\*?(any|auto)$/.test(type)) {
+          types.set(row.value, type);
+        }
+      }
+      walk(row?.items);
+    });
+  };
+  walk(templates?.items as unknown[] | undefined);
+  // re-inserted, so the latest registration is the last one read
+  registeredTemplateTypes.delete(list);
+  registeredTemplateTypes.set(list, types);
+};
+
+/** Forgets what a list registered, as the list goes. */
+export const unregisterTemplateTypes = (list: string): void => {
+  registeredTemplateTypes.delete(list);
+};
+
+/** The templates an expression holds, as written: in its operands, in rich text, in the expressions it nests. */
+const templatesIn = (value: unknown, found = new Set<string>()): Set<string> => {
+  if (typeof value === 'string') {
+    if (value.startsWith('$')) {
+      found.add(value);
+    }
+  } else if (Array.isArray(value)) {
+    value.forEach((item) => templatesIn(item, found));
+  } else if (value && typeof value === 'object') {
+    Object.values(value as Record<string, unknown>).forEach((item) => templatesIn(item, found));
+  }
+  return found;
+};
+
+/** The types of the templates an expression holds that the lists offering them type. */
+export const expressionTemplateTypes = (value: IExpressionValue): Record<string, string> =>
+  Object.fromEntries(
+    Array.from(templatesIn(value))
+      .sort()
+      .flatMap((template) =>
+        templateTypeNow(template) ? [[template, templateTypeNow(template) as string]] : []
+      )
+  );
+
+const cacheKey = (value: IExpressionValue): string =>
+  JSON.stringify({ value, template_types: expressionTemplateTypes(value) });
 
 /**
  * The type the server gave for an expression, if it has given it — for the
@@ -73,10 +152,13 @@ export const fetchExpressionType = async (
     // Waits as long as the connection does: it has its own reconnect schedule
     // and rejects once it gives up, so this never outlives a dead socket.
     await client.connect();
+    const types = expressionTemplateTypes(value);
     const result = await client.customRequest<Partial<IExpressionType>>('dpql/expressionType', {
       // The server accepts both the bare `{exp, args}` AST and the
       // `{is_expression, value}` wrapper, as `dpql/renderExpression` does.
       expression: value,
+      // what the IDE shows for each template it holds; the server's own type of a template wins
+      ...(Object.keys(types).length ? { template_types: types } : {}),
     });
     if (typeof result?.inferred_type !== 'string' || typeof result?.ui_type !== 'string') {
       return null;
@@ -103,6 +185,7 @@ export const _resetExpressionTypeTransportForTests = (): void => {
   typeClient = null;
   methodUnsupported = false;
   typeCache.clear();
+  registeredTemplateTypes.clear();
 };
 
 /**
@@ -131,11 +214,13 @@ export const useExpressionType = (
     setType(undefined);
     let current = true;
     const timer = setTimeout(() => {
-      void fetchExpressionType(JSON.parse(key) as IExpressionValue).then((served) => {
-        if (current) {
-          setType(served ?? undefined);
+      void fetchExpressionType((JSON.parse(key) as { value: IExpressionValue }).value).then(
+        (served) => {
+          if (current) {
+            setType(served ?? undefined);
+          }
         }
-      });
+      );
     }, TYPE_DEBOUNCE_MS);
     return () => {
       current = false;

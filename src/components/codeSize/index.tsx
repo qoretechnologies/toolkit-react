@@ -8,6 +8,7 @@
 // there is one renderer rather than one per caller, each drifting in
 // pluralisation, icon and intent.
 
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { ReqoreTag } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { memo } from 'react';
@@ -33,12 +34,12 @@ export function describeCodeSize(code: string): IReqraftCodeSize {
 
 /** `4 lines` / `1 line` — the label half of the chip. */
 export function formatCodeLines(lines: number): string {
-  return `${lines} ${lines === 1 ? 'line' : 'lines'}`;
+  return reqraftLabels().formEngine.lineCount(lines);
 }
 
 /** `92 chars` / `1 char` — the key half of the chip. */
 export function formatCodeChars(chars: number): string {
-  return `${chars} ${chars === 1 ? 'char' : 'chars'}`;
+  return reqraftLabels().formEngine.charCount(chars);
 }
 
 /** How strongly the size reads: the soft shade of the text, as metadata does beside a title. */

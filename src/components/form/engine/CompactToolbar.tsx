@@ -1,3 +1,4 @@
+import { IFormEngineLabels, useReqraftLabels } from '../../../helpers/reqraftLabels';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -19,12 +20,14 @@ import { getCalmAttentionColours, useIsCalmForm } from './formAppearance';
 
 // Field sort modes, listed in the Fields menu's "Sort by" submenu. 'schema' is
 // the default (the schema's declared order); the rest reorder within each group.
-const SORT_MODES: { value: TCompactSort; label: string; tooltip: string }[] = [
-  { value: 'schema', label: 'Default order', tooltip: 'The schema’s declared field order' },
-  { value: 'alpha', label: 'Name A→Z', tooltip: 'Sort fields by name, ascending' },
-  { value: 'alpha-desc', label: 'Name Z→A', tooltip: 'Sort fields by name, descending' },
-  { value: 'unset', label: 'Unset first', tooltip: 'Fields without a value first' },
-  { value: 'invalid', label: 'Invalid first', tooltip: 'Fields needing attention first' },
+const sortModes = (
+  words: IFormEngineLabels
+): { value: TCompactSort; label: string; tooltip: string }[] => [
+  { value: 'schema', label: words.sortDefault, tooltip: words.sortDefaultTooltip },
+  { value: 'alpha', label: words.sortAlpha, tooltip: words.sortAlphaTooltip },
+  { value: 'alpha-desc', label: words.sortAlphaDesc, tooltip: words.sortAlphaDescTooltip },
+  { value: 'unset', label: words.sortUnset, tooltip: words.sortUnsetTooltip },
+  { value: 'invalid', label: words.sortInvalid, tooltip: words.sortInvalidTooltip },
 ];
 
 // "Focus" header: a summary line ({pct}% complete · {set}/{total} set ·
@@ -129,6 +132,7 @@ const StyledPct = styled.span`
  * `CompactToolbarContext`.
  */
 export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProps>) => {
+  const feWords = useReqraftLabels().formEngine;
   const {
     parts,
     readOnly,
@@ -246,7 +250,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   what the form still lacks, and a form nobody has touched can
                   lack things. "Draft" means unsaved changes and belongs to the
                   batched mode's per-row chip alone. */}
-              {invalidCount || attentionCount ? 'Incomplete' : 'Ready'}
+              {invalidCount || attentionCount ? feWords.incomplete : feWords.ready}
             </StyledSummary>
             {/* "set" counts what the Set box holds: a value nothing flags. A flagged value is in
                 the attention count instead, so the line adds up ("1/7 set · 6 need attention ·
@@ -255,7 +259,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 and no meter that reads as nothing done. */}
             {completion.total ?
               <StyledSummary style={calm ? { color: cQuiet } : { opacity: inks.countOpacity }}>
-                · {completion.done}/{completion.total} set
+                · {feWords.setOfTotal(completion.done, completion.total)}
                 {attentionCount ? ' ·' : ''}
               </StyledSummary>
             : null}
@@ -264,16 +268,16 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 in the quiet colour. */}
             {attentionFaultCount ?
               <StyledAttentionLink $color={calm ? cWarning : inks.warning} {...attentionToggleProps}>
-                {attentionFaultCount} need attention →
+                {feWords.needAttention(attentionFaultCount)}
               </StyledAttentionLink>
             : null}
             {attentionCount > attentionFaultCount ?
               attentionFaultCount ?
                 <StyledSummary style={{ color: cQuiet }}>
-                  · {attentionCount - attentionFaultCount} to fill in
+                  · {feWords.toFillInCount(attentionCount - attentionFaultCount)}
                 </StyledSummary>
               : <StyledAttentionLink $color={cQuiet} {...attentionToggleProps}>
-                  {attentionCount} to fill in →
+                  {feWords.toFillIn(attentionCount)}
                 </StyledAttentionLink>
             : null}
             {/* Calm: the percentage is one more quiet figure on the line, not
@@ -313,7 +317,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               pill
               icon='Search2Line'
               iconColor='muted'
-              placeholder='Filter fields...'
+              placeholder={feWords.filterFields}
               value={compactQuery}
               intent={compactQuery ? 'info' : undefined}
               className='options-readfirst-search'
@@ -328,27 +332,27 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 flat
                 filterable
                 icon='Filter3Line'
-                tooltip='Fields'
+                tooltip={feWords.fields}
                 className='options-readfirst-fields'
                 intent={requiredOnly ? 'info' : undefined}
-                badge={requiredOnly ? 'Required only' : undefined}
+                badge={requiredOnly ? feWords.requiredOnly : undefined}
                 onItemSelect={(item: IReqoreDropdownItem) =>
                   item.value && onAddOptionalField(item.value)
                 }
                 items={
                   [
                     {
-                      label: 'Required only',
+                      label: feWords.requiredOnly,
                       selected: requiredOnly,
                       icon: requiredOnly ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
-                      tooltip: 'Show only required fields',
+                      tooltip: feWords.requiredOnlyTooltip,
                       onClick: () => setRequiredOnly((value) => !value),
                     },
                     {
-                      label: 'Show field types',
+                      label: feWords.showFieldTypes,
                       selected: showFieldTypes,
                       icon: showFieldTypes ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
-                      tooltip: 'Annotate each field with its type',
+                      tooltip: feWords.showFieldTypesTooltip,
                       onClick: onToggleFieldTypes,
                     },
                     // Sort by — a submenu (collapsed by default) so the five modes
@@ -356,14 +360,14 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                     // (groups + required-group rails preserved); the active non-
                     // default mode shows as a badge on the parent.
                     {
-                      label: 'Sort by',
+                      label: feWords.sortBy,
                       icon: 'ArrowUpDownLine',
                       intent: compactSort !== 'schema' ? 'info' : undefined,
                       badge:
                         compactSort !== 'schema' ?
-                          SORT_MODES.find((mode) => mode.value === compactSort)?.label
+                          sortModes(feWords).find((mode) => mode.value === compactSort)?.label
                         : undefined,
-                      items: SORT_MODES.map((mode) => ({
+                      items: sortModes(feWords).map((mode) => ({
                         label: mode.label,
                         tooltip: mode.tooltip,
                         selected: compactSort === mode.value,
@@ -375,22 +379,22 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                       })),
                     },
                     {
-                      label: 'Select all',
+                      label: feWords.selectAll,
                       icon: 'MenuAddLine',
-                      tooltip: 'Add every optional field',
+                      tooltip: feWords.selectAllTooltip,
                       disabled: filteredCount === 0,
                       onClick: onAddAll,
                     },
                     {
-                      label: 'Default fields',
+                      label: feWords.defaultFields,
                       icon: 'RestartLine',
-                      tooltip: 'Reset to the default set of fields',
+                      tooltip: feWords.defaultFieldsTooltip,
                       onClick: onResetDefaults,
                     },
                     {
-                      label: 'Revert all changes',
+                      label: feWords.revertAll,
                       icon: 'HistoryLine',
-                      tooltip: 'Undo all edits back to the loaded values',
+                      tooltip: feWords.revertAllTooltip,
                       disabled: !canRevert,
                       onClick: onRevertAll,
                     },
@@ -411,7 +415,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 className='options-readfirst-descriptions'
                 intent={showAllDescriptions ? 'info' : undefined}
                 tooltip={
-                  showAllDescriptions ? 'Hide all field information' : 'Show all field information'
+                  showAllDescriptions ? feWords.hideAllInformation : feWords.showAllInformation
                 }
                 onClick={onToggleAllDescriptions}
               />

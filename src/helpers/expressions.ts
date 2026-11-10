@@ -13,6 +13,7 @@ import {
 import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
 import { getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
 import { catalogueTypeName, qorusTypeEntry, qorusTypeSentenceForm } from './qorusTypeCatalogue';
+import { reqraftLabels } from './reqraftLabels';
 
 /**
  * The UI type of an argument: a value's own type, or, for an expression, the
@@ -89,8 +90,7 @@ export const areQorusTypesCompatible = (
   const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
   // a value's type by the name the catalogue lists it under (`*int`, `softint`: `int`), else by its base type's
   const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(
-    (check) =>
-      qorusTypeEntry(types, check, checkBaseType)?.name ?? normalizeAnyLikeTypeName(check)
+    (check) => qorusTypeEntry(types, check, checkBaseType)?.name ?? normalizeAnyLikeTypeName(check)
   );
   // Get each of the main types from the types list
   for (const main of mainTypes) {
@@ -139,7 +139,10 @@ export const isTextOrDateType = (type: string): boolean =>
  * only that).
  */
 export const isConditionType = (returnType: string | string[] | undefined): boolean => {
-  const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
+  const types =
+    isArray(returnType) ? returnType
+    : returnType ? [returnType]
+    : [];
   return types.length > 0 && types.every((type) => /^\*?(soft)?(bool|boolean)$/.test(type));
 };
 
@@ -166,8 +169,9 @@ export const conditionVerdict = (type: string | undefined): 'error' | 'warning' 
  * are conditions (a Qog transition's value, a built-in if's value, a while or for block's condition). The
  * schema's own `type` cannot say it: a value of type bool is not a condition.
  */
-export const isConditionOption = (field: { metadata?: Record<string, unknown> } | undefined): boolean =>
-  field?.metadata?.condition === true;
+export const isConditionOption = (
+  field: { metadata?: Record<string, unknown> } | undefined
+): boolean => field?.metadata?.condition === true;
 
 /** A type as a condition reads it: without the optional mark, `soft`, or what a list or hash holds. */
 export const conditionBaseType = (type: string | undefined): string =>
@@ -201,11 +205,101 @@ export const conditionErrorText = (
  */
 export const expressionTypeMismatchText = (
   gives: string | undefined,
-  takes: string | undefined
-): string =>
-  takes ?
-    `This expression gives ${gives ?? 'nothing'}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
-  : `This expression gives ${gives ?? 'nothing'}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+  takes: string | undefined,
+  source?: IExpressionTypeSource
+): string => reqraftLabels().formEngine.typeMismatch(gives, takes, source);
+
+/** The operand an expression's type comes from, named as the reader knows it: quoted, and whether it is an operation. */
+export interface IExpressionTypeSource {
+  label: string;
+  isOperation: boolean;
+}
+
+/** One operand of an expression, as the builder knows it: what it is called, the type it gives, whether it is an
+ *  operation. */
+export interface IExpressionOperand {
+  label: string | undefined;
+  type: string | undefined;
+  isOperation?: boolean;
+}
+
+/** The longest written value an operand is named by: a longer one is named "this value". */
+const OPERAND_VALUE_LABEL_MAX = 24;
+
+/**
+ * An operand as the reader knows it, never its raw data: a template by its label where the field offers it, else by
+ * its kind (`$local`); a short value written on one line, quoted; anything else - rich text (as a document or as the
+ * text it is stored as), long or multi-line text, a list - "this value".
+ */
+export const operandLabel = (
+  value: unknown,
+  templateLabel: string | undefined,
+  type?: string
+): string => {
+  const labels = reqraftLabels().formEngine;
+  if (templateLabel) {
+    return `"${templateLabel}"`;
+  }
+  if (typeof value === 'string') {
+    const kind = /^\$([a-z_]+):/i.exec(value)?.[1];
+    if (kind) {
+      return labels.templateOfKind(kind);
+    }
+    if (type === 'richtext' || /[\r\n]/.test(value) || value.length > OPERAND_VALUE_LABEL_MAX) {
+      return labels.thisValue;
+    }
+    return `"${value}"`;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return `"${String(value)}"`;
+  }
+  return labels.thisValue;
+};
+
+/** What an operation's schema says of where its type comes from. */
+export interface IExpressionTypeRule {
+  return_type?: string;
+  ui_return_type?: string;
+  return_type_first_arg?: boolean;
+  return_type_arg_priority?: string[];
+}
+
+/**
+ * The operand an expression's type comes from - only where the operation's schema says an operand sets it: its first
+ * operand (`return_type_first_arg`), or, for an operation whose type is that of its operands (by a priority of types,
+ * `return_type_arg_priority`, or declared to give any type), the operand that gives the type it gave. An operation that declares its own
+ * type (`substr` gives text, a comparison true or false) names nobody, whatever its operands are.
+ */
+export const expressionTypeSource = (
+  gives: string | undefined,
+  operands: IExpressionOperand[],
+  sentenceForm: (typeName: string | undefined) => string | undefined,
+  rule?: IExpressionTypeRule
+): IExpressionTypeSource | undefined => {
+  const givesForm = sentenceForm(gives);
+  if (!givesForm || !rule) {
+    return undefined;
+  }
+  const named = (operand: IExpressionOperand | undefined) =>
+    operand?.label && sentenceForm(operand.type) === givesForm ?
+      { label: operand.label, isOperation: !!operand.isOperation }
+    : undefined;
+  if (rule.return_type_first_arg) {
+    return named(operands[0]);
+  }
+  // an operation whose type is that of its operands - by a priority of types, or declared to give any type - takes
+  // it from the operand that gives it
+  const declared = rule.ui_return_type ?? rule.return_type;
+  if (rule.return_type_arg_priority?.length || declared === 'any' || declared === 'auto') {
+    for (const operand of operands) {
+      const source = named(operand);
+      if (source) {
+        return source;
+      }
+    }
+  }
+  return undefined;
+};
 
 /**
  * What the builder's conversion list says of an argument it converts: from what to what. `from` and `to` name the
@@ -257,7 +351,10 @@ export interface IConditionPart {
 }
 
 /** The server's code for what it says of a condition read as this verdict. */
-const CONDITION_CODE_OF_VERDICT = { error: 'NOT_A_CONDITION', warning: 'CONDITION_BY_TRUTHINESS' } as const;
+const CONDITION_CODE_OF_VERDICT = {
+  error: 'NOT_A_CONDITION',
+  warning: 'CONDITION_BY_TRUTHINESS',
+} as const;
 
 /**
  * What the server says of a whole condition, in its words: the first condition diagnostic, when the whole

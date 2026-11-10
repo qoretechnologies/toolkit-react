@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../../helpers/reqraftLabels';
 import {
   ReqoreControlGroup,
   ReqoreP,
@@ -28,7 +29,6 @@ import {
   allowedValueName,
   allowedValueOf,
   getUnlistedChoiceReason,
-  UNLISTED_CHOICE_NEXT_STEP,
 } from '../../../helpers/allowedValues';
 import {
   hasAllDependenciesFullfilled,
@@ -38,12 +38,7 @@ import {
   unsatisfiedRequiredGroups,
 } from '../../../helpers/validations';
 import { OptionsContext } from './optionsContext';
-import {
-  CALM_REQUIRED_LABEL,
-  CALM_REQUIRED_READ_LABEL,
-  getCalmIntentText,
-  useIsCalmForm,
-} from './formAppearance';
+import { getCalmIntentText, useIsCalmForm } from './formAppearance';
 
 /** A `messages` entry that appears only for certain values of its siblings. */
 export interface IConditionalFieldMessage {
@@ -58,7 +53,17 @@ export interface IConditionalFieldMessage {
   when?: (string | string[])[];
   /** Hide the message while every entry holds — the negative form of `when`. */
   unless?: (string | string[])[];
+  /**
+   * `false` for a warning that informs without asking for anything: it is shown like any warning, but it does not
+   * put its field under "Needs attention" or count it as unfinished. A field whose choices the server could not offer
+   * says why with one; the user can do nothing about it in the form, so it is not a step left to take.
+   */
+  attention?: boolean;
 }
+
+/** Whether a message asks the user to act on its field: a warning, unless it says it does not. */
+export const messageDrawsAttention = (message: { intent?: string; attention?: boolean }): boolean =>
+  message.intent === 'warning' && message.attention !== false;
 
 /**
  * Whether a schema message applies to the form as it currently stands.
@@ -118,6 +123,7 @@ export const getShownSchemaMessages = <T extends IConditionalFieldMessage>(
  * and the lock cannot disagree about what an entry means.
  */
 const describeDependency = (dependency: string, schema: IQorusFormSchema): string | undefined => {
+  const feWords = reqraftLabels().formEngine;
   const { name, op, value } = parseDependency(dependency);
   const dependencySchema = schema[name];
 
@@ -138,10 +144,14 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
   // being unanswered — so it gets a sentence of its own rather than the
   // comparison template, which would read `must not be "undefined"`.
   if (op === '!') {
-    return `${label} must have no value`;
+    return feWords.mustHaveNoValue(label);
   }
 
-  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${shown}"` : label;
+  return (
+    op === '!=' ? feWords.mustNotBe(label, shown)
+    : op ? feWords.mustBe(label, shown)
+    : label
+  );
 };
 
 /**
@@ -167,7 +177,9 @@ export const describeDependencies = (
       if (!alternatives.length) {
         return undefined;
       }
-      return alternatives.length > 1 ? `(${alternatives.join(' or ')})` : alternatives[0];
+      return alternatives.length > 1 ?
+          reqraftLabels().formEngine.orJoin(alternatives)
+        : alternatives[0];
     })
     .filter((entry): entry is string => !!entry)
     .join(', ');
@@ -241,6 +253,7 @@ export const getAllowedValueAvailability = (
   allOptions?: TQorusForm,
   schema?: IQorusFormSchema
 ): IAllowedValueAvailability => {
+  const feWords = reqraftLabels().formEngine;
   if (!value) {
     return ALLOWED_VALUE_AVAILABLE;
   }
@@ -261,11 +274,11 @@ export const getAllowedValueAvailability = (
       intent: 'warning',
       reason:
         dependsOn ?
-          `Unavailable because some dependencies are not fulfilled: ${dependsOn}`
+          feWords.unavailable(dependsOn)
           // Nothing nameable: every entry pointed at a field this schema does
           // not contain. A sentence that ends in a colon and then stops reads
           // as a rendering fault rather than as a fact about the form.
-        : 'Unavailable because some dependencies are not fulfilled',
+        : feWords.unavailable(),
     };
   }
 
@@ -369,9 +382,10 @@ export interface IOptionFieldMessagesProps {
   isRendererOnly?: (type?: any) => boolean;
   /**
    * The calm appearance says an empty required field the calm way: an amber
-   * "Required · add a value" (or, read-only, "Required · not set") rather than
-   * a red "This field is required". Waiting for a person is amber; red is for
-   * something that failed.
+   * `calmRequired` ("Required · add a value"; read-only, `calmRequiredRead`,
+   * "Required · not set") rather than a red `required` ("This field is
+   * required"), each in the host's words (`setReqraftLabels`). Waiting for a
+   * person is amber; red is for something that failed.
    */
   calm?: boolean;
   /** Read-only: the reader cannot add a value, so the calm wording only states it. */
@@ -401,6 +415,7 @@ export const getOptionFieldMessages = ({
   readOnly,
   requirementPending,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
+  const feWords = reqraftLabels().formEngine;
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
   const locked =
@@ -449,7 +464,7 @@ export const getOptionFieldMessages = ({
       }
     );
     if (!validationData.isValid) {
-      const reason = validationData.reason || 'Field value is not valid';
+      const reason = validationData.reason || feWords.valueNotValid;
       /* A value that is not one of the choices says what to do about it where the author can: an
          editable form adds "pick one from the list"; a read view only states it. */
       const isUnlistedChoice =
@@ -461,7 +476,7 @@ export const getOptionFieldMessages = ({
             hasOwnEditor: !!isRendererOnly?.(optionSchema?.ui_type),
           });
       result.push({
-        label: isUnlistedChoice ? `${reason} · ${UNLISTED_CHOICE_NEXT_STEP}` : reason,
+        label: isUnlistedChoice ? feWords.unlistedChoice(reason) : reason,
         intent: 'danger',
       });
     }
@@ -472,8 +487,11 @@ export const getOptionFieldMessages = ({
     if (optionSchema?.required && !locked) {
       const message =
         calm ?
-          { label: readOnly ? CALM_REQUIRED_READ_LABEL : CALM_REQUIRED_LABEL, intent: 'warning' }
-        : { label: 'This field is required', intent: 'danger' };
+          {
+            label: readOnly ? feWords.calmRequiredRead : feWords.calmRequired,
+            intent: 'warning',
+          }
+        : { label: feWords.required, intent: 'danger' };
       result.push(
         requirementPending ? { label: message.label } : (message as IReqoreTagProps)
       );
@@ -505,11 +523,11 @@ export const getOptionFieldMessages = ({
     result.push({
       label:
         dependsOn ?
-          `This field is disabled because some dependencies are not fulfilled: ${dependsOn}`
+          feWords.disabledByDependencies(dependsOn)
           // Nothing nameable: every entry pointed at a field this schema does
           // not contain. A sentence that ends in a colon and then stops reads
           // as a rendering fault rather than as a fact about the form.
-        : 'This field is disabled because some dependencies are not fulfilled',
+        : feWords.disabledByDependencies(),
       intent: 'warning',
     });
   }

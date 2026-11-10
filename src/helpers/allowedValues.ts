@@ -281,13 +281,6 @@ const describeChoiceValue = (value: unknown): string => {
 };
 
 /**
- * What the author does about a value that is not among the choices. Said only where the field can be
- * changed (`getOptionFieldMessages` in an editable form): a read view states the problem, and a reader
- * cannot pick anything. Creatable choices are never judged, so there is no "or type a new one" case.
- */
-export const UNLISTED_CHOICE_NEXT_STEP = 'pick one from the list';
-
-/**
  * Why a stored value is not acceptable for a field with fixed choices, or
  * `undefined` when it is (see {@link getUnlistedChoices} for what is judged).
  *

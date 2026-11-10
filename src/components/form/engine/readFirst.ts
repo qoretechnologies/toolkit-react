@@ -1,3 +1,4 @@
+import { reqraftLabels } from '../../../helpers/reqraftLabels';
 import { markdownToProse } from '../../../helpers/markdownText';
 import {
   IQorusFormField,
@@ -18,10 +19,6 @@ import { firstDeclaredType } from '../../../helpers/optionUiTypes';
 import { findAllowedValueOption } from '../../../helpers/allowedValues';
 import { isOptionValueEmpty } from '../../../helpers/validations';
 import type { IProviderType } from '../../../helpers/providerValue';
-
-/** "N noun" with naive pluralisation ("1 item", "2 items"). */
-const pluralize = (count: number, noun: string): string =>
-  `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 // The server's typed-value serialization wraps each value in an envelope —
 // `{ type, value }` plus optional descriptive keys. Only this exact shape is
@@ -127,7 +124,7 @@ const formatList = (items: unknown[], schema?: TQorusFormFieldSchema): string =>
     )
     .filter((part) => part !== '' && part !== undefined && part !== null);
 
-  return parts.length ? parts.join(', ') : pluralize(items.length, 'item');
+  return parts.length ? parts.join(', ') : reqraftLabels().formEngine.itemCount(items.length);
 };
 
 /** "datasource · omquser · /bb_local": the provider's kind, its name and its
@@ -218,7 +215,9 @@ export const getDataProviderPreview = (value: unknown): IDataProviderPreview | u
 /** Summarise a hash/object by its field count ("2 fields"), or "Set" when empty. */
 const fieldCountLabel = (obj: object): string => {
   const keys = Object.keys(obj);
-  return keys.length ? pluralize(keys.length, 'field') : 'Set';
+  return keys.length ?
+      reqraftLabels().formEngine.fieldCount(keys.length)
+    : reqraftLabels().formEngine.set;
 };
 
 /** The object/list editor stores complex values as a serialized YAML string
@@ -266,10 +265,7 @@ export const describeBlockedSave = (
   const name = schema?.[first.fieldName]?.display_name || first.fieldName;
   const why = first.validation.reason || first.validation.reasons?.[0];
   const more = invalidFields.length - 1;
-  return (
-    `Before saving, fix ${name}${why ? `: ${why}` : ''}` +
-    (more ? ` (and ${more} more field${more === 1 ? '' : 's'})` : '')
-  );
+  return reqraftLabels().formEngine.beforeSaving(name, why, more);
 };
 
 /**
@@ -505,12 +501,12 @@ export const formatBytes = (bytes: number): string => {
 /** Read-first summary of a `schema-definition` value: the schema name plus a
  * table count (e.g. `orders · 2 tables`). */
 const formatSchemaDefinition = (value: unknown): string => {
-  if (!value || typeof value !== 'object') return 'Schema';
+  if (!value || typeof value !== 'object') return reqraftLabels().formEngine.schema;
   const def = value as { schema?: { name?: string }; tables?: object };
   const name = def.schema?.name;
   const count = def.tables ? Object.keys(def.tables).length : 0;
-  const tables = count ? ` · ${count} table${count === 1 ? '' : 's'}` : '';
-  return name ? `${name}${tables}` : 'Schema';
+  const tables = count ? ` · ${reqraftLabels().formEngine.tableCount(count)}` : '';
+  return name ? `${name}${tables}` : reqraftLabels().formEngine.schema;
 };
 
 /**
@@ -544,12 +540,12 @@ const capSummary = (text: string): string => {
   return `${body.trimEnd()}…`;
 };
 
-
-
 /**
  * Markdown without its fenced code blocks. A fence opens on a line of its own (up to three spaces in) and closes
  * on the next such line, or runs to the end when nothing closes it, as markdown reads it. Three backticks inside
  * a line open no block: they are a code span, and what it holds is summarised as written (qorus#646) - taking
+
+
  * every ``` to ``` out dropped the span's text.
  */
 const withoutFencedBlocks = (value: string): string => {
@@ -648,7 +644,7 @@ export const formatOptionValue = (
     // Offline summary of the {exp,args} AST already in the form value — the
     // same client-side renderer the editor's "Explain" seam falls back to when
     // the LSP is unreachable. The drill-in editor shows the canonical DPQL.
-    return renderExpressionToText(expressionAst) || 'Expression';
+    return renderExpressionToText(expressionAst) || reqraftLabels().formEngine.expression;
   }
 
   /* A template is the field it names, whatever the field's type, so it is summarised before any type
@@ -666,21 +662,21 @@ export const formatOptionValue = (
   // Same reasoning, different notation: show what the markdown says, not how it
   // is written.
   if ((schema as { ui_type?: string } | undefined)?.ui_type === 'markdown') {
-    // `|| 'Set'` is not defensive padding. A description that is ONLY a fenced
+    // `|| reqraftLabels().formEngine.set` is not defensive padding. A description that is ONLY a fenced
     // code block summarises to the empty string — the block is dropped, and
     // there is no prose behind it — and CompactRow reads `formatted === ''` as
     // "no value" and renders a faint em-dash. A field holding a whole code
     // block would show as empty. `'Set'` is this file's established answer for
     // "there is a value here that does not reduce to a line" (colors, files,
     // richtext all use it), and the block itself still renders in the inset.
-    return summariseMarkdown(value) || 'Set';
+    return summariseMarkdown(value) || reqraftLabels().formEngine.set;
   }
 
   const type = getValueType(option, schema);
 
   // a template has been summarised as itself, above: only a value that is true or false reads Yes or No
   if (type === 'bool' || type === 'boolean') {
-    return value ? 'Yes' : 'No';
+    return value ? reqraftLabels().formEngine.yes : reqraftLabels().formEngine.no;
   }
 
   const allowedLabel = getAllowedValueLabel(value, schema);
@@ -705,12 +701,12 @@ export const formatOptionValue = (
   }
 
   if (type === 'file') {
-    return formatFileValue(value) ?? 'Set';
+    return formatFileValue(value) ?? reqraftLabels().formEngine.set;
   }
 
   if (type === 'richtext') {
     const text = richtextToString(value as any);
-    return text && text.trim() ? text : 'Set';
+    return text && text.trim() ? text : reqraftLabels().formEngine.set;
   }
 
   // A markdown value reads as prose, not as source: the row's one line — and
@@ -719,7 +715,7 @@ export const formatOptionValue = (
   // row's inset below.
   if (type === 'markdown' && typeof value === 'string') {
     const text = summariseMarkdown(value);
-    return text || 'Set';
+    return text || reqraftLabels().formEngine.set;
   }
 
   if (Array.isArray(value)) {

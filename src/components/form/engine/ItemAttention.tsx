@@ -3,6 +3,7 @@ import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Eff
 import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import type { IFormAttention } from './FormEngine';
 import { getCalmAttentionColours } from './formAppearance';
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 
 /**
  * What a nested sub-form still needs, said by the item it sits in.
@@ -15,6 +16,7 @@ import { getCalmAttentionColours } from './formAppearance';
  */
 export const ItemAttention = ({ count = 0, faults = 0 }: Partial<IFormAttention>) => {
   const theme = useReqoreTheme();
+  const feWords = useReqraftLabels().formEngine;
 
   if (!count) {
     return null;
@@ -29,13 +31,13 @@ export const ItemAttention = ({ count = 0, faults = 0 }: Partial<IFormAttention>
     >
       {faults ?
         <ReqoreSpan size='small' effect={{ color: colours.fault as TReqoreEffectColor }}>
-          {faults} need attention
+          {feWords.needAttentionCount(faults)}
         </ReqoreSpan>
       : null}
       {count > faults ?
         <ReqoreSpan size='small' effect={{ color: colours.pending as TReqoreEffectColor }}>
           {faults ? '· ' : ''}
-          {count - faults} to fill in
+          {feWords.toFillInCount(count - faults)}
         </ReqoreSpan>
       : null}
     </span>

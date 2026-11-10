@@ -1,5 +1,6 @@
 import { ReqoreCheckbox, ReqoreSpan } from '@qoretechnologies/reqore';
 import { IReqoreCheckboxProps } from '@qoretechnologies/reqore/dist/components/Checkbox';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IBooleanFormFieldProps extends Omit<IReqoreCheckboxProps, 'onChange'> {
   onChange?(checked: boolean): void;
@@ -25,6 +26,7 @@ export const BooleanFormField = ({
   isDefault,
   ...rest
 }: IBooleanFormFieldProps) => {
+  const feWords = useReqraftLabels().formEngine;
   const toggle: IReqoreCheckboxProps['onClick'] = (event) => {
     onChange(!checked);
     onClick?.(event);
@@ -35,8 +37,8 @@ export const BooleanFormField = ({
       checked={checked}
       onClick={toggle}
       asSwitch
-      onText='Yes'
-      offText='No'
+      onText={feWords.yes}
+      offText={feWords.no}
       checkedIcon='CheckLine'
       uncheckedIcon='CloseLine'
       margin='none'
@@ -55,7 +57,7 @@ export const BooleanFormField = ({
     >
       {control}
       <ReqoreSpan size='small' effect={{ opacity: 0.6 }}>
-        Default
+        {feWords.defaultMark}
       </ReqoreSpan>
     </span>
   );
