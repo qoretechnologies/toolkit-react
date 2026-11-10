@@ -341,25 +341,93 @@ export const StaffView: Story = {
     docs: {
       description: {
         story:
-          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, both as neutral cards, and staff-only internal notes render amber and bordered under an 'Internal note' label.",
+          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, both as neutral cards, and staff-only internal notes render amber and bordered under an 'Internal note' label. The customer is named from the ticket ('Customer · Acme Corp').",
       },
     },
   },
   args: {
     viewerRole: 'staff',
     messages: THREAD,
+    customer: { customer_name: 'Acme Corp', customer_email: 'ops@acme.example' },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByText('Internal note')).toBeInTheDocument();
     await expect(canvas.getByText(/Support · nick/)).toBeInTheDocument();
-    await expect(canvas.getByText(/Customer · acme/)).toBeInTheDocument();
+    await expect(canvas.getAllByText(/Customer · Acme Corp/).length).toBeGreaterThan(0);
     // both sides are neutral cards; the internal note alone is amber
     await expectNeutralCards(['m1', 'm2']);
     await expect(cardSaturation('m3')).toBeGreaterThan(0.3);
     // the reference chip renders with the built-in default icon (no resolver passed)
     await expect(canvas.getByText('nightly-deploy:1.2')).toBeInTheDocument();
+  },
+};
+
+/** A subscription code: what a customer's `author_id` and a ticket's `created_by` hold on a real server. */
+const SUBSCRIPTION_CODE = '6f1c2e8a-3b4d-4e5f-9a0b-1c2d3e4f5a6b';
+const UUID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+export const StaffViewNamesTheCustomer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the staff thread of a ticket whose customer messages arrive without a name, one with its subscription code where the name would be. Each is labeled by the ticket's customer ('Customer · Jane Doe'), never by the subscription code, and the line Qorus wrote is not called the customer's.",
+      },
+    },
+  },
+  args: {
+    viewerRole: 'staff',
+    customer: { customer_name: 'Jane Doe', customer_email: 'jane@acme.example' },
+    messages: [
+      {
+        message_id: 'n1',
+        author_type: 'customer',
+        author_id: SUBSCRIPTION_CODE,
+        body: 'Our nightly import stopped this morning.',
+        created: ago(240),
+      },
+      {
+        message_id: 'n2',
+        author_type: 'system',
+        author_id: 'system',
+        body: 'Assigned to Qorus Support.',
+        created: ago(200),
+      },
+      {
+        message_id: 'n3',
+        author_type: 'staff',
+        author_id: 'nick',
+        author_name: 'Nick',
+        body: 'Looking at it now: can you send the job’s last log?',
+        created: ago(120),
+      },
+      {
+        message_id: 'n4',
+        author_type: 'customer',
+        author_id: SUBSCRIPTION_CODE,
+        // a server that knows no name hands the id back where the name would be
+        author_name: SUBSCRIPTION_CODE,
+        body: 'Attached.',
+        created: ago(60),
+      },
+    ],
+  },
+  async play({ canvasElement }) {
+    const labels = () =>
+      Array.from(canvasElement.querySelectorAll<HTMLElement>('.reqore-bubble-label')).map(
+        (label) => label.textContent?.trim() ?? ''
+      );
+    await waitFor(() => expect(labels()).toContain('Support · Nick'));
+    // no author is an id: neither the message's author_id nor a name that is one
+    await expect(labels().filter((label) => UUID_SHAPED.test(label))).toEqual([]);
+    await expect(canvasElement.textContent).not.toMatch(UUID_SHAPED);
+    // the customer, by name
+    await expect(labels().filter((label) => label === 'Customer · Jane Doe').length).toBeGreaterThan(0);
+    // what Qorus wrote is not the customer's
+    await expect(labels().some((label) => /Customer · system/.test(label))).toBe(false);
+    await expect(within(canvasElement).getByText('Assigned to Qorus Support.')).toBeInTheDocument();
   },
 };
 

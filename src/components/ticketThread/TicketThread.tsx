@@ -42,6 +42,7 @@ import {
   TTicketViewerRole,
 } from '../supportTicket';
 import { loadedImageUrl } from '../supportTicket/useLoadedImages';
+import type { IStaffTicket } from '../supportTicket/ticketModel';
 
 /*
  * Shared support-ticket conversation thread, used by every Qorus surface that
@@ -79,7 +80,10 @@ export interface ITicketThreadMessage {
   message_id: string;
   author_type: TTicketMessageAuthor;
   author_id: string;
-  /** the author's display name where the plane knows one; the id otherwise */
+  /**
+   * The author's display name where the plane knows one. A customer's `author_id` is the subscription code, so a
+   * customer's message is never labeled by it: see the thread's `customer`.
+   */
   author_name?: string;
   body: string;
   internal?: boolean;
@@ -148,6 +152,13 @@ export interface ITicketThreadProps {
    *  rail + References tab, readers looked for them in the thread and concluded the
    *  ticket had none. Deduped against the opening message's own message-level refs. */
   ticketReferences?: IInterfaceReference[];
+  /**
+   * Who the ticket is from, for the staff view: its customer's name and email (the staff ticket's `customer_name` /
+   * `customer_email`, which a host passes as they are). A customer's message the server sent without a name is
+   * labeled by them, and by a plain word without them - never by the message's `author_id` or the ticket's
+   * `created_by`, which are the subscription code.
+   */
+  customer?: Pick<IStaffTicket, 'customer_name' | 'customer_email'>;
 }
 
 interface IAuthorMeta {
@@ -171,22 +182,43 @@ const authorIcon = (message: ITicketThreadMessage): IReqoreIconName =>
   message.internal ? 'EyeOffLine' : AUTHOR_META[message.author_type].icon;
 
 
-/** The label above a message. The customer view masks staff identity as "Qorus
- *  Support"; the staff view shows the real author with a role prefix. Internal
- *  notes always label as "Internal note" regardless of viewer. */
-const authorLabel = (
-  message: ITicketThreadMessage,
+/** An id where a name should be: a UUID (a subscription code), or the message's own `author_id` handed back. */
+const UUID_SHAPED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const nameOf = (text: string | undefined, id?: string): string | undefined => {
+  const name = text?.trim();
+  return name && name !== id && !UUID_SHAPED.test(name) ? name : undefined;
+};
+
+/**
+ * The label above a message, in the host's words. The customer view masks staff identity as "Qorus Support"; the
+ * staff view shows the real author with a role prefix. Internal notes always label as "Internal note" regardless of
+ * viewer, and a message Qorus wrote is Qorus's in both views (it was "Customer · system"). A customer is named by the
+ * message's own name, else the ticket's customer (`customer_name`, then `customer_email`), else a plain word: never
+ * by an id - the customer's `author_id` and the ticket's `created_by` are the subscription code, a UUID.
+ */
+export const ticketMessageAuthorLabel = (
+  message: Pick<ITicketThreadMessage, 'author_type' | 'author_id' | 'author_name' | 'internal'>,
   viewerRole: TTicketViewerRole,
-  words: ISupportTicketLabels
+  words: ISupportTicketLabels,
+  customer?: Pick<IStaffTicket, 'customer_name' | 'customer_email'>
 ): string => {
   if (message.internal) {
     return words.internalNote;
   }
+  if (message.author_type === 'system') {
+    return words.systemAuthor;
+  }
   if (viewerRole === 'customer') {
     return message.author_type === 'customer' ? words.you : words.supportName;
   }
-  const name = message.author_name ?? message.author_id;
-  return message.author_type === 'staff' ? words.staffAuthor(name) : words.customerAuthor(name);
+  if (message.author_type === 'staff') {
+    return words.staffAuthor(message.author_name ?? message.author_id);
+  }
+  const name =
+    nameOf(message.author_name, message.author_id) ??
+    nameOf(customer?.customer_name) ??
+    nameOf(customer?.customer_email);
+  return name ? words.customerAuthor(name) : words.customerAuthorUnnamed;
 };
 
 /**
@@ -732,6 +764,7 @@ export const TicketThread = ({
   unlinkableReason,
   systemEventAction,
   ticketReferences,
+  customer,
 }: ITicketThreadProps) => {
   // Open scrolled to the newest message, and follow new arrivals down — a thread is read
   // from the bottom, like any chat. Keyed on the message COUNT so it fires on open and when
@@ -829,7 +862,7 @@ export const TicketThread = ({
                 maxWidth='76%'
                 align={message.author_type === viewerRole ? 'right' : 'left'}
                 avatar={{ icon: authorIcon(message) }}
-                label={authorLabel(message, viewerRole, words)}
+                label={ticketMessageAuthorLabel(message, viewerRole, words, customer)}
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
                 // Both sides are neutral cards; an internal note is amber, so it can
                 // never be mistaken for a reply the customer sees.

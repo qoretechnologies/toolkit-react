@@ -139,7 +139,12 @@ export interface ISupportTicketLabels {
   you: string;
   /** A message's author in the staff view. */
   staffAuthor: (name: string) => string;
+  /** A customer's message in the staff view, by the customer's name or email. */
   customerAuthor: (name: string) => string;
+  /** A customer's message in the staff view where nothing names the customer: a word, never an id. */
+  customerAuthorUnnamed: string;
+  /** A message Qorus wrote itself (`author_type: 'system'`), in either view. */
+  systemAuthor: string;
   loadingConversation: string;
   noMessagesYet: string;
   messageCount: (count: number) => string;
@@ -350,6 +355,8 @@ export const DEFAULT_SUPPORT_TICKET_LABELS: ISupportTicketLabels = {
   you: 'You',
   staffAuthor: (name) => `Support · ${name}`,
   customerAuthor: (name) => `Customer · ${name}`,
+  customerAuthorUnnamed: 'Customer',
+  systemAuthor: 'Qorus',
   loadingConversation: 'Loading conversation',
   noMessagesYet: 'No messages yet',
   messageCount: (count) => `${count} message${count === 1 ? '' : 's'}`,

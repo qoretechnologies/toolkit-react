@@ -93,7 +93,11 @@ export interface ITicket {
   priority: TTicketPriority;
   category: TTicketCategory;
   subscription_code: string;
-  /** account name (email) of the filer */
+  /**
+   * The principal the ticket was filed under: for a customer's ticket, the subscription code (a UUID), not the
+   * filer's name or email. Never shown as who the ticket is from: staff name the customer by `customer_name` /
+   * `customer_email` (`IStaffTicket`).
+   */
   created_by: string;
   /** parent ticket UUID, when this continues a closed ticket */
   parent_ticket_id?: string;
