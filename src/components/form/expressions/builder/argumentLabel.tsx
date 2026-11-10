@@ -1,6 +1,8 @@
 import { typesInASentence } from '../../../../helpers/qorusTypeCatalogue';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
-import { ReqoreIcon, ReqoreP, ReqoreSpan } from '@qoretechnologies/reqore';
+import { ReqoreIcon, ReqoreP, ReqoreSpan, useReqoreTheme } from '@qoretechnologies/reqore';
+import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Effect';
+import { getCalmAttentionColours, getCalmIntentText, useIsCalmForm } from '../../engine/formAppearance';
 import { uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
 import { validateFieldWithResult } from '../../../../helpers/validations';
@@ -69,17 +71,23 @@ export const ExpressionBuilderArgumentLabel = ({
   // the note under it says it depends on the incoming data
   const knownWhenItRuns = useArgumentKnownWhenItRuns(arg);
   const words = useReqraftLabels().expressions;
+  const engineWords = useReqraftLabels().formEngine;
+  const theme = useReqoreTheme();
+  /* Calm, as the calm form's labels: the name as it is written, not forced into capitals, at the small text size and
+     in the quiet label weight; no red asterisk and no red underline. What an operand lacks is said in words, in the
+     calm form's ("Required · add a value"), and what is wrong in its meaning's color as a word that reads. */
+  const calm = useIsCalmForm();
+  const nameEffect =
+    calm ?
+      ({ weight: 'bold' } as const)
+    : ({ uppercase: true, spaced: 1, weight: 'thick' } as const);
 
   if (!schema) {
     return (
       <ReqoreP
-        size='tiny'
-        effect={{
-          uppercase: true,
-          spaced: 1,
-          weight: 'thick',
-          opacity: 0.6,
-        }}
+        size={calm ? 'small' : 'tiny'}
+        className='expression-arg-label'
+        effect={{ ...nameEffect, opacity: calm ? 0.75 : 0.6 }}
       >
         {label}
       </ReqoreP>
@@ -110,23 +118,25 @@ export const ExpressionBuilderArgumentLabel = ({
       validateFieldWithResult('expression', arg, { expressions })
     : validateFieldWithResult(argumentType, arg?.value, schema, !schema.required);
 
+  // an operand the author has not filled in yet, which its expression needs
+  const missing =
+    !!schema.required &&
+    !arg?.is_expression &&
+    (arg?.value === undefined || arg?.value === null || arg?.value === '');
+  // calm: a missing operand is not an error, it is the next step - said in words, quietly; anything else is a fault
+  const fault = !isValid && !(calm && missing);
+
   return (
-    <ReqoreP
-      size='tiny'
-      effect={{
-        uppercase: true,
-        spaced: 1,
-        weight: 'thick',
-      }}
-    >
-      {!isValid && (
+    <ReqoreP size={calm ? 'small' : 'tiny'} className='expression-arg-label' effect={nameEffect}>
+      {fault && (
         <ReqoreIcon icon='ErrorWarningLine' color={dangerMark} size='10px' margin='right' />
       )}
       {schema.display_name && (
         <ReqoreSpan
           effect={{
-            opacity: 1,
-            underline: !isValid || !matchesType ? 'underline solid red' : undefined,
+            // calm: the name in the quiet label color, as a calm form's names are
+            opacity: calm ? 0.75 : 1,
+            underline: !calm && (!isValid || !matchesType) ? 'underline solid red' : undefined,
           }}
           tooltip={
             isValid ?
@@ -139,7 +149,10 @@ export const ExpressionBuilderArgumentLabel = ({
           {schema.display_name}
         </ReqoreSpan>
       )}{' '}
-      {schema.required && <ReqoreIcon icon='Asterisk' color={dangerMark} size='10px' />} {label}
+      {schema.required && !calm ?
+        <ReqoreIcon icon='Asterisk' color={dangerMark} size='10px' />
+      : null}{' '}
+      {label}
       <ReqoreSpan
         effect={{
           italic: true,
@@ -164,7 +177,8 @@ export const ExpressionBuilderArgumentLabel = ({
           {matchesType ?
             <ReqoreIcon
               icon='CheckLine'
-              color={pendingMark}
+              // calm: no purple - it is no AI or Qonsole action - the quiet text color
+              color={calm ? (getCalmAttentionColours(theme).pending as TReqoreEffectColor) : pendingMark}
               size='10px'
               margin='both'
               tooltip={words.operandMayConvert}
@@ -177,8 +191,17 @@ export const ExpressionBuilderArgumentLabel = ({
               weight: 'light',
               opacity: 1,
               underline: 'underline 1px dotted',
+              // calm: the type that fits is said in the text color; one that does not, in amber as a word
+              ...(calm && !matchesType ?
+                { color: getCalmIntentText(theme, 'warning') as TReqoreEffectColor }
+              : {}),
             }}
-            intent={matchesType ? 'pending' : 'warning'}
+            intent={
+              calm ? undefined
+              : matchesType ?
+                'pending'
+              : 'warning'
+            }
             tooltip={
               matchesType ? words.operandMayConvert : words.operandNeedsType(acceptedTypeNames)
             }
@@ -196,6 +219,19 @@ export const ExpressionBuilderArgumentLabel = ({
       >
         {']'}
       </ReqoreSpan>
+      {calm && missing ?
+        <ReqoreSpan
+          className='expression-arg-required'
+          effect={{
+            color: getCalmAttentionColours(theme).pending as TReqoreEffectColor,
+            weight: 'normal',
+          }}
+          // apart from the type before it, as a word of its own
+          style={{ marginLeft: 6 }}
+        >
+          {engineWords.calmRequired}
+        </ReqoreSpan>
+      : null}
     </ReqoreP>
   );
 };

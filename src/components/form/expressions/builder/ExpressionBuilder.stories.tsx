@@ -168,7 +168,7 @@ export const AdditionPickedFresh: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary. The operand says its position, "Enter the 1st "Value"", as the operands that join it will.',
+          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary. The empty operand says what it lacks on itself, quietly, in the calm form\'s words ("Required · add a value"), and nothing says it again under the card.',
       },
     },
   },
@@ -180,8 +180,16 @@ export const AdditionPickedFresh: Story = {
     expect(addSlot()).not.toBeNull();
     expect(document.querySelector('.reqore-error-boundary')).toBeNull();
     await waitForText('Value');
-    // a lone operand of a call that can take more says its position (David, qorus#646)
-    await waitFor(() => expect(document.body.textContent).toContain('Enter the 1st "Value"'), { timeout: 10000 });
+    // the empty operand says what it lacks on itself, in the calm form's words - once: not again as "Enter the 1st
+    // "Value"" under the card, which named by its position the operand the word now sits on
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.expression-arg .expression-arg-required')?.textContent?.trim()
+        ).toBe('Required · add a value'),
+      { timeout: 10000 }
+    );
+    expect(document.body.textContent).not.toContain('Enter the 1st');
     expect(context.args.onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         value: expect.objectContaining({ exp: '+', args: [{ type: undefined }] }),
@@ -431,6 +439,12 @@ export const FocusedEditing: Story = {
  * also assert the allowed-values operand actually paints — the regression
  * this family guards (a value-less fresh op-select must render its operands).
  */
+/** How far a computed color is from a grey: the spread of its channels (0 for a grey, large for a red or a purple). */
+const colorfulness = (color: string): number => {
+  const [r = 0, g = 0, b = 0, a = 1] = (color.match(/[\d.]+/g) || []).map(Number);
+  return a === 0 ? 0 : Math.max(r, g, b) - Math.min(r, g, b);
+};
+
 export const WithArgWithAllowedValues: Story = {
   args: {
     returnType: ['bool'],
@@ -439,7 +453,7 @@ export const WithArgWithAllowedValues: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex Options") carries element_allowed_values and renders the "Select one or more" picker.',
+          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex Options") carries element_allowed_values and renders the "Select one or more" picker. Calm, as the calm form: the operands named in sentence case, a neutral card with no red frame, the empty required String value saying "Required · add a value" quietly on itself, and no blue on the chosen operation or purple on the template picker.',
       },
     },
   },
@@ -450,6 +464,31 @@ export const WithArgWithAllowedValues: Story = {
 
     await waitForText('Regex Options');
     await waitForText('Select one or more:');
+
+    // calm (Filip, 10 Nov: "the expression builder could be made calm")
+    const names = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-label'));
+    await expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      // as written, not forced into capitals
+      await expect(getComputedStyle(name).textTransform).not.toBe('uppercase');
+    }
+    // what an operand lacks, on the operand, in the calm form's words - not a red note under the card
+    await waitFor(() =>
+      expect(document.querySelector('.expression-arg-required')?.textContent?.trim()).toBe(
+        'Required · add a value'
+      )
+    );
+    await expect(document.body.textContent).not.toContain('Enter a value for');
+    // a neutral card: no red frame
+    const card = document.querySelector<HTMLElement>('.expression')!;
+    await expect(colorfulness(getComputedStyle(card).borderTopColor)).toBeLessThanOrEqual(12);
+    // no blue on the chosen operation, no purple on the template picker: neither is a filter, an AI or Qonsole
+    const operation = document.querySelector<HTMLElement>('.expression-operator-selector')!;
+    await expect(colorfulness(getComputedStyle(operation).backgroundColor)).toBeLessThanOrEqual(12);
+    for (const picker of Array.from(document.querySelectorAll<HTMLElement>('.template-selector'))) {
+      await expect(colorfulness(getComputedStyle(picker).color)).toBeLessThanOrEqual(24);
+      await expect(colorfulness(getComputedStyle(picker).backgroundColor)).toBeLessThanOrEqual(12);
+    }
   },
 };
 

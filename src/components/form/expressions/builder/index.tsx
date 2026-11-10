@@ -72,7 +72,12 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
-import { calmNoteIntent, useIsCalmForm } from '../../engine/formAppearance';
+import {
+  calmNoteIntent,
+  getCalmAttentionColours,
+  getCalmIntentText,
+  useIsCalmForm,
+} from '../../engine/formAppearance';
 import {
   getCachedExpressionType,
   registerTemplateTypes,
@@ -187,6 +192,57 @@ const StyledExpressionItemLabel = styled.div`
 `;
 
 export interface IExpressionProps extends IExpressionBuilderProps {}
+
+/**
+ * A note under an expression: what is wrong with it, or what it still lacks. In the calm look a line of words in its
+ * meaning's color, as a word that reads (`getCalmIntentText`), the way the calm form's messages are drawn - never a
+ * tinted chip with a glyph; what it only still lacks is said in the quiet text color. In the classic look the chip
+ * it always was.
+ */
+const ExpressionNote = ({
+  intent,
+  icon,
+  label,
+  className,
+  verdict,
+}: {
+  intent: 'danger' | 'warning' | 'pending';
+  icon: IReqoreIconName;
+  label: string;
+  className?: string;
+  verdict?: string;
+}) => {
+  const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
+  if (calm) {
+    return (
+      <ReqoreP
+        size='small'
+        className={className}
+        data-verdict={verdict}
+        effect={{
+          color: (intent === 'pending' ?
+            getCalmAttentionColours(theme).pending
+          : getCalmIntentText(theme, intent)) as TReqoreEffectColor,
+        }}
+      >
+        {label}
+      </ReqoreP>
+    );
+  }
+  return (
+    <ReqoreTag
+      minimal
+      className={className}
+      data-verdict={verdict}
+      icon={icon}
+      intent={intent === 'pending' ? 'warning' : intent}
+      size='tiny'
+      wrap
+      label={label}
+    />
+  );
+};
 
 export const Expression = ({
   localTemplates,
@@ -990,7 +1046,12 @@ export const Expression = ({
     <ExpressionItem
       index={index}
       as={ReqorePanel}
-      intent={validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted' : 'danger'}
+      intent={
+        // calm: a neutral card - what is wrong is said in words under it, not by a red frame
+        calm ? undefined
+        : validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted'
+        : 'danger'
+      }
       description={isExpressionServerHandled ? words.runsOutsideQorus : ''}
       flat
       readOnly={readOnly}
@@ -1033,7 +1094,8 @@ export const Expression = ({
         // pushed it - and the actions floating above it on hover - past the group and a narrow screen
         maxWidth: isChild ? 'calc(100% - 10px)' : undefined,
         minWidth: 0,
-        borderStyle: 'dashed',
+        // calm: the solid hairline every calm section has; the dashed frame was decoration
+        borderStyle: calm ? undefined : 'dashed',
         flexShrink: 1,
       }}
       contentStyle={{
@@ -1158,7 +1220,7 @@ export const Expression = ({
           maxSize='550px'
           bottomActions={[
             {
-              label: confirmDialogData?.cancelText || 'Cancel',
+              label: confirmDialogData?.cancelText || words.cancel,
               onClick: () => {
                 confirmDialogData?.onCancel?.();
                 setConfirmDialogData(undefined);
@@ -1167,7 +1229,7 @@ export const Expression = ({
               minimal: true,
             },
             {
-              label: confirmDialogData?.confirmText || 'Confirm',
+              label: confirmDialogData?.confirmText || words.confirm,
               intent: 'warning',
               icon: 'CheckFill',
               minimal: true,
@@ -1445,14 +1507,11 @@ export const Expression = ({
       {partVerdict && (
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             className='expression-condition-part-verdict'
-            data-verdict={partVerdict}
+            verdict={partVerdict}
             icon={partVerdict === 'error' ? 'ErrorWarningLine' : 'AlertLine'}
             intent={partVerdict === 'error' ? 'danger' : 'warning'}
-            size='tiny'
-            wrap
             label={
               part?.message ??
               (partVerdict === 'error' ?
@@ -1468,13 +1527,10 @@ export const Expression = ({
       {condition === 'warning' && (
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             className='expression-condition-verdict'
             icon='AlertLine'
             intent='warning'
-            size='tiny'
-            wrap
             // the server's words for the whole condition, where it said any; the same rule's own otherwise
             label={conditionMessage ?? conditionByTruthinessText(expressionGivesType)}
           />
@@ -1485,13 +1541,10 @@ export const Expression = ({
           <ReqoreVerticalSpacer height={5} />
           {takesCondition && !!expressionGivesType && isTextOrDateType(expressionGivesType) ?
             // a condition that gives text, a date or a time: say how to make it one
-            <ReqoreTag
-              minimal
+            <ExpressionNote
               className='expression-condition-verdict'
               icon='ErrorWarningLine'
               intent='danger'
-              size='tiny'
-              wrap
               label={
                 (level === 0 ? conditionMessage : undefined) ??
                 conditionErrorText(
@@ -1500,12 +1553,9 @@ export const Expression = ({
                 )
               }
             />
-          : <ReqoreTag
-              minimal
+          : <ExpressionNote
               icon='ErrorWarningLine'
               intent='danger'
-              size='tiny'
-              wrap
               label={expressionTypeMismatchText(
                 expressionGivesType ? types.getTypeSentenceForm(expressionGivesType) : undefined,
                 expectedReturnTypeText,
@@ -1520,15 +1570,13 @@ export const Expression = ({
           }
         </>
       )}
-      {selectedExpression && !validationData.isValid ?
+      {/* calm: an operand not filled in yet says so itself, in the calm form's words (`missingOperand`) */}
+      {selectedExpression && !validationData.isValid && !(calm && validationData.missingOperand) ?
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             icon='ErrorWarningLine'
             intent='danger'
-            size='tiny'
-            wrap
             label={validationData.reason || words.couldNotCheck}
           />
         </>
@@ -1536,13 +1584,11 @@ export const Expression = ({
       {noOperationYet && !readOnly && !nothingChosenYet ?
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             className='expression-no-operation-yet'
             icon='ErrorWarningLine'
-            intent='warning'
-            size='tiny'
-            wrap
+            // calm: what is still to choose is the next step, said quietly - not a warning
+            intent='pending'
             label={words.noOperationYet(isChild || level > 0, takesText)}
           />
         </>

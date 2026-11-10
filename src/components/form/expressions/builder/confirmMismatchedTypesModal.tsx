@@ -2,6 +2,7 @@ import { ReqoreButton, ReqoreControlGroup, ReqoreModal, ReqoreP } from '@qoretec
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { omit, size } from 'lodash';
 import { memo, useState } from 'react';
+import { useIsCalmForm } from '../../engine/formAppearance';
 import { conversionText, getArgumentType } from '../../../../helpers/expressions';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
@@ -34,6 +35,8 @@ export const ConfirmMismatchedTypesModal = memo(
   ({ args, expression, expressions, onSubmit, ...rest }: IConfirmMismatchedTypesModalProps) => {
     const types = useQorusTypes();
     const words = useReqraftLabels().expressions;
+    // calm: no purple - this is no AI or Qonsole action
+    const calm = useIsCalmForm();
     const [fixedArgs, setFixedArgs] = useState<IExpression[]>(() =>
       args.map((a) => (a.types_mismatch ? { ...a, types_mismatch: false } : a))
     );
@@ -128,7 +131,7 @@ export const ConfirmMismatchedTypesModal = memo(
                 }
                 disabled={!arg.types_mismatch}
                 onClick={() => handleArgToggle(fixedArgs[index])}
-                intent={arg.types_mismatch ? 'pending' : undefined}
+                intent={arg.types_mismatch && !calm ? 'pending' : undefined}
                 minimal
               >
                 {expression.args[index].display_name}

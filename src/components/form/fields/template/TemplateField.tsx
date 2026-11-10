@@ -98,6 +98,7 @@ import {
   useRowMenuPublisher,
 } from '../../engine/rowMenuContext';
 import { SavedValuesContext } from '../allowed-values/savedValues';
+import { useIsCalmForm } from '../../engine/formAppearance';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
@@ -111,6 +112,8 @@ export type { IQorusFormType as IQorusType };
  */
 const DPQL_DETECT_DEBOUNCE_MS = 400;
 
+/** The template list's own surface: a dark purple in the classic look. The calm look draws none of its own (no
+ *  purple but for an AI or Qonsole action): see `useTemplatesListProps`. */
 export const TemplatesListProps: IReqoreDropdownProps = {
   useTargetWidth: true,
   handler: 'focus',
@@ -119,6 +122,14 @@ export const TemplatesListProps: IReqoreDropdownProps = {
     main: '#1e0d29',
   },
 };
+
+/** `TemplatesListProps` for the look in force: without the purple surface in the calm look. */
+const CALM_TEMPLATES_LIST_PROPS: IReqoreDropdownProps = {
+  ...TemplatesListProps,
+  listCustomTheme: undefined,
+};
+const useTemplatesListProps = (): IReqoreDropdownProps =>
+  useIsCalmForm() ? CALM_TEMPLATES_LIST_PROPS : TemplatesListProps;
 
 // IDE leaf-field modules take `onChange(name, value)` and a `name` prop;
 // reqraft leaf fields are single-arg. These wrappers restore the IDE API for
@@ -545,6 +556,7 @@ export const TemplateDropdownSelector = memo(
     ...rest
   }: ITemplateDropdownSelectorProps) => {
     const fieldWords = useReqraftLabels().templateField;
+    const listProps = useTemplatesListProps();
     /* The catalogue browsed: `TemplateBrowser` draws its descriptions at the hand-off to Reqore. */
     const browsed = useMemo(() => ({ items }) as IReqoreFormTemplates, [items]);
 
@@ -576,7 +588,7 @@ export const TemplateDropdownSelector = memo(
         <ReqoreControlGroup stack>
           <TemplateBrowser
             className='template-selector'
-            customTheme={TemplatesListProps.listCustomTheme}
+            customTheme={listProps.listCustomTheme}
             minimal
             compact
             onItemSelect={onItemSelect}
@@ -588,11 +600,11 @@ export const TemplateDropdownSelector = memo(
             badge={badge}
             caretPosition='right'
             size={size}
-            {...TemplatesListProps}
+            {...listProps}
           />
           {allowCustomValues || value ?
             <ReqoreButton
-              customTheme={TemplatesListProps.listCustomTheme}
+              customTheme={listProps.listCustomTheme}
               fixed
               icon='CloseLine'
               tooltip={fieldWords.removeTemplateValue}
@@ -679,6 +691,7 @@ const TemplateFieldImpl = memo(
     ...rest
   }: ITemplateFieldProps & { rowMenu?: IRowMenuRegistration }) => {
     const fieldLabels = useReqraftLabels();
+    const templatesListProps = useTemplatesListProps();
     const fieldWords = fieldLabels.templateField;
     const qorusTypes = useQorusTypes();
     const functions = useExpressions({
@@ -2113,10 +2126,11 @@ const TemplateFieldImpl = memo(
       return size(filteredTemplates?.items) ?
           {
             ...filteredTemplates,
-            ...TemplatesListProps,
+            ...templatesListProps,
           }
         : undefined;
     }, [
+      templatesListProps,
       JSON.stringify(filteredTemplates),
       // the list-with-element-type branch hands this back untouched
       templates,

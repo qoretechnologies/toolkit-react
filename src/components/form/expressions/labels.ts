@@ -135,6 +135,9 @@ export interface IExpressionLabels {
   needsOneOfTypes: string;
   useTypeAnyway: string;
   dontShowAgain: string;
+  /** The answers of that dialog where its caller gives none. */
+  cancel: string;
+  confirm: string;
 }
 
 /** The English words, the ones a host gets when it gives none. */
@@ -235,4 +238,6 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
   needsOneOfTypes: 'This value needs one of these types:',
   useTypeAnyway: 'Use this type anyway?',
   dontShowAgain: "Don't show again",
+  cancel: 'Cancel',
+  confirm: 'Confirm',
 };

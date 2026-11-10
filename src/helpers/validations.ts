@@ -77,6 +77,11 @@ export interface IValidationResult {
    * this flag, not by the words of `reason`, which are the host's and may be in any language.
    */
   unlistedChoice?: boolean;
+  /**
+   * The value is an expression with a required operand not filled in yet (`enterOperand`): a calm builder says so on
+   * the operand, in the calm form's words, and not again under the expression.
+   */
+  missingOperand?: boolean;
 }
 
 interface IFieldValidationProps {
@@ -237,6 +242,8 @@ const withContext = (result: IValidationResult, context?: string): IValidationRe
     isValid: false,
     reason: reasons[0],
     reasons,
+    // what is wrong inside is only an operand not filled in yet: so is what is said of it here
+    ...(result.missingOperand ? { missingOperand: true } : {}),
   };
 };
 
@@ -1815,7 +1822,7 @@ export const _validateField = (
           // an operand not filled in yet says what to do; one that is wrong says which and why (David's
           // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
           if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
-            return invalidResult(words().enterOperand(argLabel, position));
+            return { ...invalidResult(words().enterOperand(argLabel, position)), missingOperand: true };
           }
           return withContext(result, words().operandInvalid(argLabel, position));
         }
