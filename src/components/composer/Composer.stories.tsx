@@ -71,6 +71,33 @@ export const Plain: Story = {
 };
 
 /**
+ * A send that did not go through keeps what was written: `onSend` resolves `false`,
+ * and the text stays in the box instead of being cleared.
+ */
+export const FailedSendKeepsTheText: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the plain composer whose send fails — onSend resolves false — so the typed text stays in the box rather than being cleared, and the reader can send it again.',
+      },
+    },
+  },
+  args: { editor: 'plain', onSend: fn(async () => false) },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    const textarea = canvasElement.querySelector('textarea');
+    await expect(textarea).not.toBeNull();
+
+    await userEvent.type(textarea!, 'please keep me');
+    await userEvent.click(canvas.getByText('Send'));
+    await waitFor(() => expect(args.onSend).toHaveBeenCalled());
+    // the reply did not go through: it is still there
+    await expect(textarea!).toHaveValue('please keep me');
+  },
+};
+
+/**
  * Multiple `sendActions` split the send button — a primary button plus a caret
  * dropdown. The primary is the first action; its `id` is echoed back to `onSend`.
  */

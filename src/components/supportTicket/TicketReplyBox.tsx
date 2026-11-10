@@ -33,11 +33,12 @@ type TAttachMenuItems = TReqoreDropdownItems;
 
 export interface ITicketReplyBoxProps {
   /** Send the composed message. `internal` is only ever true when
-   *  `allowInternalNote` is set (the staff surface). */
+   *  `allowInternalNote` is set (the staff surface). Return (or resolve) `false` when the
+   *  send did not go through: the reply stays in the box instead of being cleared. */
   onSend: (
     body: string,
     options: { internal: boolean; attachments?: IAttachmentUpload[] }
-  ) => void | Promise<void>;
+  ) => void | boolean | Promise<void | boolean>;
   /** File → base64 upload conversion; defaults to the shared `fileToAttachment`. */
   fileToAttachment?: (file: File) => Promise<IAttachmentUpload>;
   /** the send round-trip is in flight */
@@ -139,12 +140,13 @@ export const TicketReplyBox = ({
   const handleSend = async (
     body: string,
     { files, action }: { files: File[]; action?: string }
-  ): Promise<void> => {
+  ): Promise<void | boolean> => {
     const internal = action === 'internal';
     const attachments = files.length
       ? await Promise.all(files.map(fileToAttachment))
       : undefined;
-    await onSend(body, { internal, attachments });
+    // the caller's `false` (the send did not go through) reaches the composer, which keeps the text
+    return onSend(body, { internal, attachments });
   };
 
   return (

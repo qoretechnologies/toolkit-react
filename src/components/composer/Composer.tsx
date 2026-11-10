@@ -92,8 +92,15 @@ export interface IComposerProps {
    * Submit the composed message. `text` is the plain-string body; `files` are the
    * staged attachments (raw `File`s — the caller converts to its own upload shape);
    * `action` is the chosen send action's `id` (undefined for the default button).
+   *
+   * Return (or resolve) `false` when the send did not go through: the text and the staged
+   * files stay, so a reader whose reply failed does not have to type it again. A caller that
+   * reports a failure itself (a toast) and resolves used to lose the message.
    */
-  onSend: (text: string, options: { files: File[]; action?: string }) => void | Promise<void>;
+  onSend: (
+    text: string,
+    options: { files: File[]; action?: string }
+  ) => void | boolean | Promise<void | boolean>;
   /** Single-button label / icon / intent (ignored when `sendActions` is set). */
   sendLabel?: string;
   sendIcon?: IReqoreIconName;
@@ -115,7 +122,8 @@ export interface IComposerProps {
   disabledReason?: string;
   /** submit on plain Enter (Shift/Ctrl/Alt/Meta+Enter insert a newline). Default true. */
   submitOnEnter?: boolean;
-  /** clear the editor + staged files after a resolved send. Default true. */
+  /** clear the editor + staged files after a send that went through (`onSend` did not return
+   *  `false`). Default true. */
   clearOnSend?: boolean;
   /** allow sending with empty text (e.g. attachments only). Default false. */
   allowEmptySend?: boolean;
@@ -347,8 +355,9 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
     if (!canSend) {
       return;
     }
-    await onSend(clearOnSend ? body.trim() : body, { files, action: actionId });
-    if (clearOnSend) {
+    const sent = await onSend(clearOnSend ? body.trim() : body, { files, action: actionId });
+    // a send that did not go through keeps what was written
+    if (clearOnSend && sent !== false) {
       setText('');
       setFiles([]);
     }
