@@ -166,6 +166,14 @@ import {
   isUnsetSchemaHash,
   formatOptionValue,
 } from './readFirst';
+import {
+  OpenBoxMark,
+  RowPlace,
+  RowStage,
+  stagedRow,
+  useOpenBoxes,
+  useRowHosts,
+} from './rowPlaces';
 
 // Re-export types for consumers
 /** The compact form's three status boxes. */
@@ -1736,6 +1744,10 @@ const FormEngineImpl = ({
   // stays put when its status flips (e.g. becomes valid) instead of jumping to
   // another box mid-edit and stealing focus. Keyed by option name.
   const settledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
+  // Each row's own node, drawn into once and moved between the boxes (`rowPlaces`)
+  const rowHosts = useRowHosts();
+  // Which boxes are open, so a collapsed box's rows are not drawn (`rowPlaces`)
+  const openBoxes = useOpenBoxes();
   // Measured form width (not viewport — the form lives in drawers/panels of
   // arbitrary width) drives the stacked narrow layout.
   const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
@@ -1941,18 +1953,17 @@ const FormEngineImpl = ({
   // Follow a field across panels: when its status bucket changes — e.g. you fill
   // an optional field and it jumps to Set / Needs attention — scroll to its new
   // row and flash it so it's easy to keep track of. `settledBucket` holds each
-  // field's current panel (frozen while the field is being edited, it re-buckets
-  // on collapse), so diffing it after every render catches the move the instant it
-  // lands in the new panel. Runs every render; the diff is cheap and only fires a
-  // scroll on an ACTUAL move of a non-expanded field.
+  // field's current panel, so diffing it after every render catches the move the
+  // instant it lands in the new panel. A field being edited moves as its value
+  // does - the first character typed into an empty required field takes it to Set,
+  // the caret with it (`rowPlaces`) - and is followed the same way. Runs every
+  // render; the diff is cheap and only fires a scroll on an ACTUAL move.
   const prevSettledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
   useEffect(() => {
     if (!compact) return;
     const cur = settledBucket.current;
     const prev = prevSettledBucket.current;
-    const moved = Object.keys(cur).find(
-      (name) => prev[name] && prev[name] !== cur[name] && !expandedOptions.includes(name)
-    );
+    const moved = Object.keys(cur).find((name) => prev[name] && prev[name] !== cur[name]);
     prevSettledBucket.current = { ...cur };
     if (moved) {
       flashOptions([moved], true);
@@ -4265,6 +4276,11 @@ const FormEngineImpl = ({
     [compactPanelProps?.actions, compactToolbarParts]
   );
   const renderCompact = () => {
+    /* The rows of this render, each drawn at the stage into its own node; the boxes draw places for them
+       (`renderRow`). A row that changes box is moved, not drawn anew (`rowPlaces`). */
+    const stagedRows = new Map<string, React.ReactNode>();
+    // Whether the box being drawn shows its rows: a collapsed one keeps only their places (`useOpenBoxes`)
+    let drawingRows = true;
     // Calm: the host's own colour (see `compactHostColour`), so the pinned
     // toolbar is invisible until something scrolls under it - and opaque, so
     // what scrolls under it does not read through. At 88% with a blur the rows
@@ -4425,19 +4441,31 @@ const FormEngineImpl = ({
       set: [],
       optional: [],
     };
-    // Freeze the box of any field currently being edited (or whose one-of group
-    // has an edited member) to its last settled box — so finishing an edit that
-    // flips its status doesn't remount it in another box and steal focus.
+    /* A box a row being edited cannot move into: a closed one - collapsed on screen, by the form or the reader,
+       or not drawn yet and to be drawn collapsed (Optional, with no search). The row's place there is not in the
+       page, so the row would leave it, and the caret with it. */
+    const boxIsClosed = (box: TFormEngineBoxKey) => {
+      if (readOnly || (calm && compactNested)) return false;
+      if (statusBoxRefs.current[box]?.isConnected) return !openBoxes.isShown(box);
+      return (compactCollapsedGroupsProp ?? ['optional']).includes(box) && !query;
+    };
+    /* A row's box is what it holds now - the one rule the box headers, the readiness line, the meter and the
+       host's numbers count by (`getOptionBucket`). A row being edited moves with it: it is the same row in its new
+       box, its editor and caret kept (`rowPlaces`), where it was kept in the box it was opened in, and counted
+       elsewhere (Qlip build 489). Into a closed box it does not move until it is closed: an optional value cleared
+       as it is edited stays under the caret, not in a collapsed Optional box. `settledBucket` is the box a row is
+       shown in, which is what follows a field across the boxes (the flash below). */
     const stableBucketOf = (entry: TRowEntry): TFormEngineBoxKey => {
       const fresh = getOptionBucket(entry.name, entry.hidden);
-      const groupBeingEdited =
+      const shownIn = settledBucket.current[entry.name];
+      if (
+        shownIn &&
+        shownIn !== fresh &&
         !entry.hidden &&
-        ((options?.[entry.name]?.required_groups as string[] | undefined) || []).some((g) =>
-          (requiredGroupsInfo.members[g] || []).some((m) => expandedOptions.includes(m))
-        );
-      if (!entry.hidden && (expandedOptions.includes(entry.name) || groupBeingEdited)) {
-        const memo = settledBucket.current[entry.name];
-        if (memo) return memo;
+        expandedOptions.includes(entry.name) &&
+        boxIsClosed(fresh)
+      ) {
+        return shownIn;
       }
       settledBucket.current[entry.name] = fresh;
       return fresh;
@@ -4557,6 +4585,23 @@ const FormEngineImpl = ({
 
     const renderGroupRows = (names: Array<{ name: string; hidden: boolean }>) => {
       const renderRow = (
+        entry: { name: string; hidden?: boolean },
+        clustered: boolean,
+        clusterFirst?: boolean,
+        clusterLast?: boolean
+      ) => {
+        // a row is in one place at a time
+        if (stagedRows.has(entry.name)) return null;
+        const host = rowHosts.hostFor(entry.name);
+        if (drawingRows) {
+          stagedRows.set(
+            entry.name,
+            stagedRow(drawRow(entry, clustered, clusterFirst, clusterLast), host, entry.name)
+          );
+        }
+        return <RowPlace key={entry.name} host={host} />;
+      };
+      const drawRow = (
         entry: { name: string; hidden?: boolean },
         clustered: boolean,
         clusterFirst?: boolean,
@@ -4940,6 +4985,9 @@ const FormEngineImpl = ({
                       const groupsInBox = bucketGroups[box.key];
                       const count = bucketCount(box.key);
                       if (!count) return null;
+                      /* A row being edited is on show in the box it is in: neither the preselected split
+                         nor a cap folds it away (it moves only into an open box - `boxIsClosed`). */
+                      const isOpenRow = (entry: TRowEntry) => expandedOptions.includes(entry.name);
                       const hasPreselectedRows = boxHasPreselectedRows(box.key);
                       const wouldCollapse =
                         compactCollapsedGroups.includes(box.key) &&
@@ -4949,6 +4997,13 @@ const FormEngineImpl = ({
                       // row splits its body; a box that renders open anyway shows
                       // all of its groups as before.
                       const splitForPreselected = wouldCollapse && hasPreselectedRows;
+                      const opensCollapsed = wouldCollapse && !hasPreselectedRows;
+                      // Its rows are drawn while it is open: as the form opens it, or as the reader just
+                      // did (the reveal below needs them in the box it scrolls to), or as its content says
+                      drawingRows = openBoxes.drawsRows(
+                        box.key,
+                        !opensCollapsed || openedStatusBox === box.key
+                      );
 
                       // Which rows this box shows, and which fold away, decided at
                       // ROW level because `maxFieldsShown` counts fields — a
@@ -4958,11 +5013,9 @@ const FormEngineImpl = ({
                       const orderedRows: TRowEntry[] = groupsInBox.flatMap(
                         (groupName) => buckets[box.key][groupName] || []
                       );
-                      // The number in the box's header counts the rows whose value
-                      // belongs in it NOW. A field being edited keeps its box until it
-                      // is left (so it does not jump away under the caret), and it used
-                      // to keep its count too: a box read "To fill in 1" while its last
-                      // field already had a value and the host's submit read ready.
+                      // The number in the box's header counts the rows in it: what they
+                      // hold now, as the line and the host count them (a field being
+                      // edited moves box with its value - `stableBucketOf`).
                       const headerCount =
                         readOnly ? count : (
                           orderedRows.filter(
@@ -4972,12 +5025,18 @@ const FormEngineImpl = ({
                       // Optional's own rule first: a box opened solely to reveal
                       // preselected rows offers those, not an arbitrary first-N.
                       const candidateRows =
-                        splitForPreselected ? orderedRows.filter(isPreselectedRow) : orderedRows;
-                      // …then the cap applies to whatever that left.
+                        splitForPreselected ?
+                          orderedRows.filter((entry) => isPreselectedRow(entry) || isOpenRow(entry))
+                        : orderedRows;
+                      // …then the cap applies to whatever that left - but for a row being edited.
                       const capped =
                         maxFieldsShown !== undefined && candidateRows.length > maxFieldsShown;
                       const shownRows =
-                        capped ? candidateRows.slice(0, maxFieldsShown) : candidateRows;
+                        capped ?
+                          candidateRows.filter(
+                            (entry, index) => index < maxFieldsShown! || isOpenRow(entry)
+                          )
+                        : candidateRows;
                       const shownRowSet = new Set(shownRows.map((entry) => entry.name));
                       // Everything the box holds that is not on show. Once the
                       // reader asks for more they get the whole box — withholding
@@ -5076,7 +5135,7 @@ const FormEngineImpl = ({
                           // the box reveals the preselected fields without also
                           // dumping every not-yet-added optional field on the
                           // author.
-                          isCollapsed={wouldCollapse && !hasPreselectedRows}
+                          isCollapsed={opensCollapsed}
                           label={
                             calm ?
                               // One status dot and a word — and only where a
@@ -5126,6 +5185,7 @@ const FormEngineImpl = ({
                             thin schema sub-labels) is a direct flex child, so the
                             inter-field gap is identical everywhere — including
                             across schema-group boundaries. */}
+                          <OpenBoxMark box={box.key} onShown={openBoxes.onShown} />
                           <StyledGroupBody
                             {...groupBodyProps}
                             className={compactNarrow ? 'readfirst-narrow' : undefined}
@@ -5152,6 +5212,9 @@ const FormEngineImpl = ({
                     })
                   }
                 </StyledCompactPanel>
+                {/* The rows, each drawn once into its own node; the boxes above show them (`rowPlaces`). After the
+                    boxes, so the places they draw are in the page when the rows' own effects run. */}
+                <RowStage rows={Array.from(stagedRows.values())} />
 
                 {/* Batched commit: the Save/Discard bar docks bottom-right, floating
                 over the rows while anything is staged — the product's draft

@@ -179,10 +179,12 @@ describe('a new form', () => {
     expect(document.activeElement).toBe(input);
   });
 
-  /* A field being typed in keeps its box until it is left, so it does not jump away
-     under the caret. Its box's count follows its value, though: the box read "To fill
-     in 1" while its last field already had a value and the host's submit read ready. */
-  it('counts a box by what its fields hold now, also while one is being typed in', async () => {
+  /* A field being typed in moves to the box its value takes it to, as the counts and the
+     host do, and it is the same field there: its editor, its caret and what is typed are
+     kept (`rowPlaces`). The box read "To fill in 1" while its last field already had a
+     value and the host's submit read ready; later it kept the field in "To fill in" and
+     counted it in Set (Qlip build 489). */
+  it('moves a field to the box its value takes it to while it is typed in, the same field', async () => {
     const user = userEvent.setup();
     const onAttentionChange = vi.fn();
     const ONE_REQUIRED = {
@@ -224,16 +226,22 @@ describe('a new form', () => {
     await user.click(input);
     await user.keyboard('Order sync');
 
-    // Still open, still in its box…
-    expect(input.isConnected).toBe(true);
-    expect(boxHeader()).toBeTruthy();
-    // …but the box no longer counts it, and agrees with what the host is told.
+    // The host knows nothing is left as soon as the value is there…
     await waitFor(() =>
       expect(onAttentionChange).toHaveBeenLastCalledWith({ count: 0, faults: 0 })
     );
-    // The header is the box's name with no number after it (a tag, or a quiet count in
-    // the calm look).
-    expect(boxHeader()!.textContent).not.toMatch(/To fill in\s*\d/);
+    // …and the boxes say the same: the field is in Set, and no box is left to fill in.
+    const setBox = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.options-readfirst-group')).find((box) =>
+        box.querySelector('[data-field="title"]')
+      );
+    await waitFor(() => expect(setBox()?.textContent).toMatch(/^\s*Set/));
+    expect(boxHeader()).toBeUndefined();
+    // It is the same field, open, with the caret in it and all that was typed.
+    expect(input.isConnected).toBe(true);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('Order sync');
+    expect(input.selectionStart).toBe('Order sync'.length);
   });
 
   /* "N to fill in →" shows only those fields: a toggle a keyboard reaches, which says

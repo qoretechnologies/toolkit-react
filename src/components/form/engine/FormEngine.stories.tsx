@@ -50,7 +50,11 @@ import {
   IOptionsSchemaArg,
 } from './FormEngine';
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
-import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL } from './formAppearance';
+import {
+  CALM_REQUIRED_LABEL,
+  CALM_REQUIRED_READ_LABEL,
+  TFormEngineAppearance,
+} from './formAppearance';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
 import { storyApiUrl } from '../../../stories/storyNetwork';
 import { expectOneChipShape } from '../../../stories/chips';
@@ -9059,7 +9063,7 @@ export const CompactAddedListRowOpensItsRequiredField: Story = {
     docs: {
       description: {
         story:
-          'Clicks "Add new item" on a list-of-hash option and shows the new row with its required "Scheme Type" field already open. Rows that were already in the value stay collapsed — only the row just added is opened.',
+          'Clicks "Add new item" on a list-of-hash option and shows the new row with its required "Scheme Type" field already open. Rows that were already in the value stay collapsed — only the row just added is opened. The list, whose new item is empty, moves from Set to Needs attention as the line counts it ("0/1 set · 1 need attention"), and it is the same row there: the item just added stays open.',
       },
     },
   },
@@ -9089,12 +9093,189 @@ export const CompactAddedListRowOpensItsRequiredField: Story = {
         element.classList.contains('options-readfirst-card'));
     const typeRows = () => canvasElement.querySelectorAll('[data-field="type"]');
     expect([...typeRows()].some(isOpen)).toBe(false);
+    // the list's own row, open: the one element it is drawn in for as long as it is in the form
+    const listRow = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '.readfirst-row[data-field="schemes"], .options-readfirst-card[data-field="schemes"]'
+      );
+    const listRowBefore = listRow();
+    expect(listRowBefore).toBeTruthy();
+    const boxOf = () =>
+      listRow()?.closest('.options-readfirst-group')?.querySelector('.reqore-panel-title')?.textContent ??
+      '';
+    const line = () => canvasElement.querySelector('.options-readfirst-completion')?.textContent ?? '';
+    expect(boxOf()).toMatch(/^Set/);
 
     await _testsClickButton({ label: 'Add new item for "Authentication Schemes"' });
 
     await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2));
     // Exactly one open required field: the one belonging to the row just added.
     await waitFor(() => expect([...typeRows()].filter(isOpen)).toHaveLength(1));
+
+    /* The row and the counts agree, by one rule (Qlip build 489: the list sat in Set under "0/1 set · 1 need
+       attention"). Its new item is empty, so the list needs attention: it moves to that box as the line counts it -
+       the same row, not drawn anew, so the item just added stays open. */
+    await waitFor(() => expect(boxOf()).toMatch(/^Needs attention\s*1/));
+    expect(line()).toContain('0/1 set');
+    expect(line()).toContain('1 need attention');
+    expect(listRow()).toBe(listRowBefore);
+    expect([...typeRows()].filter(isOpen)).toHaveLength(1);
+  },
+};
+
+/** A set name and a required title nobody has typed: the title's first character takes it from "To fill in" to Set. */
+const MOVES_BOX_OPTIONS = {
+  name: { type: 'string', ui_type: 'string', display_name: 'Name', required: true },
+  title: { type: 'string', ui_type: 'string', display_name: 'Title', required: true },
+} as IOptionsSchema;
+
+const MovesBoxWhileTypedForm = ({
+  appearance,
+  width,
+}: {
+  appearance?: TFormEngineAppearance;
+  width?: number;
+}) => {
+  const [value, setValue] = useState<IOptions>({
+    name: { type: 'string', value: 'order-sync' },
+  } as IOptions);
+  return (
+    <div style={width ? { width } : undefined}>
+      <FormEngine
+        compact
+        name='moves-box'
+        appearance={appearance}
+        options={MOVES_BOX_OPTIONS}
+        value={value}
+        initialExpandedOptions={['title']}
+        expandFirstRequired={false}
+        onChange={(_name, next) => setValue((next ?? {}) as IOptions)}
+      />
+    </div>
+  );
+};
+
+/**
+ * Types "Order sync" into the open, empty, required Title: the first character moves it to Set, as the readiness
+ * line counts it, and it is the same field there - not drawn anew: the same text box, the caret in it, every character
+ * kept. `focusIn` puts the caret in the box (a click, or a finger's tap).
+ */
+const typeWhileTheRowMovesBox = async (
+  canvasElement: HTMLElement,
+  focusIn: (box: HTMLElement) => Promise<void>
+) => {
+  const textBox = () =>
+    canvasElement.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      '[data-field="title"] input, [data-field="title"] textarea'
+    );
+  const box = await waitFor(() => {
+    expect(textBox()).toBeTruthy();
+    return textBox()!;
+  });
+  const boxOf = (field: string) =>
+    canvasElement
+      .querySelector(`[data-field="${field}"]`)
+      ?.closest('.options-readfirst-group')
+      ?.querySelector('.reqore-panel-title')?.textContent ?? '';
+  const line = () => canvasElement.querySelector('.options-readfirst-completion')?.textContent ?? '';
+  // the empty required title is still to fill in; the name is set
+  await expect(boxOf('title')).not.toMatch(/^Set/);
+  await expect(boxOf('name')).toMatch(/^Set/);
+
+  await focusIn(box);
+  await waitFor(() => expect(document.activeElement).toBe(box));
+  await userEvent.keyboard('O');
+  // one character, and the title is set: it is in Set, as the line counts it
+  await waitFor(() => expect(boxOf('title')).toMatch(/^Set/));
+  await expect(line()).toContain('2/2 set');
+  // the same text box, the caret still in it
+  await expect(textBox()).toBe(box);
+  await expect(document.activeElement).toBe(box);
+  await expect([box.value, box.selectionStart, box.selectionEnd]).toEqual(['O', 1, 1]);
+  await userEvent.keyboard('rder sync');
+  await waitFor(() => expect(box.value).toBe('Order sync'));
+  await expect(document.activeElement).toBe(box);
+  await expect(box.selectionStart).toBe('Order sync'.length);
+  // and nothing is left to fill in: no such box, and the line says the form is ready
+  await expect(
+    Array.from(canvasElement.querySelectorAll('.options-readfirst-group .reqore-panel-title')).map(
+      (title) => (title.textContent ?? '').trim()
+    )
+  ).not.toContainEqual(expect.stringMatching(/^(To fill in|Needs attention)/));
+  await expect(line()).toContain('Ready');
+};
+
+export const CompactRowMovesBoxWhileTyped: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard; the end state is a plain set form.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Types "Order sync" into an open, empty, required Title. The first character makes it set: it moves to the Set box as the readiness line counts it, and it is the same field there - the same text box, the caret in it, every character kept (Qlip build 489: the boxes kept an open row where it was opened while the line counted it elsewhere).',
+      },
+    },
+  },
+  render: () => <MovesBoxWhileTypedForm />,
+  play: async ({ canvasElement }) => {
+    await typeWhileTheRowMovesBox(canvasElement, (box) => userEvent.click(box));
+    // the calm rows: a full-width line above each, and no inset hairline under any
+    const rows = Array.from(canvasElement.querySelectorAll<HTMLElement>('.readfirst-row[data-field]'));
+    await expect(rows.length).toBeGreaterThan(1);
+    await expect(rows.map((row) => getComputedStyle(row, '::after').display)).not.toContain('block');
+  },
+};
+
+export const CompactRowMovesBoxWhileTypedClassic: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The same in the classic look: the Title moves to Set as it is typed in, the same field with the caret in it, and the rows keep the hairline between them.',
+      },
+    },
+  },
+  render: () => <MovesBoxWhileTypedForm appearance='classic' />,
+  play: async ({ canvasElement }) => {
+    await typeWhileTheRowMovesBox(canvasElement, (box) => userEvent.click(box));
+    // the classic rows' hairline: under each row but the last in its box
+    const rowsOfSet = Array.from(
+      canvasElement
+        .querySelector('.readfirst-row[data-field="name"]')!
+        .closest('.options-readfirst-group')!
+        .querySelectorAll<HTMLElement>('.readfirst-row[data-field]')
+    );
+    await expect(rowsOfSet.map((row) => getComputedStyle(row, '::after').display)).toEqual([
+      ...rowsOfSet.slice(0, -1).map(() => 'block'),
+      'none',
+    ]);
+  },
+};
+
+export const CompactRowMovesBoxWhileTypedOnAPhone: Story = {
+  tags: ['touch'],
+  decorators: [withCoarsePointer],
+  parameters: {
+    // Interaction-only: the play assertions are the guard.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The same on a phone (390px, touch): the Title, tapped and typed in, moves to Set and keeps the caret.',
+      },
+    },
+  },
+  render: () => <MovesBoxWhileTypedForm width={390} />,
+  play: async ({ canvasElement }) => {
+    await withTouchScreen(async (touch) => {
+      await typeWhileTheRowMovesBox(canvasElement, async (box) => {
+        await touch.tap(box);
+        // a tap the page dispatched itself does not move the focus: the finger's would
+        if (document.activeElement !== box) box.focus();
+      });
+    });
   },
 };
 

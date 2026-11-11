@@ -776,6 +776,17 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   max-width: 100%;
 `;
 
+/*
+ * A row sits in a place its box keeps for it (`rowPlaces`): a plain block holding the row's own node, which draws no
+ * box (`display: contents`). The body's rules for its entries are about the row, so each names the row in its place
+ * as well (IN_PLACE), at the rule's own specificity - `:where` adds none - and leaves the place itself alone
+ * (NOT_PLACE). A row computes the styles it had as the body's own child.
+ */
+const IN_PLACE = ':where(.readfirst-row-place) > :where(.readfirst-row-host) >';
+const NOT_PLACE = ':not(:where(.readfirst-row-place))';
+const LAST_PLACE = ':where(.readfirst-row-place):last-child > :where(.readfirst-row-host) >';
+const FIRST_PLACE = ':where(.readfirst-row-place):first-child > :where(.readfirst-row-host) >';
+
 export const StyledGroupBody = styled.div<{
   $divider: string;
   $hover: string;
@@ -806,7 +817,8 @@ export const StyledGroupBody = styled.div<{
      resolves against this container's width (not the screen), so it tracks the
      (Field blocks no longer get a left gutter — the spine/rail that needed it are
      gone, so rows sit flush against the box, like the Focus prototype.) */
-  > * {
+  > *${NOT_PLACE},
+  > ${IN_PLACE} * {
     margin-left: 0;
   }
 
@@ -858,6 +870,19 @@ export const StyledGroupBody = styled.div<{
     z-index: 0;
   }
   .readfirst-row:last-child::after {
+    display: none;
+  }
+  /* A row is drawn into a node of its own, which its place in the box holds (\`rowPlaces\`, IN_PLACE above): the
+     place stands where the row stands among its siblings, and the node draws no box. So a row is the last child of
+     its node, always: the hairline under it is hidden for the last PLACE only. (No more specific than the rule
+     above it, so the calm look's own \`.readfirst-row::after\`, later, still wins.) */
+  .readfirst-row-host {
+    display: contents;
+  }
+  .readfirst-row-host > .readfirst-row::after {
+    display: block;
+  }
+  ${LAST_PLACE} .readfirst-row::after {
     display: none;
   }
   /* A row lights up under a pointer that hovers. A finger's tap leaves the browser's :hover on what it tapped
@@ -1052,10 +1077,12 @@ export const StyledGroupBody = styled.div<{
      intent backgrounds. The (now invisible) pseudo is retained only to preserve
      the block's positioning/stacking context that the required-group rail and its
      cluster nodes resolve against — removing it would unmoor them. */
-  > *:not(.options-readfirst-card) {
+  > *:not(.options-readfirst-card)${NOT_PLACE},
+  > ${IN_PLACE} *:not(.options-readfirst-card) {
     position: relative;
   }
-  > *:not(.options-readfirst-card)::before {
+  > *:not(.options-readfirst-card)${NOT_PLACE}::before,
+  > ${IN_PLACE} *:not(.options-readfirst-card)::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -1066,7 +1093,8 @@ export const StyledGroupBody = styled.div<{
   }
   /* Content rides above the surface layer — except the cluster node, which is
      absolutely positioned in the gutter and must keep its own positioning. */
-  > *:not(.options-readfirst-card) > *:not(.options-readfirst-node) {
+  > *:not(.options-readfirst-card)${NOT_PLACE} > *:not(.options-readfirst-node),
+  > ${IN_PLACE} *:not(.options-readfirst-card) > *:not(.options-readfirst-node) {
     position: relative;
     z-index: 1;
   }
@@ -1087,7 +1115,8 @@ export const StyledGroupBody = styled.div<{
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
     padding-left: ${COMPACT_STACKED_VALUE_INDENT}px;
   }
-  &.readfirst-narrow > *:not(.options-readfirst-card)::before {
+  &.readfirst-narrow > *:not(.options-readfirst-card)${NOT_PLACE}::before,
+  &.readfirst-narrow > ${IN_PLACE} *:not(.options-readfirst-card)::before {
     left: 0;
   }
   /* Touch layouts have no hover: a slot reserved for the hover-revealed edit
@@ -1131,14 +1160,19 @@ export const StyledGroupBody = styled.div<{
           --readfirst-row-gap: 0px;
           gap: 0;
         }
-        && > *,
-        && > .options-readfirst-required-cluster > * {
+        && > *${NOT_PLACE},
+        && > ${IN_PLACE} *,
+        && > .options-readfirst-required-cluster > *${NOT_PLACE},
+        && > .options-readfirst-required-cluster > ${IN_PLACE} * {
           border-top: 1px solid ${$hairline};
         }
         && > .options-readfirst-group-label + *,
+        && > .options-readfirst-group-label + ${IN_PLACE} *,
         && > .options-readfirst-group-subtitle + *,
+        && > .options-readfirst-group-subtitle + ${IN_PLACE} *,
         && .options-readfirst-required-cluster-header,
-        && .options-readfirst-required-cluster-header + * {
+        && .options-readfirst-required-cluster-header + *,
+        && .options-readfirst-required-cluster-header + ${IN_PLACE} * {
           border-top: 0;
         }
         && .readfirst-row {
@@ -1157,8 +1191,11 @@ export const StyledGroupBody = styled.div<{
         }
         /* The section's rounded bottom corners, which a full-bleed hover or an
            open row's tint would otherwise square off. */
-        && > :last-child,
-        && > :last-child > :last-child {
+        && > :last-child${NOT_PLACE},
+        && > :last-child${NOT_PLACE} > :last-child${NOT_PLACE},
+        && > ${LAST_PLACE} *,
+        && > ${LAST_PLACE} * > :last-child,
+        && > :last-child > ${LAST_PLACE} * {
           border-bottom-left-radius: 9px;
           border-bottom-right-radius: 9px;
         }
@@ -1188,14 +1225,16 @@ export const StyledGroupBody = styled.div<{
            card the host already drew — so it adds no panel and no inset of its
            own: the rows sit flush with the host's content edge, split by the
            same hairlines, with no line above the first. */
-        &&.readfirst-read-list > :first-child {
+        &&.readfirst-read-list > :first-child${NOT_PLACE},
+        &&.readfirst-read-list > ${FIRST_PLACE} * {
           border-top: 0;
         }
         /* A sub-form nested in a row draws no section either — the item it sits
            in is the card — so its first row has no line above it. It keeps the
            rows' inset: these rows are controls, and a hover band or an open row
            flush with the text would crowd it. */
-        &&.readfirst-nested-list > :first-child {
+        &&.readfirst-nested-list > :first-child${NOT_PLACE},
+        &&.readfirst-nested-list > ${FIRST_PLACE} * {
           border-top: 0;
         }
         &&.readfirst-read-list .readfirst-row,
