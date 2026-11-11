@@ -293,25 +293,22 @@ export const StyledStatusBox = styled(ReqorePanel)<{
   /**
    * Calm appearance: the box is an ordinary panel — Reqore paints the theme's
    * panel surface and its one neutral hairline — so no tint, no accent edge
-   * and no recessed Optional box are drawn over it. Only the radius is kept,
-   * so a calm form has the same shape as a default one.
+   * and no recessed Optional box are drawn over it.
    */
   $calm?: boolean;
 }>`
+  /* The corner is the theme's, and the title's inset with it, both Reqore's: a box that drew a 10px corner of its
+     own kept a title padded for the panel's radius, under the curve (admin portal review #44: "the panel label is
+     too close to the border radius"; Reqore #715 pads a title clear of its corner). */
   ${({ $calm, $accent, $bg }) =>
     $calm ?
-      css`
-        &&& {
-          border-radius: 10px;
-        }
-      `
+      ''
     : css`
         &&& {
           border: 1px solid ${`${$accent}33`};
           /* $bg lets the muted "Optional" box opt into a darker, recessed surface
              instead of the faint accent tint the colored boxes use. */
           background: ${$bg || `${$accent}1f`};
-          border-radius: 10px;
         }
       `}
 
@@ -804,6 +801,11 @@ export const StyledGroupBody = styled.div<{
   $calm?: boolean;
   /** The calm section's hairline — the same edge its panel is drawn with. */
   $hairline?: string;
+  /**
+   * The body of a status box: its last row's bottom corners are the box's own, whatever corner the theme gives it
+   * (the box's content passes them down, `contentStyle`). Elsewhere - a read list, a nested sub-form - they are 9px.
+   */
+  $boxCorners?: boolean;
 }>`
   display: flex;
   flex-flow: column;
@@ -1153,7 +1155,7 @@ export const StyledGroupBody = styled.div<{
      Rows lose their rounded hover pill and the inset hairline between them, and
      take the section's 16px inset. Placed last so it wins over the narrow
      rules above, which a phone-width calm form also matches. */
-  ${({ $calm, $hairline }) =>
+  ${({ $calm, $hairline, $boxCorners }) =>
     $calm ?
       css`
         && {
@@ -1190,14 +1192,27 @@ export const StyledGroupBody = styled.div<{
           padding-bottom: 10px;
         }
         /* The section's rounded bottom corners, which a full-bleed hover or an
-           open row's tint would otherwise square off. */
+           open row's tint would otherwise square off. In a status box they are the
+           box's: each element down to the last row inherits them. */
+        ${$boxCorners ?
+          css`
+            &&,
+            && > :where(.readfirst-row-place):last-child,
+            && > :where(.readfirst-row-place):last-child > :where(.readfirst-row-host),
+            && > :last-child > :where(.readfirst-row-place):last-child,
+            && > :last-child > :where(.readfirst-row-place):last-child > :where(.readfirst-row-host) {
+              border-bottom-left-radius: inherit;
+              border-bottom-right-radius: inherit;
+            }
+          `
+        : ''}
         && > :last-child${NOT_PLACE},
         && > :last-child${NOT_PLACE} > :last-child${NOT_PLACE},
         && > ${LAST_PLACE} *,
         && > ${LAST_PLACE} * > :last-child,
         && > :last-child > ${LAST_PLACE} * {
-          border-bottom-left-radius: 9px;
-          border-bottom-right-radius: 9px;
+          border-bottom-left-radius: ${$boxCorners ? 'inherit' : '9px'};
+          border-bottom-right-radius: ${$boxCorners ? 'inherit' : '9px'};
         }
         /* "N more fields" is a quiet last row: the hairline above it says where
            the section's fields end; a dashed box around it said it again. */

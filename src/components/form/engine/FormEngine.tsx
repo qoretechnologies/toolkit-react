@@ -5179,7 +5179,17 @@ const FormEngineImpl = ({
                           icon={calm ? undefined : box.icon}
                           className='options-readfirst-group'
                           padded={false}
-                          contentStyle={{ padding: calm ? 0 : '4px 4px 6px' }}
+                          // Calm: the last row's band meets the box's own corner, whatever
+                          // the theme makes it (the body inherits it, `$boxCorners`)
+                          contentStyle={
+                            calm ?
+                              {
+                                padding: 0,
+                                borderBottomLeftRadius: 'inherit',
+                                borderBottomRightRadius: 'inherit',
+                              }
+                            : { padding: '4px 4px 6px' }
+                          }
                         >
                           {/* ONE group body per box: every field block (and the
                             thin schema sub-labels) is a direct flex child, so the
@@ -5188,6 +5198,7 @@ const FormEngineImpl = ({
                           <OpenBoxMark box={box.key} onShown={openBoxes.onShown} />
                           <StyledGroupBody
                             {...groupBodyProps}
+                            $boxCorners
                             className={compactNarrow ? 'readfirst-narrow' : undefined}
                           >
                             {shownGroups.map((groupName) =>

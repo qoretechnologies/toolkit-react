@@ -240,6 +240,51 @@ const expectCalmSection = (element: HTMLElement | undefined) => {
   expect(element!.querySelector('.options-readfirst-group-count')).toBeTruthy();
 };
 
+/**
+ * Every status box draws the theme's corner - Reqore's, the one the form's own panel has - and its title starts at
+ * least that corner's radius in from the box's edge (admin portal review #44: "the panel label is too close to the border radius"; Reqore #715 pads a
+ * title clear of its corner). A box that drew a 10px corner of its own kept a title padded for a smaller one.
+ * In the calm look the last row's bottom corners are the box's, so its band meets the curve.
+ */
+const expectBoxTitlesClearTheirCorners = ({ calm }: { calm: boolean }) => {
+  const boxes = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')];
+  expect(boxes.length).toBeGreaterThan(0);
+  // the theme's corner: what Reqore gives the form's own panel, a panel of the same size
+  const formPanel = document.querySelector<HTMLElement>('.options-readfirst-scroll > .reqore-panel')!;
+  const themeRadius = getComputedStyle(formPanel).borderTopLeftRadius;
+  for (const element of boxes) {
+    expect(getComputedStyle(element).borderTopLeftRadius).toBe(themeRadius);
+    const radius = Number.parseFloat(getComputedStyle(element).borderTopLeftRadius);
+    // where the title's content starts: the leftmost thing drawn in its bar (an icon, a dot, a word)
+    const bar = element.querySelector<HTMLElement>('.reqore-panel-title')!;
+    const lefts: number[] = [];
+    const walker = document.createTreeWalker(bar, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (!node.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        lefts.push(range.getBoundingClientRect().left);
+      } else if (node instanceof SVGElement || !(node as Element).childElementCount) {
+        const rect = (node as Element).getBoundingClientRect();
+        if (rect.width && rect.height) lefts.push(rect.left);
+      }
+    }
+    expect(lefts.length).toBeGreaterThan(0);
+    const inset = Math.min(...lefts) - element.getBoundingClientRect().left;
+    expect(inset).toBeGreaterThanOrEqual(radius);
+    if (!calm) continue;
+    const lastRow = element.querySelector<HTMLElement>(
+      '.reqore-panel-content > div > .readfirst-row-place:last-child .readfirst-row'
+    );
+    if (lastRow) {
+      expect(getComputedStyle(lastRow).borderBottomLeftRadius).toBe(
+        getComputedStyle(element).borderBottomLeftRadius
+      );
+    }
+  }
+};
+
 const expectNoUppercase = (selector: string) => {
   const elements = [...document.querySelectorAll<HTMLElement>(selector)];
   expect(elements.length).toBeGreaterThan(0);
@@ -303,6 +348,7 @@ export const ClassicLook: Story = {
     await waitFor(() => expect(box('set')).toBeTruthy());
     expect(box('set')!.querySelector('.reqore-panel-title .reqore-tag')).toBeTruthy();
     expect(row('display_name')!.querySelector('.options-readfirst-status-dot')).toBeTruthy();
+    expectBoxTitlesClearTheirCorners({ calm: false });
   },
 };
 
@@ -322,6 +368,8 @@ export const Calm: Story = {
     // Sections are calm panels — no green tint, no recessed Optional box.
     expectCalmSection(box('set'));
     expectCalmSection(box('optional'));
+    // …with the theme's corner, their titles clear of it.
+    expectBoxTitlesClearTheirCorners({ calm: true });
     expect(getComputedStyle(box('optional')!).backgroundColor).toBe(
       getComputedStyle(box('set')!).backgroundColor
     );
@@ -571,6 +619,7 @@ export const CalmOnAPhone: Story = {
         expect(rect.left).toBeGreaterThanOrEqual(section.left - 1);
         expect(rect.right).toBeLessThanOrEqual(section.right + 1);
       }
+      expectBoxTitlesClearTheirCorners({ calm: true });
     });
   },
 };
