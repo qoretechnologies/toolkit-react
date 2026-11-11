@@ -16,6 +16,7 @@ import type { IReqoreEntityRowAction } from '@qoretechnologies/reqore/dist/compo
 import type { IReqorePanelSubAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import timeago from 'epoch-timeago';
 import { SearchFilterBar } from '../searchFilterBar';
 import styled from 'styled-components';
@@ -29,7 +30,7 @@ import {
   TResolveInterfaceIcon,
   TTicketViewerRole,
 } from '../supportTicket/meta';
-import { useLoadedImages } from '../supportTicket/useLoadedImages';
+import { loadedImageUrl, useLoadedImages } from '../supportTicket/useLoadedImages';
 import type { ITicketThreadAttachment, ITicketThreadMessage } from '../ticketThread/TicketThread';
 
 /*
@@ -167,25 +168,27 @@ const fileCategory = (contentType: string): TFileCategory => {
 type TRefFilter = 'all' | 'links' | 'screenshots' | TFileCategory;
 type TRefSort = 'newest' | 'oldest' | 'name' | 'size';
 
-const FILTER_META: Record<TRefFilter, { label: string; icon: IReqoreIconName }> = {
-  all: { label: 'All types', icon: 'Apps2Line' },
-  links: { label: 'Linked interfaces', icon: 'LinksLine' },
-  screenshots: { label: 'Screenshots', icon: 'ImageLine' },
-  documents: { label: 'Documents', icon: 'FileTextLine' },
-  data: { label: 'Data', icon: 'CodeSLine' },
-  logs: { label: 'Logs', icon: 'FileList2Line' },
-  archives: { label: 'Archives', icon: 'FileZipLine' },
+// each filter's icon; its words are the host's (`supportTicket.referenceFilters`)
+const FILTER_ICON: Record<TRefFilter, IReqoreIconName> = {
+  all: 'Apps2Line',
+  links: 'LinksLine',
+  screenshots: 'ImageLine',
+  documents: 'FileTextLine',
+  data: 'CodeSLine',
+  logs: 'FileList2Line',
+  archives: 'FileZipLine',
 };
 // the four filter keys that live inside the "Files" section
 const FILE_FILTERS: TFileCategory[] = ['documents', 'data', 'logs', 'archives'];
 // menu order mirrors the section order on screen: screenshots, links, then files
 const FILTER_ORDER: TRefFilter[] = ['all', 'screenshots', 'links', ...FILE_FILTERS];
 
-const SORT_META: Record<TRefSort, { label: string; icon: IReqoreIconName }> = {
-  newest: { label: 'Newest first', icon: 'SortDesc' },
-  oldest: { label: 'Oldest first', icon: 'SortAsc' },
-  name: { label: 'Name (A–Z)', icon: 'SortAlphabetAsc' },
-  size: { label: 'Largest first', icon: 'ScalesLine' },
+// each sort's icon; its words are the host's (`supportTicket.referenceSorts`)
+const SORT_ICON: Record<TRefSort, IReqoreIconName> = {
+  newest: 'SortDesc',
+  oldest: 'SortAsc',
+  name: 'SortAlphabetAsc',
+  size: 'ScalesLine',
 };
 const SORT_ORDER: TRefSort[] = ['newest', 'oldest', 'name', 'size'];
 
@@ -256,7 +259,13 @@ const useImageUrls = (
     }
     let active = true;
     const created: string[] = [];
-    Promise.allSettled(ids.map((id) => fetchAttachmentUrl(id).then((url) => ({ id, url })))).then(
+    Promise.allSettled(
+      ids.map((id) =>
+        fetchAttachmentUrl(id)
+          .then(loadedImageUrl)
+          .then((url) => ({ id, url }))
+      )
+    ).then(
       (results) => {
         if (!active) {
           return;
@@ -341,11 +350,13 @@ const Thumb = styled.button`
   justify-content: center;
   position: relative;
   transition: border-color 0.15s;
+  /* A screenshot is something to read, not a hand-off to Qonsole, so its hover and focus
+     brighten the tile's own edge instead of wearing the product's purple (decision 002). */
   &:hover {
-    border-color: rgba(169, 116, 255, 0.6);
+    border-color: rgba(255, 255, 255, 0.35);
   }
   &:focus-visible {
-    outline: 2px solid #a974ff;
+    outline: 2px solid rgba(255, 255, 255, 0.6);
     outline-offset: 2px;
   }
   img {
@@ -385,6 +396,7 @@ const Screenshot = ({
 }) => {
   // the name drawn while the image loads, softer: as soft as it still reads
   const placeholderOpacity = useReadableOpacity(0.5);
+  const words = useReqraftLabels().supportTicket;
 
   return (
     <ThumbTile>
@@ -418,7 +430,7 @@ const Screenshot = ({
         <ReqoreDropdown
           className='screenshot-menu'
           icon='More2Line'
-          tooltip='More actions'
+          tooltip={words.moreActions}
           size='small'
           flat
           minimal
@@ -450,6 +462,7 @@ export const TicketReferences = ({
   preferKindImage = false,
   loading,
 }: ITicketReferencesProps) => {
+  const words = useReqraftLabels().supportTicket;
   // references: ticket-level + every message's, deduped. Rendered as rows carrying
   // their kind as metadata — the same treatment as the files below — so the tab
   // reads as one consistent list rather than chips above rows.
@@ -501,13 +514,13 @@ export const TicketReferences = ({
       return [];
     }
     return messageId ?
-        [{ label: 'Show in chat', icon: 'Chat1Line', onClick: () => onShowInChat(messageId) }]
+        [{ label: words.showInChat, icon: 'Chat1Line', onClick: () => onShowInChat(messageId) }]
       : [
           {
-            label: 'Show in chat',
+            label: words.showInChat,
             icon: 'Chat1Line',
             disabled: true,
-            description: 'Filed on the ticket, not in a reply',
+            description: words.filedOnTheTicket,
           },
         ];
   };
@@ -524,7 +537,7 @@ export const TicketReferences = ({
         [
           {
             icon: 'More2Line' as IReqoreIconName,
-            tooltip: 'More actions',
+            tooltip: words.moreActions,
             flat: true,
             minimal: true,
             actions: menu,
@@ -667,7 +680,7 @@ export const TicketReferences = ({
     return (
       <ReqoreControlGroup fluid horizontalAlign='center' style={{ padding: '32px 0' }}>
         <ReqoreSpinner iconColor='info' size='big'>
-          Loading references…
+          {words.loadingReferences}
         </ReqoreSpinner>
       </ReqoreControlGroup>
     );
@@ -677,8 +690,8 @@ export const TicketReferences = ({
     return (
       <ReqoreEmptyState
         icon='FolderInfoLine'
-        title='No references or files yet'
-        description='Interface references and any screenshots, documents, or files attached to this ticket will appear here.'
+        title={words.noReferencesYet}
+        description={words.noReferencesYetDescription}
         flat
         transparent
       />
@@ -698,28 +711,28 @@ export const TicketReferences = ({
         sticky
         value={search}
         onChange={setSearch}
-        placeholder='Search files and references…'
+        placeholder={words.searchReferences}
         filters={[
           {
-            icon: FILTER_META[filter].icon,
-            label: FILTER_META[filter].label,
+            icon: FILTER_ICON[filter],
+            label: words.referenceFilters[filter],
             items: filterOptions.map((key) => ({
               selected: filter === key,
-              icon: FILTER_META[key].icon,
+              icon: FILTER_ICON[key],
               label:
                 key === 'all' ?
-                  FILTER_META.all.label
-                : `${FILTER_META[key].label} (${counts[key]})`,
+                  words.referenceFilters.all
+                : words.filterWithCount(words.referenceFilters[key], counts[key]),
               onClick: () => setFilter(key),
             })),
           },
           {
             icon: 'ArrowUpDownLine',
-            label: SORT_META[sort].label,
+            label: words.referenceSorts[sort],
             items: SORT_ORDER.map((key) => ({
               selected: sort === key,
-              icon: SORT_META[key].icon,
-              label: SORT_META[key].label,
+              icon: SORT_ICON[key],
+              label: words.referenceSorts[key],
               onClick: () => setSort(key),
             })),
           },
@@ -734,11 +747,9 @@ export const TicketReferences = ({
       {nothingVisible ?
         <ReqoreEmptyState
           icon='Search2Line'
-          title='No matching references or files'
+          title={words.noMatchingReferences}
           description={
-            query ?
-              `Nothing here matches “${search.trim()}”.`
-            : 'Nothing matches the current filter.'
+            query ? words.nothingHereMatches(search.trim()) : words.nothingMatchesFilter
           }
           flat
           transparent
@@ -751,7 +762,7 @@ export const TicketReferences = ({
                 setFilter('all');
               }}
             >
-              Clear filters
+              {words.clearFilters}
             </ReqoreButton>
           }
         />
@@ -759,7 +770,7 @@ export const TicketReferences = ({
 
       {visibleImages.length ?
         <ReqorePanel
-          label='Screenshots'
+          label={words.referenceSections.screenshots}
           icon='ImageLine'
           badge={visibleImages.length}
           flat
@@ -783,7 +794,7 @@ export const TicketReferences = ({
                   ...(onDownloadAttachment ?
                     [
                       {
-                        label: 'Download',
+                        label: words.download,
                         icon: 'DownloadLine' as IReqoreIconName,
                         onClick: () => onDownloadAttachment(att.attachment_id, att.filename),
                       },
@@ -799,7 +810,7 @@ export const TicketReferences = ({
 
       {visibleRefs.length ?
         <ReqorePanel
-          label='Linked interfaces'
+          label={words.referenceSections.links}
           icon='LinksLine'
           badge={visibleRefs.length}
           flat
@@ -833,13 +844,15 @@ export const TicketReferences = ({
                   }
                   flat
                   tooltip={
-                    linkable ? `Open ${reference.interface_kind} ${reference.interface_name}` : undefined
+                    linkable ?
+                      words.openReference(reference.interface_kind, reference.interface_name)
+                    : undefined
                   }
                   actions={rowActions(
                     linkable ?
                       {
                         icon: 'ArrowRightUpLine',
-                        tooltip: 'Open',
+                        tooltip: words.open,
                         onClick: () => onInterfaceClick(reference),
                       }
                     : undefined,
@@ -854,7 +867,7 @@ export const TicketReferences = ({
 
       {visibleFiles.length ?
         <ReqorePanel
-          label='Files'
+          label={words.referenceSections.files}
           icon='FileList3Line'
           badge={visibleFiles.length}
           flat
@@ -867,7 +880,7 @@ export const TicketReferences = ({
               [
                 {
                   icon: 'DownloadCloud2Line',
-                  label: 'Download all',
+                  label: words.downloadAll,
                   onClick: () =>
                     visibleFiles.forEach((f) => onDownloadAttachment(f.attachment_id, f.filename)),
                 },
@@ -881,11 +894,13 @@ export const TicketReferences = ({
               const type = fileType(f.content_type);
               // a customer's own upload reads "you"; everything else shows the
               // (already server-masked) uploader — "Qorus Support" for staff replies.
-              const uploader =
-                viewerRole === 'customer' && f.uploader_type === 'customer' ? 'you' : f.uploaded_by;
+              const addedBy =
+                viewerRole === 'customer' && f.uploader_type === 'customer' ? words.addedByYou
+                : f.uploaded_by ? words.addedBy(f.uploaded_by)
+                : undefined;
               const provenance = [
                 formatBytes(f.size_bytes),
-                uploader ? `added by ${uploader}` : undefined,
+                addedBy,
                 timeAgo(f.created) || undefined,
               ]
                 .filter(Boolean)
@@ -902,7 +917,7 @@ export const TicketReferences = ({
                     onDownloadAttachment ?
                       {
                         icon: 'DownloadLine',
-                        tooltip: 'Download',
+                        tooltip: words.download,
                         onClick: () => onDownloadAttachment(f.attachment_id, f.filename),
                       }
                     : undefined,

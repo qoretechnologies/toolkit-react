@@ -8,7 +8,7 @@ import { usePendingEdit } from '../pendingEdit';
 // Const-only usage at render time — the cycle (Number → TemplateField → Number)
 // is safe the same way Field → AutoFormField → Field is.
 import { TemplateBrowser } from '../template/TemplateBrowser';
-import { TemplatesListProps } from '../template/TemplateField';
+import { useTemplatesListProps } from '../template/templatesListProps';
 
 export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
   value?: number | string;
@@ -27,6 +27,9 @@ export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' |
    */
   min_value?: number;
   max_value?: number;
+  /** How long a typed number waits after the last key before it is passed on (ms); `0`
+   *  passes every change on at once, for a form submitted by Enter. */
+  debounceMs?: number;
 }
 
 /** A whole number as typed: an optional sign and digits. */
@@ -61,8 +64,11 @@ export const NumberFormField = ({
   templates,
   min_value,
   max_value,
+  debounceMs = 100,
   ...rest
 }: INumberFormFieldProps) => {
+  // the template list's color in the look in force: neutral in the calm one
+  const templatesListProps = useTemplatesListProps();
   // What is shown is what was typed; what the form gets is the number it writes, or the text when it writes
   // none. Showing the number instead dropped a decimal point mid-typing: `10.` is 10, and `10.9` became `109`.
   const [text, setText] = useState<string>(value === undefined || value === null ? '' : String(value));
@@ -103,7 +109,7 @@ export const NumberFormField = ({
         onChange?.(localValue);
       }
     },
-    100,
+    debounceMs,
     [localValue, onChange]
   );
 
@@ -113,9 +119,20 @@ export const NumberFormField = ({
   const handleChange = useCallback(
     (rawValue: number | string): void => {
       setText(String(rawValue));
-      pending.hold(reportedFor(String(rawValue)));
+      const next = reportedFor(String(rawValue));
+      if (debounceMs === 0) {
+        // No pause asked for: reported at once, so a form submitted by Enter sees the last key, and nothing
+        // is held back.
+        pending.release();
+        if (next !== emitted.settled(held)) {
+          emitted.record(next);
+          onChange?.(next);
+        }
+      } else {
+        pending.hold(next);
+      }
     },
-    [pending, type]
+    [debounceMs, pending, type, held, onChange]
   );
 
   const handleInputChange = useCallback(
@@ -176,7 +193,7 @@ export const NumberFormField = ({
         inputMode={type === 'int' ? 'numeric' : 'decimal'}
         onClearClick={handleResetClick}
         focusRules={focusRules}
-        {...TemplatesListProps}
+        {...templatesListProps}
       />
     );
   }

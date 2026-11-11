@@ -8,8 +8,9 @@ import {
 import { IReqoreTabsProps } from '@qoretechnologies/reqore/dist/components/Tabs';
 import { IReqoreTreeProps, ReqoreTree } from '@qoretechnologies/reqore/dist/components/Tree';
 import jsyaml from 'js-yaml';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { CSSProperties, memo, useCallback, useMemo, useState } from 'react';
 import LongStringFormField, { ILongStringFormFieldProps } from '../long-string/LongString';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'onChange' | 'tabs'> {
   tabs?: IReqoreTabsProps['tabs'];
@@ -21,10 +22,21 @@ export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'on
   dataType?: 'native' | 'json' | 'yaml';
 
   editorProps?: Omit<IReqoreTreeProps, 'data' | 'onDataChange'>;
+  /**
+   * Offer the value as source text to type into (JSON or YAML), in a Text tab beside the editor. Off by default,
+   * and it stays off for a value a person fills in: nobody is asked to write JSON or YAML (Filip, 10 Nov: "there
+   * should NEVER be a free json text"). The one exception is a host editing a source it also offers a guided
+   * editor of the same thing for - the IDE's DB and API schema builders - which turns it on itself.
+   */
+  textEditing?: boolean;
+  /** The Text tab's text box, with `textEditing`. */
   textareaProps?: ILongStringFormFieldProps;
 
   disabled?: boolean;
 }
+
+/** The editor's own column: its add / remove controls and the tree, one under the other. */
+const EDITOR_COLUMN: CSSProperties = { display: 'flex', flexFlow: 'column' };
 
 export const ReqraftObjectFormFieldTextarea = ({
   value,
@@ -35,6 +47,7 @@ export const ReqraftObjectFormFieldTextarea = ({
 }: Partial<ILongStringFormFieldProps> &
   Pick<IReqraftObjectFormFieldProps, 'dataType'> & { resultDataType: 'json' | 'yaml' }) => {
   const [localValue, setValue] = useState(value);
+  const fieldWords = useReqraftLabels().fields;
 
   const handleChange = useCallback((newValue: string) => {
     setValue(newValue);
@@ -80,7 +93,7 @@ export const ReqraftObjectFormFieldTextarea = ({
       <ReqoreControlGroup stack>
         <ReqoreButton
           size={rest.size}
-          label='Save'
+          label={fieldWords.save}
           icon='CheckLine'
           compact
           fluid
@@ -104,7 +117,7 @@ export const ReqraftObjectFormFieldTextarea = ({
         />
         <ReqoreButton
           size={rest.size}
-          label='Discard'
+          label={fieldWords.discard}
           icon='HistoryLine'
           compact
           fixed
@@ -114,7 +127,7 @@ export const ReqraftObjectFormFieldTextarea = ({
       </ReqoreControlGroup>
       {!isValid && (
         <ReqoreSpan intent='danger' size='small'>
-          Not a valid {resultDataType.toUpperCase()}
+          {fieldWords.notValid(resultDataType.toUpperCase())}
         </ReqoreSpan>
       )}
     </ReqoreControlGroup>
@@ -129,11 +142,13 @@ export const ReqraftObjectFormField = memo(
     dataType,
     resultDataType = dataType,
     editorProps,
+    textEditing = false,
     textareaProps,
     // the field's own, for its buttons and editors; ReqoreTabs does not take it
     disabled,
     ...rest
   }: IReqraftObjectFormFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
     const handleTreeDataChange = useCallback(
       (data: IReqoreTreeProps['data']) => {
         switch (resultDataType) {
@@ -185,61 +200,76 @@ export const ReqraftObjectFormField = memo(
       }
     }, [value]);
 
+    // the structured editor: rows of keys and typed values, nested where the value is
+    const editor = (
+      <>
+        {!treeData && (
+          <ReqoreButton
+            onClick={() => handleTreeDataChange(type === 'array' ? [] : {})}
+            fixed
+            icon='AddLine'
+            disabled={disabled}
+            size={rest.size}
+          >
+            {type === 'array' ? fieldWords.newList : fieldWords.newObject}
+          </ReqoreButton>
+        )}
+        {treeData && (
+          <ReqoreTree
+            disabled={disabled}
+            data={treeData}
+            onDataChange={handleTreeDataChange}
+            editable
+            showControls={false}
+            size={rest.size}
+            {...editorProps}
+          />
+        )}
+        {treeData && (
+          <ReqoreButton
+            onClick={() => handleTreeDataChange(undefined)}
+            fixed
+            icon='CloseLine'
+            disabled={disabled}
+            size={rest.size}
+          >
+            {fieldWords.remove}
+          </ReqoreButton>
+        )}
+      </>
+    );
+
+    /* The editor is the route. Source text to type into is only offered where a host asks for it (`textEditing`),
+       as a second tab. */
+    if (!textEditing || resultDataType === 'native') {
+      return (
+        // a column, as the tab it was drawn in laid it out
+        <div className='reqraft-object-field' style={EDITOR_COLUMN}>
+          {editor}
+        </div>
+      );
+    }
+
     return (
       <ReqoreTabs
         tabsPadding='vertical'
         {...rest}
         tabs={[
           {
-            label: 'Editor',
+            label: fieldWords.editorTab,
             icon: 'NodeTree',
             id: 'editor',
             size: rest.size,
           },
           {
-            label: 'Text',
+            label: fieldWords.textTab,
             icon: 'Text',
             id: 'text',
-            show: resultDataType !== 'native',
             size: rest.size,
           },
         ]}
       >
-        <ReqoreTabsContent tabId='editor'>
-          {!treeData && (
-            <ReqoreButton
-              onClick={() => handleTreeDataChange(type === 'array' ? [] : {})}
-              fixed
-              icon='AddLine'
-              disabled={disabled}
-              size={rest.size}
-            >
-              New {type === 'array' ? 'List' : 'Object'}
-            </ReqoreButton>
-          )}
-          {treeData && (
-            <ReqoreTree
-              disabled={disabled}
-              data={treeData}
-              onDataChange={handleTreeDataChange}
-              editable
-              showControls={false}
-              size={rest.size}
-              {...editorProps}
-            />
-          )}
-          {treeData && (
-            <ReqoreButton
-              onClick={() => handleTreeDataChange(undefined)}
-              fixed
-              icon='CloseLine'
-              disabled={disabled}
-              size={rest.size}
-            >
-              Remove
-            </ReqoreButton>
-          )}
-        </ReqoreTabsContent>
+        <ReqoreTabsContent tabId='editor'>{editor}</ReqoreTabsContent>
         <ReqoreTabsContent tabId='text'>
           <ReqraftObjectFormFieldTextarea
             disabled={disabled}

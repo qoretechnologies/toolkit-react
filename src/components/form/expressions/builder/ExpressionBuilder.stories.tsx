@@ -55,6 +55,16 @@ const waitForText = async (text: string | RegExp, scope: HTMLElement = document.
  * toolkit `Select` opens a `SelectFieldCollection` modal (not an inline
  * dropdown) — the item is a collection button with the display name as text.
  */
+/**
+ * An operation's name, found whatever its case: the calm look says the catalog's Title Case names in sentence case
+ * ("Matches regular expression"), the classic one as the catalog writes them, and a play names the operation, not its
+ * case.
+ */
+const operationNamed = (label: string) => {
+  const literal = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${literal}$`, 'i');
+};
+
 const selectOperation = async (
   currentLabel: string,
   itemLabel: string,
@@ -62,12 +72,12 @@ const selectOperation = async (
 ) => {
   const body = within(ownerDocument.body);
   // Open the picker (placeholder when empty, or the current operation name).
-  const trigger = await body.findByText(currentLabel, undefined, { timeout: 10000 });
+  const trigger = await body.findByText(operationNamed(currentLabel), undefined, { timeout: 10000 });
   await fireEvent.click(trigger);
   // Click the item inside the now-open collection modal.
   const item = await waitFor(
     () => {
-      const el = within(ownerDocument.body).queryAllByText(itemLabel)[0];
+      const el = within(ownerDocument.body).queryAllByText(operationNamed(itemLabel))[0];
       if (!el) throw new Error(`collection item "${itemLabel}" not ready`);
       return el;
     },
@@ -168,7 +178,7 @@ export const AdditionPickedFresh: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary. The operand says its position, "Enter the 1st "Value"", as the operands that join it will.',
+          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary. The empty operand says what it lacks on itself, quietly, in the calm form\'s words ("Required · add a value"), and nothing says it again under the card.',
       },
     },
   },
@@ -180,8 +190,16 @@ export const AdditionPickedFresh: Story = {
     expect(addSlot()).not.toBeNull();
     expect(document.querySelector('.reqore-error-boundary')).toBeNull();
     await waitForText('Value');
-    // a lone operand of a call that can take more says its position (David, qorus#646)
-    await waitFor(() => expect(document.body.textContent).toContain('Enter the 1st "Value"'), { timeout: 10000 });
+    // the empty operand says what it lacks on itself, in the calm form's words - once: not again as "Enter the 1st
+    // "Value"" under the card, which named by its position the operand the word now sits on
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.expression-arg .expression-arg-required')?.textContent?.trim()
+        ).toBe('Required · add a value'),
+      { timeout: 10000 }
+    );
+    expect(document.body.textContent).not.toContain('Enter the 1st');
     expect(context.args.onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         value: expect.objectContaining({ exp: '+', args: [{ type: undefined }] }),
@@ -394,13 +412,23 @@ export const Readonly: Story = {
     docs: {
       description: {
         story:
-          'Renders the nested expression tree with readOnly enabled — the tree is visible but the AND/OR add-group controls are hidden so the operator cannot mutate it.',
+          'Renders the nested expression tree with readOnly enabled — the tree is visible but the AND/OR add-group controls are hidden so the operator cannot mutate it. An empty required operand says "Required · not set", a fact, as the calm form says it in read mode, not the next step a reader cannot take.',
       },
     },
   },
   play: async (args) => {
     await WithComplexValue.play!(args);
     expect(document.querySelector('.expression-and')).toBeNull();
+    // what an empty operand lacks, said as a fact: a reader cannot add a value (Qlip build 482)
+    const said = await waitFor(() => {
+      const words = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-required')).map(
+        (word) => word.textContent?.trim()
+      );
+      expect(words.length).toBeGreaterThan(0);
+      return words;
+    });
+    expect(new Set(said)).toEqual(new Set(['Required · not set']));
+    expect(document.body.textContent).not.toContain('Required · add a value');
   },
 };
 
@@ -420,7 +448,7 @@ export const FocusedEditing: Story = {
     await userEvent.hover(document.querySelectorAll('.expression')[0]);
     await sleep(500);
     await clickSelector('.expression-item-fullscreen', 3);
-    await waitForText('Focused Editing');
+    await waitForText('Focused editing');
   },
 };
 
@@ -431,6 +459,12 @@ export const FocusedEditing: Story = {
  * also assert the allowed-values operand actually paints — the regression
  * this family guards (a value-less fresh op-select must render its operands).
  */
+/** How far a computed color is from a grey: the spread of its channels (0 for a grey, large for a red or a purple). */
+const colorfulness = (color: string): number => {
+  const [r = 0, g = 0, b = 0, a = 1] = (color.match(/[\d.]+/g) || []).map(Number);
+  return a === 0 ? 0 : Math.max(r, g, b) - Math.min(r, g, b);
+};
+
 export const WithArgWithAllowedValues: Story = {
   args: {
     returnType: ['bool'],
@@ -439,7 +473,7 @@ export const WithArgWithAllowedValues: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex Options") carries element_allowed_values and renders the "Select one or more" picker.',
+          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex options") carries element_allowed_values and renders the "Select one or more" picker. Calm, as the calm form: the catalog\'s Title Case operand names said in sentence case with no "[Text]" type tag, a neutral card with no red frame, the empty required String value saying "Required · add a value" quietly on itself, "And" / "Or" as words rather than capitals, and no blue on the chosen operation or purple on the template picker.',
       },
     },
   },
@@ -448,8 +482,54 @@ export const WithArgWithAllowedValues: Story = {
 
     await selectOperation('Select operation', 'Matches Regular Expression');
 
-    await waitForText('Regex Options');
+    await waitForText('Regex options');
     await waitForText('Select one or more:');
+
+    // calm (Filip, 10 Nov: "the expression builder could be made calm")
+    const names = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-label'));
+    await expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      // not forced into capitals, and no "[Text]" type tag written as code after the name
+      await expect(getComputedStyle(name).textTransform).not.toBe('uppercase');
+      await expect(name.textContent).not.toContain('[');
+    }
+    // the catalog's Title Case names said in sentence case (Qlip build 482)
+    await expect(
+      Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-name')).map(
+        (name) => name.textContent
+      )
+    ).toEqual(['String value', 'Regular expression', 'Regex options']);
+    // the actions that join a condition are words in sentence case, not capitals
+    for (const [selector, word] of [
+      ['.expression-and', 'And'],
+      ['.expression-or', 'Or'],
+    ] as const) {
+      const join = document.querySelector<HTMLElement>(selector)!;
+      await expect(join.textContent?.trim()).toBe(word);
+      // drawn as written: nothing in the button turns the word into capitals
+      await expect(
+        [join, ...Array.from(join.querySelectorAll<HTMLElement>('*'))].some(
+          (part) => getComputedStyle(part).textTransform === 'uppercase'
+        )
+      ).toBe(false);
+    }
+    // what an operand lacks, on the operand, in the calm form's words - not a red note under the card
+    await waitFor(() =>
+      expect(document.querySelector('.expression-arg-required')?.textContent?.trim()).toBe(
+        'Required · add a value'
+      )
+    );
+    await expect(document.body.textContent).not.toContain('Enter a value for');
+    // a neutral card: no red frame
+    const card = document.querySelector<HTMLElement>('.expression')!;
+    await expect(colorfulness(getComputedStyle(card).borderTopColor)).toBeLessThanOrEqual(12);
+    // no blue on the chosen operation, no purple on the template picker: neither is a filter, an AI or Qonsole
+    const operation = document.querySelector<HTMLElement>('.expression-operator-selector')!;
+    await expect(colorfulness(getComputedStyle(operation).backgroundColor)).toBeLessThanOrEqual(12);
+    for (const picker of Array.from(document.querySelectorAll<HTMLElement>('.template-selector'))) {
+      await expect(colorfulness(getComputedStyle(picker).color)).toBeLessThanOrEqual(24);
+      await expect(colorfulness(getComputedStyle(picker).backgroundColor)).toBeLessThanOrEqual(12);
+    }
   },
 };
 
@@ -513,7 +593,7 @@ export const ArgsChangeWhenOperatorChanges: Story = {
 
     await selectOperation('String Contains', 'Matches Regular Expression');
 
-    await waitForText('Regex Options');
+    await waitForText('Regex options');
   },
 };
 
@@ -745,10 +825,10 @@ const operandValues = () =>
 
 const count = (selector: string) => document.querySelectorAll(selector).length;
 
-/** Open the `⋮` menu of the nth operand field and expand its "Move Argument" section. */
+/** Open the `⋮` menu of the nth operand field and expand its "Move argument" section. */
 const openMoveMenu = async (nth: number) => {
   await clickSelector('.template-more', nth);
-  await waitForText('Move Argument');
+  await waitForText('Move argument');
   // The section's className lands on its toggle button.
   await clickSelector('.template-menu-actions');
 };
@@ -788,7 +868,7 @@ export const ConcatExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
       },
     },
   },
@@ -833,7 +913,7 @@ export const ReorderLongConcat: Story = {
     docs: {
       description: {
         story:
-          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -900,7 +980,7 @@ export const ReorderViaOverflowMenu: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -942,7 +1022,7 @@ export const ReorderViaDragHandle: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with a drag grip before each operand and no "Move argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -953,7 +1033,7 @@ export const ReorderViaDragHandle: Story = {
     expect(count('.expression-arg-position')).toBe(0);
 
     await openFieldMenu(1);
-    await waitForText('Use Template');
+    await waitForText('Use template');
     expect(count('.template-menu-actions')).toBe(0);
 
     const handles = document.querySelectorAll('.expression-arg-drag-handle');
@@ -983,7 +1063,7 @@ export const AddValueSlot: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args. The new operand\'s template list stays closed until its picker is clicked, and then it opens.',
+          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args. The new operand\'s template list stays closed until its picker is clicked, and then it opens, neutral: no purple surface, crumb, highlighted row or search edge.',
       },
     },
   },
@@ -1030,6 +1110,29 @@ export const AddValueSlot: Story = {
     await waitFor(() => expect(document.querySelector('.reqore-popover-content')).toBeTruthy(), {
       timeout: 10000,
     });
+
+    /* Neutral, as every list of values in the calm look: purple is for an AI or Qonsole action, and the open list
+       was purple - its surface, the "Templates" crumb, the row under the pointer and the search box's edge (Qlip
+       build 482). A row's kind chip keeps the color of what it is. */
+    const picker = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('.template-picker');
+      expect(element?.querySelector('.template-picker-row')).toBeTruthy();
+      return element!;
+    });
+    const surfaces = [
+      picker,
+      ...Array.from(picker.querySelectorAll<HTMLElement>('.template-picker-crumb, .template-picker-row')),
+    ];
+    await userEvent.hover(picker.querySelector<HTMLElement>('.template-picker-row')!);
+    for (const surface of surfaces) {
+      await expect(colorfulness(getComputedStyle(surface).backgroundColor)).toBeLessThanOrEqual(12);
+    }
+    for (const search of Array.from(picker.querySelectorAll<HTMLElement>('input'))) {
+      const box = search.closest<HTMLElement>('.reqore-input') ?? search;
+      for (const edge of [getComputedStyle(box).borderTopColor, getComputedStyle(search).borderTopColor]) {
+        await expect(colorfulness(edge)).toBeLessThanOrEqual(24);
+      }
+    }
   },
 };
 
@@ -1319,7 +1422,7 @@ export const RemoveValueOnPhone: Story = {
     // Desktop viewport during play: every operand removes inline.
     expect(count('.expression-remove-arg')).toBe(3);
     await openFieldMenu(1);
-    await waitForText('Use Template');
+    await waitForText('Use template');
   },
 };
 
@@ -1475,7 +1578,7 @@ export const ReorderAllSurfaces: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move argument" section in the ⋮ menu, opened and expanded on the second operand. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1500,7 +1603,7 @@ export const ReorderDisabled: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move argument" section; only the remove buttons remain. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1512,7 +1615,7 @@ export const ReorderDisabled: Story = {
     expect(count('.expression-arg-position')).toBe(0);
 
     await openFieldMenu(1);
-    await waitForText('Use Template');
+    await waitForText('Use template');
     expect(count('.template-menu-actions')).toBe(0);
   },
 };
@@ -1525,7 +1628,7 @@ export const ReorderOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
+          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move argument" section, so reordering needs no hover or drag. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1569,7 +1672,7 @@ export const ExpressionCanBeWrapped: Story = {
   play: async ({ canvasElement }) => {
     // Seeded base op + its operand render.
     await waitFor(() => expect(expressionCount(canvasElement)).toBe(1), { timeout: 10000 });
-    await waitForText('Value To Convert', canvasElement);
+    await waitForText('Value to convert', canvasElement);
 
     // Hover the card to reveal the floating "Wrap" picker, then wrap it in
     // `Join List Elements` — the wrapped op becomes its first operand and the
@@ -1577,7 +1680,7 @@ export const ExpressionCanBeWrapped: Story = {
     await userEvent.hover(canvasElement.querySelectorAll('.expression')[0]);
     await sleep(500);
     await selectOperation('Wrap', 'Join List Elements', canvasElement.ownerDocument);
-    await waitForText('List To Join', canvasElement);
+    await waitForText('List to join', canvasElement);
     await waitFor(() => expect(expressionCount(canvasElement)).toBe(2), { timeout: 10000 });
   },
 };
@@ -1707,14 +1810,14 @@ export const NestedInListWithARichTextOperand: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.queryAllByText('In List')[0]).toBeTruthy(), {
+    await waitFor(() => expect(canvas.queryAllByText(operationNamed('In List'))[0]).toBeTruthy(), {
       timeout: 10000,
     });
     // the list operand holds the template as a chip in rich text
     const listOperand = await waitFor(
       () => {
         const operand = Array.from(canvasElement.querySelectorAll('.expression-arg')).find((arg) =>
-          arg.textContent?.includes('List of Values')
+          arg.textContent?.includes('List of values')
         );
         expect(operand).toBeTruthy();
         expect(within(operand as HTMLElement).queryAllByText('Richtext Template')[0]).toBeTruthy();
@@ -1824,7 +1927,7 @@ export const FunctionArgsArePassedToNewFunctionAndNeedConfirmation: Story = {
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
-    await waitForText('Date To Format');
+    await waitForText('Date to format');
 
     await selectOperation('Format Date', 'Matches Regular Expression');
 
@@ -2121,14 +2224,15 @@ export const WildcardPathAloneIsItsPath: Story = {
 };
 
 /** The entries the open operation list offers, by name. */
+/** What the operation list offers, once opened from `trigger`, in lower case: an operation is named, not its case. */
 const offeredOperations = async (trigger: string) => {
   const body = within(document.body);
-  await fireEvent.click(await body.findByText(trigger, undefined, { timeout: 10000 }));
+  await fireEvent.click(await body.findByText(operationNamed(trigger), undefined, { timeout: 10000 }));
   return waitFor(
     () => {
-      const offered = body.queryAllByText('list wildcard ([*])');
+      const offered = body.queryAllByText(operationNamed('list wildcard ([*])'));
       if (!offered.length) throw new Error('the operation list is not open');
-      return document.body.textContent ?? '';
+      return (document.body.textContent ?? '').toLowerCase();
     },
     { timeout: 10000 }
   );
@@ -2159,7 +2263,7 @@ export const WildcardItemIsNeverOffered: Story = {
     expect(operations).not.toContain('wildcard item');
     await userEvent.keyboard('{Escape}');
     await waitFor(() =>
-      expect(within(document.body).queryAllByText('list wildcard ([*])')).toHaveLength(0)
+      expect(within(document.body).queryAllByText(operationNamed('list wildcard ([*])'))).toHaveLength(0)
     );
 
     // the Wrap list: the same entries

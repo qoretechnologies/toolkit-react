@@ -1,11 +1,11 @@
-import { DEFAULT_REQRAFT_LABELS } from './reqraftLabels';
-
 // Copyright 2026 Qore Technologies, s.r.o.
+import { reqraftLabels } from './reqraftLabels';
+
 /**
  * What a hover or help says where what it is about has no description: why there is none, in plain words, never a
  * blank (qorus#646, David: "in such cases there should be a reason given why there is no description in the
- * hover"). A host can say it in its own words (`ITemplateReferenceNames.noDescription`).
+ * hover"). In the host's words (`setReqraftLabels`), read when asked; a host can also say it per template
+ * (`ITemplateReferenceNames.noDescription`).
  */
-export const NO_VALUE_DESCRIPTION = 'No description was given for this value.';
-export const NO_OPTION_DESCRIPTION = DEFAULT_REQRAFT_LABELS.formEngine.noDescription;
-export const NO_FIELD_DESCRIPTION = 'No description was given for this field.';
+export const noValueDescription = (): string => reqraftLabels().templateTree.noValueDescription;
+export const noFieldDescription = (): string => reqraftLabels().templateTree.noFieldDescription;

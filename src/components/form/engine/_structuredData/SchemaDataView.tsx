@@ -18,6 +18,7 @@ import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import styled from 'styled-components';
 import { useContextSelector } from 'use-context-selector';
 import { CompactRowContext } from '../compactRowContext';
+import { useIsCalmForm } from '../formAppearance';
 import {
   MONO_FONT_STACK,
   StyledCodePreview,
@@ -217,12 +218,29 @@ const StyledItemFields = styled.div<{ $border: string; $rule: boolean }>`
  * case-sensitive — a service method is `onOrderStatus`, not `ONORDERSTATUS` —
  * and the item heading is a value.
  */
-const StyledFieldLabel = styled(StyledRowLabel)<{ $opacity: number }>`
+const StyledFieldLabelBase = styled(StyledRowLabel)<{ $calm?: boolean; $opacity: number }>`
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  /* Calm: the name as written. The calm look forces nothing into capitals, and
+     its detail pages no longer do either, so the vocabulary this label borrows
+     is sentence case there too. */
+  text-transform: ${({ $calm }) => ($calm ? 'none' : 'uppercase')};
+  letter-spacing: ${({ $calm }) => ($calm ? 'normal' : '0.06em')};
   opacity: ${({ $opacity }) => $opacity};
 `;
+
+/** The record field label in the form's appearance — see `StyledFieldLabelBase`. Calm draws
+ *  it a little less faded (0.7 against the classic 0.55), raised as far as the theme needs to
+ *  keep it readable, as the classic `$opacity` is. */
+const StyledFieldLabel = (
+  props: Omit<React.ComponentProps<typeof StyledFieldLabelBase>, '$calm'>
+) => {
+  const calm = useIsCalmForm();
+  const calmOpacity = useReadableOpacity(0.7);
+
+  return (
+    <StyledFieldLabelBase {...props} $calm={calm} $opacity={calm ? calmOpacity : props.$opacity} />
+  );
+};
 
 const StyledFields = styled.div`
   /* The supporting fields step in under the heading, so the heading keeps the

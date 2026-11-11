@@ -39,14 +39,19 @@ beforeEach(() => {
 });
 
 describe('a field of a type the auto field has no editor of', () => {
-  it('is edited as text where its base type is text: a string format type', () => {
-    field({ type: 'email', defaultType: 'email', base_type: 'string', value: 'ops@example.com' });
+  it('is edited as text where its base type is text: a user type of text', () => {
+    /* Not a string format such as `email`: those have an editor of their own, one line of text
+       (autoFieldSemanticStringTypes), which they keep whatever their base type (below). */
+    field({
+      type: 'qoretechnologies/ticket-ref' as never,
+      defaultType: 'qoretechnologies/ticket-ref' as never,
+      base_type: 'string',
+      value: 'TCK-7',
+    });
 
     expect(screen.queryByText('Unknown type!')).toBeNull();
     expect(drawn.longString.length).toBeGreaterThan(0);
-    drawn.longString.forEach((props) =>
-      expect(props).toMatchObject({ type: 'string', value: 'ops@example.com' })
-    );
+    drawn.longString.forEach((props) => expect(props).toMatchObject({ type: 'string', value: 'TCK-7' }));
   });
 
   it('is edited as its base type: a user type of whole numbers', () => {

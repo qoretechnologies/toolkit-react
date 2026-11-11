@@ -233,6 +233,11 @@ numbers), and every action is a callback that may return a promise (the button s
 settles, and a rejection's message is shown). An action whose callback is not given does not
 appear. Neither makes a request of its own.
 
+Every word they draw (the verdict, the status, the actions, the confirm step, the help) is the
+`abTest` part of Reqraft's words: English unless the host gives its own with `setReqraftLabels({
+abTest: { … } })` (import it from `@qoretechnologies/reqraft`), and drawn again when it does. A
+card's own props (`detailsLabel`, `analyticsLabel`, `notSetUpText`, `handleLabel`) come first.
+
 ```tsx
 import { ExperimentsOverlay, useExperimentsAdmin } from '@qoretechnologies/reqraft/dist/tracking/ui';
 

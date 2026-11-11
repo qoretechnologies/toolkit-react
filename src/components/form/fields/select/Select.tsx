@@ -22,6 +22,8 @@ import {
   UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
 import { useUnavailableLabelOpacity } from './unavailableRow';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useIsCalmForm } from '../../engine/formAppearance';
 
 /** The color the anchored list of choices is drawn in. */
 export const ANCHORED_LIST_MAIN = '#010811';
@@ -55,7 +57,7 @@ export interface ISelectFormFieldProps {
   valueLabel?: string;
   /**
    * The value the list marks as held, for a list whose trigger does not draw it: the suggestions beside an editor
-   * that holds the field's value ("Saved & Suggested Values"). The trigger keeps its own name, and the list ticks
+   * that holds the field's value ("Saved & suggested values"). The trigger keeps its own name, and the list ticks
    * the suggestion the field holds, so a pick reads as replacing it (qorus#646, David: "if this option takes a
    * single value, then selecting another value should replace the one that's there").
    */
@@ -112,6 +114,11 @@ export const SelectFormField = memo(
     size: componentSize,
     ...rest
   }: ISelectFormFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
+    /* A chosen value's color where the caller gives none: blue in the classic look; none in the calm one, where blue
+       says only "a filter is on" and the value itself says what is chosen (as `useSelectedChoiceIntent` does for a
+       field's radios). The expression builder's operation is the case that was reported. */
+    const chosenIntent: TReqoreIntent | undefined = useIsCalmForm() ? undefined : 'info';
     // the name of an item that cannot be picked is dimmed, as far as it still reads (qorus#646)
     const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
@@ -480,7 +487,7 @@ export const SelectFormField = memo(
             itemHasError ? 'danger'
             : itemHasWarning ?
               'warning'
-            : (intent ?? 'info')
+            : (intent ?? chosenIntent)
           }
           disabled={false}
         />
@@ -492,7 +499,7 @@ export const SelectFormField = memo(
         <ReqoreTag
           {...(rest as any)}
           intent='muted'
-          label='No data available'
+          label={fieldWords.noDataAvailable}
           icon='ForbidLine'
           fixed
           size={componentSize}
@@ -567,7 +574,7 @@ export const SelectFormField = memo(
               : hasWarning(items, value) ?
                 'warning'
               : value ?
-                (intent ?? 'info')
+                (intent ?? chosenIntent)
               : intent
             }
             fluid={fluid}
@@ -595,7 +602,7 @@ export const SelectFormField = memo(
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || fieldWords.pleaseSelect
             : undefined}
           </ReqoreButton>
         : <ReqoreDropdown
@@ -633,14 +640,14 @@ export const SelectFormField = memo(
             intent={
               hasError(items, value) ? 'danger'
               : value ?
-                (intent ?? 'info')
+                (intent ?? chosenIntent)
               : intent
             }
           >
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || fieldWords.pleaseSelect
             : undefined}
           </ReqoreDropdown>
         }

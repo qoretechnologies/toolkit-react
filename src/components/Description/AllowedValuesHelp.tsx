@@ -4,11 +4,13 @@ import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import styled from 'styled-components';
 import { allowedValueName, allowedValueOf } from '../../helpers/allowedValues';
 import { markdownToProse } from '../../helpers/markdownText';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import { DEFAULT_FIELD_LABELS } from '../form/fields/labels';
 
-/** What help says to head the values a field holds one of. */
-export const ALLOWED_VALUES_HEADING = 'Allowed values';
-/** What help says to head the values a field offers, where it takes others too. */
-export const SUGGESTED_VALUES_HEADING = 'Suggested values';
+/** What help says to head the values a field holds one of: the English of `fields.allowedValues`. */
+export const ALLOWED_VALUES_HEADING = DEFAULT_FIELD_LABELS.allowedValues;
+/** What help says to head the values a field offers, where it takes others too: `fields.suggestedValues`. */
+export const SUGGESTED_VALUES_HEADING = DEFAULT_FIELD_LABELS.suggestedValues;
 
 const StyledAllowedValues = styled.div<{
   $text: string;
@@ -106,6 +108,7 @@ const rowOf = (entry: unknown) => {
  */
 export const AllowedValuesHelp = ({ values, suggested, compact }: IAllowedValuesHelpProps) => {
   const theme = useReqoreTheme();
+  const fieldWords = useReqraftLabels().fields;
   const text = getReadableColor(theme);
   if (!values.length) {
     return null;
@@ -123,17 +126,17 @@ export const AllowedValuesHelp = ({ values, suggested, compact }: IAllowedValues
       $compact={compact}
     >
       <div className='allowed-values-heading'>
-        {suggested ? SUGGESTED_VALUES_HEADING : ALLOWED_VALUES_HEADING}
+        {suggested ? fieldWords.suggestedValues : fieldWords.allowedValues}
       </div>
       <table className='allowed-values-table'>
         <thead>
           <tr>
-            <th scope='col'>Value</th>
+            <th scope='col'>{fieldWords.valueColumn}</th>
             {named ?
-              <th scope='col'>Name</th>
+              <th scope='col'>{fieldWords.nameColumn}</th>
             : null}
             {described ?
-              <th scope='col'>Description</th>
+              <th scope='col'>{fieldWords.descriptionColumn}</th>
             : null}
           </tr>
         </thead>

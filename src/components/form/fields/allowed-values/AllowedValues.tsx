@@ -2,8 +2,8 @@
 // (FIELD_STACK_REPORT batch). Markup, props and the debounced local-value
 // flow are preserved. Seams (IDE-only infrastructure, same classes as the
 // ExpressionBuilder port):
-// - `useSavedValues` — saved-values storage is IDE-only; `showSavedValues`
-//   stays in the interface but contributes no items.
+// - `useSavedValues` — saved-values storage is the host's; a field that shows
+//   saved values reads them from `SavedValuesContext` (see `savedValues.ts`).
 // - `useSubscriptionEvents` (CONNECTION_DELETED pruning) — dropped.
 // - `ConnectionManagement` per-item actions — dropped (actions omitted).
 // - `Select` → reqraft `SelectFormField` (`items` instead of `defaultItems`,
@@ -13,7 +13,7 @@ import {
   allowedValueOf,
   heldAllowedValue,
 } from '../../../../helpers/allowedValues';
-import { ReqoreCheckbox, ReqoreControlGroup, ReqoreSpan } from '@qoretechnologies/reqore';
+import { ReqoreCheckbox, ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
@@ -29,7 +29,10 @@ import {
 } from '../select/SelectCollection';
 import { ISelectFormFieldItem, SelectFormField as Select } from '../select/Select';
 import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
+import { ChoiceGroupHeading, useSelectedChoiceIntent } from '../ChoiceGroupHeading';
 import type { IReqraftAllowedValue } from '../Field';
+import { useSavedValueChoices } from './savedValues';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IFieldAllowedValuesProps extends Pick<
   IReqoreButtonProps,
@@ -83,6 +86,14 @@ export const rendersCreatableValueSelect = (
 ): boolean =>
   !!allowCreation && (type === 'string' || type === 'select-string') && count(items) > 0;
 
+/**
+ * Field types whose own editor draws their choices: an enum's radio group, and the
+ * multi-select a list of choices is picked with. For these the single-choice picker
+ * below is not the editor — drawn in its place, a field holding SEVERAL choices
+ * (a key's permissions) could be given only one.
+ */
+export const DRAWS_OWN_CHOICES_TYPES: readonly string[] = ['enum', 'select-array', 'multi-select'];
+
 export const FieldAllowedValuesCheckGroup = memo(
   ({
     items,
@@ -106,6 +117,9 @@ export const FieldAllowedValuesCheckGroup = memo(
      */
     label?: string;
   }) => {
+    const selectedChoiceIntent = useSelectedChoiceIntent();
+    const fieldWords = useReqraftLabels().fields;
+
     // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
     const unavailableOpacity = useReadableOpacity(0.55);
     // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
@@ -121,11 +135,11 @@ export const FieldAllowedValuesCheckGroup = memo(
     const anyChosen = (items ?? []).some((item) => isChosen(item.value));
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
-        <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
+        <ChoiceGroupHeading>
           {label ? `${label}:`
-          : multiSelect ? 'Select one or more:'
-          : 'Select one:'}
-        </ReqoreSpan>
+          : multiSelect ? fieldWords.selectOneOrMore
+          : fieldWords.selectOne}
+        </ChoiceGroupHeading>
         {items?.map((item, index) => {
           const unavailable = getSelectItemUnavailability(item);
           const choiceName = item.display_name || JSON.stringify(item.value);
@@ -168,7 +182,7 @@ export const FieldAllowedValuesCheckGroup = memo(
                  which keeps the pointer events the tooltip is read through.
                  It does not withhold `onClick` — the handler below does. */
               readOnly={rest.readOnly || !!unavailable}
-              intent={item.value === value ? 'info' : undefined}
+              intent={selectedChoiceIntent(item.value === value)}
               // `isEqual`, and only once there is a value to match. The single
               // -select branch compared JSON.stringify(value) with
               // JSON.stringify(item.value), and JSON.stringify(undefined) is
@@ -228,10 +242,13 @@ export const FieldAllowedValues = memo(
     readOnly,
     label,
   }: IFieldAllowedValuesProps) => {
+    const fieldWords = useReqraftLabels().fields;
     /* Resolved against the form this field stands in — the value's own
        `depends_on`, and a refusal the server had already decided. Both end up
        as one state on the item: no click handler, and a reason to read. */
     const availability = useAllowedValueAvailability(items as IReqraftAllowedValue[]);
+    const savedValues = useSavedValueChoices(type);
+    const offersSavedValues = !!showSavedValues && !readOnly && !disabled && count(savedValues) > 0;
 
     const fullItems = useMemo(() => {
       const result = [
@@ -257,12 +274,21 @@ export const FieldAllowedValues = memo(
         }),
       ] as ISelectFormFieldItem[];
 
+      if (offersSavedValues) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        result.push(...savedValues.map(({ valueType, ...saved }) => saved));
+      }
+
       return result;
-    }, [JSON.stringify(items), availability, type, value, showSavedValues, disabled, readOnly]);
+    }, [JSON.stringify(items), availability, type, value, offersSavedValues, savedValues]);
 
     const style = useMemo(() => ({ width: '100%' }), []);
 
-    if (!count(fullItems) || type === 'enum' || (!count(items) && !showSavedValues)) {
+    if (
+      !count(fullItems) ||
+      DRAWS_OWN_CHOICES_TYPES.includes(type as string) ||
+      (!count(items) && !offersSavedValues)
+    ) {
       return null;
     }
 
@@ -330,7 +356,7 @@ export const FieldAllowedValues = memo(
         forceDropdown={forceDropdown}
         style={style}
         minimal
-        placeholder={'Saved & Suggested Values'}
+        placeholder={fieldWords.savedAndSuggestedValues}
         size={size}
         disabled={disabled}
         icon='SaveFill'

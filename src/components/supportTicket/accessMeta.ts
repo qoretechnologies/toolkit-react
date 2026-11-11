@@ -1,7 +1,9 @@
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
+import type { ISupportTicketLabels } from './labels';
 import { ITicketEnumMeta, humaniseWireValue } from './meta';
-import type { TTicketViewerRole } from '../supportTicket/meta';
+import type { TTicketAttention, TTicketViewerRole } from '../supportTicket/meta';
 
 /*
  * The delegated-support-access vocabulary (qorus#692): how the account's access
@@ -55,9 +57,50 @@ export interface ISupportAccessMeta extends ITicketEnumMeta {
   description?: string;
 }
 
+/** The support-ticket words now (`setReqraftLabels`): every word here is read when it is asked for. */
+const ticketWords = (): ISupportTicketLabels => reqraftLabels().supportTicket;
+
+/**
+ * A mark whose label (and sentence) is read from the host's words each time it is read, so a vocabulary kept in a
+ * module-level map still says the words given now.
+ */
+const worded = (
+  word: (words: ISupportTicketLabels) => string,
+  intent: TReqoreIntent,
+  icon: IReqoreIconName,
+  description?: (words: ISupportTicketLabels) => string
+): ISupportAccessMeta => {
+  const meta: ISupportAccessMeta = {
+    get label() {
+      return word(ticketWords());
+    },
+    intent,
+    icon,
+  };
+  if (description) {
+    Object.defineProperty(meta, 'description', {
+      get: () => description(ticketWords()),
+      enumerable: true,
+    });
+  }
+  return meta;
+};
+
+/** A map of words read when an entry is read; an entry it does not have is undefined, as in a plain map. */
+const wordedMap = <K extends string>(
+  keys: readonly K[],
+  word: (words: ISupportTicketLabels, key: K) => string
+): Record<K, string> => {
+  const map = {} as Record<K, string>;
+  keys.forEach((key) =>
+    Object.defineProperty(map, key, { get: () => word(ticketWords(), key), enumerable: true })
+  );
+  return map;
+};
+
 /** `idle_paused` → "Idle paused": a wire value as words. */
 
-const UNKNOWN: ISupportAccessMeta = { label: 'Unknown', intent: 'muted', icon: 'QuestionLine' };
+const UNKNOWN: ISupportAccessMeta = worded((words) => words.unknownValue, 'muted', 'QuestionLine');
 
 const lookup =
   <K extends string>(table: Record<K, ISupportAccessMeta>) =>
@@ -67,92 +110,90 @@ const lookup =
       : ((table as Record<string, ISupportAccessMeta>)[value] ?? { ...UNKNOWN, label: humaniseWireValue(value) });
 
 export const SUPPORT_ACCESS_POLICY_META: Record<TSupportAccessPolicy, ISupportAccessMeta> = {
-  auto: {
-    label: 'Granted automatically',
-    intent: 'success',
-    icon: 'ShieldCheckLine',
-    description: 'Read-only access for Qorus Support is granted automatically on every ticket filed.',
-  },
-  ask: {
-    label: 'Ask the customer',
-    intent: 'info',
-    icon: 'QuestionAnswerLine',
-    description: 'Support asks on each ticket; the customer decides whether to grant access.',
-  },
-  never: {
-    label: 'Never',
-    intent: 'danger',
-    icon: 'ShieldCrossLine',
-    description: 'No workspace access for Qorus Support. Support asks for information in the thread instead.',
-  },
+  auto: worded(
+    (words) => words.accessPolicies.auto,
+    'success',
+    'ShieldCheckLine',
+    (words) => words.accessPolicyDescriptions.auto(words.supportName)
+  ),
+  ask: worded(
+    (words) => words.accessPolicies.ask,
+    'info',
+    'QuestionAnswerLine',
+    (words) => words.accessPolicyDescriptions.ask(words.supportName)
+  ),
+  never: worded(
+    (words) => words.accessPolicies.never,
+    'danger',
+    'ShieldCrossLine',
+    (words) => words.accessPolicyDescriptions.never(words.supportName)
+  ),
 };
 /** The setting's mark; an unknown value still reads as words. */
 export const supportAccessPolicyMeta = lookup(SUPPORT_ACCESS_POLICY_META);
 
-export const SUPPORT_ACCESS_POLICY_SOURCE_LABEL: Record<TSupportAccessPolicySource, string> = {
-  default: 'the default, never chosen',
-  signup: 'chosen at sign-up',
-  prompt: 'chosen when first asked',
-  settings: 'chosen in the account settings',
-  admin: 'set by Qorus staff',
-  owner: "the workspace owner's stricter setting",
-};
+export const SUPPORT_ACCESS_POLICY_SOURCE_LABEL: Record<TSupportAccessPolicySource, string> = wordedMap(
+  ['default', 'signup', 'prompt', 'settings', 'admin', 'owner'],
+  (words, source) => words.accessPolicySources[source]
+);
 export const supportAccessPolicySourceLabel = (source: string | undefined): string =>
   (source && (SUPPORT_ACCESS_POLICY_SOURCE_LABEL as Record<string, string>)[source]) ||
   humaniseWireValue(source ?? '');
 
 export const SUPPORT_GRANT_STATE_META: Record<TSupportGrantState, ISupportAccessMeta> = {
-  active: { label: 'Active', intent: 'success', icon: 'ShieldCheckLine' },
-  revoked: { label: 'Revoked', intent: 'danger', icon: 'ShieldCrossLine' },
-  expired: { label: 'Expired', intent: 'muted', icon: 'HourglassLine' },
+  active: worded((words) => words.grantStates.active, 'success', 'ShieldCheckLine'),
+  revoked: worded((words) => words.grantStates.revoked, 'danger', 'ShieldCrossLine'),
+  expired: worded((words) => words.grantStates.expired, 'muted', 'HourglassLine'),
 };
 export const supportGrantStateMeta = lookup(SUPPORT_GRANT_STATE_META);
 
 /** How a grant ended, as what follows "Access": "ended by the customer", "ran out". */
-export const SUPPORT_GRANT_END_CAUSE_LABEL: Record<TSupportGrantEndCause, string> = {
-  customer_revoked: 'ended by the customer',
-  staff_revoked: 'ended by support',
-  superseded: 'extended into a new grant',
-  ticket_resolved: 'ended when the ticket was resolved',
-  ticket_closed: 'ended when the ticket was closed',
-  policy_changed: "ended when the account's setting changed",
-  account_erased: 'ended when the account was erased',
-  workspace_deleted: 'ended when the workspace was deleted',
-  expired: 'ran out',
-};
+export const SUPPORT_GRANT_END_CAUSE_LABEL: Record<TSupportGrantEndCause, string> = wordedMap(
+  [
+    'customer_revoked',
+    'staff_revoked',
+    'superseded',
+    'ticket_resolved',
+    'ticket_closed',
+    'policy_changed',
+    'account_erased',
+    'workspace_deleted',
+    'expired',
+  ],
+  (words, cause) => words.grantEndCauses[cause]
+);
 /**
  * The cause as the viewer reads it: the customer who ended it reads "ended by you", and
  * reads staff as "Qorus Support", as everywhere on the customer surface.
  */
 export const supportGrantEndCauseLabel = (cause?: string, viewerRole?: TTicketViewerRole): string | undefined => {
   if (!cause) return undefined;
-  if (viewerRole === 'customer' && cause === 'customer_revoked') return 'ended by you';
-  if (viewerRole === 'customer' && cause === 'staff_revoked') return 'ended by Qorus Support';
+  const words = ticketWords();
+  if (viewerRole === 'customer' && cause === 'customer_revoked') return words.endedByYou;
+  if (viewerRole === 'customer' && cause === 'staff_revoked') return words.endedBySupport(words.supportName);
   return (SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseWireValue(cause);
 };
 
-export const SUPPORT_ACCESS_DURATION_LABEL: Record<TSupportAccessDuration, string> = {
-  '24h': '24 hours',
-  '72h': '3 days',
-  '7d': '7 days',
-  until_resolved: 'until the ticket is resolved',
-};
+export const SUPPORT_ACCESS_DURATION_LABEL: Record<TSupportAccessDuration, string> = wordedMap(
+  ['24h', '72h', '7d', 'until_resolved'],
+  (words, duration) => words.accessDurations[duration]
+);
 export const supportAccessDurationLabel = (duration: string | undefined): string =>
   (duration && (SUPPORT_ACCESS_DURATION_LABEL as Record<string, string>)[duration]) ||
   humaniseWireValue(duration ?? '');
 
 /** The grant's own trail, as a customer's access log or a staff access view lists it. */
 export const SUPPORT_ACCESS_AUDIT_ACTION_META: Record<TSupportAccessAuditAction, ISupportAccessMeta> = {
-  policy_set: { label: 'Setting changed', intent: 'info', icon: 'Settings3Line' },
-  access_requested: { label: 'Access requested', intent: 'pending', icon: 'ShieldUserLine' },
-  granted: { label: 'Access granted', intent: 'success', icon: 'ShieldCheckLine' },
-  extended: { label: 'Access extended', intent: 'info', icon: 'TimerLine' },
-  revoked: { label: 'Access ended', intent: 'danger', icon: 'ShieldCrossLine' },
-  expired: { label: 'Access expired', intent: 'muted', icon: 'HourglassLine' },
-  used: { label: 'Workspace read', intent: 'info', icon: 'EyeLine' },
-  use_refused: { label: 'Read refused', intent: 'warning', icon: 'ForbidLine' },
-  session_started: { label: 'IDE session started', intent: 'info', icon: 'ExternalLinkLine' },
-  session_ended: { label: 'IDE session ended', intent: 'muted', icon: 'LogoutBoxLine' },
+  policy_set: worded((words) => words.accessAuditActions.policy_set, 'info', 'Settings3Line'),
+  access_requested: worded((words) => words.accessAuditActions.access_requested, 'pending', 'ShieldUserLine'),
+  granted: worded((words) => words.accessAuditActions.granted, 'success', 'ShieldCheckLine'),
+  extended: worded((words) => words.accessAuditActions.extended, 'info', 'TimerLine'),
+  revoked: worded((words) => words.accessAuditActions.revoked, 'danger', 'ShieldCrossLine'),
+  expired: worded((words) => words.accessAuditActions.expired, 'muted', 'HourglassLine'),
+  used: worded((words) => words.accessAuditActions.used, 'info', 'EyeLine'),
+  use_refused: worded((words) => words.accessAuditActions.use_refused, 'warning', 'ForbidLine'),
+  session_started: worded((words) => words.accessAuditActions.session_started, 'info', 'ExternalLinkLine'),
+  session_ended: worded((words) => words.accessAuditActions.session_ended, 'muted', 'LogoutBoxLine'),
 };
 /** An action the plane writes that this vocabulary has not caught up with still renders. */
 export const supportAccessAuditActionMeta = (action: string): ISupportAccessMeta =>
@@ -196,7 +237,7 @@ export const formatRelativeTime = (iso: string | undefined, now: number, locale 
   const seconds = Math.round((then - now) / 1000);
   if (seconds >= 0 && seconds < CLOCK_TICK_SECONDS) {
     return locale === 'en'
-      ? 'just now'
+      ? ticketWords().justNow
       : new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(0, 'second');
   }
   for (const [unit, secondsInUnit] of RELATIVE_UNITS) {
@@ -232,8 +273,16 @@ export const grantTimeIntent = (expiresAt: string | undefined, now: number): TRe
   return left < EXPIRING_SOON_MS ? 'warning' : 'success';
 };
 
-/** The grantee, as every surface names the support team. */
-const GRANTEE = 'Qorus Support';
+/**
+ * The calm look's reading of the same clock: a grant that runs is a fact nobody has to act
+ * on, one ending within the hour needs the person looking, one whose time passed is over.
+ */
+export const grantTimeAttention = (expiresAt: string | undefined, now: number): TTicketAttention => {
+  const left = millisUntil(expiresAt, now);
+  if (Number.isNaN(left)) return 'quiet';
+  if (left <= 0) return 'idle';
+  return left < EXPIRING_SOON_MS ? 'warn' : 'quiet';
+};
 
 /**
  * The line of a delegated-access event in a thread, read from the viewer's side. The plane records
@@ -251,5 +300,7 @@ export const supportAccessEventText = (
   const cause = message.system_detail?.end_cause;
   const ended = message.system_event === 'support_access.revoked' || message.system_event === 'support_access.expired';
   if (!ended || typeof cause !== 'string' || !(cause in SUPPORT_GRANT_END_CAUSE_LABEL)) return message.body;
-  return `${GRANTEE}'s read-only access to this workspace ${supportGrantEndCauseLabel(cause, viewerRole)}.`;
+  const words = ticketWords();
+  // the grantee, as every surface names the support team
+  return words.accessEndedEvent(words.supportName, supportGrantEndCauseLabel(cause, viewerRole) ?? '');
 };

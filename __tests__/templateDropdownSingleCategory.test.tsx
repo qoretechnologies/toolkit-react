@@ -57,7 +57,7 @@ describe('templateItemsToShow', () => {
  * Where the rule is applied, and why it is applied THERE.
  *
  * Every picker this control offers reads the same resolved template list — the
- * "Select Template" dropdown, the in-editor `$` list, the numeric field's focus
+ * "Select template" dropdown, the in-editor `$` list, the numeric field's focus
  * dropdown, the expression builder's argument picker. Applying the rule per
  * picker meant each new one had to remember; the ones that forgot made the
  * author click through a header naming the only category on offer to reach the

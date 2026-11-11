@@ -36,7 +36,12 @@ import {
   templateNodeFor,
   unbracedReference,
 } from '../../../../helpers/templateTree';
-import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME } from '../../../smartEditor/completionStyle';
+import {
+  COMPLETION_ITEM_STYLE,
+  listKindIntent,
+  useCompletionListTheme,
+} from '../../../smartEditor/completionStyle';
+import { useIsCalmForm } from '../../engine/formAppearance';
 import { SMART_EDITOR_OVERLAY_EFFECT } from '../../../smartEditor/styling';
 import { useTypeLabel } from '../../typeSentenceForm';
 import {
@@ -92,6 +97,12 @@ export interface ITemplatePickerProps {
    */
   arrowsFromPage?: boolean;
   /**
+   * With `keysFromPage`: told in the commit the picker starts hearing the page's keys. A picker is drawn some
+   * commits after it is asked for (a popover opens once it is mounted); whoever opened it hears the keys until
+   * then, and hands them on now (`useLspAutocomplete`'s `pickerHears`), so a key pressed in between is not lost.
+   */
+  onKeysHeard?: () => void;
+  /**
    * Fills the surface it is drawn in (a dropdown's popover, as wide as its field within the popover's bounds)
    * instead of keeping its own width, which left the popover's far side empty (qorus#646, David's review).
    */
@@ -129,15 +140,22 @@ const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
  * A row's badges: what it is (State data, Context, Field...) and its type, named; a group's app, as its catalogue
  * badges it (the app it comes from, never a type: qorus#646, 8909de2f).
  */
-const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel): TReqoreBadge[] => {
+const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel, calm: boolean): TReqoreBadge[] => {
   const kind = templateNodeKindLabel(node.kind);
   const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
   const app = !node.row?.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
   return [
     ...(app ? [{ label: app, minimal: true, size: 'small' as const }] : []),
     ...(kind ?
-      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`)
-      [{ label: kind, minimal: true, size: 'small' as const, intent: templateNodeIntent(node) }]
+      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`); none in the calm look (`listKindIntent`)
+      [
+        {
+          label: kind,
+          minimal: true,
+          size: 'small' as const,
+          intent: listKindIntent(templateNodeIntent(node), calm),
+        },
+      ]
     : []),
     ...(type ? [{ label: type, minimal: true, size: 'small' as const }] : []),
   ] as TReqoreBadge[];
@@ -158,6 +176,7 @@ const RowDescription = ({
   showWhere: boolean;
   renderMarkdown?: TMarkdownRenderer;
 }) => {
+  const editorWords = useReqraftLabels().editor;
   const where = showWhere && node.trail.length ? node.trail.join(' › ') : undefined;
   if (!where && !node.description && !node.source) {
     return null;
@@ -166,7 +185,7 @@ const RowDescription = ({
     <span className='template-picker-row-description' style={{ display: 'block' }}>
       {where ?
         <span className='template-picker-row-where' style={{ display: 'block', opacity: 0.7 }}>
-          in {where}
+          {editorWords.inTrail(where)}
         </span>
       : null}
       {node.description ?
@@ -179,7 +198,7 @@ const RowDescription = ({
       : null}
       {node.source ?
         <span className='template-picker-row-source' style={{ display: 'block', opacity: 0.7 }}>
-          from {node.source}
+          {editorWords.fromSource(node.source)}
         </span>
       : null}
     </span>
@@ -255,12 +274,16 @@ export const TemplatePicker = memo(
     focusFilter,
     keysFromPage,
     arrowsFromPage,
+    onKeysHeard,
     fill,
     id,
     typeLabel: givenTypeLabel,
     labels,
   }: ITemplatePickerProps) => {
     const browserWords = useReqraftLabels().templateBrowser;
+    // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
+    const listTheme = useCompletionListTheme();
+    const calm = useIsCalmForm();
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
@@ -391,8 +414,10 @@ export const TemplatePicker = memo(
     );
     const visible = rows.slice(0, shown);
 
-    // a new level or search starts at its top, or at the value already chosen
-    useEffect(() => {
+    /* a new level or search starts at its top, or at the value already chosen - in the commit that draws it, before
+       the page's keys are heard (below): a passive effect ran after the keys heard on the picker's first commit, and
+       put the keyboard's row back at the top under an arrow already pressed */
+    useLayoutEffect(() => {
       setShown(TEMPLATE_PICKER_PAGE);
       const chosen = selectedValue ? templateNodeFor(visible, selectedValue) : undefined;
       const at = chosen ? visible.indexOf(chosen) : -1;
@@ -534,10 +559,12 @@ export const TemplatePicker = memo(
     // heard from the page while the text the picker was opened from keeps the focus
     const handleKeyRef = useRef(handleKey);
     handleKeyRef.current = handleKey;
-    /* A layout effect: the picker hears the page's keys from the commit that puts it in the page. The editor hears
-       an Escape while no picker is in the page (`useLspAutocomplete`); a passive effect left a moment between the two
-       in which the picker was drawn and deaf, and an Escape then was lost (CI, DpqlEditor › An Emptied Field Opens
-       The Picker). */
+    const onKeysHeardRef = useRef(onKeysHeard);
+    onKeysHeardRef.current = onKeysHeard;
+    /* Heard from the commit that draws the picker, not after it is painted: a passive effect left a window in which
+       the rows were on the page and a key was not heard - an Escape pressed then left the picker open. Before that
+       commit, whoever opened the picker hears its keys and hands them on now (`onKeysHeard`; CI, DpqlEditor › An
+       Emptied Field Opens The Picker). */
     useLayoutEffect(() => {
       if (!keysFromPage) return undefined;
       const listener = (event: KeyboardEvent) => {
@@ -552,6 +579,8 @@ export const TemplatePicker = memo(
         }
       };
       document.addEventListener('keydown', listener, true);
+      // heard from now on: whoever opened the picker hands on what it heard until now
+      onKeysHeardRef.current?.();
       return () => document.removeEventListener('keydown', listener, true);
     }, [keysFromPage, arrowsFromPage]);
 
@@ -589,7 +618,7 @@ export const TemplatePicker = memo(
         style={{
           width: fill ? '100%' : TEMPLATE_PICKER_WIDTH,
           maxWidth: '100%',
-          background: COMPLETION_LIST_THEME.main as string,
+          background: listTheme.main as string,
           borderRadius: 6,
         }}
         onKeyDown={(event) => {
@@ -605,7 +634,7 @@ export const TemplatePicker = memo(
             keepTheFocus(event);
         }}
       >
-        <ReqoreControlGroup vertical fluid size='small' customTheme={COMPLETION_LIST_THEME}>
+        <ReqoreControlGroup vertical fluid size='small' customTheme={listTheme}>
           <ReqoreControlGroup
             fluid
             wrap
@@ -785,7 +814,7 @@ export const TemplatePicker = memo(
           maxHeight={`${listHeight}px`}
           width='100%'
           effect={SMART_EDITOR_OVERLAY_EFFECT}
-          customTheme={COMPLETION_LIST_THEME}
+          customTheme={listTheme}
         >
           {!visible.length && !shownFailure ?
             <ReqoreMenuItem
@@ -828,7 +857,7 @@ export const TemplatePicker = memo(
                     renderMarkdown={renderMarkdown}
                   />
                 }
-                badge={rowBadges(node, typeLabel) as any}
+                badge={rowBadges(node, typeLabel, calm) as any}
                 /* a group opens; a context only the server knows goes on into what is in it as it is typed. One whose
                    catalogue lists nothing in it is no submenu: what follows it is written (`$rest:`) */
                 rightIcon={group || (node.continues && !node.catalogue) ? 'ArrowRightSLine' : undefined}

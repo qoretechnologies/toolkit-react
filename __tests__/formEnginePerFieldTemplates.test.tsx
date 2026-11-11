@@ -77,7 +77,7 @@ describe('a field may declare templates of its own', () => {
        the reported symptom.
     
        Asserted as the ABSENCE of the type question rather than the presence of
-       "Select Template": an untyped field is typable now, so its templates
+       "Select template": an untyped field is typable now, so its templates
        arrive in an editor that offers them on focus rather than in a pick-only
        dropdown. The case with no templates anywhere is the test just below:
        an untyped field never asks for a data type, with or without a list. */
@@ -106,7 +106,7 @@ describe('a field may declare templates of its own', () => {
     // no empty template picker either.
     expect(queryByText('Please select data type')).toBeNull();
     expect(container.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]')).toBeTruthy();
-    expect(container.textContent).not.toContain('Select Template');
+    expect(container.textContent).not.toContain('Select template');
   });
 
   it('reads a value from the field\'s own list as its display name, not the raw reference', async () => {

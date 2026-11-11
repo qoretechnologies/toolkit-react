@@ -4,6 +4,7 @@
  * contract). Optional: the card and the overlay only take data and callbacks, so a product can
  * reach its server any other way.
  */
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import type {
   IAdminExperiment,
   IExperimentEntry,
@@ -85,14 +86,10 @@ export const createExperimentsAdminClient = (
     if (!res.ok) {
       const code = parsed?.err ?? parsed?.error;
       if (res.status === 401 || res.status === 403) {
-        throw new ExperimentsAdminError(
-          'Not allowed to manage A/B tests on this server (the API key is missing or wrong).',
-          res.status,
-          code
-        );
+        throw new ExperimentsAdminError(reqraftLabels().abTest.notAllowed, res.status, code);
       }
       throw new ExperimentsAdminError(
-        parsed?.desc ?? parsed?.message ?? code ?? `HTTP ${res.status}`,
+        parsed?.desc ?? parsed?.message ?? code ?? reqraftLabels().abTest.requestFailed(res.status),
         res.status,
         code
       );

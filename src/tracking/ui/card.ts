@@ -2,8 +2,11 @@
  * What the A/B test card shows, as plain functions of the qorus-api objects: the version rows,
  * the verdict, the numbers line, the bars, the status tag, which actions a status allows, and
  * the words of the confirm step and of the outcome. No React, no DOM (unit-tested in
- * `__tests__/tracking/card.test.ts`).
+ * `__tests__/tracking/card.test.ts`). The words are the host's (`reqraftLabels().abTest`), read
+ * each time a function runs.
  */
+import { reqraftLabels } from '../../helpers/reqraftLabels';
+import { DEFAULT_AB_TEST_LABELS } from './labels';
 import type {
   IAdminVariant,
   IExperimentEntry,
@@ -40,7 +43,7 @@ export interface IVersionRow {
 export const primaryMetric = (results: IExperimentResults | null | undefined) =>
   results?.metrics?.find((m) => m.role === 'primary') ?? null;
 
-export const versionName = (key: string) => `Version ${key.toUpperCase()}`;
+export const versionName = (key: string) => reqraftLabels().abTest.versionName(key.toUpperCase());
 
 /**
  * One row per version. Keys come from the server's experiment when there is one, otherwise from
@@ -72,44 +75,44 @@ export const versionRows = (
 
 const nameOf = (entry: IExperimentEntry, key: string | null | undefined) =>
   entry.experiment.variants.find((v) => v.key === key)?.name ||
-  (key ? versionName(key) : 'a version');
+  (key ? versionName(key) : reqraftLabels().abTest.someVersion);
 
-/** The verdict in plain words: the server's sentence when it sends one. */
-/** The test is in the page's code, but the analytics service does not know it (or cannot be reached). */
-export const NOT_SET_UP_TEXT =
-  "This test is in the page's code but isn't set up yet: ask the Designer to set it up. Until then you can switch versions here, but nothing is counted.";
-export const UNREACHABLE_TEXT =
-  "Can't reach the analytics service right now, so there are no numbers and no test controls. You can still switch versions here; try again in a minute.";
+/** @deprecated The English of `abTest.notSetUp`; what is drawn is in the host's words (`setReqraftLabels`). */
+export const NOT_SET_UP_TEXT = DEFAULT_AB_TEST_LABELS.notSetUp;
+/** @deprecated The English of `abTest.unreachable`; what is drawn is in the host's words. */
+export const UNREACHABLE_TEXT = DEFAULT_AB_TEST_LABELS.unreachable;
+/** @deprecated The English of `abTest.statuses`; what is drawn is in the host's words. */
+export const STATUS_LABEL: Record<TExperimentStatus, string> = DEFAULT_AB_TEST_LABELS.statuses;
 
 /**
  * The verdict in plain words: the server's sentence when it sends one. Without a server entry:
- * `unreachable` (the list could not be loaded) or not set up yet (`notSetUpText`).
+ * `unreachable` (the list could not be loaded) or not set up yet (`notSetUpText`, else the
+ * host's words).
  */
 export const verdictLine = (
   entry: IExperimentEntry | undefined,
-  {
-    unreachable = false,
-    notSetUpText = NOT_SET_UP_TEXT,
-  }: { unreachable?: boolean; notSetUpText?: string } = {}
+  { unreachable = false, notSetUpText }: { unreachable?: boolean; notSetUpText?: string } = {}
 ): string => {
-  if (!entry) return unreachable ? UNREACHABLE_TEXT : notSetUpText;
+  const words = reqraftLabels().abTest;
+  if (!entry) return unreachable ? words.unreachable : (notSetUpText ?? words.notSetUp);
   const { experiment: e, results } = entry;
   if (results?.verdict_text) return results.verdict_text;
-  if (e.status === 'concluded')
-    return `Finished: ${nameOf(entry, e.winner)} won, and every visitor now sees it.`;
-  if (e.status === 'draft')
-    return 'Not started yet: press Start test to split visitors between the versions.';
-  if (!results) return 'No numbers yet.';
+  if (e.status === 'concluded') return words.verdictConcluded(nameOf(entry, e.winner));
+  if (e.status === 'draft') return words.verdictDraft;
+  if (!results) return words.verdictNoNumbers;
   const control = e.variants.find((v) => v.control)?.key;
   switch (results.verdict) {
     case 'likely-winner':
-      return `${nameOf(entry, results.winner_variant)} is likely better than ${nameOf(entry, control)}.`;
+      return words.verdictLikelyWinner(
+        nameOf(entry, results.winner_variant),
+        nameOf(entry, control)
+      );
     case 'likely-loser':
-      return `The new versions are likely worse than ${nameOf(entry, control)}.`;
+      return words.verdictLikelyLoser(nameOf(entry, control));
     case 'no-clear-difference':
-      return 'No clear difference between the versions yet.';
+      return words.verdictNoClearDifference;
     default:
-      return 'Too early to tell.';
+      return words.verdictTooEarly;
   }
 };
 
@@ -124,16 +127,16 @@ export const count = (n: number | null | undefined) =>
  * words when there is nothing to count yet, never a row of dashes.
  */
 export const numbersLine = (row: IVersionRow, metricName?: string, status?: TExperimentStatus) => {
+  const words = reqraftLabels().abTest;
   if (!row.visitors) {
-    if (status === 'draft') return 'Not started: no visitors yet';
-    return row.visitors === 0 ? 'No visitors yet' : 'No numbers yet';
+    if (status === 'draft') return words.numbersNotStarted;
+    return row.visitors === 0 ? words.numbersNoVisitors : words.numbersNone;
   }
   const parts = [
-    `${count(row.visitors)} visitors`,
-    `${percent(row.conversion)} ${metricName ? `“${metricName}”` : 'conversion'}`,
+    words.visitorCount(row.visitors, count(row.visitors)),
+    words.conversion(percent(row.conversion), metricName || null),
   ];
-  if (!row.control && row.chance != null)
-    parts.push(`${percent(row.chance, 0)} chance to beat the original`);
+  if (!row.control && row.chance != null) parts.push(words.chanceToBeat(percent(row.chance, 0)));
   return parts.join(' · ');
 };
 
@@ -157,15 +160,6 @@ export const verdictIntent = (
   );
 };
 
-export const STATUS_LABEL: Record<TExperimentStatus, string> = {
-  draft: 'Draft',
-  running: 'Running',
-  paused: 'Paused',
-  stopped: 'Stopped',
-  concluded: 'Ended',
-  archived: 'Archived',
-};
-
 export type TStatusIntent = 'success' | 'warning' | 'danger' | 'muted';
 
 /** The status tag: its words (with the phase after a removal), its icon and its color. */
@@ -173,13 +167,15 @@ export const statusTag = (
   entry: IExperimentEntry | undefined,
   unreachable = false
 ): { label: string; icon: string; intent: TStatusIntent } => {
+  const words = reqraftLabels().abTest;
   if (!entry) {
     return unreachable ?
-        { label: 'No connection', icon: 'WifiOffLine', intent: 'warning' }
-      : { label: 'Not set up', icon: 'QuestionLine', intent: 'muted' };
+        { label: words.statusNoConnection, icon: 'WifiOffLine', intent: 'warning' }
+      : { label: words.statusNotSetUp, icon: 'QuestionLine', intent: 'muted' };
   }
   const { status, phase } = entry.experiment;
-  const label = `${STATUS_LABEL[status] ?? status}${phase && phase > 1 ? ` · phase ${phase}` : ''}`;
+  const named = words.statuses[status] ?? status;
+  const label = phase && phase > 1 ? words.statusInPhase(named, phase) : named;
   switch (status) {
     case 'running':
       return { label, icon: 'PlayCircleLine', intent: 'success' };
@@ -206,12 +202,13 @@ export const confirmCopy = (
   entry: IExperimentEntry,
   variant: string
 ): IConfirmCopy => {
+  const words = reqraftLabels().abTest;
   const name = nameOf(entry, variant);
   if (action === 'accept') {
     return {
-      title: `Make “${name}” the winner?`,
-      description: `This ends the test. From then on every visitor sees “${name}”. A developer removes the other versions' code later.`,
-      confirmLabel: `Accept ${name}`,
+      title: words.acceptTitle(name),
+      description: words.acceptDescription(name),
+      confirmLabel: words.acceptConfirm(name),
     };
   }
   const rest = entry.experiment.variants.filter((v) => v.key !== variant);
@@ -219,52 +216,52 @@ export const confirmCopy = (
   if (rest.length === 1) {
     const last = nameOf(entry, rest[0].key);
     return {
-      title: `Remove “${name}”?`,
-      description: `Only “${last}” would be left, so it becomes the winner and the test ends. Every visitor then sees “${last}”.`,
-      confirmLabel: `Remove and accept ${last}`,
+      title: words.removeLastTitle(name),
+      description: words.removeLastDescription(last),
+      confirmLabel: words.removeLastConfirm(last),
     };
   }
   return {
-    title: `Remove “${name}” from the test?`,
+    title: words.removeTitle(name),
     description:
       entry.experiment.status === 'draft' ?
-        `The test will start without “${name}”.`
-      : `Nobody sees “${name}” any more. The test starts counting again with the remaining versions, so the numbers start from zero.`,
-    confirmLabel: `Remove ${name}`,
+        words.removeDraftDescription(name)
+      : words.removeDescription(name),
+    confirmLabel: words.removeConfirm(name),
   };
 };
 
 /** What the confirm step says before Start / Pause / Stop. */
 export const lifecycleCopy = (action: TLifecycleAction, entry: IExperimentEntry): IConfirmCopy => {
+  const words = reqraftLabels().abTest;
   const e = entry.experiment;
   const name = e.name || e.key;
-  const versions = e.variants.map((v) => `“${v.name || v.key}”`).join(' and ');
+  const versions = words.versionList(e.variants.map((v) => v.name || v.key));
   switch (action) {
     case 'start':
       return e.status === 'paused' ?
           {
-            title: `Resume “${name}”?`,
-            description: `Visitors are split between ${versions} again and counted.`,
-            confirmLabel: 'Resume the test',
+            title: words.resumeTitle(name),
+            description: words.resumeDescription(versions),
+            confirmLabel: words.resumeConfirm,
           }
         : {
-            title: `Start “${name}”?`,
-            description: `From now on, visitors who allow analytics are split between ${versions}, and each version's numbers are counted. You can pause or stop it at any time.`,
-            confirmLabel: 'Start the test',
+            title: words.startTitle(name),
+            description: words.startDescription(versions),
+            confirmLabel: words.startConfirm,
           };
     case 'pause':
       return {
-        title: `Pause “${name}”?`,
-        description: `Everybody sees the original, “${nameOf(entry, e.variants.find((v) => v.control)?.key)}”, and nothing is counted until you resume it.`,
-        confirmLabel: 'Pause the test',
+        title: words.pauseTitle(name),
+        description: words.pauseDescription(nameOf(entry, e.variants.find((v) => v.control)?.key)),
+        confirmLabel: words.pauseConfirm,
       };
     case 'stop':
     default:
       return {
-        title: `Stop “${name}”?`,
-        description:
-          'The test ends without a winner and cannot be started again; everybody sees the original. To end it with a winner, use Accept instead.',
-        confirmLabel: 'Stop the test',
+        title: words.stopTitle(name),
+        description: words.stopDescription,
+        confirmLabel: words.stopConfirm,
       };
   }
 };
@@ -277,9 +274,9 @@ export const actionOutcome = (
 ): string => {
   const winner =
     result?.variants?.find((v) => v.key === result.winner)?.name || result?.winner || variant;
-  if (action === 'accept' || result?.auto_accepted)
-    return `The test has ended: every visitor now sees “${winner}”.`;
-  return 'The version is removed; the test goes on with the others.';
+  const words = reqraftLabels().abTest;
+  if (action === 'accept' || result?.auto_accepted) return words.outcomeEnded(winner);
+  return words.outcomeRemoved;
 };
 
 /**
@@ -294,7 +291,7 @@ export const phaseNote = (
   if (!e || !e.phase || e.phase < 2) return null;
   const current = e.phases?.find((p) => p.phase === e.phase);
   const removed = [...(e.history ?? [])].reverse().find((h) => h.action === 'remove-variant');
-  const who = removed?.actor && actorLabels[removed.actor] ? ` ${actorLabels[removed.actor]}` : '';
+  const who = removed?.actor && actorLabels[removed.actor] ? actorLabels[removed.actor] : null;
   const since =
     current?.started_at ?
       new Date(current.started_at).toLocaleDateString('en-GB', {
@@ -307,12 +304,14 @@ export const phaseNote = (
     removed?.variant ?
       e.phases?.flatMap((p) => p.variants).find((v) => v.key === removed.variant)?.name
     : undefined;
-  return `Counting since ${since ?? 'the last change'} (phase ${e.phase}): ${name ? `“${name}”` : 'a version'} was removed${who}.`;
+  return reqraftLabels().abTest.phaseNote({ since, phase: e.phase, name: name || null, who });
 };
 
 /** The note on an element whose test has ended. */
 export const winnerNote = (entry: IExperimentEntry | undefined, shown: string) =>
-  `Winner live: ${entry ? nameOf(entry, entry.experiment.winner ?? shown) : versionName(shown)} · code clean-up pending`;
+  reqraftLabels().abTest.winnerLive(
+    entry ? nameOf(entry, entry.experiment.winner ?? shown) : versionName(shown)
+  );
 
 // ── how many versions fit ───────────────────────────────────────────────────────
 
@@ -395,70 +394,45 @@ export interface IHelpSection {
 /** What the card's "?" explains, in plain words for a marketer. */
 export const helpSections = (
   entry: IExperimentEntry | undefined,
-  analyticsLabel = 'the admin portal'
+  analyticsLabel?: string
 ): IHelpSection[] => {
+  const words = reqraftLabels().abTest;
+  const place = analyticsLabel ?? words.analyticsPlace;
   const min = entry?.experiment.min_sample ?? DEFAULT_MIN_SAMPLE;
   const traffic = entry?.experiment.traffic;
-  const share =
-    traffic != null && traffic < 1 ?
-      `${Math.round(traffic * 100)}% of the visitors who allow analytics`
-    : 'every visitor who allows analytics';
   return [
+    { title: words.helpWhatTitle, paragraphs: [words.helpWhat, words.helpOriginal] },
     {
-      title: 'What this is',
+      title: words.helpButtonsTitle,
       paragraphs: [
-        'An A/B test shows different versions of this part of the page to different visitors and counts which version gets more of them to do what you want (the goal, for example starting a sign-up).',
-        'The "Original" is what the page showed before the test. The others are the new versions being tried.',
+        words.helpShow,
+        words.helpAnalytics(place),
+        words.helpAccept,
+        words.helpRemove,
+        words.helpLifecycle,
+        words.helpConfirm,
       ],
     },
     {
-      title: 'The buttons',
+      title: words.helpSplitTitle,
       paragraphs: [
-        'Click a version (or press Enter on it) to see it on this page. Only you see it, only in this browser, and it is never counted.',
-        "Show analytics (the chart icon) opens that version's numbers in " +
-          analyticsLabel +
-          '; the link in the footer opens the whole test.',
-        "Accept ends the test with that version as the winner: from then on every visitor sees it, and a developer removes the other versions' code later.",
-        'Remove (the bin icon) drops a version from the test. The counting starts again with the remaining versions, so their numbers restart from zero. When only one version would be left, it becomes the winner.',
-        'Start test begins splitting visitors and counting. Pause shows everyone the original and stops counting until you Resume. Stop ends the test without a winner, for good.',
-        'Every one of these asks you to confirm first.',
+        words.helpSplit(traffic != null && traffic < 1 ? Math.round(traffic * 100) : null),
+        words.helpCounted,
       ],
     },
     {
-      title: 'How visitors are split and counted',
-      paragraphs: [
-        `While the test runs, ${share} is put into one version at random and keeps seeing that same version on every visit. Visitors who decline analytics always see the original and are not counted.`,
-        'A visitor is counted for a version once they have actually seen this part of the page. A conversion is counted when that visitor later reaches the goal.',
-      ],
+      title: words.helpNumbersTitle,
+      paragraphs: [words.helpNumbers, words.helpChance, words.helpVerdict],
     },
     {
-      title: 'Reading the numbers',
+      title: words.helpTrustTitle,
       paragraphs: [
-        'Each version shows its visitors, its conversion (the share of its visitors who reached the goal) and a bar comparing it with the best version. The versions are sorted best first; "Leading" marks the one converting best so far.',
-        '"Chance to beat the original" is how likely that version really converts better than the original, given the numbers so far. 50% means we cannot tell them apart; 95% or more is a likely winner, marked "Winner"; 5% or less means it is likely worse.',
-        'The line at the top is the verdict in plain words: too early, a likely winner, likely worse, or no clear difference.',
+        words.helpTooEarly(min.per_variant, min.days),
+        words.helpUntrusted,
+        words.helpPhase,
       ],
     },
-    {
-      title: 'When you can trust the result',
-      paragraphs: [
-        `Early numbers jump around. The verdict stays "too early" until every version has at least ${min.per_variant} visitors and ${min.days} days have passed since the test started; only then is a winner named.`,
-        'If visitors are not split between the versions as set up, the verdict says the numbers cannot be trusted: that points to a tracking problem, not to a better version.',
-        'Removing a version starts a new count (a new phase), so only the numbers since then are shown.',
-      ],
-    },
-    {
-      title: 'Not set up yet?',
-      paragraphs: [
-        "A test can exist in the page's code before anyone registers it in the analytics service. Until it is set up (ask the Designer), you can switch its versions here, but nothing is counted and there are no numbers or controls.",
-        'When the analytics service cannot be reached, the card says so; the page itself works as usual and every visitor sees the original.',
-      ],
-    },
-    {
-      title: 'The full analytics',
-      paragraphs: [
-        `Every test and every version has its own page in ${analyticsLabel}: the numbers over time, the other goals, and how the test changed.`,
-      ],
-    },
+    { title: words.helpNotSetUpTitle, paragraphs: [words.helpNotSetUp, words.helpUnreachable] },
+    { title: words.helpFullTitle, paragraphs: [words.helpFull(place)] },
   ];
 };

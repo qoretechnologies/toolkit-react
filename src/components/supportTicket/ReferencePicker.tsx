@@ -4,11 +4,15 @@ import {
   ReqoreMenuItem,
   ReqoreModal,
   ReqoreSpinner,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { rgba } from 'polished';
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { usePhoneViewport } from '../../hooks/usePhoneViewport';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 import { READABLE_ICON } from '../../helpers/readableColors';
@@ -134,21 +138,22 @@ const Panes = styled.div`
  * instead keeps a focus cue without the box. The selector is scoped under this wrapper,
  * so it outranks Reqore's without `!important`.
  *
- * `$active` (the field has a query) holds the underline at full accent, so a filtered
- * list is legible as filtered at a glance — the same signal `intent='info'` carries on
- * a plain filter control, spoken in this surface's own accent.
+ * The line is the theme's neutral hairline, a step brighter on focus. Only `$active` (the
+ * field has a query) colours it, in `$accent` — blue by default, the same signal
+ * `intent='info'` carries on a plain filter control: blue says a filter is narrowing the
+ * list, and nothing else (instruction-files decision 001). It is never the product's
+ * purple, which a support surface does not wear (decision 002).
  */
-const Search = styled.div<{ $accent: string; $active?: boolean }>`
+const Search = styled.div<{ $accent: string; $line: string; $focus: string; $active?: boolean }>`
   padding: 6px 4px 4px;
-  border-bottom: 1px solid
-    ${({ $accent, $active }) => ($active ? $accent : `${$accent}80`)};
+  border-bottom: 1px solid ${({ $accent, $line, $active }) => ($active ? $accent : $line)};
   transition: border-color 0.15s ease-out;
 
   .reqore-control-wrapper:focus-within {
     outline: none;
   }
   &:focus-within {
-    border-bottom-color: ${({ $accent }) => $accent};
+    border-bottom-color: ${({ $accent, $focus, $active }) => ($active ? $accent : $focus)};
   }
 `;
 
@@ -157,8 +162,6 @@ const Note = styled.div<{ $opacity: number }>`
   padding: 8px 6px;
   font-size: 12px;
 `;
-
-const DEFAULT_ACCENT = '#762f7e';
 
 /*
  * How a picked row reads: `info`, tinted rather than filled.
@@ -254,7 +257,8 @@ export interface IReferencePickerProps {
    * vocabulary.
    */
   resolveKindLabel?: (kind: string) => string;
-  /** the underline / selected-kind color. Defaults to the support surfaces' violet. */
+  /** the search underline's colour while the list is filtered. Defaults to the theme's
+   *  `info` blue — the colour that says a filter is narrowing a list. */
   accent?: string;
   /** shown above the panes — the composer's picked-reference chips, typically */
   header?: ReactNode;
@@ -316,14 +320,23 @@ export const ReferencePicker = ({
   onRemove,
   disabled,
   resolveInterfaceIcon = defaultInterfaceIcon,
-  resolveKindLabel = defaultInterfaceKindLabel,
-  accent = DEFAULT_ACCENT,
+  resolveKindLabel: resolveKindLabelProp,
+  accent,
   header,
   onClose,
-  title = 'Reference interfaces',
+  title,
   layout = 'auto',
   presentation = 'auto',
 }: IReferencePickerProps) => {
+  const theme = useReqoreTheme();
+  const words = useReqraftLabels().supportTicket;
+  /* The built-in reading names are the host's words (`defaultInterfaceKindLabel` reads them), so the default is
+     made again when they change: the kinds are matched and listed by what is drawn. */
+  const resolveKindLabel = useMemo(
+    () => resolveKindLabelProp ?? ((candidate: string) => defaultInterfaceKindLabel(candidate)),
+    [resolveKindLabelProp, words]
+  );
+  const readable = getReadableColor(theme);
   const [query, setQuery] = useState<string>('');
   // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1; qorus#646)
   const noteOpacity = useReadableOpacity(0.4);
@@ -420,12 +433,12 @@ export const ReferencePicker = ({
 
   const emptyNote = () => {
     if (!needle) {
-      return `No ${label.toLowerCase()} on this instance`;
+      return words.noneOfKind(label);
     }
 
-    return otherKindsMatch
-      ? `No ${label.toLowerCase()} match “${query.trim()}” — other types do`
-      : `Nothing matches “${query.trim()}”`;
+    return otherKindsMatch ?
+        words.noneOfKindMatch(label, query.trim())
+      : words.nothingMatches(query.trim());
   };
 
   /* Both panes are `ReqoreMenu`s of `ReqoreMenuItem`s — a vertical selectable list is
@@ -487,7 +500,7 @@ export const ReferencePicker = ({
             icon='ErrorWarningLine'
             rightIcon={onRetry ? 'RefreshLine' : undefined}
             intent='danger'
-            label={`Couldn't load ${label.toLowerCase()}`}
+            label={words.couldNotLoadKind(label)}
             /* the specific failure is the tooltip — the pane states the outcome */
             tooltip={error}
             onClick={onRetry}
@@ -499,7 +512,7 @@ export const ReferencePicker = ({
     if (loading) {
       return (
         <ReqoreSpinner iconColor='info' size='small' centered>
-          Loading {label.toLowerCase()}…
+          {words.loadingKind(label)}
         </ReqoreSpinner>
       );
     }
@@ -525,11 +538,10 @@ export const ReferencePicker = ({
               badge={badge}
               disabled={disabled}
               tooltip={
-                isPicked
-                  ? removable
-                    ? `Remove “${name}”`
-                    : `“${name}” is already referenced`
-                  : `Reference “${name}”`
+                isPicked ?
+                  removable ? words.removePicked(name)
+                  : words.alreadyReferenced(name)
+                : words.referenceItem(name)
               }
               onClick={!isPicked || removable ? () => toggle(name) : undefined}
               {...pickedItemProps(isPicked)}
@@ -555,11 +567,16 @@ export const ReferencePicker = ({
   const body = (
     <Frame ref={frameRef} $bare={asModal} $dimmedOpacity={dimmedOpacity}>
       {header}
-      <Search $accent={accent} $active={!!needle}>
+      <Search
+        $accent={accent ?? theme.intents?.info ?? readable}
+        $line={rgba(readable, 0.2)}
+        $focus={rgba(readable, 0.5)}
+        $active={!!needle}
+      >
         <ReqoreInput
           value={query}
           onChange={(event) => setQuery((event.target as HTMLInputElement).value)}
-          placeholder='Search types and interfaces…'
+          placeholder={words.searchKindsAndInterfaces}
           icon='SearchLine'
           minimal
           flat
@@ -601,7 +618,14 @@ export const ReferencePicker = ({
   }
 
   return (
-    <ReqoreModal isOpen icon='LinksLine' label={title} width='100%' blur={3} onClose={onClose}>
+    <ReqoreModal
+      isOpen
+      icon='LinksLine'
+      label={title ?? words.referenceInterfaces}
+      width='100%'
+      blur={3}
+      onClose={onClose}
+    >
       {body}
     </ReqoreModal>
   );

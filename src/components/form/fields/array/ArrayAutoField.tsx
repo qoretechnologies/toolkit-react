@@ -15,6 +15,8 @@ import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { validateFieldWithResult } from '../../../../helpers/validations';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export interface IArrayAutoFieldProps {
   name: string;
@@ -72,6 +74,9 @@ export const ArrayAutoField = memo(
     size: fieldSize,
     renderItem,
   }: IArrayAutoFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
     const confirmAction = useReqoreProperty('confirmAction');
     const [localValue, setLocalValue] = useState(value);
     // Compact mode state: staging value for the input field and optional editing index
@@ -248,14 +253,14 @@ export const ArrayAutoField = memo(
                       [
                         {
                           icon: 'EditLine',
-                          tooltip: 'Edit',
+                          tooltip: fieldWords.edit,
                           className: 'array-auto-compact-edit',
                           onClick: () => handleEditTag(idx),
                         },
                         {
                           icon: 'DeleteBinLine',
-                          intent: 'danger',
-                          tooltip: 'Remove',
+                          ...destructive,
+                          tooltip: fieldWords.remove,
                           className: 'array-auto-compact-remove',
                           onClick: () => handleRemoveTag(idx),
                         },
@@ -292,7 +297,7 @@ export const ArrayAutoField = memo(
                   icon={isEditing ? 'CheckLine' : 'AddLine'}
                   intent={isEditing ? 'info' : undefined}
                   className='array-auto-compact-confirm'
-                  tooltip={isEditing ? 'Save changes' : 'Add item'}
+                  tooltip={isEditing ? fieldWords.saveChanges : fieldWords.addItem}
                   disabled={!hasInput}
                   onClick={confirmInput}
                   fixed
@@ -301,7 +306,7 @@ export const ArrayAutoField = memo(
                   <ReqoreButton
                     icon='CloseLine'
                     className='array-auto-compact-cancel'
-                    tooltip='Cancel editing'
+                    tooltip={fieldWords.cancelEditing}
                     onClick={resetInput}
                     fixed
                   />
@@ -353,9 +358,9 @@ export const ArrayAutoField = memo(
               {
                 show: size(localValue) !== 1 && !disabled && !readOnly,
                 icon: 'DeleteBinLine',
-                intent: 'danger',
+                ...destructive,
                 className: 'array-auto-item-remove',
-                tooltip: 'Remove item',
+                tooltip: fieldWords.removeItem,
                 onClick: () => confirmAction({ onConfirm: () => removeItem(idx) }),
                 minimal: true,
               },
@@ -387,7 +392,7 @@ export const ArrayAutoField = memo(
           size={fieldSize as any}
           disabled={disabled || readOnly}
         >
-          Add new item {display_name || name ? `for "${display_name || name}"` : null}
+          {fieldWords.addNewItem(display_name || name)}
         </ReqoreButton>
       </ReqoreControlGroup>
     );

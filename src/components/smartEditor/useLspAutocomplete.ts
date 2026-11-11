@@ -211,6 +211,11 @@ export interface IUseLspAutocompleteResult {
   ) => void;
   /** A node chosen in the template picker, written as a pick from the rows is (`written`: a key written for it). */
   pickTemplate: (node: ITemplateNode, written?: string) => void;
+  /**
+   * The picker drawn under `key` (`popoverKey` as it was drawn) hears the page's keys now
+   * (`TemplatePicker.onKeysHeard`): the keys heard for it until then are handed on to it, in order.
+   */
+  pickerHears: (key: number) => void;
 }
 
 /** Where the template picker is open (`IUseLspAutocompleteResult.browse`). */
@@ -311,7 +316,9 @@ export const useCompletionKeys = ({
 }) => {
   const handlers = useRef({ onAccept, onClose, onOtherKey });
   handlers.current = { onAccept, onClose, onOtherKey };
-  useEffect(() => {
+  /* Heard from the commit that draws the rows, not after they are painted: with a passive effect a key pressed
+     between the two (a quick hand, a loaded machine) reached nothing, and an Escape left the list open. */
+  useLayoutEffect(() => {
     if (!isOpen || count === 0) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       const take = () => {
@@ -705,31 +712,81 @@ export function useLspAutocomplete(
     pendingRequestRef.current = false;
   }, [requestCompletions]);
 
+  /* The picker is drawn some commits after it is asked for - by a click, an emptied text, a chip, or a list that
+     holds only Browse all templates and becomes the picker: its popover opens once it is mounted (`openOnMount`),
+     and its rows after that. Until the picker hears the page's keys itself (`pickerHears`), its keys are heard
+     here, so none pressed in between is lost: Escape puts it away, and the others are kept and handed to it, in
+     order, the moment it listens. They reached nothing before: the completion keys are not the picker's, the
+     Escape below waits for a request, and an Escape pressed as a list of Browse all became the picker left it open
+     (DpqlEditor · An Emptied Field Opens The Picker, flaky in CI). */
+  const pickerHearsRef = useRef<number | null>(null);
+  const heldKeysRef = useRef<KeyboardEvent[]>([]);
+  const browseOpen = isOpen && !!browse;
+  useLayoutEffect(() => {
+    if (!browseOpen) {
+      heldKeysRef.current = [];
+      return undefined;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // the picker drawn now hears its own keys
+      if (pickerHearsRef.current === popoverKeyRef.current) return;
+      // the keys the picker takes from the page (`TemplatePicker.keysFromPage`)
+      const keys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'];
+      if (browseRef.current?.arrows) keys.push('ArrowLeft', 'ArrowRight', 'Backspace');
+      if (!keys.includes(event.key)) return;
+      const editor = editorRef.current;
+      try {
+        if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+      } catch {
+        // the editor is not drawn: nothing of it is in the page to have had the key
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Escape') {
+        heldKeysRef.current = [];
+        close();
+        return;
+      }
+      heldKeysRef.current.push(event);
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [browseOpen, close]);
+  const pickerHears = useCallback((key: number) => {
+    // a picker since replaced by another is not the one the keys were for
+    if (key !== popoverKeyRef.current) return;
+    pickerHearsRef.current = key;
+    const held = heldKeysRef.current;
+    heldKeysRef.current = [];
+    held.forEach((event) =>
+      event.target?.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: event.key,
+          code: event.code,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          metaKey: event.metaKey,
+          bubbles: true,
+          cancelable: true,
+        })
+      )
+    );
+  }, []);
+
   /* Escape in the editor before the list has come puts the request away, as Escape puts a list with rows
      away (`useCompletionKeys`, which hears it then). Not taken from the page: with no list shown, an Escape
      may mean something else there too. */
   const showsRows = isOpen && filteredItems.length > 0;
   // the list open with what it says in place of rows: Escape puts it away, and nothing else
   const showsMessage = isOpen && !showsRows && !!emptyMessage;
-  /* A layout effect, so the key is heard from the commit that opens the list or the picker. The picker comes up in
-     its popover a render or two after it is opened, and hears its own keys from the commit that draws it
-     (`TemplatePicker`); an Escape in the text before then is the editor's, and puts it away - it was heard by
-     nothing, and the picker opened after it (CI, DpqlEditor › An Emptied Field Opens The Picker). */
+  // from the commit that changes what is shown, as the list's own keys are (`useCompletionKeys`)
   useLayoutEffect(() => {
     if (showsRows) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       const editor = editorRef.current;
-      if (event.key === 'Escape' && browseRef.current && !document.querySelector('.template-picker')) {
-        try {
-          if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
-        } catch {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        close();
-        return;
-      }
+      // a picker asked for and not yet listening has its keys heard above, Escape among them
       /* Enter or Tab where the list has nothing more to offer - a context of free keys and its key written,
          `$static:order.id` - takes what is written: a whole reference, drawn as its chip (`commitTyped`), as a row
          taken is (qorus#646, David's review). */
@@ -1404,5 +1461,6 @@ export function useLspAutocomplete(
     browse: isOpen ? browse : null,
     openBrowse,
     pickTemplate,
+    pickerHears,
   };
 }

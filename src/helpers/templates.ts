@@ -17,7 +17,7 @@ import {
   descriptionTooltip,
   IDescriptionTooltipOptions,
 } from './descriptionTooltip';
-import { NO_VALUE_DESCRIPTION } from './noDescription';
+import { noValueDescription } from './noDescription';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
@@ -569,7 +569,7 @@ export const templateTooltip = (
   const meaning =
     intent === 'info' ? undefined : reqraftLabels().templateTree.intentMeanings[intent];
   const body = [
-    describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type),
+    describedWithType(given ?? (host?.noDescription || noValueDescription()), type),
     meaning,
   ]
     .filter(Boolean)

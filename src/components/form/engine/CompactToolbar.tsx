@@ -12,10 +12,11 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import React, { memo } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { useContext } from 'use-context-selector';
 import { getCompactToolbarInks } from './compactToolbarColors';
 import { CompactToolbarContext, TCompactSort } from './compactToolbarContext';
+import { getCalmAttentionColours, getThemeTextColour, useIsCalmForm } from './formAppearance';
 
 // Field sort modes, listed in the Fields menu's "Sort by" submenu. 'schema' is
 // the default (the schema's declared order); the rest reorder within each group.
@@ -32,11 +33,21 @@ const sortModes = (
 // "Focus" header: a summary line ({pct}% complete · {set}/{total} set ·
 // {attention} need attention →) above a SEGMENTED meter — a green run (set) then
 // an amber run (needs attention) then the empty remainder.
-const StyledCompletion = styled.div`
+const StyledCompletion = styled.div<{ $calm?: boolean }>`
   display: flex;
   flex-flow: column;
   gap: 8px;
   padding: 0 2px;
+  /* Calm: one line — the summary, then a short meter beside it — that wraps
+     the meter under the words where there is no room for both. */
+  ${({ $calm }) =>
+    $calm ?
+      css`
+        flex-flow: row wrap;
+        align-items: center;
+        gap: 6px 14px;
+      `
+    : ''}
 `;
 const StyledCompletionLine = styled.div`
   display: flex;
@@ -50,11 +61,20 @@ const StyledMeter = styled.div<{
   $track: string;
   $set_c: string;
   $att_c: string;
+  /** Calm: a short meter beside the summary instead of a full-width bar. */
+  $calm?: boolean;
 }>`
   position: relative;
   height: 4px;
-  border-radius: 3px;
+  border-radius: ${({ $calm }) => ($calm ? 2 : 3)}px;
   width: 100%;
+  ${({ $calm }) =>
+    $calm ?
+      css`
+        flex: 1 1 160px;
+        max-width: 360px;
+      `
+    : ''}
   overflow: hidden;
   background: ${({ $track }) => $track};
   /* No per-segment radius — the container's overflow:hidden + radius rounds only
@@ -117,8 +137,12 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     parts,
     readOnly,
     invalidCount,
-    attentionCount,
+    attentionCount: fieldAttentionCount,
+    attentionFaultCount: fieldAttentionFaultCount,
+    outsideAttentionCount = 0,
+    onRevealOutside,
     completion,
+    showInvalidOnly,
     onToggleInvalidOnly,
     hasMultipleOptions,
     compactQuery,
@@ -139,19 +163,53 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     onRevertAll,
   } = useContext(CompactToolbarContext);
 
+  // The line counts what the host found outside the fields too (`outsideAttention`): a
+  // form is not "Ready" while the page around it says something is missing.
+  const attentionCount = fieldAttentionCount + outsideAttentionCount;
+  const attentionFaultCount = fieldAttentionFaultCount + outsideAttentionCount;
+  // With nothing to show among the fields, the link goes to where the problem is.
+  const handleAttentionClick =
+    !fieldAttentionCount && outsideAttentionCount && onRevealOutside ?
+      onRevealOutside
+    : onToggleInvalidOnly;
+
   const theme = useReqoreTheme();
+  const calm = useIsCalmForm();
   const intents = (theme.intents || {}) as Record<string, string>;
+  /* "N need attention →" / "N to fill in →" is a toggle (show only those fields), so it
+     is one: a button a keyboard reaches, which says whether it is on. A host that turns
+     it on for a person (a blocked submit) reads `aria-pressed` rather than guessing,
+     since the toolbar draws a different link once something becomes a fault. */
+  const attentionToggleProps = {
+    className: 'options-readfirst-attention-link',
+    role: 'button',
+    tabIndex: 0,
+    'aria-pressed': !!showInvalidOnly,
+    onClick: handleAttentionClick,
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleAttentionClick?.();
+      }
+    },
+  };
   const cSuccess = intents.success || '#4a7110';
-  const cWarning = intents.warning || '#d17c29';
-  const cText = (theme.text?.color as string) || '#e8e8e8';
+  const { fault: cWarning, pending: cQuiet } = getCalmAttentionColours(theme);
+  const cText = getThemeTextColour(theme, '#e8e8e8');
   // the summary's words in shades that read (the meter keeps the intents themselves)
   const inks = React.useMemo(() => getCompactToolbarInks(theme), [theme]);
   const cTrack = `${cText}1f`;
+  // Calm: what is done is grey — finished work needs nobody — and only the
+  // outstanding part (the amber run, the "need attention" link) is coloured.
+  const cDone = calm ? `${cText}8c` : cSuccess;
   // The GREEN run is what is done, not merely what has a value: a field that is
   // set but flagged belongs to the amber run, and counting it twice pushed that
   // run off the end of the track.
   const setPct = completion.total ? (completion.done / completion.total) * 100 : 0;
-  const attentionPct = completion.total ? (attentionCount / completion.total) * 100 : 0;
+  // The amber run is what is WRONG. On a new form the required fields are only still
+  // to fill in, so the track shows them as not done yet, without amber.
+  const attentionPct =
+    completion.total ? (fieldAttentionFaultCount / completion.total) * 100 : 0;
 
   return (
     <ReqoreControlGroup
@@ -167,12 +225,20 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           form nobody can fill in is a progress report on somebody else's
           work. The read view lists what is set, and that is the whole
           answer. */}
-      {parts.completion && completion.total && !readOnly ?
-        <StyledCompletion className='options-readfirst-completion'>
+      {parts.completion && (completion.total || completion.shown) && !readOnly ?
+        <StyledCompletion className='options-readfirst-completion' $calm={calm}>
           <StyledCompletionLine>
             <StyledSummary
               className='options-readfirst-status'
-              $color={invalidCount || attentionCount ? inks.warning : inks.success}
+              // Calm: the word in the text colour. "Ready" is not a healthy
+              // figure to celebrate in green, and "Incomplete" is said in amber
+              // by the link beside it — only the outstanding part is coloured.
+              $color={
+                calm ? cText
+                : invalidCount || attentionFaultCount ? inks.warning
+                : attentionCount ? cText
+                : inks.success
+              }
               style={{ fontWeight: 600 }}
             >
               {/* "Ready" is a claim about the whole form, so anything the form
@@ -186,29 +252,54 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   batched mode's per-row chip alone. */}
               {invalidCount || attentionCount ? feWords.incomplete : feWords.ready}
             </StyledSummary>
-            <StyledSummary style={{ opacity: inks.countOpacity }}>
-              · {completion.set}/{completion.total} set
-              {attentionCount ? ' ·' : ''}
-            </StyledSummary>
-            {attentionCount ?
-              <StyledAttentionLink
-                $color={inks.warning}
-                className='options-readfirst-attention-link'
-                onClick={onToggleInvalidOnly}
-              >
-                {feWords.needAttention(attentionCount)}
+            {/* "set" counts what the Set box holds: a value nothing flags. A flagged value is in
+                the attention count instead, so the line adds up ("1/7 set · 6 need attention ·
+                14%") where it used to count it twice ("3/7 set · 6 need attention · 14%"). */}
+            {/* A form of empty optional fields counts nothing: it is Ready, with no "0/0 set"
+                and no meter that reads as nothing done. */}
+            {completion.total ?
+              <StyledSummary style={calm ? { color: cQuiet } : { opacity: inks.countOpacity }}>
+                · {feWords.setOfTotal(completion.done, completion.total)}
+                {attentionCount ? ' ·' : ''}
+              </StyledSummary>
+            : null}
+            {/* Amber only for what is a fault. A new form's required fields are still to
+                fill in, which is the next step, not a warning: they are counted apart,
+                in the quiet colour. */}
+            {attentionFaultCount ?
+              <StyledAttentionLink $color={calm ? cWarning : inks.warning} {...attentionToggleProps}>
+                {feWords.needAttention(attentionFaultCount)}
               </StyledAttentionLink>
             : null}
-            <StyledPct>{completion.pct}%</StyledPct>
+            {attentionCount > attentionFaultCount ?
+              attentionFaultCount ?
+                <StyledSummary style={{ color: cQuiet }}>
+                  · {feWords.toFillInCount(attentionCount - attentionFaultCount)}
+                </StyledSummary>
+              : <StyledAttentionLink $color={cQuiet} {...attentionToggleProps}>
+                  {feWords.toFillIn(attentionCount)}
+                </StyledAttentionLink>
+            : null}
+            {/* Calm: the percentage is one more quiet figure on the line, not
+                a large bold number pinned to the far edge. */}
+            {!completion.total ? null
+            : calm ?
+              <StyledSummary className='options-readfirst-pct' style={{ color: cQuiet }}>
+                · {completion.pct}%
+              </StyledSummary>
+            : <StyledPct className='options-readfirst-pct'>{completion.pct}%</StyledPct>}
           </StyledCompletionLine>
-          <StyledMeter
-            className='options-readfirst-completion-bar'
-            $set={setPct}
-            $attention={attentionPct}
-            $track={cTrack}
-            $set_c={cSuccess}
-            $att_c={cWarning}
-          />
+          {completion.total ?
+            <StyledMeter
+              className='options-readfirst-completion-bar'
+              $set={setPct}
+              $attention={attentionPct}
+              $track={cTrack}
+              $set_c={cDone}
+              $att_c={cWarning}
+              $calm={calm}
+            />
+          : null}
         </StyledCompletion>
       : null}
 

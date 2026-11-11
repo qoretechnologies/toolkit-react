@@ -14,6 +14,7 @@ import { map, reduce, size } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useReqraftStorage } from '../../hooks/useStorage/useStorage';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 
 export interface IReqraftMenuItem extends IReqoreMenuItemProps {
   submenu?: TReqraftMenuItem[];
@@ -145,6 +146,7 @@ export const ReqraftMenu = ({
 }: IReqraftMenuProps) => {
   // text from the start, empty with no query: a filter with no value became controlled at the first key
   const [query, setQuery] = useState<string>(defaultQuery ?? '');
+  const menuWords = useReqraftLabels().menu;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [canScrollDown, setCanScrollDown] = useState<boolean>(false);
 
@@ -270,7 +272,7 @@ export const ReqraftMenu = ({
           icon='Search2Line'
           minimal={false}
           flat={false}
-          placeholder={`Filter menu "${inputFocusShortcut}"`}
+          placeholder={menuWords.filterMenu(String(inputFocusShortcut))}
           intent={query ? 'info' : undefined}
           leftIconProps={{ size: 'small' }}
           iconColor={query ? 'info' : 'muted'}

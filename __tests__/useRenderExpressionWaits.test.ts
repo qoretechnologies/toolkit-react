@@ -82,7 +82,7 @@ describe('useRenderExpression', () => {
   });
 
   it('asks nothing for an expression with a part not filled in yet', async () => {
-    // ">" with its first operand switched to Use Expression, nothing chosen, and its second empty:
+    // ">" with its first operand switched to Use expression, nothing chosen, and its second empty:
     // the stories' stand-in server threw on it, the real one writes its operands as hashes
     client.connect.mockResolvedValue(undefined);
     const { result } = renderHook(() => useRenderExpression());

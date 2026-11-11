@@ -157,7 +157,7 @@ describe('FormEngine creatable allowed-value fields', () => {
       name: 'retry',
     });
 
-    expect((await screen.findAllByText('Saved & Suggested Values')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Saved & suggested values')).length).toBeGreaterThan(0);
     // …and no chip picker took the value over
     expect(screen.queryByPlaceholderText(/type to search or enter a value/i)).toBe(null);
   });

@@ -30,6 +30,31 @@ describe('the control an open row offers the caret', () => {
     expect(findRowFocusTarget(container)?.id).toBe('text');
   });
 
+  it('is a code editor\'s edit area, which says it is a text box by its role', () => {
+    // What Monaco renders: a toolbar button first, its IME helper hidden from
+    // assistive technology, and the edit area a focusable div with role="textbox".
+    const container = cell(
+      '<button id="fullscreen">⤢</button>' +
+        '<textarea class="ime-text-area" aria-hidden="true" tabindex="-1"></textarea>' +
+        '<div id="code" class="native-edit-context" role="textbox" tabindex="0"></div>'
+    );
+    expect(findRowFocusTarget(container)?.id).toBe('code');
+  });
+
+  /* A field that opens as a card is a form in its own right: its first button is one
+     of several, and a caret on it turns the next space typed into a press. */
+  it('is only ever a place to type in a card, and nothing while that has not mounted', () => {
+    const loading = cell('<button id="fullscreen">⤢</button><button id="templates">{…}</button>');
+    expect(findRowFocusTarget(loading, { textEntryOnly: true })).toBeUndefined();
+    // The same row as an inline editor still hands the caret to its control.
+    expect(findRowFocusTarget(loading)?.id).toBe('fullscreen');
+
+    const mounted = cell(
+      '<button id="fullscreen">⤢</button><div id="code" role="textbox" tabindex="0"></div>'
+    );
+    expect(findRowFocusTarget(mounted, { textEntryOnly: true })?.id).toBe('code');
+  });
+
   it('is the pick-one control when that is all the row has', () => {
     // What ReqoreCheckbox renders: a focusable icon, not an input.
     const container = cell(

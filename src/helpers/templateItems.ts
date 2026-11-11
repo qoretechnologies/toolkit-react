@@ -15,7 +15,7 @@ import { markdownToProse } from './markdownText';
  * way.
  *
  * Lives here rather than beside either picker: `TemplateField` renders the
- * "Select Template" dropdown and `RichText` renders the in-editor `$` list, and
+ * "Select template" dropdown and `RichText` renders the in-editor `$` list, and
  * `TemplateField` already imports `RichText` — so a shared home is the only one
  * that does not close an import cycle.
  */

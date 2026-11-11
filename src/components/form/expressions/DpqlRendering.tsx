@@ -16,6 +16,7 @@ import { DpqlEditor } from '../../dpqlEditor';
 import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
 import { IExpressionValue } from './types';
 import { useRenderExpression } from './useRenderExpression';
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 
 const noop = (): void => undefined;
 
@@ -68,6 +69,7 @@ export const ExpressionRendering = ({
 }: IExpressionRenderingProps) => {
   const { renderRich } = useRenderExpression();
   const rendering = useAsync(() => renderRich(expression), [JSON.stringify(expression)]);
+  const words = useReqraftLabels().expressions;
 
   if (rendering.loading) {
     return <FormFieldsSkeleton rows={1} reason='expression-rendering' />;
@@ -76,7 +78,7 @@ export const ExpressionRendering = ({
   if (!rendering.value) {
     return (
       <ReqoreMessage size='small' intent='muted' flat opaque={false} data-testid={testId}>
-        This expression could not be rendered.
+        {words.notRendered}
       </ReqoreMessage>
     );
   }

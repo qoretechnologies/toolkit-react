@@ -15,6 +15,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { useTracker } from '../react/TrackingProvider';
 import {
   cardReducer,
@@ -54,11 +55,11 @@ export interface IExperimentsOverlayProps {
   onSettled?: (key: string) => TMaybeAsync;
   /** The test's details page (the card's "Open in …" link); none when it returns nothing. */
   detailsUrl?: (key: string) => string | null | undefined;
-  /** The link's label. Default `Open in admin portal`. */
+  /** The link's label. Default: the host's words (`Open in admin portal`). */
   detailsLabel?: string;
   /** One version's analytics (the rows' "Show analytics"); hidden when absent or it returns nothing. */
   versionDetailsUrl?: (key: string, variant: string) => string | null | undefined;
-  /** Where the full analytics live, in the help's words. Default `the admin portal`. */
+  /** Where the full analytics live, in the help's words. Default: the host's words (`the admin portal`). */
   analyticsLabel?: string;
   /** The words for a test that is in the page's code but not set up in the analytics service yet. */
   notSetUpText?: string;
@@ -68,7 +69,7 @@ export interface IExperimentsOverlayProps {
   topInset?: number | (() => number);
   /** Markers inside elements matching this selector are ignored (e.g. an editor's own UI). */
   exclude?: string;
-  /** The handle's words. Default `A/B test · <name>`. */
+  /** The handle's words. Default: the host's words (`A/B test · <name>`). */
   handleLabel?: (name: string) => string;
 }
 
@@ -194,8 +195,9 @@ export const ExperimentsOverlay = ({
   actorLabels,
   topInset = 0,
   exclude,
-  handleLabel = (name) => `A/B test · ${name}`,
+  handleLabel,
 }: IExperimentsOverlayProps) => {
+  const words = useReqraftLabels().abTest;
   const tracker = useTracker();
   const theme = useReqoreTheme();
   const hoverCapable = useReqoreProperty('isHoverCapable') !== false;
@@ -374,7 +376,7 @@ export const ExperimentsOverlay = ({
                 <ReqoreTag
                   icon='TrophyLine'
                   label={winnerNote(entry, m.shown)}
-                  tooltip='Every visitor sees this version. A developer removes the other versions’ code later.'
+                  tooltip={words.winnerLiveTooltip}
                   effect={{
                     gradient: { colors: { 0: 'success', 100: 'success:darken:1' } },
                     weight: 'bold',
@@ -387,10 +389,10 @@ export const ExperimentsOverlay = ({
                   intent='info'
                   active={isOpen}
                   aria-expanded={isOpen}
-                  tooltip={isOpen ? undefined : 'A/B test: see its versions and numbers'}
+                  tooltip={isOpen ? undefined : words.handleTooltip}
                   onClick={() => dispatch({ type: 'toggle', key: m.key })}
                 >
-                  {handleLabel(name)}
+                  {(handleLabel ?? words.handle)(name)}
                 </ReqoreButton>
               }
             </StyledFloat>

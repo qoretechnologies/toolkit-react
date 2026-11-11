@@ -88,11 +88,12 @@ const renderExpanded = async (value: Record<string, unknown>) => {
      Waiting only for "some content" resolved while the row was still empty, so
      a "does not contain the raw envelope" assertion passed against a DOM that
      had not rendered it yet — green against the broken code. `Visual` is the
-     expression editor's view tab and `Editor` the data editor's; settling on
-     either means the row has decided which one it is. */
+     expression editor's view tab and the data editor is drawn as its own
+     structured editor (`.reqraft-object-field`); settling on either means the
+     row has decided which one it is. */
   await waitFor(() => {
     const text = container.textContent || '';
-    expect(text.includes('Visual') || text.includes('Editor')).toBe(true);
+    expect(text.includes('Visual') || !!container.querySelector('.reqraft-object-field')).toBe(true);
   });
 
   return container;

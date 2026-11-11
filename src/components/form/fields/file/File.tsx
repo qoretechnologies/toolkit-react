@@ -19,6 +19,7 @@ import { memo, useCallback, useEffect, useMemo } from 'react';
 import { Accept, DropzoneOptions, useDropzone } from 'react-dropzone';
 // Direct import — circular dep is safe because modules are loaded before any component renders
 import { FormEngine } from '../../engine/FormEngine';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IFileFormFieldValue {
   name?: string;
@@ -33,7 +34,7 @@ export interface IReqraftFileFormFieldProps extends Omit<IReqorePanelProps, 'onC
   readonly?: boolean;
   options?: DropzoneOptions;
   valueButtonProps?: IReqoreButtonProps;
-  /** If provided, shows the "Build a File" tab with a FormEngine */
+  /** If provided, shows the "Build a file" tab with a FormEngine */
   argSchema?: IQorusFormSchema;
   /** While the arg_schema is being fetched from the API */
   argSchemaLoading?: boolean;
@@ -60,6 +61,7 @@ export const ReqraftFileFormField = memo(
     readonly,
     ...rest
   }: IReqraftFileFormFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
     const contentStyle: React.CSSProperties = useMemo(
       (): React.CSSProperties => ({
         display: 'flex',
@@ -143,10 +145,10 @@ export const ReqraftFileFormField = memo(
 
     const tabs = useMemo(
       (): IReqoreTabsProps['tabs'] => [
-        { label: 'Upload a File', id: 'upload', icon: 'FileUploadLine', compact: true },
-        { label: 'Build a File', id: 'build', icon: 'FileAddLine', compact: true },
+        { label: fieldWords.uploadAFile, id: 'upload', icon: 'FileUploadLine', compact: true },
+        { label: fieldWords.buildAFile, id: 'build', icon: 'FileAddLine', compact: true },
       ],
-      []
+      [fieldWords]
     );
 
     const renderUploader = useCallback(() => {
@@ -160,7 +162,7 @@ export const ReqraftFileFormField = memo(
             {typeof value.content === 'string' && value.content.startsWith('data:image') ? (
               <img
                 src={value.content}
-                alt={value.name || 'Uploaded file'}
+                alt={value.name || fieldWords.uploadedFile}
                 style={{ maxWidth: '100%', maxHeight: 60 }}
               />
             ) : null}
@@ -171,7 +173,7 @@ export const ReqraftFileFormField = memo(
               icon='FileLine'
               rightIcon='FileUploadLine'
               badge={filesize(value.size || 0)}
-              description={`Click here to upload a different ${renderExtensions(true)} file`}
+              description={fieldWords.uploadDifferentFile(renderExtensions(true) as string)}
               {...valueButtonProps}
               {...getRootProps()}
             />
@@ -184,13 +186,23 @@ export const ReqraftFileFormField = memo(
           <input {...getInputProps()} />
           <ReqoreControlGroup vertical horizontalAlign='center'>
             <ReqoreH4 size='small'>
-              <ReqoreIcon icon='FileAddLine' size='small' /> Click or drop files here to upload
+              <ReqoreIcon icon='FileAddLine' size='small' /> {fieldWords.clickOrDropFiles}
             </ReqoreH4>
             {renderExtensions()}
           </ReqoreControlGroup>
         </ReqorePanel>
       );
-    }, [value, rest, valueButtonProps, getInputProps, getRootProps, renderExtensions, contentStyle, multiple]);
+    }, [
+      value,
+      rest,
+      valueButtonProps,
+      getInputProps,
+      getRootProps,
+      renderExtensions,
+      contentStyle,
+      multiple,
+      fieldWords,
+    ]);
 
     if (!argSchema && !argSchemaLoading) {
       return renderUploader();

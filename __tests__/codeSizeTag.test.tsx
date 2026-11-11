@@ -91,4 +91,12 @@ describe('codeSizeTagProps', () => {
       expect.objectContaining({ label: '2 lines', labelKey: '4 chars', icon: 'CodeLine' })
     );
   });
+
+  it('reads as neutral words, never a colored chip', () => {
+    // a size is metadata; a blue chip read as a state, and every host undid it
+    const props = codeSizeTagProps('a');
+    expect(props).toEqual(expect.objectContaining({ appearance: 'text' }));
+    expect(props.intent).toBeUndefined();
+    expect(props.labelEffect).toEqual(expect.objectContaining({ weight: 'normal' }));
+  });
 });

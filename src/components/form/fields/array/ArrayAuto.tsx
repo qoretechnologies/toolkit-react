@@ -26,9 +26,14 @@ import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 // Direct imports — the cycle (ArrayAuto → TemplateField/auto → ArrayAuto) is
 // safe the same way Field → AutoFormField → Field is.
+import type { IFormAttention } from '../../engine/FormEngine';
+import { useIsCalmForm } from '../../engine/formAppearance';
+import { ItemAttention } from '../../engine/ItemAttention';
 import { recordIdentity } from '../../engine/readFirst';
 import { AutoFormField } from '../auto/AutoFormField';
 import { TemplateField } from '../template/TemplateField';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export const allowedTypes: string[] = ['string', 'int', 'float', 'date', 'file'];
 const defaultValueByType = {
@@ -65,6 +70,9 @@ export const ArrayAuto = ({
   display_name,
   ...rest
 }: IArrayAutoProps): any => {
+  const fieldWords = useReqraftLabels().fields;
+  // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+  const destructive = useDestructiveButtonProps();
   const confirmAction = useReqoreProperty('confirmAction');
   const [localValue, setLocalValue] = useState(value);
   // The row this component just created, so its sub-form can open the field it
@@ -73,6 +81,16 @@ export const ArrayAuto = ({
   // opening one of those on mount would be this component reopening a decision
   // the author already made.
   const [justAddedIndex, setJustAddedIndex] = useState<number | undefined>(undefined);
+  // What each item's sub-form still needs, as the sub-form reports it. A calm
+  // compact sub-form draws no readiness line of its own, so the item's header
+  // says it; a classic or non-compact one still says it itself, and saying it
+  // twice would be noise.
+  const saysItemAttention = useIsCalmForm() && !!rest.compact;
+  const [itemAttention, setItemAttention] = useState<Record<number, IFormAttention>>({});
+  const reportItemAttention = (idx: number) => (attention: IFormAttention) =>
+    setItemAttention((prev) =>
+      isEqual(prev[idx], attention) ? prev : { ...prev, [idx]: attention }
+    );
 
   useWhyDidYouUpdate(`Array Auto ${name}`, {
     name,
@@ -207,11 +225,16 @@ export const ArrayAuto = ({
           minimal
           actions={[
             {
+              as: ItemAttention,
+              props: itemAttention[Number(idx)],
+              show: saysItemAttention && !!itemAttention[Number(idx)]?.count,
+            },
+            {
               show: size(localValue) !== 1 && !rest.disabled && !rest.readOnly,
               icon: 'DeleteBinLine',
-              intent: 'danger',
+              ...destructive,
               className: 'array-auto-item-remove',
-              tooltip: 'Remove item',
+              tooltip: fieldWords.removeItem,
               onClick: () =>
                 confirmAction({
                   onConfirm: () => handleRemoveClick(Number(idx)),
@@ -235,6 +258,8 @@ export const ArrayAuto = ({
             // answer. Rides TemplateField's `rest` into the row's AutoFormField,
             // which hands it to the row's nested FormEngine (case 'hash').
             expandFirstRequired={Number(idx) === justAddedIndex}
+            // Per row for the same reason: each item reports its own sub-form.
+            onSubFormAttentionChange={reportItemAttention(Number(idx))}
             value={val}
             onChange={(_name, value) => handleChange(idx, value)}
           />
@@ -254,7 +279,7 @@ export const ArrayAuto = ({
           size={rest.size}
           disabled={rest.disabled || rest.readOnly}
         >
-          Add new item {display_name || name ? `for "${display_name || name}"` : null}
+          {fieldWords.addNewItem(display_name || name)}
         </ReqoreButton>
       </ReqoreControlGroup>
     </ReqoreControlGroup>

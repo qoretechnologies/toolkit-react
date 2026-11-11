@@ -19,6 +19,7 @@ import {
   ReqoreP,
 } from '@qoretechnologies/reqore';
 import { memo } from 'react';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { IDataSchemaDefinition, ISchemaSaveError } from './types';
 
 export interface IInlineValidationBannerProps {
@@ -45,6 +46,7 @@ export const InlineValidationBanner = memo(
     onAddMigration,
     readOnly,
   }: IInlineValidationBannerProps) => {
+    const words = useReqraftLabels().schemaDefinition;
     const schemaName = definition.schema?.name ?? '';
     const nameMismatch =
       !!wrapperName &&
@@ -68,11 +70,11 @@ export const InlineValidationBanner = memo(
             intent='warning'
             flat
             icon='ErrorWarningLine'
-            label='Schema name does not match the interface name'
+            label={words.nameMismatch}
             description={
               <ReqoreControlGroup vertical gapSize='small'>
                 <ReqoreP size='small'>
-                  {`The DataSchema name is "${schemaName}" but the schema object is named "${wrapperName}". The server requires them to match.`}
+                  {words.nameMismatchDescription(schemaName, wrapperName ?? '')}
                 </ReqoreP>
                 {!readOnly ? (
                   <ReqoreButton
@@ -83,7 +85,7 @@ export const InlineValidationBanner = memo(
                     intent='warning'
                     onClick={onSyncName}
                   >
-                    Sync name
+                    {words.syncName}
                   </ReqoreButton>
                 ) : null}
               </ReqoreControlGroup>
@@ -96,11 +98,11 @@ export const InlineValidationBanner = memo(
             intent='warning'
             flat
             icon='GitBranchLine'
-            label='Structure changed — bump the schema version'
+            label={words.versionStale}
             description={
               <ReqoreControlGroup vertical gapSize='small'>
                 <ReqoreP size='small'>
-                  {`Tables, sequences, or reference data changed but schema.version is still "${currentVersion}". Bump the version and add a migration block so existing databases can be aligned.`}
+                  {words.versionStaleDescription(currentVersion)}
                 </ReqoreP>
                 {!readOnly ? (
                   <ReqoreButton
@@ -111,7 +113,7 @@ export const InlineValidationBanner = memo(
                     intent='warning'
                     onClick={onAddMigration}
                   >
-                    Add migration block
+                    {words.addMigrationBlock}
                   </ReqoreButton>
                 ) : null}
               </ReqoreControlGroup>
@@ -124,7 +126,7 @@ export const InlineValidationBanner = memo(
             intent='danger'
             flat
             icon='CloseCircleLine'
-            label='The last save was rejected'
+            label={words.saveRejected}
             description={
               saveError.path
                 ? `${saveError.path}: ${saveError.message}`

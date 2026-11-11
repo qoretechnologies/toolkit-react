@@ -35,6 +35,9 @@ import {
 } from '../../../helpers/expressions';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
+import { calmNoteIntent, useIsCalmForm } from '../engine/formAppearance';
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
+import { DEFAULT_EXPRESSION_LABELS, IExpressionModeLabels } from './labels';
 
 export type TExpressionMode = 'visual' | 'text';
 
@@ -60,19 +63,12 @@ const astKeyOf = (ast: unknown): string => JSON.stringify(ast ?? {});
  */
 const OWN_WIDTH_STYLE: React.CSSProperties = { alignSelf: 'flex-start' };
 
-/** The words of the field's Text / Visual toggle, for a host that translates them. */
-export interface IExpressionModeLabels {
-  text: string;
-  visual: string;
-  /** The Text button's hover when there is no language server to write the expression with. */
-  textUnavailable: string;
-}
+/** The words of the field's Text / Visual toggle, for a host that translates them (`setReqraftLabels`'s
+ *  `expressions.modes`; a field's `modeLabels` come before them). */
+export type { IExpressionModeLabels };
 
-export const DEFAULT_EXPRESSION_MODE_LABELS: IExpressionModeLabels = {
-  text: 'Text',
-  visual: 'Visual',
-  textUnavailable: 'The expression language server is not available',
-};
+/** The English words of the Text / Visual toggle. */
+export const DEFAULT_EXPRESSION_MODE_LABELS: IExpressionModeLabels = DEFAULT_EXPRESSION_LABELS.modes;
 
 export interface IExpressionFieldProps {
   /** The expression value: `{ is_expression:true, value:{ exp, args } }`. */
@@ -125,7 +121,7 @@ export interface IExpressionFieldProps {
   defaultMode?: TExpressionMode;
   /**
    * The Text view's text when the value is not an expression yet: a template or a literal the field held
-   * when "Use Template / Expression" opened it. Nothing is emitted until it is edited.
+   * when "Use template / expression" opened it. Nothing is emitted until it is edited.
    */
   initialText?: string;
   /**
@@ -337,6 +333,7 @@ export const ExpressionField = memo(
     componentOverrides,
     reorder,
   }: IExpressionFieldProps) => {
+    const calm = useIsCalmForm();
     const { expressions } = useExpressions({
       override: expressionsOverride,
       expressionsUrl,
@@ -344,9 +341,10 @@ export const ExpressionField = memo(
     const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
+    const words = useReqraftLabels().expressions;
     const modeWords = useMemo(
-      () => ({ ...DEFAULT_EXPRESSION_MODE_LABELS, ...modeLabels }),
-      [modeLabels]
+      () => ({ ...words.modes, ...modeLabels }),
+      [words.modes, modeLabels]
     );
     const onModeChangeRef = useRef(onModeChange);
     onModeChangeRef.current = onModeChange;
@@ -979,8 +977,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 className='expression-text-unavailable'
               >
-                The expression language server is not available, so this text cannot be read yet. It
-                is kept as you typed it; the Visual view builds the expression without the server.
+                {words.textUnreadable}
               </ReqoreMessage>
             : null}
             <DpqlEditor
@@ -1035,10 +1032,13 @@ export const ExpressionField = memo(
                 size='small'
                 flat
                 opaque={false}
-                title={typeCheck.mayFail ? 'This may not fit' : 'This does not fit'}
+                title={typeCheck.mayFail ? words.mayNotFit : words.doesNotFit}
               >
-                {`The expression gives ${typeInSentence(typeCheck.inferred)}, and this field takes ${typeInSentence(typeCheck.target)}.`}
-                {typeCheck.mayFail ? ' Qorus converts the value when it runs, and checks it then.' : ''}
+                {words.typeNote(
+                  typeInSentence(typeCheck.inferred),
+                  typeInSentence(typeCheck.target),
+                  !!typeCheck.mayFail
+                )}
                 {typeCheck.fix ?
                   <>
                     <ReqoreVerticalSpacer height={6} />
@@ -1062,7 +1062,13 @@ export const ExpressionField = memo(
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
             {previewState === 'shown' ?
-              <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
+              <ReqoreMessage
+                intent={calmNoteIntent('info', calm)}
+                size='small'
+                title={words.preview}
+                flat
+                opaque={false}
+              >
                 <DpqlRendering text={preview?.text} data-testid='expression-preview' />
               </ReqoreMessage>
             : null}
@@ -1076,7 +1082,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 className='expression-text-refused'
               >
-                This expression cannot be shown as text, so it is built here: {textRefused}
+                {words.textRefused(textRefused)}
               </ReqoreMessage>
             : null}
             {textUnavailable ?
@@ -1087,8 +1093,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 className='expression-text-unavailable'
               >
-                The Text view needs the expression language server, which is not available: the
-                expression is built here instead.
+                {words.textViewUnavailable}
               </ReqoreMessage>
             : null}
             <ExpressionBuilder

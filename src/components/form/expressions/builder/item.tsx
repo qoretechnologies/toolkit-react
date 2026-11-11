@@ -6,6 +6,7 @@ import {
 import { rgba } from 'polished';
 import { useCallback, useState } from 'react';
 import styled, { css } from 'styled-components';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 // The item's own flags style it as transient props (`$`): styled-components keeps those, so an item drawn
 // `as` a panel never hands them on.
@@ -45,6 +46,7 @@ export const ExpressionItem = ({
   ...props
 }: IExpressionItemProps) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const words = useReqraftLabels().fields;
 
   const handleFullscreenToggle = useCallback(() => {
     setIsFullscreen((prev) => !prev);
@@ -65,7 +67,7 @@ export const ExpressionItem = ({
           {
             show: focused || readOnly ? false : 'hover',
             icon: 'FullscreenLine',
-            tooltip: 'Focused Editing',
+            tooltip: words.focusedEditing,
             className: 'expression-item-fullscreen',
             size: 'tiny',
             onClick: handleFullscreenToggle,
@@ -85,7 +87,7 @@ export const ExpressionItem = ({
       {isFullscreen && (
         <ReqoreModal
           isOpen
-          label='Focused Editing'
+          label={words.focusedEditing}
           icon='FullscreenFill'
           blur={15}
           customTheme={{ main: '#111111' }}

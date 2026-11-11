@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 /**
  * An expression's return type is a DATA type, never a `ui_type`.
  *
- * Reported from a test assertion's Expected Value: choosing **Use Expression**
+ * Reported from a test assertion's Expected Value: choosing **Use expression**
  * produced *"This expression returns nothing but the expected return type is
  * test-reference. Please select an expression that returns test-reference…"* —
  * and nothing returns one, so no expression could be chosen. The saved draft

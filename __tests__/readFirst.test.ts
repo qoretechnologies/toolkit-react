@@ -726,7 +726,7 @@ describe('getReadFirstCompletion', () => {
   });
 
   it('reports 0% for an empty form', () => {
-    expect(getReadFirstCompletion({})).toEqual({ total: 0, set: 0, done: 0, pct: 0 });
+    expect(getReadFirstCompletion({})).toEqual({ total: 0, set: 0, done: 0, pct: 0, shown: 0 });
   });
 
   it('rounds the percentage', () => {
@@ -839,6 +839,21 @@ describe('getReadFirstStatus', () => {
 
   it("marks an empty, non-required, non-warned field 'optional'", () => {
     expect(status({ empty: true })).toBe('optional');
+  });
+
+  it("marks an empty required field nobody has been to 'pending', still in the first box", () => {
+    // A new form is not already wrong: the field is to fill in, not a fault.
+    expect(status({ empty: true, required: true, visited: false })).toBe('pending');
+    expect(getReadFirstBucket('pending')).toBe('attention');
+  });
+
+  it("keeps a warned or invalid field a fault, visited or not", () => {
+    expect(status({ empty: true, warned: true, visited: false })).toBe('todo');
+    expect(status({ empty: false, invalid: true, visited: false })).toBe('invalid');
+  });
+
+  it("marks an empty required field 'todo' once it has been visited", () => {
+    expect(status({ empty: true, required: true, visited: true })).toBe('todo');
   });
 });
 
@@ -993,10 +1008,21 @@ describe('getReadFirstCompletion with a needs-attention verdict', () => {
 
   it('counts a set-but-flagged field as set, and not as done', () => {
     const result = getReadFirstCompletion(OPTIONS, (name) => name === 'cases');
-    expect(result.total).toBe(3);
+    // `notes` is empty and nothing asks for it: not part of what is left to do
+    expect(result.total).toBe(2);
     expect(result.set).toBe(2);
     expect(result.done).toBe(1);
-    expect(result.pct).toBe(33);
+    expect(result.pct).toBe(50);
+  });
+
+  it('leaves an empty optional field out, so nothing outstanding reads 100%', () => {
+    const result = getReadFirstCompletion(OPTIONS, () => false);
+    expect(result).toEqual({ total: 2, set: 2, done: 2, pct: 100, shown: 3 });
+  });
+
+  it('keeps an empty field the verdict asks for', () => {
+    const result = getReadFirstCompletion(OPTIONS, (name) => name === 'notes');
+    expect(result).toEqual({ total: 3, set: 2, done: 2, pct: 67, shown: 3 });
   });
 
   /* The bar draws the amber run from `done%` onward and makes it `attention%`

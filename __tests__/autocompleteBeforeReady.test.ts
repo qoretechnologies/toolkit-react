@@ -306,9 +306,7 @@ describe('the template picker before it is drawn', () => {
   it('is left to the picker once it is drawn, which hears its own Escape', () => {
     const { hook } = setup(true);
     const text = document.createElement('div');
-    const picker = document.createElement('div');
-    picker.className = 'template-picker';
-    document.body.append(text, picker);
+    document.body.append(text);
     const drawn = vi.spyOn(ReactEditor, 'toDOMNode').mockReturnValue(text);
     try {
       act(() =>
@@ -317,6 +315,8 @@ describe('the template picker before it is drawn', () => {
           caret: { path: [0, 0], offset: 5 },
         } as never)
       );
+      // the picker is drawn and says it hears the page's keys (`TemplatePicker.onKeysHeard`)
+      act(() => hook.result.current.pickerHears(hook.result.current.popoverKey));
       act(() => {
         text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       });
@@ -325,7 +325,6 @@ describe('the template picker before it is drawn', () => {
     } finally {
       drawn.mockRestore();
       text.remove();
-      picker.remove();
     }
   });
 });

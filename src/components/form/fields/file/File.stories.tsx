@@ -155,13 +155,13 @@ export const WithBuildTab: Story = {
     docs: {
       description: {
         story:
-          'Renders the File field with an argSchema — a "Build a File" tab appears alongside the "Upload a File" drop zone so the user can synthesize a file from schema fields.',
+          'Renders the File field with an argSchema — a "Build a file" tab appears alongside the "Upload a file" drop zone so the user can synthesize a file from schema fields.',
       },
     },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Upload a File')).toBeInTheDocument();
-    await expect(canvas.getByText('Build a File')).toBeInTheDocument();
+    await expect(canvas.getByText('Upload a file')).toBeInTheDocument();
+    await expect(canvas.getByText('Build a file')).toBeInTheDocument();
   },
 };

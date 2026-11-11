@@ -29,12 +29,13 @@ const form = (required: boolean, attention?: boolean) =>
     },
   }) as never;
 
-const renderForm = (options: never) =>
+const renderForm = (options: never, appearance?: 'calm' | 'classic') =>
   render(
     <ReqoreUIProvider>
       <FetchContext.Provider value={fetchContext}>
         <FormEngine
           compact
+          appearance={appearance}
           name='test'
           value={{ name: { type: 'string', value: 'Support assistant' } } as never}
           options={options}
@@ -54,16 +55,22 @@ describe('a warning that asks for nothing', () => {
     const { container } = renderForm(form(false, false));
     await waitFor(() => expect(container.textContent).toContain(REASON));
     expect(boxLabelled(container, 'Needs attention')).toBeUndefined();
+    expect(boxLabelled(container, 'To fill in')).toBeUndefined();
     expect(container.textContent).not.toContain('Incomplete');
   });
 
-  it('still puts a required field under Needs attention', async () => {
-    const { container } = renderForm(form(true, false));
-    await waitFor(() =>
-      expect(boxLabelled(container, 'Needs attention')?.textContent).toContain('Collections')
-    );
-    expect(container.textContent).toContain('Incomplete');
-  });
+  /* The first box holds what is left to do. On a new form it reads "To fill in" (not "Needs attention") while all it
+   * holds is a required field nobody has been to yet, which is the next step and not a fault, in either look. */
+  it.each(['calm', 'classic'] as const)(
+    'still puts a required field in the first box (%s)',
+    async (appearance) => {
+      const { container } = renderForm(form(true, false), appearance);
+      await waitFor(() =>
+        expect(boxLabelled(container, 'To fill in')?.textContent).toContain('Collections')
+      );
+      expect(container.textContent).toContain('Incomplete');
+    }
+  );
 
   it('leaves an ordinary warning drawing attention, as before', async () => {
     const { container } = renderForm(form(false));

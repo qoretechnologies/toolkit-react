@@ -78,7 +78,9 @@ describe('drawing an argument that is the null literal', () => {
     await settled();
 
     expect(document.body.textContent).not.toContain('Something went wrong');
-    expect(document.body.textContent).toContain('Enter a value for');
+    // calm (the default look): said on the argument, in the calm form's words, and not again under the expression
+    expect(document.body.textContent).toContain('Required · add a value');
+    expect(document.body.textContent).not.toContain('Enter a value for');
   });
 });
 

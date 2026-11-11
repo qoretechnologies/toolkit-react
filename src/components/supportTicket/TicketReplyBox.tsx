@@ -1,8 +1,29 @@
 import type { TReqoreDropdownItems } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { ReactNode } from 'react';
-import { Composer, IComposerSendAction, TComposerEditor } from '../composer/Composer';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import {
+  Composer,
+  IComposerProps,
+  IComposerSendAction,
+  TComposerEditor,
+} from '../composer/Composer';
 import { fileToAttachment as defaultFileToAttachment } from './fileToAttachment';
 import { IAttachmentUpload } from './meta';
+
+/**
+ * A ticket reply is not a hand-off to Qonsole, so it does not wear Qonsole's look: no purple
+ * bar, no purple send (instruction-files decision 002 — a purple button means "this hands the
+ * work to Qonsole / AI" and nothing else). The bar keeps the composer's shape with the theme's
+ * own neutral edge (its `main`, a step lighter — how Reqore draws its dividers), and sending
+ * the reply is the surface's one primary action: white.
+ */
+const REPLY_BOX_EFFECT: IComposerProps['effect'] = {
+  gradient: { direction: 'to bottom right', colors: 'main:lighten:3' },
+};
+const REPLY_SEND_STYLE: Pick<IComposerSendAction, 'intent' | 'minimal'> = {
+  intent: 'white',
+  minimal: false,
+};
 
 /**
  * The `items` shape ReqoreDropdown accepts. Named, not derived: `ReqoreDropdown`
@@ -13,11 +34,12 @@ type TAttachMenuItems = TReqoreDropdownItems;
 
 export interface ITicketReplyBoxProps {
   /** Send the composed message. `internal` is only ever true when
-   *  `allowInternalNote` is set (the staff surface). */
+   *  `allowInternalNote` is set (the staff surface). Return (or resolve) `false` when the
+   *  send did not go through: the reply stays in the box instead of being cleared. */
   onSend: (
     body: string,
     options: { internal: boolean; attachments?: IAttachmentUpload[] }
-  ) => void | Promise<void>;
+  ) => void | boolean | Promise<void | boolean>;
   /** File → base64 upload conversion; defaults to the shared `fileToAttachment`. */
   fileToAttachment?: (file: File) => Promise<IAttachmentUpload>;
   /** the send round-trip is in flight */
@@ -71,8 +93,8 @@ export const TicketReplyBox = ({
   fileToAttachment = defaultFileToAttachment,
   sending,
   disabled,
-  disabledReason = 'This ticket is closed. Open a new ticket to continue the conversation.',
-  placeholder = 'Write a reply…',
+  disabledReason,
+  placeholder,
   sendLabel,
   allowInternalNote,
   attachMenuItems,
@@ -83,8 +105,11 @@ export const TicketReplyBox = ({
   defaultText,
   defaultFiles,
 }: ITicketReplyBoxProps) => {
+  const words = useReqraftLabels().supportTicket;
   const resolvedPlaceholder =
-    typeof placeholder === 'function' ? placeholder(false) : placeholder;
+    placeholder === undefined ? words.writeAReply
+    : typeof placeholder === 'function' ? placeholder(false)
+    : placeholder;
   // Label for a given send mode: `false` = public reply, `true` = internal note.
   const labelFor = (note: boolean): string =>
     sendLabel !== undefined
@@ -92,20 +117,19 @@ export const TicketReplyBox = ({
         ? sendLabel(note)
         : sendLabel
       : note
-        ? 'Add internal note'
-        : 'Send reply';
+        ? words.addInternalNote
+        : words.sendReply;
 
   // Staff surface splits the send button; customer surface is a single "Send reply".
-  // Both use the Qonsole-style minimal `custom1` accent (the Composer default); the
-  // internal note stays amber (`warning`) so it can't be mistaken for a public reply.
+  // Both send the reply as the white primary (`REPLY_SEND_STYLE`); the internal note
+  // stays amber (`warning`) so it can't be mistaken for a public reply.
   const sendActions: IComposerSendAction[] | undefined = allowInternalNote
     ? [
         {
           id: 'reply',
           label: labelFor(false),
           icon: 'SendPlane2Line',
-          minimal: true,
-          customTheme: { main: 'custom1' },
+          ...REPLY_SEND_STYLE,
         },
         {
           id: 'internal',
@@ -120,12 +144,13 @@ export const TicketReplyBox = ({
   const handleSend = async (
     body: string,
     { files, action }: { files: File[]; action?: string }
-  ): Promise<void> => {
+  ): Promise<void | boolean> => {
     const internal = action === 'internal';
     const attachments = files.length
       ? await Promise.all(files.map(fileToAttachment))
       : undefined;
-    await onSend(body, { internal, attachments });
+    // the caller's `false` (the send did not go through) reaches the composer, which keeps the text
+    return onSend(body, { internal, attachments });
   };
 
   return (
@@ -136,10 +161,13 @@ export const TicketReplyBox = ({
       placeholder={resolvedPlaceholder}
       sending={sending}
       disabled={disabled}
-      disabledReason={disabledReason}
+      disabledReason={disabledReason ?? words.ticketClosed}
       onSend={handleSend}
       sendLabel={labelFor(false)}
+      sendIntent={REPLY_SEND_STYLE.intent}
+      sendMinimal={REPLY_SEND_STYLE.minimal}
       sendActions={sendActions}
+      effect={REPLY_BOX_EFFECT}
       sendMenuClassName='ticket-send-more'
       attachMenuItems={attachMenuItems}
       footerActions={footerActions}

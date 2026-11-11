@@ -326,7 +326,7 @@ export const AutoComponent: StoryObj<typeof meta> = {
       timeout: 5000,
     });
     expect(canvasElement.textContent).not.toContain('Please select data type');
-    expect(canvasElement.textContent).not.toContain('Select Template');
+    expect(canvasElement.textContent).not.toContain('Select template');
   },
 };
 
@@ -601,7 +601,7 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a yes/no value, switches it from its Yes/No buttons to a template and opens the list of templates of its type: the list offers only templates whose type can give a yes/no. Why a text field: in template mode every field, whatever its type, is written in the same text field, a template as a chip in it, so a yes/no takes a template the way every other field does; the Yes/No buttons cannot hold one. Typing is not blocked, and the form checks what is written: one template alone is a yes/no; anything else is flagged with what to change - text ("Value must be true or false"), text around a template (“"x" makes this text, not true or false. Delete it to keep the template alone.”) or two templates side by side ("Templates side by side make this text, not true or false. Keep one of them alone.") - and the form cannot be saved until it is fixed. Deleting the template leaves the text field; the Yes/No buttons come back through "Use Custom Value" in the ⋮ menu.',
+          'Renders TemplateField for a yes/no value, switches it from its Yes/No buttons to a template and opens the list of templates of its type: the list offers only templates whose type can give a yes/no. Why a text field: in template mode every field, whatever its type, is written in the same text field, a template as a chip in it, so a yes/no takes a template the way every other field does; the Yes/No buttons cannot hold one. Typing is not blocked, and the form checks what is written: one template alone is a yes/no; anything else is flagged with what to change - text ("Value must be true or false"), text around a template (“"x" makes this text, not true or false. Delete it to keep the template alone.”) or two templates side by side ("Templates side by side make this text, not true or false. Keep one of them alone.") - and the form cannot be saved until it is fixed. Deleting the template leaves the text field; the Yes/No buttons come back through "Use custom value" in the ⋮ menu.',
       },
     },
   },
@@ -645,7 +645,7 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next, with the picker of its templates open; the yes/no checkbox is one menu item away: "Use Custom Value" in the ⋮ menu.',
+          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next, with the picker of its templates open; the yes/no checkbox is one menu item away: "Use custom value" in the ⋮ menu.',
       },
     },
   },
@@ -672,7 +672,7 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     await waitFor(() => expect(document.querySelector('.template-picker')).toBeInTheDocument());
     // the checkbox, from the menu: one click on it, the picker open or not
     await userEvent.click(canvasElement.querySelector<HTMLElement>('button.template-more')!);
-    await userEvent.click(await screen.findByText('Use Custom Value'));
+    await userEvent.click(await screen.findByText('Use custom value'));
     await waitFor(() => expect(document.querySelector('.reqore-checkbox')).toBeInTheDocument());
   },
 };
@@ -691,13 +691,13 @@ export const TemplateWithFunctions: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField with allowFunctions enabled — the template menu now exposes a "Use Expression" entry alongside the plain templates.',
+          'Renders TemplateField with allowFunctions enabled — the template menu now exposes a "Use expression" entry alongside the plain templates.',
       },
     },
   },
   play: async () => {
     await _testsOpenTemplateMenu();
-    await _testsWaitForText('Use Expression');
+    await _testsWaitForText('Use expression');
   },
 };
 
@@ -1208,7 +1208,7 @@ export const TemplateListInAnotherLanguage: StoryObj<typeof meta> = {
  * question they cannot answer, because the value they want is a reference to
  * something else whose type is not theirs to pick.
  *
- * The literal is still one menu item away: "Set Custom Value" in the ⋮ menu.
+ * The literal is still one menu item away: "Set custom value" in the ⋮ menu.
  * That is the right way round — picking a template is choosing from a list,
  * picking a literal is a decision.
  */
@@ -1239,7 +1239,7 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
       timeout: 5000,
     });
     expect(canvasElement.textContent).not.toContain('Please select data type');
-    expect(canvasElement.textContent).not.toContain('Select Template');
+    expect(canvasElement.textContent).not.toContain('Select template');
   },
 };
 

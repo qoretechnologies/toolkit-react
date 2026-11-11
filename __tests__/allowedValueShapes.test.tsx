@@ -138,7 +138,7 @@ describe('suggestions beside an editor that holds the value', () => {
           ]}
           markedValue={markedValue}
           onChange={onChange}
-          placeholder='Saved & Suggested Values'
+          placeholder='Saved & suggested values'
           minimal
         />
       </ReqoreUIProvider>
@@ -158,7 +158,7 @@ describe('suggestions beside an editor that holds the value', () => {
       ['random', false],
     ]);
     // the trigger keeps its own name: the editor beside it draws the value
-    expect(dropdownProps.children).toBe('Saved & Suggested Values');
+    expect(dropdownProps.children).toBe('Saved & suggested values');
 
     items[1].onClick();
     expect(onChange).toHaveBeenCalledWith('C07RANDOM01');

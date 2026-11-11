@@ -6,7 +6,13 @@ import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover'
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, { memo, useCallback, useMemo } from 'react';
 import { useCoarsePointer } from '../../hooks/useCoarsePointer';
-import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME, kindBadge } from './completionStyle';
+import {
+  COMPLETION_ITEM_STYLE,
+  kindBadge,
+  listKindIntent,
+  useCompletionListTheme,
+} from './completionStyle';
+import { useIsCalmForm } from '../form/engine/formAppearance';
 import { MarkdownDoc } from './MarkdownDoc';
 import { SMART_EDITOR_OVERLAY_EFFECT } from './styling';
 import {
@@ -33,7 +39,8 @@ import {
 // Kind chip + a Warning chip (Qonsole flags mutating verbs) for a
 // completion row; undefined when neither applies.
 function buildKindBadge(
-  item: ICompletionDropdownItem
+  item: ICompletionDropdownItem,
+  calm: boolean
 ): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
   const editorWords = reqraftLabels().editor;
   /* A template row says what it is (State data, Context, Field) and its type, named: not the LSP kind it is sent
@@ -51,7 +58,7 @@ function buildKindBadge(
             label: marks.kindLabel,
             minimal: true as const,
             size: 'small' as const,
-            intent: 'info' as const,
+            intent: listKindIntent('info' as const, calm),
           },
         ]
       : []),
@@ -63,7 +70,7 @@ function buildKindBadge(
   if (marks.browseAll) {
     return undefined;
   }
-  const kindChip = item.kindLabel ? kindBadge(item.metadata?.kind) : undefined;
+  const kindChip = item.kindLabel ? kindBadge(item.metadata?.kind, calm) : undefined;
   const kindBadgeProps =
     kindChip ??
     (item.kindLabel ?
@@ -149,7 +156,9 @@ const CompletionMenuItem = memo(
   }: ICompletionMenuItemProps) => {
     const browserWords = useReqraftLabels().templateBrowser;
     const editorWords = useReqraftLabels().editor;
-    const badge = useMemo(() => buildKindBadge(item), [item]);
+    // a kind chip in the calm look carries no color of its own (`listKindIntent`)
+    const calm = useIsCalmForm();
+    const badge = useMemo(() => buildKindBadge(item, calm), [item, calm]);
     const marks = (item.raw?.data ?? {}) as {
       opens?: boolean;
       continues?: boolean;
@@ -339,6 +348,8 @@ export const CompletionList = memo(
     onToggleDocs,
   }: ICompletionListProps) => {
     const coarse = useCoarsePointer();
+    // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
+    const listTheme = useCompletionListTheme();
     // Flatten groups into rows carrying a flat index to compare against
     // `focusedIndex` (which is flat across all groups).
     const completionGroups = useMemo(() => {
@@ -359,7 +370,7 @@ export const CompletionList = memo(
         maxHeight='300px'
         width={TEMPLATE_PICKER_WIDTH}
         effect={SMART_EDITOR_OVERLAY_EFFECT}
-        customTheme={COMPLETION_LIST_THEME}
+        customTheme={listTheme}
       >
         {note && completionGroups.length > 0 ?
           <ReqoreMenuItem
@@ -481,6 +492,8 @@ export const CompletionMenu = memo(
               selectedValue={autocomplete.browse.selectedValue}
               keysFromPage
               arrowsFromPage={autocomplete.browse.arrows}
+              // until it hears the page's keys, the opener does: what it heard is handed on now
+              onKeysHeard={() => autocomplete.pickerHears(autocomplete.popoverKey)}
               onPick={autocomplete.pickTemplate}
               onClose={autocomplete.close}
             />

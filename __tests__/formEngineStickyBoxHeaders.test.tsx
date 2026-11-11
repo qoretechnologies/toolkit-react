@@ -92,11 +92,20 @@ describe('compact status boxes pin their headers', () => {
   });
 
   it('never pins inside a nested sub-form, which owns no scroll context', async () => {
-    const { container } = renderForm({ compactNested: true });
+    // The classic look keeps its status boxes in a nested sub-form; the calm one
+    // draws none there (below).
+    const { container } = renderForm({ compactNested: true, appearance: 'classic' });
     await waitFor(() => expect(boxHeaders(container).length).toBeGreaterThan(0));
     for (const header of boxHeaders(container)) {
       expect(getComputedStyle(header).position).not.toBe('sticky');
     }
+  });
+
+  it('draws no status box at all in a calm nested sub-form: the item it sits in is the card', async () => {
+    const { container } = renderForm({ compactNested: true });
+    await waitFor(() => expect(container.querySelector('.readfirst-nested-list')).toBeTruthy());
+    expect(boxHeaders(container)).toHaveLength(0);
+    expect(container.querySelector('.options-readfirst-toolbar')).toBeNull();
   });
 
   it('stops the panel body being a scroll container, which would swallow the pin', async () => {

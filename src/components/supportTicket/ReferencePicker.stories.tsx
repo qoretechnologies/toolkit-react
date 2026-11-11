@@ -29,8 +29,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const ACCENT = { main: 'custom1' } as const;
-
 /* The kind ids a host passes — wire values, not labels. `qog` is the customer-facing
  * kind for what the instance still lists as `fsm`; hosts map that at the fetch
  * boundary, so `fsm` never reaches the picker. */
@@ -143,7 +141,6 @@ const Hosted = ({
                their own remove — and read a size up from the thread's, where they're
                a record rather than a control. */
             <InterfaceReferenceTags
-              customTheme={ACCENT}
               references={picked}
               onRemove={(reference) =>
                 setPicked((current) =>
@@ -167,7 +164,6 @@ const Hosted = ({
             flat
             badge={picked.length || undefined}
             active={open}
-            customTheme={ACCENT}
             tooltip={open ? 'Hide references' : 'Reference interfaces'}
             onClick={() => setOpen((shown) => !shown)}
           />

@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
 import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
+import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import type { IInterfaceReference, TTicketMessageAuthor } from '../supportTicket/meta';
 import { ITicketSystemEventAction, ITicketThreadMessage, TicketThread } from './TicketThread';
 
@@ -158,6 +159,30 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
+ * How coloured a message's card is: the saturation (0–1) of its border, the one place
+ * ReqoreBubble draws its tint. A neutral card is near 0; amber or purple is well above.
+ */
+const cardSaturation = (messageId: string): number => {
+  const bubble = document.getElementById(`ticket-message-${messageId}`);
+  if (!bubble) throw new Error(`message ${messageId} not rendered`);
+  const bordered = [bubble, ...Array.from(bubble.querySelectorAll<HTMLElement>('*'))].find((el) => {
+    const style = getComputedStyle(el);
+    return parseFloat(style.borderTopWidth) > 0 && style.borderTopStyle !== 'none';
+  });
+  if (!bordered) throw new Error(`message ${messageId} has no card border`);
+  const [r, g, b] = getComputedStyle(bordered).borderTopColor.match(/[\d.]+/g)!.map(Number);
+  const max = Math.max(r, g, b);
+  return max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+};
+
+/** Neither side of a conversation is tinted (no purple, no blue); only an internal note is. */
+const expectNeutralCards = async (ids: string[]) => {
+  for (const id of ids) {
+    await expect(cardSaturation(id)).toBeLessThan(0.2);
+  }
+};
+
+/**
  * The customer viewpoint: the customer's own messages sit on the right under
  * "You", staff appear under a masked "Qorus Support" label, and internal notes
  * are never delivered to this surface (the server filters them). Clicking an
@@ -168,7 +193,7 @@ export const CustomerView: Story = {
     docs: {
       description: {
         story:
-          "Renders the thread from the customer's viewpoint: the customer's own messages sit on the right under 'You', staff appear under the masked 'Qorus Support' label, internal notes are filtered out, and clicking an attachment chip calls onDownloadAttachment with its id and filename.",
+          "Renders the thread from the customer's viewpoint: the customer's own messages sit on the right under 'You', staff appear under the masked 'Qorus Support' label, both as neutral cards (the side and the label say who spoke), internal notes are filtered out, and clicking an attachment chip calls onDownloadAttachment with its id and filename.",
       },
     },
   },
@@ -184,6 +209,8 @@ export const CustomerView: Story = {
     await expect(canvas.getByText('Qorus Support')).toBeInTheDocument();
     // internal notes are filtered out for the customer
     await expect(canvas.queryByText('Internal note')).not.toBeInTheDocument();
+    // the side, the avatar and the label say who spoke; no card is tinted for it
+    await expectNeutralCards(['m1', 'm2']);
     // its times are read against the story's clock (STORY_NOW), not the day the build ran: the opening message,
     // three hours before it, reads "3 hours ago" in every build, so the frame never changes by itself (Foxhoundn,
     // qlip #400: "Are these timestamp changes always now going to show up?")
@@ -314,22 +341,93 @@ export const StaffView: Story = {
     docs: {
       description: {
         story:
-          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, and staff-only internal notes render amber and bordered under an 'Internal note' label.",
+          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, both as neutral cards, and staff-only internal notes render amber and bordered under an 'Internal note' label. The customer is named from the ticket ('Customer · Acme Corp').",
       },
     },
   },
   args: {
     viewerRole: 'staff',
     messages: THREAD,
+    customer: { customer_name: 'Acme Corp', customer_email: 'ops@acme.example' },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByText('Internal note')).toBeInTheDocument();
     await expect(canvas.getByText(/Support · nick/)).toBeInTheDocument();
-    await expect(canvas.getByText(/Customer · acme/)).toBeInTheDocument();
+    await expect(canvas.getAllByText(/Customer · Acme Corp/).length).toBeGreaterThan(0);
+    // both sides are neutral cards; the internal note alone is amber
+    await expectNeutralCards(['m1', 'm2']);
+    await expect(cardSaturation('m3')).toBeGreaterThan(0.3);
     // the reference chip renders with the built-in default icon (no resolver passed)
     await expect(canvas.getByText('nightly-deploy:1.2')).toBeInTheDocument();
+  },
+};
+
+/** A subscription code: what a customer's `author_id` and a ticket's `created_by` hold on a real server. */
+const SUBSCRIPTION_CODE = '6f1c2e8a-3b4d-4e5f-9a0b-1c2d3e4f5a6b';
+const UUID_SHAPED = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+export const StaffViewNamesTheCustomer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the staff thread of a ticket whose customer messages arrive without a name, one with its subscription code where the name would be. Each is labeled by the ticket's customer ('Customer · Jane Doe'), never by the subscription code, and the line Qorus wrote is not called the customer's.",
+      },
+    },
+  },
+  args: {
+    viewerRole: 'staff',
+    customer: { customer_name: 'Jane Doe', customer_email: 'jane@acme.example' },
+    messages: [
+      {
+        message_id: 'n1',
+        author_type: 'customer',
+        author_id: SUBSCRIPTION_CODE,
+        body: 'Our nightly import stopped this morning.',
+        created: ago(240),
+      },
+      {
+        message_id: 'n2',
+        author_type: 'system',
+        author_id: 'system',
+        body: 'Assigned to Qorus Support.',
+        created: ago(200),
+      },
+      {
+        message_id: 'n3',
+        author_type: 'staff',
+        author_id: 'nick',
+        author_name: 'Nick',
+        body: 'Looking at it now: can you send the job’s last log?',
+        created: ago(120),
+      },
+      {
+        message_id: 'n4',
+        author_type: 'customer',
+        author_id: SUBSCRIPTION_CODE,
+        // a server that knows no name hands the id back where the name would be
+        author_name: SUBSCRIPTION_CODE,
+        body: 'Attached.',
+        created: ago(60),
+      },
+    ],
+  },
+  async play({ canvasElement }) {
+    const labels = () =>
+      Array.from(canvasElement.querySelectorAll<HTMLElement>('.reqore-bubble-label')).map(
+        (label) => label.textContent?.trim() ?? ''
+      );
+    await waitFor(() => expect(labels()).toContain('Support · Nick'));
+    // no author is an id: neither the message's author_id nor a name that is one
+    await expect(labels().filter((label) => UUID_SHAPED.test(label))).toEqual([]);
+    await expect(canvasElement.textContent).not.toMatch(UUID_SHAPED);
+    // the customer, by name
+    await expect(labels().filter((label) => label === 'Customer · Jane Doe').length).toBeGreaterThan(0);
+    // what Qorus wrote is not the customer's
+    await expect(labels().some((label) => /Customer · system/.test(label))).toBe(false);
+    await expect(within(canvasElement).getByText('Assigned to Qorus Support.')).toBeInTheDocument();
   },
 };
 
@@ -763,6 +861,45 @@ export const ImagePreview: Story = {
     // clicking a thumbnail opens the enlarge view
     await userEvent.click(thumb);
     await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
+  },
+};
+
+/**
+ * An image attachment whose bytes are not a picture — the server answered with an error
+ * page or an empty body — is a download chip like any other file, never a broken image.
+ */
+export const ImageThatDoesNotLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a message with two screenshots where one\'s bytes cannot be drawn: that one falls back to its download chip while the other stays a thumbnail.',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'customer',
+    fetchAttachmentUrl: async (id: string) =>
+      id === 'img-1' ? STORY_BROKEN_IMAGE : screenshot('after', 205),
+    messages: [
+      {
+        message_id: 'img',
+        author_type: 'customer',
+        author_id: 'acme',
+        body: 'Here is the canvas before and after the upgrade:',
+        created: ago(6),
+        attachments: [
+          { attachment_id: 'img-1', filename: 'before.png', content_type: 'image/png', size_bytes: 512_000 },
+          { attachment_id: 'img-2', filename: 'after.png', content_type: 'image/png', size_bytes: 486_000 },
+        ],
+      },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvasElement.querySelector('img[alt="after.png"]')).not.toBeNull());
+    await waitFor(() => expect(canvas.getByRole('button', { name: /before\.png/ })).toBeInTheDocument());
+    await expect(canvasElement.querySelector('img[alt="before.png"]')).toBeNull();
   },
 };
 

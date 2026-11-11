@@ -194,7 +194,10 @@ export const conditionErrorText = (
   typeInSentence: string | undefined,
   baseType: string | undefined
 ): string =>
-  `${typeInSentence ? `The condition evaluates to ${typeInSentence}, but it` : 'The condition'} must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+  reqraftLabels().expressions.conditionError(
+    typeInSentence,
+    conditionExample(conditionBaseType(baseType))
+  );
 
 /**
  * What the expression builder says of an expression whose result does not fit its place: what it gives, what the
@@ -307,7 +310,7 @@ export const expressionTypeSource = (
  * where the type is not known; the sentence then names only the other, or neither (qorus#646).
  */
 export const conversionText = (from: string | undefined, to: string | undefined): string =>
-  `Converted${from ? ` from ${from}` : ''}${to ? ` to ${to}` : ''}`;
+  reqraftLabels().expressions.converted(from, to);
 
 /**
  * What is said of a condition that gives a number, a list, a hash or a type that is not known
@@ -319,16 +322,12 @@ export const conversionText = (from: string | undefined, to: string | undefined)
 export const conditionByTruthinessText = (type: string | undefined): string => {
   const base = conditionBaseType(type);
   const named = qorusTypeSentenceForm(getQorusTypes(), base);
-  if (/^(int|integer|float|number)$/.test(base)) {
-    return `The condition evaluates to ${named}; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.`;
-  }
-  if (base === 'list') {
-    return `The condition evaluates to ${named}; Qorus treats it as true unless it is empty. To make that explicit, compare its size, for example size(@items) > 0.`;
-  }
-  if (base === 'hash') {
-    return `The condition evaluates to ${named}; Qorus treats it as true unless it holds no pairs. To make that explicit, compare its size, for example size(@details) > 0.`;
-  }
-  return "The condition's value is not true or false; Qorus treats it as true unless it is 0 or empty. To make that explicit, compare it, for example @count > 0.";
+  const kind =
+    /^(int|integer|float|number)$/.test(base) ? 'number'
+    : base === 'list' ? 'list'
+    : base === 'hash' ? 'hash'
+    : 'other';
+  return reqraftLabels().expressions.conditionByTruthiness(kind, named);
 };
 
 /** The operators whose every part is read as true or false by its value: AND, OR and NOT. */

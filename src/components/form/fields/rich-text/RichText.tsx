@@ -41,10 +41,9 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
-import { TEMPLATE_BROWSE_LIST_PROPS } from './useTemplateTags';
+import { useTemplateBrowseListProps } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
-import { NO_VALUE_DESCRIPTION } from '../../../../helpers/noDescription';
 import {
   hostSaysOf,
   referenceStanding,
@@ -771,7 +770,10 @@ export const RichTextFormField = memo(({
               listed ?
                 // its whole path heads the card, as every view's hover of a listed template says it
                 templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm)
-              : descriptionTooltip(descriptionByValue[tagValue] || NO_VALUE_DESCRIPTION, descriptions),
+              : descriptionTooltip(
+                  descriptionByValue[tagValue] || treeWords.noValueDescription,
+                  descriptions
+                ),
             // The same chip the read summary and the read-only tag draw.
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(tag.metadata),
@@ -792,6 +794,8 @@ export const RichTextFormField = memo(({
         chipBehavior.click,
         openChoiceChip,
         templateChipClick,
+        // what a hover says is in the host's words: drawn again in others
+        treeWords,
       ]
     );
 
@@ -853,6 +857,8 @@ export const RichTextFormField = memo(({
      editor's `tags` is the template catalogue this component computes. */
   const editorProps = { ...rest };
   delete (editorProps as { tags?: unknown }).tags;
+  // the template list's color in the look in force: neutral in the calm one
+  const browseListProps = useTemplateBrowseListProps();
 
   return (
     <>
@@ -882,7 +888,7 @@ export const RichTextFormField = memo(({
       {...(editorProps as Omit<typeof editorProps, 'tags'>)}
       tagsListProps={{
         useTargetWidth: true,
-        ...TEMPLATE_BROWSE_LIST_PROPS,
+        ...browseListProps,
         ...(rest.tagsListProps || {}),
       }}
       getTagProps={handleGetTagProps}

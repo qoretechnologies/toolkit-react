@@ -6,8 +6,8 @@ import { offersTypeChoices } from '../src/components/form/engine/typeChoices';
  * menu.
  *
  * Reported from the live IDE: an assertion's Expected Value had no type
- * choices in its menu at all — only "Edit fullscreen", "Use Expression" and
- * "Use Template". They appeared ONLY in the Visual view of an expression,
+ * choices in its menu at all — only "Edit fullscreen", "Use expression" and
+ * "Use template". They appeared ONLY in the Visual view of an expression,
  * because there the field is an expression OPERAND whose schema does say
  * `ui_type: 'any'`. The option itself is declared by the server as
  * `type: 'auto'` with no `ui_type`, which the old rule could never match.

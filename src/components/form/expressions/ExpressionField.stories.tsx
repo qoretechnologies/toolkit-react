@@ -133,7 +133,7 @@ export const Default: Story = {
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
-    await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    await expect(await canvas.findByText(/^logical equals$/i)).toBeInTheDocument();
     // the toggle is as wide as what its two buttons say, not across the field
     const field = canvasElement.querySelector('.expression-field') as HTMLElement;
     const toggle = canvasElement.querySelector('.expression-mode-toggle') as HTMLElement;
@@ -333,7 +333,7 @@ export const ViaFormEngine: Story = {
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
-    await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    await expect(await canvas.findByText(/^logical equals$/i)).toBeInTheDocument();
     // A valid expression is validated as an expression, not as the base
     // `bool` type — no "must be True or False" error.
     await expect(canvas.queryByText(/True or False/)).not.toBeInTheDocument();
@@ -552,6 +552,13 @@ export const ViaFormEngineTextTyping: Story = {
       timeout: 10000,
     });
     await waitForLspIdle(canvasElement);
+    // A Preview only informs, so the calm look draws it in no colour: a grey box,
+    // not a blue one with code on blue.
+    const box = canvas.getByTestId('expression-preview').closest<HTMLElement>('.reqore-message')!;
+    const [r, g, b] = (getComputedStyle(box).backgroundColor.match(/[\d.]+/g) || []).map(Number);
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(8);
+    // A bare name is a valid expression: DPQL wraps it in `value`, which the catalogue has.
+    expect(canvasElement.textContent).not.toContain('not found');
   },
 };
 
@@ -1042,7 +1049,7 @@ export const TextModeOfAnUnfinishedExpression: Story = {
   args: {
     value: {
       is_expression: true,
-      // ">" with its first operand switched to "Use Expression", nothing chosen, and its second empty
+      // ">" with its first operand switched to "Use expression", nothing chosen, and its second empty
       value: { exp: '>', args: [{ value: { args: [null] }, is_expression: true }, {}] },
     },
     defaultMode: 'text',
@@ -1054,7 +1061,7 @@ export const TextModeOfAnUnfinishedExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does, and under it what to do with them, once: "Fill in each … (the parts not chosen yet)." - not the server\'s "Unexpected character \'…\'" for each, of text the author did not write (David\'s decision).',
+          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does, and under it what to do with them, once: "Fill in each … (the parts not chosen yet)." - not the server\'s "Unexpected character \'…\'" for each, of text the author did not write (David\'s decision).',
       },
     },
   },
@@ -1182,7 +1189,7 @@ export const WriteAConditionInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet: a search condition on the orders record, which takes no templates (as the Qorus app\'s exec-search condition takes none), and whose record the server names. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use Expression"; clicking it opens the condition on its Text view, where an @ offers the record\'s fields: @order_id, @customer, @total and @shipped.',
+          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet: a search condition on the orders record, which takes no templates (as the Qorus app\'s exec-search condition takes none), and whose record the server names. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use expression"; clicking it opens the condition on its Text view, where an @ offers the record\'s fields: @order_id, @customer, @total and @shipped.',
       },
     },
   },
@@ -1190,7 +1197,7 @@ export const WriteAConditionInFormEngine: Story = {
   play: async ({ canvasElement }) => {
     const item = await openMoreMenu(canvasElement);
     expect(item).toHaveTextContent('Write a condition');
-    expect(document.body.textContent).not.toContain('Use Expression');
+    expect(document.body.textContent).not.toContain('Use expression');
     expect(document.body.textContent).not.toContain('Run a function on this value');
     await userEvent.click(item);
     await waitFor(
@@ -1235,7 +1242,7 @@ export const WriteAConditionInFormEngineOnAPhone: Story = {
 
 /**
  * A plain `bool` field with `supports_expressions` and no value — starts as
- * the normal field; the "Use Expression" toggle (More menu) switches it.
+ * the normal field; the "Use expression" toggle (More menu) switches it.
  * Driven live for the toggle interaction.
  */
 export const ToggleInFormEngine: Story = {
@@ -1246,7 +1253,7 @@ export const ToggleInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view (qorus#646, David); Visual shows the builder.',
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view (qorus#646, David); Visual shows the builder.',
       },
     },
   },
@@ -1287,9 +1294,9 @@ export const ToggleInFormEngine: Story = {
     )) as HTMLElement;
     await userEvent.click(more);
 
-    // "Use Expression" (`.function-selector`) flips the field into expression
+    // "Use expression" (`.function-selector`) flips the field into expression
     // mode.
-    await userEvent.click(await canvas.findByText('Use Expression'));
+    await userEvent.click(await canvas.findByText('Use expression'));
 
     // The ExpressionField shell mounts: its `.expression-field` wrapper, on the Text view.
     await waitFor(

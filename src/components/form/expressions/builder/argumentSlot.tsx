@@ -1,6 +1,7 @@
 import { ReqoreButton, useReqoreTheme } from '@qoretechnologies/reqore';
 import { memo } from 'react';
 import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IExpressionBuilderAddArgumentSlotProps {
   /**
@@ -47,7 +48,7 @@ export const ExpressionBuilderAddArgumentSlot = memo(
   }: IExpressionBuilderAddArgumentSlotProps) => {
     const theme = useReqoreTheme();
     const isMobile = usePhoneViewport();
-    const name = (argumentName || 'argument').toLowerCase();
+    const words = useReqraftLabels().expressions;
 
     return (
       <ReqoreButton
@@ -60,10 +61,8 @@ export const ExpressionBuilderAddArgumentSlot = memo(
         size='small'
         className='expression-add-arg'
         icon='AddLine'
-        label={`Add ${name}`}
-        tooltip={
-          disabled ? 'Fill in the current values first' : `Add another ${name} after the last one`
-        }
+        label={words.addOperand(argumentName)}
+        tooltip={disabled ? words.fillInCurrentValuesFirst : words.addOperandTooltip(argumentName)}
         disabled={disabled}
         onClick={onClick}
         // Drag events stop here for the same reason they stop on an operand:

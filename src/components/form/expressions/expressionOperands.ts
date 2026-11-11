@@ -4,7 +4,7 @@
 // The Visual view stores operands in the shapes its editors produce, and two of
 // them are not values at all:
 //
-// - an operand switched to "Use Expression" whose operation is not chosen yet
+// - an operand switched to "Use expression" whose operation is not chosen yet
 //   (`{ is_expression: true, value: { args } }`, no `exp`), and an operand not
 //   filled in (`{}`, `{ type }`): there is nothing in them yet;
 // - a custom Text value, which is a rich-text document (a list of Slate nodes),

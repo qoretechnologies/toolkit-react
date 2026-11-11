@@ -1,5 +1,7 @@
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
+import type { ISupportTicketLabels } from './labels';
 
 /*
  * The single source of truth for the Qorus support-ticket presentation
@@ -55,6 +57,9 @@ export type TTicketViewerRole = 'customer' | 'staff';
 
 export interface ITicketEnumMeta {
   label: string;
+  /** The value's tint in the classic look (`TicketMetaTags appearance='classic'`). A calm surface does not read
+   *  it: a category is not a verdict, and a status or a priority takes a color only when it needs the person
+   *  looking at it (`ticketStatusAttention`, `ticketPriorityAttention`). */
   intent: TReqoreIntent;
   icon: IReqoreIconName;
   /** Audience-specific label for the customer view; falls back to `label` (the
@@ -62,32 +67,52 @@ export interface ITicketEnumMeta {
   customerLabel?: string;
 }
 
+/**
+ * A mark whose label is read from the host's words (`setReqraftLabels`) each time it is read, so a vocabulary kept
+ * in a module-level map still says the words given now.
+ */
+const worded = (
+  word: (words: ISupportTicketLabels) => string,
+  intent: TReqoreIntent,
+  icon: IReqoreIconName
+): ITicketEnumMeta => ({
+  get label() {
+    return word(reqraftLabels().supportTicket);
+  },
+  intent,
+  icon,
+});
+
 export const TICKET_STATUS_META: Record<TTicketStatus, ITicketEnumMeta> = {
-  new: { label: 'New', intent: 'info', icon: 'SparklingLine' },
-  open: { label: 'Open', intent: 'pending', icon: 'Chat3Line' },
+  new: worded((words) => words.statuses.new, 'info', 'SparklingLine'),
+  open: worded((words) => words.statuses.open, 'pending', 'Chat3Line'),
   awaiting_customer: {
-    label: 'Awaiting customer',
-    customerLabel: 'Awaiting your reply',
+    get label() {
+      return reqraftLabels().supportTicket.statuses.awaiting_customer;
+    },
+    get customerLabel() {
+      return reqraftLabels().supportTicket.awaitingYourReply;
+    },
     intent: 'warning',
     icon: 'UserReceivedLine',
   },
-  resolved: { label: 'Resolved', intent: 'success', icon: 'CheckLine' },
-  closed: { label: 'Closed', intent: 'muted', icon: 'CloseCircleLine' },
+  resolved: worded((words) => words.statuses.resolved, 'success', 'CheckLine'),
+  closed: worded((words) => words.statuses.closed, 'muted', 'CloseCircleLine'),
 };
 
 export const TICKET_PRIORITY_META: Record<TTicketPriority, ITicketEnumMeta> = {
-  low: { label: 'Low', intent: 'muted', icon: 'ArrowDownLine' },
-  normal: { label: 'Normal', intent: 'info', icon: 'SubtractLine' },
-  high: { label: 'High', intent: 'warning', icon: 'ArrowUpLine' },
-  urgent: { label: 'Urgent', intent: 'danger', icon: 'AlarmWarningLine' },
+  low: worded((words) => words.priorities.low, 'muted', 'ArrowDownLine'),
+  normal: worded((words) => words.priorities.normal, 'info', 'SubtractLine'),
+  high: worded((words) => words.priorities.high, 'warning', 'ArrowUpLine'),
+  urgent: worded((words) => words.priorities.urgent, 'danger', 'AlarmWarningLine'),
 };
 
 export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketEnumMeta> = {
-  bug: { label: 'Bug', intent: 'danger', icon: 'BugLine' },
-  question: { label: 'Question', intent: 'info', icon: 'QuestionLine' },
-  billing: { label: 'Billing', intent: 'warning', icon: 'BankCardLine' },
-  feature: { label: 'Feature request', intent: 'success', icon: 'LightbulbLine' },
-  other: { label: 'Other', intent: 'muted', icon: 'MoreLine' },
+  bug: worded((words) => words.categories.bug, 'danger', 'BugLine'),
+  question: worded((words) => words.categories.question, 'info', 'QuestionLine'),
+  billing: worded((words) => words.categories.billing, 'warning', 'BankCardLine'),
+  feature: worded((words) => words.categories.feature, 'success', 'LightbulbLine'),
+  other: worded((words) => words.categories.other, 'muted', 'MoreLine'),
 };
 
 /** Staff-only audit trail vocabulary (used by the admin-portal staff surface).
@@ -95,31 +120,31 @@ export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketEnumMeta> = {
  *  `QorusSaasTicketStore::insertAudit`): a public reply, an internal note, a
  *  status change, an assignment, or `updated` (a priority/category change). */
 export const TICKET_AUDIT_ACTION_META: Record<TTicketAuditAction, ITicketEnumMeta> = {
-  replied: { label: 'Replied', intent: 'success', icon: 'ReplyLine' },
-  noted: { label: 'Internal note', intent: 'info', icon: 'StickyNoteLine' },
-  status_changed: { label: 'Status changed', intent: 'warning', icon: 'ExchangeLine' },
-  assigned: { label: 'Assigned', intent: 'pending', icon: 'UserFollowLine' },
-  updated: { label: 'Updated', intent: 'muted', icon: 'Edit2Line' },
-  viewed: { label: 'Viewed', intent: 'muted', icon: 'EyeLine' },
-  attachment_downloaded: { label: 'Attachment downloaded', intent: 'muted', icon: 'Download2Line' },
-  workspace_viewed: { label: 'Workspace viewed', intent: 'info', icon: 'Search2Line' },
-  access_requested: { label: 'Access requested', intent: 'pending', icon: 'ShieldUserLine' },
-  access_granted: { label: 'Access granted', intent: 'success', icon: 'ShieldCheckLine' },
-  access_extended: { label: 'Access extended', intent: 'info', icon: 'TimerLine' },
-  access_revoked: { label: 'Access revoked', intent: 'danger', icon: 'ShieldCrossLine' },
-  access_expired: { label: 'Access expired', intent: 'muted', icon: 'HourglassLine' },
-  session_launched: { label: 'IDE session launched', intent: 'info', icon: 'ExternalLinkLine' },
+  replied: worded((words) => words.auditActions.replied, 'success', 'ReplyLine'),
+  noted: worded((words) => words.auditActions.noted, 'info', 'StickyNoteLine'),
+  status_changed: worded((words) => words.auditActions.status_changed, 'warning', 'ExchangeLine'),
+  assigned: worded((words) => words.auditActions.assigned, 'pending', 'UserFollowLine'),
+  updated: worded((words) => words.auditActions.updated, 'muted', 'Edit2Line'),
+  viewed: worded((words) => words.auditActions.viewed, 'muted', 'EyeLine'),
+  attachment_downloaded: worded((words) => words.auditActions.attachment_downloaded, 'muted', 'Download2Line'),
+  workspace_viewed: worded((words) => words.auditActions.workspace_viewed, 'info', 'Search2Line'),
+  access_requested: worded((words) => words.auditActions.access_requested, 'pending', 'ShieldUserLine'),
+  access_granted: worded((words) => words.auditActions.access_granted, 'success', 'ShieldCheckLine'),
+  access_extended: worded((words) => words.auditActions.access_extended, 'info', 'TimerLine'),
+  access_revoked: worded((words) => words.auditActions.access_revoked, 'danger', 'ShieldCrossLine'),
+  access_expired: worded((words) => words.auditActions.access_expired, 'muted', 'HourglassLine'),
+  session_launched: worded((words) => words.auditActions.session_launched, 'info', 'ExternalLinkLine'),
 };
 
 /** The mark for an audit action the server writes but this vocabulary has not caught up
  *  with: a muted, generic row that still names the action. It exists because the staff
  *  audit tab used to index `TICKET_AUDIT_ACTION_META` directly, and one unknown action
  *  took the whole tab down (qorus#693). */
-export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketEnumMeta = {
-  label: 'Activity',
-  intent: 'muted',
-  icon: 'HistoryLine',
-};
+export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketEnumMeta = worded(
+  (words) => words.activity,
+  'muted',
+  'HistoryLine'
+);
 
 /** A wire value humanised for reading: `attachment_downloaded` → "Attachment downloaded". */
 export const humaniseWireValue = (value: string): string => {
@@ -141,25 +166,37 @@ export const ticketAuditActionMeta = (action: string): ITicketEnumMeta =>
 
 /** How each delegated-access thread event renders: the mark on its system line or card. */
 export const TICKET_SYSTEM_EVENT_META: Record<TTicketSystemEvent, ITicketEnumMeta> = {
-  'support_access.requested': {
-    label: 'Workspace access requested',
-    intent: 'info',
-    icon: 'ShieldUserLine',
-  },
-  'support_access.granted': { label: 'Workspace access granted', intent: 'success', icon: 'ShieldCheckLine' },
-  'support_access.extended': { label: 'Workspace access extended', intent: 'info', icon: 'TimerLine' },
-  'support_access.first_used': { label: 'Workspace opened by support', intent: 'info', icon: 'EyeLine' },
-  'support_access.revoked': { label: 'Workspace access revoked', intent: 'danger', icon: 'ShieldCrossLine' },
-  'support_access.expired': { label: 'Workspace access expired', intent: 'muted', icon: 'HourglassLine' },
+  'support_access.requested': worded(
+    (words) => words.systemEvents['support_access.requested'],
+    'info',
+    'ShieldUserLine'
+  ),
+  'support_access.granted': worded(
+    (words) => words.systemEvents['support_access.granted'],
+    'success',
+    'ShieldCheckLine'
+  ),
+  'support_access.extended': worded((words) => words.systemEvents['support_access.extended'], 'info', 'TimerLine'),
+  'support_access.first_used': worded((words) => words.systemEvents['support_access.first_used'], 'info', 'EyeLine'),
+  'support_access.revoked': worded(
+    (words) => words.systemEvents['support_access.revoked'],
+    'danger',
+    'ShieldCrossLine'
+  ),
+  'support_access.expired': worded(
+    (words) => words.systemEvents['support_access.expired'],
+    'muted',
+    'HourglassLine'
+  ),
 };
 
 /** The generic mark for a system message with no event, or an event this vocabulary
  *  does not know: the plain informational line every system message used to be. */
-export const DEFAULT_TICKET_SYSTEM_EVENT_META: ITicketEnumMeta = {
-  label: 'System',
-  intent: 'muted',
-  icon: 'InformationLine',
-};
+export const DEFAULT_TICKET_SYSTEM_EVENT_META: ITicketEnumMeta = worded(
+  (words) => words.systemMessage,
+  'muted',
+  'InformationLine'
+);
 
 /** The mark for a system message's `system_event`, with the generic fallback. */
 export const ticketSystemEventMeta = (event?: string): ITicketEnumMeta =>
@@ -175,6 +212,50 @@ export const ticketStatusLabel = (
   const meta = TICKET_STATUS_META[status];
   return viewerRole === 'customer' && meta.customerLabel ? meta.customerLabel : meta.label;
 };
+
+/**
+ * How much a ticket's state asks of the person looking at it, in the calm vocabulary every Qorus surface shares
+ * (a status is a dot and a word, and only what needs a person is colored): `bad` and `warn` need someone (red,
+ * amber), `good` is done (a little green), `live` is being worked, `idle` is closed, and `quiet` has nothing to
+ * report.
+ *
+ * Decided here once, for the IDE's support pages, the Qonsole ticket card and the staff portal's queue, which
+ * each kept their own copy, and for `TicketMetaTags`.
+ */
+export type TTicketAttention = 'bad' | 'warn' | 'good' | 'live' | 'quiet' | 'idle';
+
+/**
+ * A status's attention for whoever is looking. The customer is needed only when the ticket waits on their reply;
+ * staff are needed by a new ticket, which waits for triage, and an open one is being worked. A closed ticket does
+ * nothing any more. With no viewer (a neutral surface) only a closed ticket differs.
+ */
+export const ticketStatusAttention = (
+  status: TTicketStatus,
+  viewerRole?: TTicketViewerRole
+): TTicketAttention => {
+  if (status === 'closed') {
+    return 'idle';
+  }
+  if (viewerRole === 'customer') {
+    return status === 'awaiting_customer' ? 'warn' : 'quiet';
+  }
+  if (viewerRole === 'staff') {
+    return (
+      status === 'new' ? 'warn'
+      : status === 'open' ? 'live'
+      : status === 'resolved' ? 'good'
+      : 'quiet'
+    );
+  }
+  return 'quiet';
+};
+
+/** A priority only orders the queue, so it is a word: red for urgent, amber for high, quiet otherwise - never a
+ *  dot that could read as the ticket's health. */
+export const ticketPriorityAttention = (priority: TTicketPriority): TTicketAttention =>
+  priority === 'urgent' ? 'bad'
+  : priority === 'high' ? 'warn'
+  : 'quiet';
 
 /** A reply may be sent while a ticket is in any state except `closed`. */
 export const REPLYABLE_STATUSES: TTicketStatus[] = [
@@ -318,25 +399,11 @@ export type TResolveInterfaceIcon = (kind: string) => TInterfaceKindIcon;
 export const toInterfaceKindMark = (icon: TInterfaceKindIcon): IInterfaceKindMark =>
   typeof icon === 'string' ? { icon } : icon;
 
-// The reading name for each interface kind. The kind id (`value-map`, `ai-collection`)
-// is a wire value — it's what a host fetches with and what gets stored on the reference
-// — so it must never be what the user reads. These are plural because they name a
-// category the user picks from, not a single interface. `fsm` maps to "Qogs" like every
-// other user-facing surface; the id stays `fsm` wherever a host still uses it.
-const DEFAULT_INTERFACE_KIND_LABELS: Record<string, string> = {
-  workflow: 'Workflows',
-  service: 'Services',
-  job: 'Jobs',
-  fsm: 'Qogs',
-  qog: 'Qogs',
-  connection: 'Connections',
-  mapper: 'Mappers',
-  class: 'Classes',
-  'value-map': 'Value maps',
-  'ai-collection': 'AI collections',
-  'ai-endpoint': 'AI endpoints',
-  'ai-guardrail': 'AI guardrails',
-};
+// The reading name for each interface kind is a word of the host's (`supportTicket.interfaceKinds`). The kind id
+// (`value-map`, `ai-collection`) is a wire value — it's what a host fetches with and what gets stored on the
+// reference — so it must never be what the user reads. The names are plural because they name a category the user
+// picks from, not a single interface. `fsm` reads "Qogs" like every other user-facing surface; the id stays `fsm`
+// wherever a host still uses it.
 
 /**
  * Default reading name for an interface kind — "Value maps" for `value-map`. An
@@ -346,13 +413,12 @@ const DEFAULT_INTERFACE_KIND_LABELS: Record<string, string> = {
  * whole thing via the picker's `resolveKindLabel`.
  */
 export const defaultInterfaceKindLabel = (kind: string): string => {
-  const known = DEFAULT_INTERFACE_KIND_LABELS[kind];
+  const words = reqraftLabels().supportTicket;
+  const known = (words.interfaceKinds as Partial<Record<string, string>>)[kind];
 
   if (known) {
     return known;
   }
 
-  const sentenceCase = humaniseWireValue(kind);
-
-  return sentenceCase.endsWith('s') ? sentenceCase : `${sentenceCase}s`;
+  return words.otherInterfaceKind(humaniseWireValue(kind));
 };

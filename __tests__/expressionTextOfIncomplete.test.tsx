@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 /**
  * The Text view of an expression built in the Visual view (David's review of qorus#646).
  *
- * Two operand shapes are not DPQL: an operand switched to "Use Expression" whose operation is not
+ * Two operand shapes are not DPQL: an operand switched to "Use expression" whose operation is not
  * chosen yet, and a custom Text value (a rich-text document). Handed to `dpql/serialize` as they were,
  * the Text view showed `undefined([object Object]) > [object Object]` and `[object Object] > [object
  * Object]`; the server writes them as hashes (`{args=(null)} > {type=int}`).
@@ -50,7 +50,7 @@ const fetchContext = emptyFetchContext();
 const richtext = (...children: unknown[]) => [{ type: 'paragraph', children: [{ text: '' }, ...children, { text: '' }] }];
 const tag = (value: string, label: string) => ({ type: 'tag', value, label, children: [{ text: '' }] });
 
-/** ">" with its first operand switched to "Use Expression", nothing chosen, and the second empty. */
+/** ">" with its first operand switched to "Use expression", nothing chosen, and the second empty. */
 const USE_EXPRESSION_UNCHOSEN = {
   exp: '>',
   args: [{ value: { args: [null] }, is_expression: true }, {}],

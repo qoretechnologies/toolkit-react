@@ -10,7 +10,11 @@ import {
 } from '../../../../helpers/templateItems';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { useTypeLabel } from '../../typeSentenceForm';
-import { COMPLETION_LIST_THEME, styleTemplateItems } from '../../../smartEditor/completionStyle';
+import {
+  COMPLETION_LIST_THEME,
+  styleTemplateItems,
+  useCompletionListTheme,
+} from '../../../smartEditor/completionStyle';
 
 /**
  * How the list a field's templates are browsed in is drawn, wherever it opens - an editor's (its `tagsListProps`)
@@ -20,6 +24,12 @@ export const TEMPLATE_BROWSE_LIST_PROPS = {
   minWidth: '300px',
   maxWidth: '600px',
   listCustomTheme: COMPLETION_LIST_THEME,
+};
+
+/** `TEMPLATE_BROWSE_LIST_PROPS` in the look in force: the list's color is `useCompletionListTheme`'s. */
+export const useTemplateBrowseListProps = (): typeof TEMPLATE_BROWSE_LIST_PROPS => {
+  const listCustomTheme = useCompletionListTheme();
+  return useMemo(() => ({ ...TEMPLATE_BROWSE_LIST_PROPS, listCustomTheme }), [listCustomTheme]);
 };
 
 /**

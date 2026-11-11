@@ -117,7 +117,7 @@ export const isOfferedForPicking = (schema: Pick<IExpressionSchema, 'internal'>)
 export type TExpressionReorderSurface = 'overflowMenu' | 'dragHandle' | 'positionPicker';
 
 /**
- * `true` (the default) renders the drag grip together with the "Move Argument"
+ * `true` (the default) renders the drag grip together with the "Move argument"
  * section in the field's `⋮` menu; `false` turns reordering off; a list
  * renders exactly those surfaces.
  */
