@@ -1,10 +1,5 @@
 import { ReqoreFonts, ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
-import {
-  GAP_FROM_SIZE,
-  PADDING_FROM_SIZE,
-  SIZE_TO_PX,
-  TSizes,
-} from '@qoretechnologies/reqore/dist/constants/sizes';
+import { GAP_FROM_SIZE, SIZE_TO_PX, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import styled, { css } from 'styled-components';
 
 // Styled primitives for the compact (read-first) rows and their editor cards.
@@ -45,16 +40,11 @@ export const isCompactNarrow = (width: number, labelColumn: number): boolean =>
 export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
 /**
  * Calm appearance: the inset of everything inside a section — rows, group
- * headings, the one-of sentence, and the section's own header label, so all of
- * them start on one left edge.
+ * headings, the one-of sentence — so all of them start on one left edge. In a
+ * status box that edge is Reqore's (it pads the box's title and its content by
+ * one amount), and the box's body takes this inset back (`$boxCorners`).
  */
 export const CALM_SECTION_INSET = 16;
-/**
- * The extra inset a calm section header's label needs to land on that edge:
- * Reqore pads a `normal` panel's title bar by `PADDING_FROM_SIZE.normal`, and
- * the label makes up the rest itself.
- */
-export const CALM_SECTION_HEADER_INSET = CALM_SECTION_INSET - PADDING_FROM_SIZE.normal;
 
 // Measured label column (GLOBAL). The label column sizes to the WIDEST field
 // label across the whole form, its text clamped to MAX, and is never narrower
@@ -269,8 +259,8 @@ export const StyledGroupHeader = styled.div<{ $calm?: boolean }>`
      dot read as a single phrase, so they sit closer than the default's
      label-and-chip pair. */
   gap: ${({ $calm }) => ($calm ? 8 : 12)}px;
-  /* …and starts on the rows' left edge. */
-  padding-left: ${({ $calm }) => ($calm ? CALM_SECTION_HEADER_INSET : 0)}px;
+  /* No inset of its own: Reqore places the title where it places the box's content, and the rows start there
+     (the status box's \`contentStyle\`, StyledGroupBody's \`$boxCorners\`). */
   flex: 1;
   min-width: 0;
 `;
@@ -1191,11 +1181,18 @@ export const StyledGroupBody = styled.div<{
           padding-top: 3px;
           padding-bottom: 10px;
         }
-        /* The section's rounded bottom corners, which a full-bleed hover or an
-           open row's tint would otherwise square off. In a status box they are the
+        /* A status box's body: Reqore pads the box's content at its sides as it pads
+           its title, so the rows' own inset is taken back here - their text starts on
+           the title's edge, and their bands and hairlines reach the box's edges (the
+           content clips them there). The section's rounded bottom corners, which a
+           full-bleed hover or an open row's tint would otherwise square off, are the
            box's: each element down to the last row inherits them. */
         ${$boxCorners ?
           css`
+            && {
+              margin-left: -${CALM_SECTION_INSET}px;
+              margin-right: -${CALM_SECTION_INSET}px;
+            }
             &&,
             && > :where(.readfirst-row-place):last-child,
             && > :where(.readfirst-row-place):last-child > :where(.readfirst-row-host),

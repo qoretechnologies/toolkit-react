@@ -1,4 +1,4 @@
-import { useReqoreTheme } from '@qoretechnologies/reqore';
+import { ReqoreUIProvider, useReqoreTheme } from '@qoretechnologies/reqore';
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { expect, fn, waitFor } from 'storybook/test';
@@ -241,6 +241,60 @@ const expectCalmSection = (element: HTMLElement | undefined) => {
 };
 
 /**
+ * How far in a scaled element is drawn from its own box: Reqore draws a panel's icon at 85% of its box, about its
+ * center, and an icon is placed by its box (a glyph's own bearing differs from icon to icon anyway).
+ */
+const scaledInset = (element: Element, rect: DOMRect): number => {
+  const scale = Number(/^matrix\(([^,]+),/.exec(getComputedStyle(element).transform)?.[1] ?? 1);
+  return scale && scale !== 1 ? (rect.width / scale - rect.width) / 2 : 0;
+};
+
+/** Where a box's title starts: the leftmost thing drawn in its bar (an icon's box, a dot, a word). */
+const titleStart = (element: HTMLElement): number => {
+  const bar = element.querySelector<HTMLElement>('.reqore-panel-title')!;
+  const lefts: number[] = [];
+  const walker = document.createTreeWalker(bar, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    // an icon is its box, not the glyph drawn inside it
+    acceptNode: (node) =>
+      node.parentElement?.closest('.reqore-icon') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!node.textContent?.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      lefts.push(range.getBoundingClientRect().left);
+    } else if (
+      (node as Element).classList.contains('reqore-icon') ||
+      !(node as Element).childElementCount
+    ) {
+      const rect = (node as Element).getBoundingClientRect();
+      if (rect.width && rect.height) lefts.push(rect.left - scaledInset(node as Element, rect));
+    }
+  }
+  expect(lefts.length).toBeGreaterThan(0);
+  return Math.min(...lefts);
+};
+
+/**
+ * A box has one left edge: its title starts where its rows' labels do, within 1px. Reqore #715 pads a title clear
+ * of its corner, and the box's title took that and an inset of its own on top - 22px in, its rows' labels 17px in
+ * (the IDE's service page, at a 14px corner). Every open box with a row is checked.
+ */
+const expectBoxesHaveOneLeftEdge = () => {
+  const boxes = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].filter((element) =>
+    element.querySelector('.options-readfirst-label-text')
+  );
+  expect(boxes.length).toBeGreaterThan(0);
+  for (const element of boxes) {
+    const label = element.querySelector<HTMLElement>('.options-readfirst-label-text')!;
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    expect(Math.abs(titleStart(element) - range.getBoundingClientRect().left)).toBeLessThanOrEqual(1);
+  }
+};
+
+/**
  * Every status box draws the theme's corner - Reqore's, the one the form's own panel has - and its title starts at
  * least that corner's radius in from the box's edge (admin portal review #44: "the panel label is too close to the border radius"; Reqore #715 pads a
  * title clear of its corner). A box that drew a 10px corner of its own kept a title padded for a smaller one.
@@ -255,25 +309,17 @@ const expectBoxTitlesClearTheirCorners = ({ calm }: { calm: boolean }) => {
   for (const element of boxes) {
     expect(getComputedStyle(element).borderTopLeftRadius).toBe(themeRadius);
     const radius = Number.parseFloat(getComputedStyle(element).borderTopLeftRadius);
-    // where the title's content starts: the leftmost thing drawn in its bar (an icon, a dot, a word)
-    const bar = element.querySelector<HTMLElement>('.reqore-panel-title')!;
-    const lefts: number[] = [];
-    const walker = document.createTreeWalker(bar, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        if (!node.textContent?.trim()) continue;
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        lefts.push(range.getBoundingClientRect().left);
-      } else if (node instanceof SVGElement || !(node as Element).childElementCount) {
-        const rect = (node as Element).getBoundingClientRect();
-        if (rect.width && rect.height) lefts.push(rect.left);
-      }
-    }
-    expect(lefts.length).toBeGreaterThan(0);
-    const inset = Math.min(...lefts) - element.getBoundingClientRect().left;
+    const inset = titleStart(element) - element.getBoundingClientRect().left;
     expect(inset).toBeGreaterThanOrEqual(radius);
     if (!calm) continue;
+    // a row's band and hairline reach the box's edges: the row runs to them (the box's content clips it there)
+    const anyRow = element.querySelector<HTMLElement>('.readfirst-row');
+    if (anyRow) {
+      const inner = element.getBoundingClientRect();
+      expect(anyRow.getBoundingClientRect().left).toBeLessThanOrEqual(inner.left + 1);
+      expect(anyRow.getBoundingClientRect().right).toBeGreaterThanOrEqual(inner.right - 1);
+      expect(getComputedStyle(element.querySelector('.reqore-panel-content')!).overflowX).toBe('clip');
+    }
     const lastRow = element.querySelector<HTMLElement>(
       '.reqore-panel-content > div > .readfirst-row-place:last-child .readfirst-row'
     );
@@ -349,6 +395,7 @@ export const ClassicLook: Story = {
     expect(box('set')!.querySelector('.reqore-panel-title .reqore-tag')).toBeTruthy();
     expect(row('display_name')!.querySelector('.options-readfirst-status-dot')).toBeTruthy();
     expectBoxTitlesClearTheirCorners({ calm: false });
+    expectBoxesHaveOneLeftEdge();
   },
 };
 
@@ -368,8 +415,9 @@ export const Calm: Story = {
     // Sections are calm panels — no green tint, no recessed Optional box.
     expectCalmSection(box('set'));
     expectCalmSection(box('optional'));
-    // …with the theme's corner, their titles clear of it.
+    // …with the theme's corner, their titles clear of it and on their rows' left edge.
     expectBoxTitlesClearTheirCorners({ calm: true });
+    expectBoxesHaveOneLeftEdge();
     expect(getComputedStyle(box('optional')!).backgroundColor).toBe(
       getComputedStyle(box('set')!).backgroundColor
     );
@@ -511,6 +559,37 @@ export const CalmChoiceUnderItsLabel: Story = {
   },
 };
 
+/**
+ * A theme with rounder panels, as the IDE's: Reqore pads a title clear of a 14px corner (#715), and pads the content
+ * by as much, so the box's title and its rows still share one left edge. On a Reqore without `panel.radius` the box
+ * keeps its size's radius and this is the Calm form again.
+ */
+export const CalmUnderARoundCorner: Story = {
+  decorators: [
+    (StoryComponent) => (
+      <ReqoreUIProvider theme={{ main: '#121212', panel: { radius: 14 } } as never}>
+        <StoryComponent />
+      </ReqoreUIProvider>
+    ),
+  ],
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the look is the Calm story's.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The calm form in a theme whose panels have a 14px corner, as the IDE draws them: each box’s title starts as far in as Reqore puts it to clear the corner, and its rows start there too, on one left edge.',
+      },
+    },
+  },
+  play: async () => {
+    await _testsWaitForText('Supplier Payment Release');
+    await waitFor(() => expect(box('set')).toBeTruthy());
+    expectBoxTitlesClearTheirCorners({ calm: true });
+    expectBoxesHaveOneLeftEdge();
+  },
+};
+
 export const CalmReadOnly: Story = {
   args: {
     readOnly: true,
@@ -611,15 +690,18 @@ export const CalmOnAPhone: Story = {
       expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
         document.documentElement.clientWidth
       );
+      // what a row shows stays in its section (a row's band runs to the section's edges, which clip it)
       const section = box('attention')!.getBoundingClientRect();
       for (const element of canvasElement.querySelectorAll<HTMLElement>(
-        '.options-readfirst-group .readfirst-row'
+        '.options-readfirst-group .readfirst-row > *'
       )) {
         const rect = element.getBoundingClientRect();
+        if (!rect.width) continue;
         expect(rect.left).toBeGreaterThanOrEqual(section.left - 1);
         expect(rect.right).toBeLessThanOrEqual(section.right + 1);
       }
       expectBoxTitlesClearTheirCorners({ calm: true });
+      expectBoxesHaveOneLeftEdge();
     });
   },
 };

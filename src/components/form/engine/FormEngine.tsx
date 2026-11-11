@@ -94,6 +94,7 @@ import { FormFieldsSkeleton } from './FormFieldsSkeleton';
 import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
   CALM_SECTION_INSET,
+  COMPACT_ROW_PAD_X,
   COMPACT_LABEL_COL,
   GROUP_INDENT,
   isCompactNarrow,
@@ -5177,18 +5178,30 @@ const FormEngineImpl = ({
                               </StyledGroupHeader>
                           }
                           icon={calm ? undefined : box.icon}
+                          /* ONE left edge: the title and the rows start where Reqore puts them.
+                             Reqore pads the title bar and the padded content by the same amount
+                             at their sides - its size's padding, or as much as clears the
+                             corner (#715) - and the rows add nothing to it: a calm body draws
+                             its rows full-bleed and takes their inset back (`$boxCorners`);
+                             a classic row's text sits its own padding into its pill, and the
+                             icon that starts the title moves in by as much. Neither knows what
+                             Reqore pads by: a title padded for the corner and rows padded by a
+                             number of their own were two edges (22px and 17px under a 14px
+                             corner). */
+                          iconProps={calm ? undefined : { style: { marginLeft: COMPACT_ROW_PAD_X } }}
                           className='options-readfirst-group'
-                          padded={false}
-                          // Calm: the last row's band meets the box's own corner, whatever
-                          // the theme makes it (the body inherits it, `$boxCorners`)
                           contentStyle={
                             calm ?
                               {
-                                padding: 0,
+                                paddingTop: 0,
+                                paddingBottom: 0,
+                                // the rows' bands and hairlines reach the box's edges, its
+                                // corners too, and no further
+                                overflow: 'clip',
                                 borderBottomLeftRadius: 'inherit',
                                 borderBottomRightRadius: 'inherit',
                               }
-                            : { padding: '4px 4px 6px' }
+                            : { paddingTop: 4, paddingBottom: 6 }
                           }
                         >
                           {/* ONE group body per box: every field block (and the
