@@ -21,6 +21,8 @@ export interface IReqraftOptions {
   instanceToken?: string;
   instanceRbacDisabled?: boolean;
   instanceUnauthorizedRedirect?: IReqraftFetchConfig['unauthorizedRedirect'];
+  /** answers locally a request the app knows the instance refuses (`IReqraftFetchConfig.requestGuard`) */
+  instanceRequestGuard?: IReqraftFetchConfig['requestGuard'];
 }
 
 export const initializeReqraft = (options: IReqraftOptions) => {
@@ -29,6 +31,7 @@ export const initializeReqraft = (options: IReqraftOptions) => {
     instanceToken: options.instanceToken,
     instanceRbacDisabled: options.instanceRbacDisabled,
     unauthorizedRedirect: options.instanceUnauthorizedRedirect,
+    requestGuard: options.instanceRequestGuard,
   });
 
   return ReqraftProvider;

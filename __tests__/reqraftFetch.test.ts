@@ -13,10 +13,11 @@
  * in-flight request regardless of spelling, instance or caller.
  */
 import { QueryClient } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchConfig,
   query,
+  queryRaw,
   reqraftApiPath,
   reqraftCacheKey,
   setupFetch,
@@ -363,11 +364,140 @@ describe('query', () => {
     expect(replace).toHaveBeenCalledWith('/expired?next=/ide');
   });
 
+  it('tells the redirect what the 401 said, so an ended support session is not sent to sign in', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { pathname: '/ide', replace });
+    const unauthorizedRedirect = vi.fn((_location: Window['location'], unauthorized) =>
+      unauthorized?.errorBody?.err === 'SUPPORT-SESSION-ENDED' ? '/support-ended' : '/expired'
+    );
+    setupFetch({ instance: 'https://instance:8011/', unauthorizedRedirect });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ err: 'SUPPORT-SESSION-ENDED', desc: 'the support session has ended' }, 401)
+    );
+
+    const result = await query<any>({ url: 'users?action=current', queryClient: freshClient() });
+
+    expect(replace).toHaveBeenCalledWith('/support-ended');
+    expect(unauthorizedRedirect).toHaveBeenCalledWith(expect.anything(), {
+      errorBody: { err: 'SUPPORT-SESSION-ENDED', desc: 'the support session has ended' },
+    });
+    // the caller still gets the whole answer
+    expect(result.errorBody?.err).toBe('SUPPORT-SESSION-ENDED');
+    expect(result.response.bodyUsed).toBe(false);
+  });
+
+  it('hands the redirect no body when the 401 was not JSON', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { pathname: '/ide', replace });
+    const unauthorizedRedirect = vi.fn(() => '/expired');
+    setupFetch({ instance: 'https://instance:8011/', unauthorizedRedirect });
+    fetchMock.mockResolvedValue(new Response('Unauthorized', { status: 401 }));
+
+    await query({ url: 'users', queryClient: freshClient() });
+
+    expect(unauthorizedRedirect).toHaveBeenCalledWith(expect.anything(), {
+      errorBody: undefined,
+    });
+    expect(replace).toHaveBeenCalledWith('/expired');
+  });
+
+  it('tells the redirect what the 401 of a raw request said, and leaves its body for the error', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { pathname: '/ide', replace });
+    const unauthorizedRedirect = vi.fn(() => '/support-ended');
+    setupFetch({ instance: 'https://instance:8011/', unauthorizedRedirect });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ err: 'SUPPORT-SESSION-ENDED', desc: 'the support session has ended' }, 401)
+    );
+
+    const result = await queryRaw({ url: 'services/1/resource_files/key.pem' });
+
+    expect(unauthorizedRedirect).toHaveBeenCalledWith(expect.anything(), {
+      errorBody: { err: 'SUPPORT-SESSION-ENDED', desc: 'the support session has ended' },
+    });
+    expect(replace).toHaveBeenCalledWith('/support-ended');
+    expect(result).toMatchObject({ ok: false, code: 401, error: 'the support session has ended' });
+  });
+
   it('does not cache a failed response', async () => {
     const queryClient = freshClient();
     fetchMock.mockResolvedValueOnce(jsonResponse({ desc: 'nope' }, 500));
     await query({ url: 'users', queryClient });
     await query({ url: 'users', queryClient });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * A request the app knows the instance refuses is answered before it leaves: an
+ * interactive support session asks for nothing its read surface refuses (qorus#770),
+ * and the caller meets the same answer the server would give.
+ */
+describe('requestGuard', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  const refusal = {
+    status: 403,
+    body: {
+      err: 'SUPPORT-SESSION-SCOPE',
+      desc: "this REST operation is outside an interactive support session's read surface",
+      reason: 'method',
+    },
+  };
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    fetchConfig.requestGuard = undefined;
+  });
+
+  it('answers a refused request as the guard says, without sending it', async () => {
+    setupFetch({
+      instance: 'https://instance:8011/',
+      requestGuard: ({ method }) => (method === 'PUT' ? refusal : undefined),
+    });
+
+    const result = await query<any>({
+      url: 'dataprovider/type?context=ui',
+      method: 'PUT',
+      body: { type: 'x' },
+      queryClient: freshClient(),
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: false, code: 403, errorBody: refusal.body });
+  });
+
+  it('sends a request the guard lets through', async () => {
+    setupFetch({ instance: 'https://instance:8011/', requestGuard: () => undefined });
+
+    const result = await query<any>({ url: 'workflows/12', queryClient: freshClient() });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+  });
+
+  it('shows the guard the path below the API prefix, however the caller spelled it', async () => {
+    const requestGuard = vi.fn(() => undefined);
+    setupFetch({ instance: 'https://instance:8011/', requestGuard });
+
+    await query({ url: '/system/qorus-type-info', queryClient: freshClient() });
+
+    expect(requestGuard).toHaveBeenCalledWith({
+      method: 'GET',
+      url: 'system/qorus-type-info',
+      noApiPrefix: false,
+      instance: 'https://instance:8011/',
+    });
+  });
+
+  it('answers a refused raw request the same way, without sending it', async () => {
+    setupFetch({ instance: 'https://instance:8011/', requestGuard: () => refusal });
+
+    const result = await queryRaw({ url: 'services/1/resource_files/key.pem?action=download' });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: false, code: 403, error: refusal.body.desc });
   });
 });

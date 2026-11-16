@@ -70,7 +70,8 @@ ReqraftContext.Provider (appName)
 - **`setupFetch()`** — sets `fetchConfig`; called by `initializeReqraft`
 - **`query<T>(config)`** — core async fetch using react-query under the hood; caches GET responses for 5 minutes (`CACHE_EXPIRATION_TIME`); POST/DELETE bypass cache
 - All requests go to `${instance}api/latest/${url}`
-- 401 responses trigger `fetchConfig.unauthorizedRedirect` (default: `/?next=<current-path>`)
+- 401 responses trigger `fetchConfig.unauthorizedRedirect` (default: `/?next=<current-path>`), which is also handed the 401's JSON body (`{ errorBody }`): not every 401 is an expired sign-in, and Qorus says which in `err` (an interactive support session that has ended answers `SUPPORT-SESSION-ENDED`, qorus#770)
+- `fetchConfig.requestGuard` (`initializeReqraft({ instanceRequestGuard })`) is asked before every request `doFetchData` sends; a refusal (`{ status, body }`) is answered locally, as the server would answer it, and nothing is sent. The IDE's support-session policy uses it so a session never asks for what its read surface refuses (qorus#770)
 - Auth: token via `Authorization: Bearer` header, but production uses cookies (`credentials: 'include'`)
 
 ### WebSocket System (`src/utils/websocket.ts`)
