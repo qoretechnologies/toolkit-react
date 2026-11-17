@@ -146,6 +146,13 @@ Shared form field components built on ReQore, exported from `src/components/form
 
 A generic `<Field>` component dispatches to the appropriate field by type.
 
+**Props for the field, not for TemplateField.** `TemplateField` spreads its rest onto its own text editor and
+its wrapper, which put what they are given on the DOM. A prop meant only for the caller's field component
+(ArrayAuto's per-row `onSubFormAttentionChange` and `expandFirstRequired`, for `AutoFormField`'s nested
+`FormEngine`) is declared on `ITemplateFieldProps`, taken out of rest and passed to that component only;
+otherwise React warns about an unknown prop on a div (qorus-ide's warning gate, a list of strings;
+`__tests__/arrayRowsPassNoUnknownProps.test.tsx`, story `Components/Form/Auto Array/Rows`).
+
 **Code and prose in text boxes.** Reqore (0.79+) draws a textarea in the page's font, as prose, and leaves
 monospace to the fields that ask for it. Reqraft's code boxes ask through `withCodeFont`
 (`src/components/form/fields/codeFont.ts`): the `Object` field's YAML / JSON source (its Text tab), a

@@ -35,6 +35,7 @@ import {
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size } from 'lodash';
 import React, { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { IFormAttention } from '../../engine/FormEngine';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
@@ -163,6 +164,15 @@ const FileField = ({ name, onChange, type, level, allowTemplates, ...rest }: any
 export interface ITemplateFieldProps extends Partial<
   Omit<IQorusFormFieldSchemaBase, 'default_value'>
 > {
+  /**
+   * For the caller's field component only (`AutoFormField`, which hands them to its nested
+   * `FormEngine`): ArrayAuto sets them per row. TemplateField never spreads them onto its own
+   * editors or its wrapper, which put whatever they are given on the DOM: React warned "Unknown
+   * event handler property `onSubFormAttentionChange`" for a list of strings (an OAuth2 client's
+   * redirect URIs in the IDE).
+   */
+  expandFirstRequired?: boolean;
+  onSubFormAttentionChange?: (attention: IFormAttention) => void;
   value?: any;
   name?: string;
   uniqueName?: string;
@@ -672,8 +682,16 @@ const TemplateFieldImpl = memo(
     menuTrailingItems,
     reorder,
     label,
+    expandFirstRequired,
+    onSubFormAttentionChange,
     ...rest
   }: ITemplateFieldProps & { rowMenu?: IRowMenuRegistration }) => {
+    /* The caller's field component takes these; nothing else TemplateField draws does (see the
+       props). Memoised so a field component that is memoised keeps its props stable. */
+    const fieldComponentProps = useMemo(
+      () => ({ expandFirstRequired, onSubFormAttentionChange }),
+      [expandFirstRequired, onSubFormAttentionChange]
+    );
     const fieldLabels = useReqraftLabels();
     const templatesListProps = useTemplatesListProps();
     // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
@@ -1118,6 +1136,8 @@ const TemplateFieldImpl = memo(
     // rather than spreading it onto the DOM. A caller-supplied `Comp` is someone
     // else's, which is why `type` was kept off this call in the first place.
     const componentTypeProp = componentFromType ? { type } : {};
+    // A ComponentMap field is ours and spreads what it does not use onto the DOM.
+    const callerComponentProps = componentFromType ? {} : fieldComponentProps;
     const fieldAriaLabel = rest['aria-label'] ?? label ?? rest.display_name ?? name;
 
     const handleTemplateFieldChange = useCallback(
@@ -2265,6 +2285,7 @@ const TemplateFieldImpl = memo(
             name={name}
             level={level}
             {...rest}
+            {...callerComponentProps}
             componentOverrides={componentOverrides}
             {...componentTypeProp}
             aria-label={fieldAriaLabel}
@@ -2541,6 +2562,7 @@ const TemplateFieldImpl = memo(
           onChange={onChange}
           name={name}
           {...rest}
+          {...fieldComponentProps}
           componentOverrides={componentOverrides}
         />
       );
@@ -2563,6 +2585,7 @@ const TemplateFieldImpl = memo(
             name={name}
             level={level}
             {...rest}
+            {...callerComponentProps}
             componentOverrides={componentOverrides}
             {...componentTypeProp}
             aria-label={fieldAriaLabel}
