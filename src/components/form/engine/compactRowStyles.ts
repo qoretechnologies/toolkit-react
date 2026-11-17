@@ -45,6 +45,16 @@ export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
  * one amount), and the box's body takes this inset back (`$boxCorners`).
  */
 export const CALM_SECTION_INSET = 16;
+/**
+ * The calm inset as the rows draw it: CALM_SECTION_INSET, or, inside a status box, the box's own
+ * content inset. Reqore pads a panel's content by its size's padding or by as much as clears its
+ * corner (13px for a small panel under a 14px radius), and says how much in
+ * `--reqore-panel-inset-x`; the box's body (`$boxCorners`) takes that inset back and its rows
+ * start on it, so the rows reach the box's edges and their text sits on the title's edge. A fixed
+ * 16 ran the rows 3px past both sides of a 13px box (admin portal, OAuth2 client drawer). A Reqore
+ * that does not say keeps 16.
+ */
+export const CALM_INSET = `var(--readfirst-inset, ${CALM_SECTION_INSET}px)`;
 
 // Measured label column (GLOBAL). The label column sizes to the WIDEST field
 // label across the whole form, its text clamped to MAX, and is never narrower
@@ -370,7 +380,7 @@ export const StyledRequiredClusterHeader = styled.div<{ $color: string; $calm?: 
   ${({ $calm }) =>
     $calm ?
       css`
-        padding: 12px ${CALM_SECTION_INSET}px 2px;
+        padding: 12px ${CALM_INSET} 2px;
         font-size: 13px;
       `
     : css`
@@ -395,7 +405,7 @@ export const StyledStatusBoxGroupLabel = styled.div<{ $calm?: boolean; $color?: 
         font-size: 13px;
         font-weight: 600;
         color: ${$color || 'inherit'};
-        padding: 14px ${CALM_SECTION_INSET}px 2px;
+        padding: 14px ${CALM_INSET} 2px;
       `
     : css`
         font-size: 10px;
@@ -450,7 +460,7 @@ export const StyledEditCard = styled.div<{ $bg: string; $border: string; $calm?:
   ${({ $calm, $border }) =>
     $calm ?
       css`
-        padding: 12px ${CALM_SECTION_INSET}px;
+        padding: 12px ${CALM_INSET};
       `
     : css`
         padding: 12px;
@@ -1169,7 +1179,7 @@ export const StyledGroupBody = styled.div<{
         }
         && .readfirst-row {
           min-height: 44px;
-          padding: 10px ${CALM_SECTION_INSET}px;
+          padding: 10px ${CALM_INSET};
           border-radius: 0;
         }
         && .readfirst-row::after {
@@ -1190,8 +1200,9 @@ export const StyledGroupBody = styled.div<{
         ${$boxCorners ?
           css`
             && {
-              margin-left: -${CALM_SECTION_INSET}px;
-              margin-right: -${CALM_SECTION_INSET}px;
+              --readfirst-inset: var(--reqore-panel-inset-x, ${CALM_SECTION_INSET}px);
+              margin-left: calc(-1 * var(--readfirst-inset));
+              margin-right: calc(-1 * var(--readfirst-inset));
             }
             &&,
             && > :where(.readfirst-row-place):last-child,
@@ -1222,7 +1233,7 @@ export const StyledGroupBody = styled.div<{
           --readfirst-row-gap: 0px;
         }
         &&.readfirst-narrow .readfirst-row {
-          padding: 10px ${CALM_SECTION_INSET}px;
+          padding: 10px ${CALM_INSET};
           min-height: 0;
         }
         &&.readfirst-narrow .readfirst-row-editing {
@@ -1231,7 +1242,7 @@ export const StyledGroupBody = styled.div<{
         }
         &&.readfirst-narrow .readfirst-row:not(.readfirst-row-editing) > :nth-child(3) {
           top: 10px;
-          right: ${CALM_SECTION_INSET}px;
+          right: ${CALM_INSET};
         }
         /* READ mode is one list with no section around it — usually inside a
            card the host already drew — so it adds no panel and no inset of its

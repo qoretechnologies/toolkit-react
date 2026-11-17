@@ -93,7 +93,7 @@ import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
 import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
-  CALM_SECTION_INSET,
+  CALM_INSET,
   COMPACT_ROW_PAD_X,
   COMPACT_LABEL_COL,
   GROUP_INDENT,
@@ -4727,7 +4727,7 @@ const FormEngineImpl = ({
                 calm ?
                   // Under the calm heading, at the rows' inset; the space below
                   // it is the next row's own padding.
-                  { margin: 0, padding: `2px ${CALM_SECTION_INSET}px 4px` }
+                  { margin: 0, padding: `2px ${CALM_INSET} 4px` }
                 : {
                     marginTop: 2,
                     marginBottom: 8,

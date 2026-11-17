@@ -295,6 +295,35 @@ const expectBoxesHaveOneLeftEdge = () => {
 };
 
 /**
+ * A box's rows reach its edges and no further: their bands and hairlines meet the box's sides, within 1px. The rows
+ * took a fixed 16px inset back while Reqore #715 pads a small box's content by as much as clears its corner (13px
+ * under a 14px radius), so they ran 3px past both sides and the box clipped them (admin portal, OAuth2 client
+ * drawer's Set and Optional boxes). The body now takes back the inset Reqore says it padded (`--reqore-panel-inset-x`).
+ * Checked where Reqore says it (reqore#715 on); an older Reqore keeps the old 16px bleed, which its box clips.
+ */
+const expectBoxRowsMeetTheirEdges = () => {
+  const boxes = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].filter((element) =>
+    element.querySelector('.readfirst-row')
+  );
+  expect(boxes.length).toBeGreaterThan(0);
+  for (const element of boxes) {
+    const content = element.querySelector<HTMLElement>('.reqore-panel-content')!;
+    // A Reqore that does not say its inset is bled by the old 16px, as before; nothing to check.
+    if (!getComputedStyle(content).getPropertyValue('--reqore-panel-inset-x').trim()) {
+      continue;
+    }
+    const edge = content.getBoundingClientRect();
+    const borderLeft = Number.parseFloat(getComputedStyle(content).borderLeftWidth) || 0;
+    const borderRight = Number.parseFloat(getComputedStyle(content).borderRightWidth) || 0;
+    for (const rowElement of element.querySelectorAll<HTMLElement>('.readfirst-row')) {
+      const rect = rowElement.getBoundingClientRect();
+      expect(Math.abs(rect.left - (edge.left + borderLeft))).toBeLessThanOrEqual(1);
+      expect(Math.abs(rect.right - (edge.right - borderRight))).toBeLessThanOrEqual(1);
+    }
+  }
+};
+
+/**
  * Every status box draws the theme's corner - Reqore's, the one the form's own panel has - and its title starts at
  * least that corner's radius in from the box's edge (admin portal review #44: "the panel label is too close to the border radius"; Reqore #715 pads a
  * title clear of its corner). A box that drew a 10px corner of its own kept a title padded for a smaller one.
@@ -578,7 +607,7 @@ export const CalmUnderARoundCorner: Story = {
     docs: {
       description: {
         story:
-          'The calm form in a theme whose panels have a 14px corner, as the IDE draws them: each box’s title starts as far in as Reqore puts it to clear the corner, and its rows start there too, on one left edge.',
+          'The calm form in a theme whose panels have a 14px corner, as the IDE draws them: each box’s title starts as far in as Reqore puts it to clear the corner, and its rows start there too, on one left edge. Each box’s rows reach its sides and no further, whatever inset Reqore gives the box.',
       },
     },
   },
@@ -587,6 +616,7 @@ export const CalmUnderARoundCorner: Story = {
     await waitFor(() => expect(box('set')).toBeTruthy());
     expectBoxTitlesClearTheirCorners({ calm: true });
     expectBoxesHaveOneLeftEdge();
+    expectBoxRowsMeetTheirEdges();
   },
 };
 
