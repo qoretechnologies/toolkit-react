@@ -3027,7 +3027,7 @@ export const CompactRow = memo(
               the right, so the ⓘ sits at the same x on every row. Revert is shown
               whenever a field has changed; delete reveals on hover. */}
           {/* No generic invalid/required chip: the intent stripe + the field's
-              own message ("This field is required" for an empty required field)
+              own message ("A value is required" for an empty required field)
               already flag it. Only the required-GROUP chip (One of / Covers)
               stays — it carries info nothing else does. */}
           {/* Railed (clustered) members: the rail conveys the grouping, so drop

@@ -307,13 +307,13 @@ describe("a locked required field's messages", () => {
 
   it('says what unlocks it, not that it is required', () => {
     const labels = messages({ kind: { type: 'string' } });
-    expect(labels).not.toContain('This field is required');
-    expect(labels.some((l) => l.startsWith('This field is disabled because'))).toBe(true);
+    expect(labels).not.toContain('A value is required');
+    expect(labels.some((l) => l.startsWith('Not available yet'))).toBe(true);
   });
 
   it('says it is required once it applies', () => {
     const labels = messages({ kind: { type: 'string', value: 'equals' } });
-    expect(labels).toContain('This field is required');
-    expect(labels.some((l) => l.startsWith('This field is disabled because'))).toBe(false);
+    expect(labels).toContain('A value is required');
+    expect(labels.some((l) => l.startsWith('Not available yet'))).toBe(false);
   });
 });

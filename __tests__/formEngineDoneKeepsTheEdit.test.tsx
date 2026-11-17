@@ -13,7 +13,7 @@ const fetchContext = emptyFetchContext();
  *
  * A row's field keeps what is typed and reports it to the form after a short pause. Done closed the row - and
  * the field, and its pause - at once, so a value typed and Done pressed inside the pause never reached the
- * form: the row read as before ("This field is required" under a required field), and the form's host never
+ * form: the row read as before ("A value is required" under a required field), and the form's host never
  * heard of the edit. Found in the Qorus IDE when its story harness stopped waiting after typing. Done now sends
  * the edit before the row closes, as does closing the row by its label or opening another row; Escape drops it.
  *
@@ -102,7 +102,7 @@ describe('a read-first row closed straight after typing', () => {
 
     await waitFor(() => expect(isOpen(container, 'name')).toBe(false));
     expect(row(container, 'name')?.textContent).toContain('production');
-    expect(row(container, 'name')?.textContent).not.toContain('This field is required');
+    expect(row(container, 'name')?.textContent).not.toContain('A value is required');
     await waitFor(() => expect(reported(onChange, 'name')).toContain('production'));
   });
 

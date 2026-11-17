@@ -546,7 +546,7 @@ export const CalmNeedsAttention: Story = {
         ).length
       ).toBe(3)
     );
-    await _testsWaitForTextToNotExist('This field is required');
+    await _testsWaitForTextToNotExist('A value is required');
     const word = row('display_name')!.querySelector<HTMLElement>('.options-readfirst-valuetext')!;
     expect(isGrey(getComputedStyle(word).color)).toBe(false);
     expect(getComputedStyle(word).fontStyle).toBe('normal');

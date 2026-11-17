@@ -3,7 +3,7 @@
 //
 // qorus#646 (David): the sheet-contract review says what is wrong with a value in its own words, in the
 // user's language ("Enter a value or an expression", "A whole number can't have text around a field"), and
-// the field said its generic reason as well ("This field is required", "…around a template"): two
+// the field said its generic reason as well ("A value is required", "…around a template"): two
 // messages for one problem, one of them in English. A field's `invalid_reason` is now said in place of the
 // field's own validation and required messages, and the field is invalid while it is set.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
@@ -24,7 +24,7 @@ const messagesFor = (option: Record<string, unknown>, field: Record<string, unkn
   }).map((message) => String(message.label));
 
 describe("a field's own reason from its host", () => {
-  it('is said in place of "This field is required"', () => {
+  it('is said in place of "A value is required"', () => {
     expect(messagesFor({ type: 'int' }, { invalid_reason: 'Enter a value or an expression' })).toEqual([
       'Enter a value or an expression',
     ]);
@@ -46,7 +46,7 @@ describe("a field's own reason from its host", () => {
   });
 
   it("leaves the field's own messages when it is not given", () => {
-    expect(messagesFor({ type: 'int' }, {})).toEqual(['This field is required']);
+    expect(messagesFor({ type: 'int' }, {})).toEqual(['A value is required']);
     expect(messagesFor({ type: 'int', value: '$record:{pos} Stk.' }, {})).toEqual([
       '"Stk." makes this text, not a whole number. Delete it to keep the template alone.',
     ]);
@@ -86,9 +86,9 @@ describe('a form whose field has a reason from its host', () => {
     await waitFor(() => expect(lastValidity(onValidityChange)).toBe(true));
   });
 
-  it('says the reason in place of "This field is required" on an empty field', async () => {
+  it('says the reason in place of "A value is required" on an empty field', async () => {
     const { container } = show({ invalid_reason: 'Enter a value or an expression' }, undefined);
     await waitFor(() => expect(container.textContent).toContain('Enter a value or an expression'));
-    expect(container.textContent).not.toContain('This field is required');
+    expect(container.textContent).not.toContain('A value is required');
   });
 });

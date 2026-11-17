@@ -15,7 +15,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * An empty required field says "This field is required", from the start.
+ * An empty required field says "A value is required", from the start.
  *
  * The message was once held back until the reader had touched the field, so a
  * new form opened its first required field with no word on why it needed
@@ -23,7 +23,7 @@ const fetchContext = emptyFetchContext();
  * whether the field is new or was cleared, editable or read-only. A field
  * locked by an unmet dependency is the exception: it shows what unlocks it.
  */
-const REQUIRED_MESSAGE = 'This field is required';
+const REQUIRED_MESSAGE = 'A value is required';
 
 /** How each appearance says it: the classic look in a red sentence; the calm one
  *  (the default) in an amber word, which on a read-only form only states the fact. */

@@ -698,8 +698,8 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     // Option 2 settles the first group; the second (4 or 5) is still empty, and 6 is required: 4, 5 and 6
     // need attention, and 4 names only what would settle its empty group
     await _testsWaitForText('3 fields are not valid and require attention. Click here to only show invalid fields.');
-    await _testsWaitForText('This field or Required Option 5 is required');
-    await _testsWaitForText('This field or Required Option 4 is required');
+    await _testsWaitForText('A value is required here, or in Required Option 5');
+    await _testsWaitForText('A value is required here, or in Required Option 4');
   },
 };
 
@@ -1213,7 +1213,7 @@ export const DoneStraightAfterTypingKeepsTheEdit: Story = {
     };
     await typeAndDone('name', 'production');
     await typeAndDone('port', '1883');
-    await expect(canvasElement.textContent).not.toContain('This field is required');
+    await expect(canvasElement.textContent).not.toContain('A value is required');
     await waitFor(() => expect(canvasElement.textContent).toContain('2/2 set'));
   },
 };
@@ -3265,7 +3265,7 @@ export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
   },
   play: async () => {
     await _testsWaitForText(
-      'This field has pre-defined allowed values, make sure the template you select is compatible with those'
+      'Only the listed values are accepted: pick a template that gives one of them'
     );
   },
 };
@@ -8031,7 +8031,7 @@ export const CompactFieldSortWithinGroups: Story = {
       expect(order()).toEqual(['email', 'slack', 'webhook', 'sms', 'apiKey', 'oauthToken'])
     );
     // Nobody has been to the unmet group yet: its members say nothing under their dashes - the group's own line
-    // says it once, quietly - where each said "This field or … is required" in amber (Qlip build 480)
+    // says it once, quietly - where each said "A value is required here, or in …" in amber (Qlip build 480)
     for (const field of ['email', 'slack', 'webhook', 'sms']) {
       await expect(
         document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-reason`)
@@ -11897,14 +11897,14 @@ export const HostReasonInPlaceOfRequired: Story = {
     docs: {
       description: {
         story:
-          'Renders the same option empty, with the host\'s reason "Enter a value or an expression": said in place of "This field is required", not beside it.',
+          'Renders the same option empty, with the host\'s reason "Enter a value or an expression": said in place of "A value is required", not beside it.',
       },
     },
   },
   render: () => <HostReasonForm initial={undefined} reason='Enter a value or an expression' />,
   play: async ({ canvasElement }) => {
     await waitFor(() => expect(canvasElement.textContent).toContain('Enter a value or an expression'));
-    expect(canvasElement.textContent).not.toContain('This field is required');
+    expect(canvasElement.textContent).not.toContain('A value is required');
   },
 };
 

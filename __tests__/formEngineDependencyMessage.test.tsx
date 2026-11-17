@@ -76,7 +76,7 @@ const messageFor = (name: string, allOptions: Record<string, unknown>) =>
     getType: (type: string) => type,
   })
     .map((m) => m.label as string)
-    .find((label) => label.includes('dependencies are not fulfilled'));
+    .find((label) => label.startsWith('Not available yet'));
 
 const KIND_IS_TYPE = { kind: { type: 'string', value: 'type' } };
 const KIND_IS_SERVICE = { kind: { type: 'string', value: 'service' } };
@@ -84,13 +84,13 @@ const KIND_IS_SERVICE = { kind: { type: 'string', value: 'service' } };
 describe('the unmet-dependency message', () => {
   it('names the field a `!=` comparison gates on, and what it must not be', () => {
     expect(messageFor('comparison', KIND_IS_TYPE)).toBe(
-      'This field is disabled because some dependencies are not fulfilled: "Subject Interface Type" must not be "type"'
+      'Not available yet: "Subject Interface Type" must not be "type"'
     );
   });
 
   it('names the field an `=` comparison gates on, and what it must be', () => {
     expect(messageFor('equality', KIND_IS_SERVICE)).toBe(
-      'This field is disabled because some dependencies are not fulfilled: "Subject Interface Type" must be "type"'
+      'Not available yet: "Subject Interface Type" must be "type"'
     );
   });
 
@@ -100,19 +100,19 @@ describe('the unmet-dependency message', () => {
     expect(
       messageFor('anyOf', { ...KIND_IS_TYPE, other: { type: 'string', value: undefined } })
     ).toBe(
-      'This field is disabled because some dependencies are not fulfilled: ("Subject Interface Type" must be "service" or "Other Field")'
+      'Not available yet: ("Subject Interface Type" must be "service" or "Other Field")'
     );
   });
 
   it('names an allowed value by its display name, not by the value it stands for', () => {
     expect(messageFor('byDisplayName', { check: { type: 'string', value: 'equals' } })).toBe(
-      'This field is disabled because some dependencies are not fulfilled: "Check" must be "Other"'
+      'Not available yet: "Check" must be "Other"'
     );
   });
 
   it('quotes a value with no display name as it is', () => {
     expect(messageFor('byValue', { raw: { type: 'string', value: 'x' } })).toBe(
-      'This field is disabled because some dependencies are not fulfilled: "Raw" must be "__other__"'
+      'Not available yet: "Raw" must be "__other__"'
     );
   });
 
@@ -121,7 +121,7 @@ describe('the unmet-dependency message', () => {
     const message = messageFor('unknown', {
       no_such_field: { type: 'string', value: undefined },
     });
-    expect(message).toBe('This field is disabled because some dependencies are not fulfilled');
+    expect(message).toBe('Not available yet: it depends on other fields');
     expect(message).not.toMatch(/:\s*$/);
   });
 });

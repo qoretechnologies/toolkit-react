@@ -771,7 +771,7 @@ describe('an option in several required groups', () => {
     const options: any = { opt2: { type: 'string', value: 'x' } };
     expect(unsatisfiedRequiredGroups(options, schema, ['G1', 'G2'])).toEqual(['G2']);
     expect(getRequiredOptionMessage(schema, unsatisfiedRequiredGroups(options, schema, ['G1', 'G2']), 'opt4')).toBe(
-      'This field or Five is required'
+      'A value is required here, or in Five'
     );
   });
 });

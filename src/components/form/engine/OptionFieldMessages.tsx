@@ -436,7 +436,7 @@ export const getOptionFieldMessages = ({
     !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema);
 
   /* The host's own words for what is wrong with this field (`invalid_reason`) are said in place of the
-     field's own reason and its "This field is required": a host that has a sentence of its own, in the
+     field's own reason and its "A value is required": a host that has a sentence of its own, in the
      user's language, showed it beside the field's generic one, two messages for one problem (qorus#646).
      Required groups and dependencies still say what they say. */
   const hostReason = (optionSchema as { invalid_reason?: string } | undefined)?.invalid_reason;

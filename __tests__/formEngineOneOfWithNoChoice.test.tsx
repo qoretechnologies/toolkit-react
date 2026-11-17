@@ -88,7 +88,7 @@ describe('a one-of group the form has only one member of', () => {
     await waitFor(() => expect(screen.getByText('Service')).toBeTruthy());
 
     // The message names the group's other members. With none, it used to read
-    // "This field or  is required" — a sentence with a hole in it.
+    // "A value is required here, or in " — a sentence with a hole in it.
     expect(screen.queryByText(/This field or/)).toBeNull();
   });
 });

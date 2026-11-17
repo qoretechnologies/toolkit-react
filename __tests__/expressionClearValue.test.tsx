@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
  * The DPQL text is local state, seeded once on entering Text mode, and the
  * seeding effect returns early for an empty AST — it exists to FILL the editor,
  * not to empty it. So clearing removed the value and left the text: the row
- * reported "This field is required" while still showing `1 + 2`, which reads as
+ * reported "A value is required" while still showing `1 + 2`, which reads as
  * the clear having silently failed.
  */
 vi.mock('../src/components/dpqlEditor', () => ({

@@ -13,7 +13,7 @@ import { emptyFetchContext } from './support/fetchContext';
 
 const fetchContext = emptyFetchContext();
 
-const REQUIRED_MESSAGE = 'This field is required';
+const REQUIRED_MESSAGE = 'A value is required';
 
 /** How each look says it: the classic one in a red sentence, the calm one (the default) in its words. In both, a
  *  new form's first box reads "To fill in": nothing is wrong yet, it is the next step. */
@@ -23,7 +23,7 @@ const SAYS: Record<TFormEngineAppearance, { box: string; words: string }> = {
 };
 
 /**
- * A required list holding no items says "This field is required", as any other empty required field does
+ * A required list holding no items says "A value is required", as any other empty required field does
  * (qorus#646).
  *
  * The form counts an empty list as not set: the row is in "Needs attention", and an optional one is not saved.

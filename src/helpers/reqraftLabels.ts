@@ -476,7 +476,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     setCustomValue: 'Set custom value',
     selectTemplate: 'Select template',
     allowedValuesWarning:
-      'This field has pre-defined allowed values, make sure the template you select is compatible with those',
+      'Only the listed values are accepted: pick a template that gives one of them',
     removeTemplateValue: 'Remove template value',
     expressionOffer: (text) =>
       `"${text}" could be an expression. It is kept as text; use it as an expression instead?`,
@@ -752,14 +752,14 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     unavailable: (dependsOn) =>
       `Unavailable because some dependencies are not fulfilled${dependsOn ? `: ${dependsOn}` : ''}`,
     disabledByDependencies: (dependsOn) =>
-      `This field is disabled because some dependencies are not fulfilled${dependsOn ? `: ${dependsOn}` : ''}`,
+      `Not available yet: ${dependsOn || 'it depends on other fields'}`,
     valueNotValid: 'Field value is not valid',
-    required: 'This field is required',
+    required: 'A value is required',
     calmRequired: 'Required · add a value',
     calmRequiredRead: 'Required · not set',
     calmOneOf: 'One of these · add a value',
     calmOneOfRead: 'One of these · not set',
-    requiredOrOthers: (others) => `This field or ${others.join(' or ')} is required`,
+    requiredOrOthers: (others) => `A value is required here, or in ${others.join(' or ')}`,
     notAChoice: (name) => `${name} is not one of the choices`,
     notAmongTheChoices: (names) =>
       `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are not among the choices`,

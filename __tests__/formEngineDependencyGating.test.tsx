@@ -14,7 +14,7 @@ const fetchContext = emptyFetchContext();
  * and `Redirect URL`, both of which apply to the cookie scheme alone and both of
  * which carry `depends_on: ['type=cookie']`. With the scheme set to Permissive
  * they were still listed as addable — and clicking one opened a row that said
- * "This field is disabled because some dependencies are not fulfilled". The
+ * "Not available yet: it depends on other fields". The
  * affordance led nowhere, which is worse than not being there at all.
  *
  * `hasAllDependenciesFullfilled` is the same predicate on both sides, so a field
