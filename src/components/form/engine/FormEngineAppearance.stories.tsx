@@ -1,6 +1,6 @@
 import { ReqoreUIProvider, useReqoreTheme } from '@qoretechnologies/reqore';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { expect, fn, waitFor } from 'storybook/test';
 import {
   _testsClickText,
@@ -810,5 +810,115 @@ export const CalmOnAPanelSurface: Story = {
     expect(hostColour(host)).not.toEqual(hostColour(host.firstElementChild as HTMLElement));
     // …and the toolbar follows the host, not the page.
     expectToolbarGlassOverHost();
+  },
+};
+
+/** One question with two answers to pick from, or one of the reader's own, as Qonsole asks it. */
+const conflictOptions: Record<string, IOptionsSchemaArg> = {
+  answer: {
+    type: 'string',
+    display_name: 'Answer',
+    required: true,
+    allowed_values: [
+      {
+        display_name: 'Keep the review hold; drop the same-day release rule',
+        value: { type: 'string', value: 'option-1' },
+        short_desc: 'Payments over the limit are held for review. req-4 is removed.',
+      },
+      {
+        display_name: 'Release within the limit the same day; hold the rest',
+        value: { type: 'string', value: 'option-2' },
+        short_desc: "Same-day release applies only to payments within the payer's limit.",
+      },
+    ],
+    allowed_values_creatable: true,
+  },
+};
+
+/** The list of choices, while it is open. */
+const openChoices = () => document.querySelector('.reqore-popover-content');
+
+/**
+ * A host 190px wide that puts the cursor in its form's first control as soon as the form is there,
+ * on the task after it mounts - as the IDE's Qonsole does with a question it asks.
+ */
+const FocusesItsFirstControl = ({ children }: { children: React.ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      ref.current?.querySelector<HTMLElement>('input:not([disabled])')?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div ref={ref} data-narrow-form style={{ width: 190 }}>
+      {children}
+    </div>
+  );
+};
+
+/** Whether the narrow form's first row was laid out as a narrow one when it first appeared. */
+let firstRowLaidOutNarrow: boolean | undefined;
+
+export const ANarrowFormOpensItsPickerInsideItsRow: Story = {
+  /* Watched from before the form renders: the first row's layout is what a control focused as
+     the form appears is laid out in, and a later look sees only the layout it settled on. */
+  beforeEach: () => {
+    firstRowLaidOutNarrow = undefined;
+    const observer = new MutationObserver(() => {
+      const row = document.querySelector('[data-narrow-form] .readfirst-row');
+
+      if (row && firstRowLaidOutNarrow === undefined) {
+        firstRowLaidOutNarrow = !!row.closest('.readfirst-narrow');
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  },
+  args: {
+    compact: true,
+    options: conflictOptions,
+    value: {},
+    initialExpandedOptions: ['answer'],
+  },
+  decorators: [
+    (StoryFn) => (
+      <FocusesItsFirstControl>
+        <StoryFn />
+      </FocusesItsFirstControl>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A form 190px wide, as a question in a phone's chat is, whose one field is a picker that opens with the form, and which its host focuses as soon as it is there: the picker's list of answers is open, and the field sits inside its row. The form is narrow from the first frame it has a row in. It used to decide only once a ResizeObserver had measured it, after the next layout, so its first frame laid the row out for a wide form - a 220px name column - and put the picker past the row's right edge, where the list it had just opened was closed as hidden (board f63).",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const form = () => canvasElement.querySelector('[data-narrow-form]') as HTMLElement;
+
+    // narrow from the first frame it has a row in
+    await waitFor(() => expect(firstRowLaidOutNarrow).toBeDefined(), { timeout: 10000 });
+    await expect(firstRowLaidOutNarrow).toBe(true);
+
+    await waitFor(() => expect(openChoices()).toBeTruthy(), { timeout: 10000 });
+    // and it stays open: nothing closes it as the form settles
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await expect(openChoices()).toBeTruthy();
+
+    const row = form().querySelector('.readfirst-row-editing') as HTMLElement;
+    const input = form().querySelector('.readfirst-row-editing input') as HTMLElement;
+    const rowBox = row.getBoundingClientRect();
+    const inputBox = input.getBoundingClientRect();
+    await expect(inputBox.width).toBeGreaterThan(0);
+    await expect(inputBox.left).toBeGreaterThanOrEqual(rowBox.left - 1);
+    await expect(inputBox.right).toBeLessThanOrEqual(rowBox.right + 1);
   },
 };

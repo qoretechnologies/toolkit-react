@@ -1780,7 +1780,29 @@ const FormEngineImpl = ({
   const [compactLabelColumn, setCompactLabelColumn] = useState<number>(COMPACT_LABEL_COL);
   // the label column holds a finger's help button where the pointer is a finger (`labelAffordanceWidth`)
   const coarsePointer = useCoarsePointer();
-  const compactNarrow = !!compactWrapWidth && isCompactNarrow(compactWrapWidth, compactLabelColumn);
+  /* The wrap's width as it is laid out the moment it mounts, read before it is first drawn.
+     `useMeasure` reports only from a ResizeObserver, after the browser's next layout, so until
+     then the width was 0 and a narrow form drew its first frames as a wide one: on a 190px form
+     a 220px name column, and the editor of an open row in a 0px column past the row's right edge.
+     Anything opened in those frames was laid out there - a picker focused as the form appeared
+     had its list closed as hidden (board f63). The observer's figure takes over once it has one. */
+  const [mountedWrapWidth, setMountedWrapWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!compactWrapNode) {
+      return;
+    }
+
+    const style = getComputedStyle(compactWrapNode);
+    const contentWidth =
+      compactWrapNode.clientWidth -
+      (parseFloat(style.paddingLeft) || 0) -
+      (parseFloat(style.paddingRight) || 0);
+
+    setMountedWrapWidth((current) => (current === contentWidth ? current : contentWidth));
+  }, [compactWrapNode]);
+  const compactLaidOutWidth = compactWrapWidth || mountedWrapWidth;
+  const compactNarrow =
+    !!compactLaidOutWidth && isCompactNarrow(compactLaidOutWidth, compactLabelColumn);
 
   /* How much pinned chrome sits above a status-box header.
   
