@@ -86,7 +86,7 @@ describe('ExpressionRendering', () => {
     settle(null);
 
     await waitFor(() =>
-      expect(container.textContent).toContain('This expression could not be rendered.')
+      expect(container.textContent).toContain('This expression could not be put in words.')
     );
     expect(container.querySelector('.dpql-rendering')).toBeNull();
     expect(container.textContent).not.toContain('Approximate');

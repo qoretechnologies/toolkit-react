@@ -973,7 +973,7 @@ export const DpqlFieldOffersItsTemplates: Story = {
       () => {
         const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
         expect(text, 'the DPQL text').toBeTruthy();
-        expect(canvasElement.textContent).not.toMatch(/Connecting to language server/);
+        expect(canvasElement.textContent).not.toMatch(/Getting ready/);
         return text!;
       },
       { timeout: 30000 }

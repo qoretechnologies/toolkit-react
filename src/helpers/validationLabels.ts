@@ -310,10 +310,10 @@ export const DEFAULT_VALIDATION_LABELS: IValidationLabels = {
   fileContentInvalid: 'File content is invalid',
 
   documentsNotList: 'Value must be a list of documents',
-  documentRowNotObject: (row) => `Row ${row} is not an object`,
-  documentRowNoName: (row) => `Row ${row} is missing a name`,
+  documentRowNotObject: (row) => `Document ${row} is not an object`,
+  documentRowNoName: (row) => `Document ${row} is missing a name`,
   documentRowNoContent: (row, name) =>
-    `Row ${row} ("${name}") has neither uploaded content nor a server document id`,
+    `Document ${row} ("${name}") has neither uploaded content nor a server document id`,
 
   pairsNeedBothFields: 'All pairs must include both fields',
   pairsUniqueKeys: 'Pairs must use unique keys',

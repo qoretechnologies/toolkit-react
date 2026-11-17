@@ -209,7 +209,7 @@ export interface ISmartEditorProps {
   /**
    * Custom loading indicator rendered as an overlay on top of the
    * editor body while `session.isReady` is false. Defaults to a
-   * `ReqoreSpinner` with copy "Connecting to language server…".
+   * `ReqoreSpinner` with copy "Getting ready…".
    * Pass `null` to suppress the default overlay entirely (useful
    * if the wrapper handles loading state at a higher level).
    */

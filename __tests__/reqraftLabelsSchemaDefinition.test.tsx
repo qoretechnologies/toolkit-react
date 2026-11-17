@@ -53,10 +53,10 @@ describe('the schema-definition editor', () => {
       'This editor builds a DataSchema document — the definition of the tables, sequences, and reference data this schema manages.'
     );
     expect(text()).toContain(
-      'can be upgraded. Click any row to edit it in a side panel. Once saved, the schema'
+      'can be upgraded. Click any entry to edit its full definition. Once saved, the schema'
     );
     expect(bold()).toEqual(
-      expect.arrayContaining(['DataSchema document', 'Click any row to edit it in a side panel.'])
+      expect.arrayContaining(['DataSchema document', 'Click any entry to edit its full definition.'])
     );
   });
 

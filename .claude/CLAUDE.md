@@ -326,6 +326,11 @@ yarn build:test         # Type-check without emit
 - Providers: `Reqraft*Provider`
 - Stores: `*Store` suffix
 
+### Default copy
+
+- A default label says what the reader wants, never what the code does (Filip, 17 Nov 2026): "Close Address", not "Collapse Address"; "Getting ready…", not "Connecting to language server…". No panel, drawer, row, component, collapse / expand, rendering, language server, request or "the rest of the…" in it, beside the plain-language rule (no network or run-time jargon).
+- `__tests__/reqraftLabelsPlainLanguage.test.ts` reads every English label in `DEFAULT_REQRAFT_LABELS`, the functions too, and fails on those words. Where a word is the reader's own (a database table's rows, an API call's requests) the label's path is listed in `READERS_OWN`.
+
 ### Context Access
 
 - Use `useContextSelector` (from `use-context-selector`) for fine-grained re-renders

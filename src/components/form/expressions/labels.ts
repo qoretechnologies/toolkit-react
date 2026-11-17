@@ -156,12 +156,12 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
   modes: {
     text: 'Text',
     visual: 'Visual',
-    textUnavailable: 'The expression language server is not available',
+    textUnavailable: 'Writing it as text is not available right now',
   },
   textUnreadable:
-    'The expression language server is not available, so this text cannot be read yet. It is kept as you typed it; the Visual view builds the expression without the server.',
+    'This text cannot be read right now. It is kept as you typed it; the Visual view builds the expression meanwhile.',
   textViewUnavailable:
-    'The Text view needs the expression language server, which is not available: the expression is built here instead.',
+    'Writing it as text is not available right now, so the expression is built here instead.',
   textRefused: (reason) => `This expression cannot be shown as text, so it is built here: ${reason}`,
   mayNotFit: 'This may not fit',
   doesNotFit: 'This does not fit',
@@ -170,8 +170,8 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
       mayFail ? ' Qorus converts the value when it runs, and checks it then.' : ''
     }`,
   preview: 'Preview',
-  notRendered: 'This expression could not be rendered.',
-  notExplained: 'Expression is invalid, unable to render summary',
+  notRendered: 'This expression could not be put in words.',
+  notExplained: 'This expression is not valid, so it cannot be explained.',
   conditionError: (typeInSentence, example) =>
     `${typeInSentence ? `The condition evaluates to ${typeInSentence}, but it` : 'The condition'} must evaluate to true or false. Compare the value instead, for example ${example}.`,
   conditionByTruthiness: (kind, named) =>

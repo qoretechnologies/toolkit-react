@@ -42,7 +42,7 @@ export const DpqlRendering = ({ text, templates, 'data-testid': testId }: IDpqlR
       templateTagsUseIntent
       templates={templates}
       // The text is already known; only its colors wait for the server, so
-      // nothing is hidden behind "Connecting to language server…".
+      // nothing is hidden behind "Getting ready…".
       loadingIndicator={null}
     />
   </div>

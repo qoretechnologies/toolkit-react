@@ -54,3 +54,69 @@ describe('reqraft labels are plain language', () => {
     );
   });
 });
+
+/*
+ * Copy says what the reader wants, never what the code does (Filip, 17 Nov 2026): no UI-mechanism words in a default
+ * label - no panel, drawer, row or component, no collapse or expand, no rendering, no language server or request, no
+ * "the rest of the…". An open field's label said "Collapse Address", the editor's wait "Connecting to language
+ * server…", the schema editor's hint "Click any row to edit it in a side panel".
+ */
+const MECHANISM =
+  /\b(panels?|drawers?|rows?|components?|collaps\w*|expand\w*|render\w*|LSP|language server|requests?|the rest of)\b/i;
+
+/*
+ * Where a word on that list is the reader's own: reference data is the rows a database table holds, an API call
+ * answers requests, and a support ticket can be a feature request.
+ */
+const READERS_OWN: Record<string, RegExp> = {
+  'labels.schemaDefinition.referenceDataHint': /\brows?\b/gi,
+  'labels.validation.apiCallNeedsRequests': /\brequests\b/gi,
+  'labels.supportTicket.categories.feature': /\brequest\b/gi,
+};
+
+/** Text a label gives: a string as it is; a function called with stand-in values; a list of parts joined. */
+const said = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map((part) => said(part) ?? '').join('');
+  if (typeof value !== 'function') return undefined;
+  // a stand-in for each argument, tried in turn until the function gives words: a name, a count, a list, a renderer
+  const standIns: unknown[] = ['Name', 2, ['Name', 'Other'], (part: unknown) => part];
+  for (const standIn of standIns) {
+    try {
+      const text = said((value as (...args: unknown[]) => unknown)(...Array(3).fill(standIn)));
+      if (text !== undefined) return text;
+    } catch {
+      // not this stand-in
+    }
+  }
+  return undefined;
+};
+
+/** Every label's words, functions included, with the path that leads to it. */
+const allSaid = (value: unknown, path: string): [string, string][] => {
+  const text = said(value);
+  if (text !== undefined) return [[path, text]];
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, child]) => allSaid(child, `${path}.${key}`));
+  }
+  return [];
+};
+
+describe('reqraft labels say what the reader wants', () => {
+  const all = allSaid(DEFAULT_REQRAFT_LABELS, 'labels');
+
+  it('reads every label, the functions too', () => {
+    expect(all.length).toBeGreaterThan(strings(DEFAULT_REQRAFT_LABELS, 'labels').length);
+    expect(all).toContainEqual(['labels.formEngine.collapse', 'Close Name']);
+    expect(MECHANISM.test('Collapse Name')).toBe(true);
+    expect(MECHANISM.test('Connecting to language server…')).toBe(true);
+    expect(MECHANISM.test('Close Name')).toBe(false);
+  });
+
+  it('names no mechanism', () => {
+    const offenders = all
+      .filter(([path, text]) => MECHANISM.test(text.replace(READERS_OWN[path] ?? /$^/, '')))
+      .map(([path, text]) => `${path}: "${text}"`);
+    expect(offenders).toEqual([]);
+  });
+});

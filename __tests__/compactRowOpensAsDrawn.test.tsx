@@ -147,7 +147,7 @@ describe('a click on a compact row', () => {
     await waitFor(() => expect(openRows(container)).toEqual(['name']));
     await user.click(
       required(
-        container.querySelector<HTMLElement>('[aria-label="Collapse Name"]'),
+        container.querySelector<HTMLElement>('[aria-label="Close Name"]'),
         "the row's label"
       )
     );
@@ -166,7 +166,7 @@ describe('a click on a compact row', () => {
 
     await user.click(
       required(
-        container.querySelector<HTMLElement>('[aria-label="Collapse Name"]'),
+        container.querySelector<HTMLElement>('[aria-label="Close Name"]'),
         "the row's label"
       )
     );

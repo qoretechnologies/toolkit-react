@@ -157,7 +157,7 @@ export const DEFAULT_SCHEMA_DEFINITION_LABELS: ISchemaDefinitionLabels = {
     'This editor builds a ',
     strong('DataSchema document'),
     ' — the definition of the tables, sequences, and reference data this schema manages. Each tab is one section: lay out your tables and their columns, add sequences, seed reference data, and record migrations so databases on an older version can be upgraded. ',
-    strong('Click any row to edit it in a side panel.'),
+    strong('Click any entry to edit its full definition.'),
     ' Once saved, the schema can be aligned to a datasource to create or update those objects.',
   ],
   referenceDataHintTitle: 'Reference data modes',
@@ -187,9 +187,9 @@ export const DEFAULT_SCHEMA_DEFINITION_LABELS: ISchemaDefinitionLabels = {
 
   tablesHintTitle: 'Working with tables',
   tablesHint: (strong) => [
-    'Each row is a database table. Expand one to reach its columns, primary key, indexes, and constraints — each on its own sub-tab. ',
-    strong('Click a column row to edit it in a side panel'),
-    ' where you set its full definition.',
+    'Each entry is a database table. Open one to reach its columns, primary key, indexes, and constraints — each on its own tab. ',
+    strong('Click a column to edit it'),
+    ' and set its full definition.',
   ],
   noTables: 'No tables yet. Add the first table to start building the schema.',
   noTablesRead: 'This schema defines no tables.',

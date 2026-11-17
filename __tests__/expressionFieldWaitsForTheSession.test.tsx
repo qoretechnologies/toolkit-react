@@ -185,7 +185,7 @@ describe('the Text view before its language server is ready', () => {
     await pass(100);
     expect((screen.getByTestId('fake-dpql') as HTMLTextAreaElement).value).toBe('1 + 2');
     expect(container.querySelector('.expression-text-unavailable')?.textContent).toContain(
-      'not available'
+      'cannot be read right now'
     );
   });
 

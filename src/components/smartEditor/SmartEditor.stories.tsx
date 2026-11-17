@@ -425,7 +425,7 @@ export const LoadingOverlay: Story = {
     docs: {
       description: {
         story:
-          'Renders the SmartEditor against a mock LSP that never finishes initialize — the "Connecting to language server" overlay stays over the editor for the whole session.',
+          'Renders the SmartEditor against a mock LSP that never finishes initialize — the "Getting ready" overlay stays over the editor for the whole session.',
       },
     },
   },
@@ -439,7 +439,7 @@ export const LoadingOverlay: Story = {
   play: async ({ canvasElement }) => {
     // Assert the overlay is up and stop — leaving it on screen for Chromatic.
     await waitFor(
-      () => expect(canvasElement.textContent).toContain('Connecting to language server'),
+      () => expect(canvasElement.textContent).toContain('Getting ready'),
       { timeout: 10000 }
     );
   },
@@ -708,7 +708,7 @@ export const HoverFollowsTheMouseToTheNextWord: Story = {
     await waitFor(
       () =>
         expect(canvasElement.textContent).not.toMatch(
-          /Connecting to language server|Loading schema/
+          /Getting ready|Loading schema/
         ),
       { timeout: 10000 }
     );
@@ -790,7 +790,7 @@ export const HoverDetailsOnATouchScreen: Story = {
         await waitFor(
           () =>
             expect(canvasElement.textContent).not.toMatch(
-              /Connecting to language server|Loading schema/
+              /Getting ready|Loading schema/
             ),
           { timeout: 10000 }
         );

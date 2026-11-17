@@ -124,7 +124,7 @@ describe('a read-first row closed straight after typing', () => {
 
     type(container, 'address', 'mqtt://broker:1883');
     fireEvent.click(
-      container.querySelector('[data-field="address"] [aria-label="Collapse Address"]')!
+      container.querySelector('[data-field="address"] [aria-label="Close Address"]')!
     );
 
     await waitFor(() => expect(isOpen(container, 'address')).toBe(false));

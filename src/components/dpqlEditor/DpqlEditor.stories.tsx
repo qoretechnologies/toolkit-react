@@ -744,7 +744,7 @@ const expectHoverOnACard = () => {
 const readyEditor = async (canvasElement: HTMLElement) => {
   await waitFor(
     () =>
-      expect(canvasElement.textContent).not.toMatch(/Connecting to language server|Loading schema/),
+      expect(canvasElement.textContent).not.toMatch(/Getting ready|Loading schema/),
     { timeout: 10000 }
   );
   return within(canvasElement).getByRole('textbox');
@@ -2138,7 +2138,7 @@ export const TypingBeforeTheServerIsReadyIsStillAnswered: Story = {
   play: async ({ canvasElement }) => {
     const editable = within(canvasElement).getByRole('textbox');
     // the session is not ready yet: the overlay is up
-    await waitFor(() => expect(canvasElement.textContent).toContain('Connecting to language server'));
+    await waitFor(() => expect(canvasElement.textContent).toContain('Getting ready'));
     // typed before the server is ready
     await userEvent.click(editable);
     await typeAsAPerson(userEvent, '$');

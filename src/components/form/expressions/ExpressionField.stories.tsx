@@ -83,14 +83,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The DPQL editor overlays "Connecting to language server…" / "Loading
+/** The DPQL editor overlays "Getting ready…" / "Loading
  * schema…" while its LSP session starts — a snapshot must never catch that
  * transient, so every Text-mode play ends by waiting the overlay out. */
 const waitForLspIdle = (canvasElement: HTMLElement) =>
   waitFor(
     () => {
       expect(canvasElement.querySelector('[contenteditable="true"]')).toBeInTheDocument();
-      expect(canvasElement.textContent).not.toContain('Connecting to language server');
+      expect(canvasElement.textContent).not.toContain('Getting ready');
       expect(canvasElement.textContent).not.toContain('Loading schema');
     },
     { timeout: 10000 }
