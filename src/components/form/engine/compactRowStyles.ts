@@ -640,7 +640,8 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     border-radius: 2px;
   }
   .options-readfirst-link:focus-visible {
-    outline: 2px solid currentColor;
+    /* The one ring color (decision 030) the rows' body says; the link's own color elsewhere. */
+    outline: 2px solid var(--readfirst-focus, currentColor);
     outline-offset: 2px;
   }
   /* The code size chip kept above an OPEN editor. The read row puts the same chip
@@ -810,6 +811,8 @@ export const StyledGroupBody = styled.div<{
   display: flex;
   flex-flow: column;
   position: relative;
+  /* The keyboard's ring for the rows and the links in them (\`$focus\`, the one ring color). */
+  --readfirst-focus: ${({ $focus }) => $focus};
   /* Exposed as a var so the inter-field divider can center itself in the gap
      (the gap differs wide vs narrow). */
   --readfirst-row-gap: 4px;
@@ -896,7 +899,7 @@ export const StyledGroupBody = styled.div<{
     }
   }
   .readfirst-row:focus-visible {
-    outline: 2px solid ${({ $focus }) => $focus};
+    outline: 2px solid var(--readfirst-focus);
     outline-offset: -2px;
     background: ${({ $hover }) => $hover};
   }
@@ -933,7 +936,7 @@ export const StyledGroupBody = styled.div<{
     }
   }
   .readfirst-more-row:focus-visible {
-    outline: 2px solid ${({ $focus }) => $focus};
+    outline: 2px solid var(--readfirst-focus);
     outline-offset: -2px;
   }
   /* The chevron points the way the click goes: down to reveal, up to fold. */

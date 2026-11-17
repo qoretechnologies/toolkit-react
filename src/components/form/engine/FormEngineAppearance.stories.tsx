@@ -625,6 +625,36 @@ export const CalmUnderARoundCorner: Story = {
   },
 };
 
+export const CalmRowFocusRing: Story = {
+  parameters: {
+    // Interaction-only: the look is the Calm story's, with a ring on one row.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The calm form with a filled row that has no problem reached by the keyboard: it draws the one focus ring every control draws, the text color at 0.7 (instruction-files decision 030), inside its edge. It drew it in the warning amber, which says a field needs a look, so a good row read as a fault (admin portal).',
+      },
+    },
+  },
+  play: async () => {
+    await _testsWaitForText('Supplier Payment Release');
+    const target = await waitFor(() => {
+      const element = row('display_name');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+
+    target.focus();
+    await waitFor(() => expect(getComputedStyle(target).outlineStyle).toBe('solid'));
+    const ring = getComputedStyle(target).outlineColor;
+    expect(isAmber(ring), `the ring is ${ring}`).toBe(false);
+    // The text color at 0.7: a light gray on this dark theme, as every Reqore control draws it.
+    const [r, g, b, alpha = 1] = (ring.match(/[\d.]+/g) || []).map(Number);
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(8);
+    expect(alpha).toBeCloseTo(0.7, 2);
+  },
+};
+
 export const CalmReadOnly: Story = {
   args: {
     readOnly: true,

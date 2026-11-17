@@ -356,7 +356,9 @@ const Thumb = styled.button`
     border-color: rgba(255, 255, 255, 0.35);
   }
   &:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.6);
+    /* The one ring color (decision 030): the text color it inherits at 0.7, readable on a light
+       theme too, where a fixed white at 0.6 vanished. */
+    outline: 2px solid color-mix(in srgb, currentColor 70%, transparent);
     outline-offset: 2px;
   }
   img {

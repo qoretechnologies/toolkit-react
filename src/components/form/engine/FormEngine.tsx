@@ -22,6 +22,7 @@ import { getReadFirstInks } from './readFirstColors';
 import { operatorSummary } from './operatorSummary';
 import { resolveInheritProps } from './inheritProps';
 import {
+  getFocusRingColor,
   getReadableShade,
   getReadableTextOpacity,
   getThemeSurfaces,
@@ -1844,14 +1845,14 @@ const FormEngineImpl = ({
        the box headers below a toolbar that is no longer there. */
   }, [compact, compactNested, compactStickyBoxHeaders, compactNarrow, compactWrapNode, options]);
 
-  /* The colour a calm form sits on, for its pinned toolbar's glass.
+  /* The color a calm form sits on, for its pinned toolbar's glass.
 
      A calm form has no surface of its own, so the toolbar has to paint one to
      keep the rows that scroll under it from showing through the meter and the
-     search — and it has to be the host's colour, or it draws a band across the
+     search — and it has to be the host's color, or it draws a band across the
      form before anything has moved. The host is whatever paints first above the
      form: the page, a drawer's panel surface, a card. Read once it mounts (and
-     when the theme changes), not assumed from the theme's main colour. */
+     when the theme changes), not assumed from the theme's main color. */
   const [compactHostColour, setCompactHostColour] = useState<number[]>();
   useLayoutEffect(() => {
     if (!calm || !compact || compactNested || !compactWrapNode) {
@@ -4291,7 +4292,7 @@ const FormEngineImpl = ({
     const stagedRows = new Map<string, React.ReactNode>();
     // Whether the box being drawn shows its rows: a collapsed one keeps only their places (`useOpenBoxes`)
     let drawingRows = true;
-    // Calm: the host's own colour (see `compactHostColour`), so the pinned
+    // Calm: the host's own color (see `compactHostColour`), so the pinned
     // toolbar is invisible until something scrolls under it - and opaque, so
     // what scrolls under it does not read through. At 88% with a blur the rows
     // still showed through crisply around the readiness line and the search
@@ -4662,10 +4663,10 @@ const FormEngineImpl = ({
         // "Covers"/"Covered by" chips already say which member satisfies it.
         if (requiredGroupsInfo.satisfiedBy[grp]) return railed;
         // Amber once someone has been to the group (or a submit was attempted); until
-        // then it is still to fill in, in the quiet colour, like its members.
+        // then it is still to fill in, in the quiet color, like its members.
         const clusterVisited = memberEntries.some((e) => getOptionStatus(e.name) !== 'pending');
         const clusterColor = clusterVisited ? cWarning : cMuted;
-        // its words and mark: the same colour, in the shade of it that reads on the tint
+        // its words and mark: the same color, in the shade of it that reads on the tint
         const clusterInk = clusterVisited ? rowInks.warning : rowInks.mutedReason;
         return (
           <StyledRequiredClusterBox
@@ -4676,7 +4677,7 @@ const FormEngineImpl = ({
             $calm={calm}
           >
             {/* the words and the mark in a shade that reads on the cluster's tint: the warning's, or the
-                quiet colour's while the group is still only to fill in */}
+                quiet color's while the group is still only to fill in */}
             <StyledRequiredClusterHeader
               className='options-readfirst-required-cluster-header'
               $color={clusterInk}
@@ -4782,7 +4783,8 @@ const FormEngineImpl = ({
       $hairline: cHairline,
       $divider: cDivider,
       $hover: cHover,
-      $focus: cWarning,
+      // The keyboard's ring in the one ring color (decision 030); amber said a good row was at fault
+      $focus: getFocusRingColor(theme),
       // Calm: the text color's wash, as a hovered row has; amber would say the group is wrong (a satisfied one
       // stayed amber under the pointer)
       $groupHighlight: calm ? cHover : `${cWarning}1f`,

@@ -19,6 +19,7 @@ import {
   useState,
 } from 'react';
 import styled, { css } from 'styled-components';
+import { getFocusRingColor } from '../../../../helpers/readableColors';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { hexGivesOpacity, isStoredColor, readHexColor } from '../../../colorValue/colorValue';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
@@ -297,7 +298,7 @@ export const StyledColorField = styled.div<IStyledColorFieldProps>`
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'auto')};
 `;
 
-const StyledArea = styled.div<{ $height: number; $text: string }>`
+const StyledArea = styled.div<{ $height: number; $text: string; $ring: string }>`
   position: relative;
   width: 100%;
   height: ${({ $height }) => $height}px;
@@ -306,7 +307,7 @@ const StyledArea = styled.div<{ $height: number; $text: string }>`
   box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.2)};
 
   .w-color-saturation:focus-visible {
-    outline: 2px solid ${({ $text }) => $text};
+    outline: 2px solid ${({ $ring }) => $ring};
     outline-offset: -2px;
   }
 `;
@@ -492,7 +493,7 @@ const StyledSwatches = styled.div<{ $text: string }>`
   border-top: 1px solid ${({ $text }) => rgba($text, 0.15)};
 `;
 
-const StyledSwatch = styled.button<{ $size: number; $color: string; $text: string }>`
+const StyledSwatch = styled.button<{ $size: number; $color: string; $text: string; $ring: string }>`
   width: ${({ $size }) => $size}px;
   height: ${({ $size }) => $size}px;
   padding: 0;
@@ -509,7 +510,7 @@ const StyledSwatch = styled.button<{ $size: number; $color: string; $text: strin
   }
 
   &:focus-visible {
-    outline: 2px solid ${({ $text }) => $text};
+    outline: 2px solid ${({ $ring }) => $ring};
     outline-offset: 2px;
   }
 `;
@@ -547,6 +548,8 @@ export const ColorFormField = ({
 }: IColorFormFieldProps) => {
   const theme = useReqoreTheme();
   const text = getReadableColor(theme);
+  // The keyboard's ring in the one ring color (decision 030), not the full text color.
+  const ring = useMemo(() => getFocusRingColor(theme), [theme]);
   const coarse = useCoarsePointer();
   const sizes = sizesFor(coarse);
   const words = useMemo(() => ({ ...DEFAULT_COLOR_FORM_FIELD_LABELS, ...labels }), [labels]);
@@ -825,7 +828,7 @@ export const ColorFormField = ({
       $disabled={!!disabled}
       $text={text}
     >
-      <StyledArea $height={sizes.area} $text={text}>
+      <StyledArea $height={sizes.area} $text={text} $ring={ring}>
         <Saturation
           hsva={shown}
           onChange={pickerMoved}
@@ -960,6 +963,7 @@ export const ColorFormField = ({
                 $size={sizes.swatch}
                 $color={color}
                 $text={text}
+                $ring={ring}
                 onClick={() => {
                   if (rgbaColor) {
                     setDrafts({});

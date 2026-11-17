@@ -143,3 +143,13 @@ export const getReadableTextOpacity = (
   minContrast: number = READABLE_TEXT
 ): number =>
   getReadableOpacity(getReadableColor(theme), getThemeSurfaces(theme), opacity, minContrast);
+
+/**
+ * The keyboard's focus ring, in the one color every control draws it in (instruction-files decision
+ * 030): the readable text color at 0.7, at least 3:1 on a dark theme and a light one. Never an
+ * intent: amber says "needs a look", and a focused row that holds a good value drew it (admin portal).
+ * Reqore exports this as `getFocusRingColor` from reqore#715 on; this is its formula until reqraft
+ * builds on that release. TODO(reqore): import Reqore's `getFocusRingColor` instead.
+ */
+export const getFocusRingColor = (theme: IReqoreTheme): string =>
+  rgba(getReadableColor(theme, undefined, undefined, true, theme.originalMain), 0.7);
