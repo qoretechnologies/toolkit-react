@@ -74,9 +74,16 @@ const settle = async (get: ReturnType<typeof vi.fn>) => {
   });
 };
 
-/** Exactly what `query` stores for a resolved GET. */
-const seedCache = (url: string, data: unknown) =>
-  ReqraftQueryClient.setQueryData([reqraftCacheKey({ url })], { data, ok: true, status: 200 });
+/** Exactly what `query` stores for a resolved GET, `age` ms ago. */
+const seedCache = (url: string, data: unknown, age = 0) =>
+  ReqraftQueryClient.setQueryData(
+    [reqraftCacheKey({ url })],
+    { data, ok: true, status: 200 },
+    { updatedAt: Date.now() - age }
+  );
+
+/** Older than the five minutes `query` counts a cached answer as fresh. */
+const STALE = 6 * 60 * 1000;
 
 describe('useFetch with a warm cache', () => {
   beforeEach(() => {
@@ -95,7 +102,8 @@ describe('useFetch with a warm cache', () => {
     // them, not just the last, or the flash passes unnoticed.
     await waitFor(() => expect(seen.loading.length).toBeGreaterThan(0));
     expect(seen.loading.some((l) => l === true)).toBe(false);
-    await settle(get);
+    // ...and a fresh answer is not asked for at all (board f61).
+    expect(get).not.toHaveBeenCalled();
   });
 
   it('hands back the cached data on the very first render', async () => {
@@ -105,7 +113,7 @@ describe('useFetch with a warm cache', () => {
     const seen = renderProbe('/system/qorus-type-info', get);
 
     expect(seen.data[0]).toEqual(CATALOGUE);
-    await settle(get);
+    expect(get).not.toHaveBeenCalled();
   });
 
   it('still reports loading when there is nothing cached', async () => {
@@ -121,14 +129,16 @@ describe('useFetch with a warm cache', () => {
     await settle(get);
   });
 
-  it('still revalidates a cached resource', async () => {
-    // Silent, but not skipped: the entry is refreshed behind the rendered data.
-    seedCache('/system/qorus-type-info', CATALOGUE);
+  it('still revalidates a stale cached resource, silently', async () => {
+    // Silent, but not skipped: a STALE entry is refreshed behind the rendered data.
+    // A fresh one is not asked for (board f61; `useFetchLoadOnMount.test.tsx`).
+    seedCache('/system/qorus-type-info', CATALOGUE, STALE);
 
     const get = vi.fn(async () => ({ ok: true, data: CATALOGUE }));
-    renderProbe('/system/qorus-type-info', get);
+    const seen = renderProbe('/system/qorus-type-info', get);
 
     await settle(get);
+    expect(seen.loading.some((l) => l === true)).toBe(false);
   });
 
   it('does not treat a cached FAILURE as an answer', async () => {

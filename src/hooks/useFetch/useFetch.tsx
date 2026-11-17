@@ -5,9 +5,11 @@ import { useContextSelector } from 'use-context-selector';
 import { FetchContext } from '../../contexts/FetchContext';
 import { ReqraftQueryClient } from '../../providers/ReqraftProvider';
 import {
+  hasFreshAnswer,
   IReqraftFetchResponse,
   IReqraftQueryConfig,
   isQueryCancelled,
+  queryStaleTime,
   reqraftCacheKey,
 } from '../../utils/fetch';
 
@@ -73,9 +75,8 @@ export function useFetch<T>({
     queryClient = ReqraftQueryClient;
   }
 
-  const cached = queryClient.getQueryData([
-    reqraftCacheKey({ url, method, body, noApiPrefix }),
-  ]) as { data?: T; ok?: boolean } | undefined;
+  const cacheKey = reqraftCacheKey({ url, method, body, noApiPrefix });
+  const cached = queryClient.getQueryData([cacheKey]) as { data?: T; ok?: boolean } | undefined;
   const hasCachedAnswer = !!cached && cached.ok !== false && cached.data !== undefined;
 
   const [loading, setLoading] = useState(!!loadOnMount && !hasCachedAnswer);
@@ -140,11 +141,25 @@ export function useFetch<T>({
   );
 
   useEffectOnce(() => {
-    if (loadOnMount) {
-      // Still revalidates when the entry is cached — `query` honours its own
-      // staleness — but silently, so a cached answer never flashes a skeleton.
-      load({ silent: hasCachedAnswer });
+    if (!loadOnMount) {
+      return;
     }
+
+    /* A FRESH cached answer is already the one rendered, and `query` would hand the
+       same entry back without a request - so it is not asked for (board f61). Asking
+       went through the `FetchContext`, and with no reqraft provider above the hook
+       (`useQorusTypes` in a host's unit tests) the default context throws. A stale
+       entry is still revalidated, silently, so it never flashes a skeleton. */
+    if (hasFreshAnswer(queryClient, cacheKey, queryStaleTime({ method, cache }))) {
+      return;
+    }
+
+    /* Nobody awaits this promise, so a rejection out of it is nobody's to handle:
+       vitest fails a whole run for one, and a page logs it as uncaught. It ends in
+       `error`, as a failed answer does; a caller of `load()` still gets the rejection. */
+    load({ silent: hasCachedAnswer }).catch((error: unknown) => {
+      setError(error instanceof Error ? error : new Error(String(error)));
+    });
   });
 
   return useMemo(

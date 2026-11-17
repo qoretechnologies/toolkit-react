@@ -1,8 +1,12 @@
-import { ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
+import { ReqoreMessage, ReqoreP, ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
+import { useMemo, useState } from 'react';
+import { expect, waitFor, within } from 'storybook/test';
 import { testsWaitForText } from '../../../__tests__/utils';
+import { FetchContext, IReqraftFetchContext } from '../../contexts/FetchContext';
 import { storyApiUrl } from '../../stories/storyNetwork';
 import { StoryMeta } from '../../types';
+import { IReqraftFetchResponse, seedQueryCache } from '../../utils/fetch';
 import { useFetch } from './useFetch';
 
 const meta = {
@@ -384,5 +388,129 @@ export const Error409: Story = {
   },
   play: async () => {
     await testsWaitForText('"AbstractQorusCoreService.qc"');
+  },
+};
+
+/* ------------------------------------------------------------------------------------------------
+ * loadOnMount and the query cache (board f61)
+ * ---------------------------------------------------------------------------------------------- */
+
+const SEEDED_INFO = { 'instance-key': 'seeded-by-the-host', edition: 'Enterprise' };
+
+/** A successful answer shaped as `query()` builds one, Response included. */
+const answer = (data: unknown): IReqraftFetchResponse<never> => ({
+  ok: true,
+  data: data as never,
+  code: 200,
+  response: new Response(JSON.stringify(data ?? null), { status: 200 }),
+});
+
+/** Shows what useFetch rendered, and how many times it asked its FetchContext. */
+const CountsItsRequests = () => {
+  const { data } = useFetch<typeof SEEDED_INFO>({ url: 'public/info', loadOnMount: true });
+
+  return (
+    <>
+      <ReqoreP className='story-instance'>Instance: {data?.['instance-key'] ?? 'none'}</ReqoreP>
+      <ReqoreTree data={data ?? {}} />
+    </>
+  );
+};
+
+const AskCounter = () => {
+  const [asked, setAsked] = useState(0);
+  const context = useMemo<IReqraftFetchContext>(
+    () => ({
+      get: async () => {
+        setAsked((count) => count + 1);
+        return answer(SEEDED_INFO);
+      },
+      post: async () => answer(undefined),
+      put: async () => answer(undefined),
+      del: async () => answer(undefined),
+    }),
+    []
+  );
+
+  return (
+    <FetchContext.Provider value={context}>
+      <ReqoreP className='story-asked'>Asked the server {asked} times</ReqoreP>
+      <CountsItsRequests />
+    </FetchContext.Provider>
+  );
+};
+
+export const AFreshCachedAnswerIsNotAskedFor: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The host has seeded `public/info` into the query cache (as the IDE seeds the type catalog it fetched before the bundle parsed). `useFetch({ loadOnMount: true })` renders that answer on its first paint and does not ask its FetchContext for it: "Asked the server 0 times". It used to ask anyway, and with no reqraft provider above it the default context threw (board f61).',
+      },
+    },
+  },
+  beforeEach: () => {
+    seedQueryCache({ url: 'public/info', data: SEEDED_INFO });
+  },
+  render: () => <AskCounter />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await canvas.findByText('Instance: seeded-by-the-host');
+    // Give a request on mount every chance to have been made.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await expect(canvas.getByText('Asked the server 0 times')).toBeVisible();
+  },
+};
+
+const ShowsItsError = () => {
+  const { error, loading } = useFetch<typeof SEEDED_INFO>({
+    url: 'public/info',
+    loadOnMount: true,
+  });
+
+  if (loading) {
+    return <ReqoreSpinner />;
+  }
+
+  return error ? (
+    <ReqoreMessage intent='danger' title='Could not load the system info'>
+      {error.message}
+    </ReqoreMessage>
+  ) : (
+    <ReqoreP>Loaded</ReqoreP>
+  );
+};
+
+const REJECTING_CONTEXT: IReqraftFetchContext = {
+  get: async () => {
+    throw new Error('The connection to the server was closed.');
+  },
+  post: async () => answer(undefined),
+  put: async () => answer(undefined),
+  del: async () => answer(undefined),
+};
+
+export const AFailedLoadOnMountShowsItsError: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A FetchContext whose request rejects (here, a closed connection) under `useFetch({ loadOnMount: true })`: the failure ends in `error`, so the component shows it, and it is not left as an unhandled rejection. It used to escape the mount effect: the page showed "Loaded" with no data, and a test runner failed the whole run (board f61).',
+      },
+    },
+  },
+  render: () => (
+    <FetchContext.Provider value={REJECTING_CONTEXT}>
+      <ShowsItsError />
+    </FetchContext.Provider>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await waitFor(() =>
+      expect(canvas.getByText('The connection to the server was closed.')).toBeVisible()
+    );
+    await expect(canvas.queryByText('Loaded')).toBeNull();
   },
 };
