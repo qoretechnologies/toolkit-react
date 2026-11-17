@@ -57,15 +57,29 @@ export type TTicketViewerRole = 'customer' | 'staff';
 
 export interface ITicketEnumMeta {
   label: string;
-  /** The value's tint in the classic look (`TicketMetaTags appearance='classic'`). A calm surface does not read
-   *  it: a category is not a verdict, and a status or a priority takes a color only when it needs the person
-   *  looking at it (`ticketStatusAttention`, `ticketPriorityAttention`). */
+  /** A status's or a priority's tint in the classic look (`TicketMetaTags appearance='classic'`). A calm surface
+   *  does not read it: a status or a priority takes a color only when it needs the person looking at it
+   *  (`ticketStatusAttention`, `ticketPriorityAttention`). Categories and audit actions have none (`ITicketMark`). */
   intent: TReqoreIntent;
   icon: IReqoreIconName;
   /** Audience-specific label for the customer view; falls back to `label` (the
    *  staff / neutral wording). Only a few values differ by audience. */
   customerLabel?: string;
 }
+
+/**
+ * A value said by its word and its icon, with no color: a category is not a verdict and an audit action is a record,
+ * so neither takes one (decision 001: color has a job or it is grey). They carried a tint nothing drew.
+ */
+export type ITicketMark = Omit<ITicketEnumMeta, 'intent'>;
+
+/** A word-and-icon mark whose label is read from the host's words each time, as `worded`'s is. */
+const marked = (word: (words: ISupportTicketLabels) => string, icon: IReqoreIconName): ITicketMark => ({
+  get label() {
+    return word(reqraftLabels().supportTicket);
+  },
+  icon,
+});
 
 /**
  * A mark whose label is read from the host's words (`setReqraftLabels`) each time it is read, so a vocabulary kept
@@ -107,44 +121,40 @@ export const TICKET_PRIORITY_META: Record<TTicketPriority, ITicketEnumMeta> = {
   urgent: worded((words) => words.priorities.urgent, 'danger', 'AlarmWarningLine'),
 };
 
-export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketEnumMeta> = {
-  bug: worded((words) => words.categories.bug, 'danger', 'BugLine'),
-  question: worded((words) => words.categories.question, 'info', 'QuestionLine'),
-  billing: worded((words) => words.categories.billing, 'warning', 'BankCardLine'),
-  feature: worded((words) => words.categories.feature, 'success', 'LightbulbLine'),
-  other: worded((words) => words.categories.other, 'muted', 'MoreLine'),
+export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketMark> = {
+  bug: marked((words) => words.categories.bug, 'BugLine'),
+  question: marked((words) => words.categories.question, 'QuestionLine'),
+  billing: marked((words) => words.categories.billing, 'BankCardLine'),
+  feature: marked((words) => words.categories.feature, 'LightbulbLine'),
+  other: marked((words) => words.categories.other, 'MoreLine'),
 };
 
 /** Staff-only audit trail vocabulary (used by the admin-portal staff surface).
  *  These are exactly the actions the backend writes (qorus-api
  *  `QorusSaasTicketStore::insertAudit`): a public reply, an internal note, a
  *  status change, an assignment, or `updated` (a priority/category change). */
-export const TICKET_AUDIT_ACTION_META: Record<TTicketAuditAction, ITicketEnumMeta> = {
-  replied: worded((words) => words.auditActions.replied, 'success', 'ReplyLine'),
-  noted: worded((words) => words.auditActions.noted, 'info', 'StickyNoteLine'),
-  status_changed: worded((words) => words.auditActions.status_changed, 'warning', 'ExchangeLine'),
-  assigned: worded((words) => words.auditActions.assigned, 'pending', 'UserFollowLine'),
-  updated: worded((words) => words.auditActions.updated, 'muted', 'Edit2Line'),
-  viewed: worded((words) => words.auditActions.viewed, 'muted', 'EyeLine'),
-  attachment_downloaded: worded((words) => words.auditActions.attachment_downloaded, 'muted', 'Download2Line'),
-  workspace_viewed: worded((words) => words.auditActions.workspace_viewed, 'info', 'Search2Line'),
-  access_requested: worded((words) => words.auditActions.access_requested, 'pending', 'ShieldUserLine'),
-  access_granted: worded((words) => words.auditActions.access_granted, 'success', 'ShieldCheckLine'),
-  access_extended: worded((words) => words.auditActions.access_extended, 'info', 'TimerLine'),
-  access_revoked: worded((words) => words.auditActions.access_revoked, 'danger', 'ShieldCrossLine'),
-  access_expired: worded((words) => words.auditActions.access_expired, 'muted', 'HourglassLine'),
-  session_launched: worded((words) => words.auditActions.session_launched, 'info', 'ExternalLinkLine'),
+export const TICKET_AUDIT_ACTION_META: Record<TTicketAuditAction, ITicketMark> = {
+  replied: marked((words) => words.auditActions.replied, 'ReplyLine'),
+  noted: marked((words) => words.auditActions.noted, 'StickyNoteLine'),
+  status_changed: marked((words) => words.auditActions.status_changed, 'ExchangeLine'),
+  assigned: marked((words) => words.auditActions.assigned, 'UserFollowLine'),
+  updated: marked((words) => words.auditActions.updated, 'Edit2Line'),
+  viewed: marked((words) => words.auditActions.viewed, 'EyeLine'),
+  attachment_downloaded: marked((words) => words.auditActions.attachment_downloaded, 'Download2Line'),
+  workspace_viewed: marked((words) => words.auditActions.workspace_viewed, 'Search2Line'),
+  access_requested: marked((words) => words.auditActions.access_requested, 'ShieldUserLine'),
+  access_granted: marked((words) => words.auditActions.access_granted, 'ShieldCheckLine'),
+  access_extended: marked((words) => words.auditActions.access_extended, 'TimerLine'),
+  access_revoked: marked((words) => words.auditActions.access_revoked, 'ShieldCrossLine'),
+  access_expired: marked((words) => words.auditActions.access_expired, 'HourglassLine'),
+  session_launched: marked((words) => words.auditActions.session_launched, 'ExternalLinkLine'),
 };
 
 /** The mark for an audit action the server writes but this vocabulary has not caught up
  *  with: a muted, generic row that still names the action. It exists because the staff
  *  audit tab used to index `TICKET_AUDIT_ACTION_META` directly, and one unknown action
  *  took the whole tab down (qorus#693). */
-export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketEnumMeta = worded(
-  (words) => words.activity,
-  'muted',
-  'HistoryLine'
-);
+export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketMark = marked((words) => words.activity, 'HistoryLine');
 
 /** A wire value humanised for reading: `attachment_downloaded` → "Attachment downloaded". */
 export const humaniseWireValue = (value: string): string => {
@@ -158,8 +168,8 @@ export const humaniseWireValue = (value: string): string => {
  * humanised as the label, so a new server action renders as a readable row instead
  * of failing the surface that lists it.
  */
-export const ticketAuditActionMeta = (action: string): ITicketEnumMeta =>
-  (TICKET_AUDIT_ACTION_META as Record<string, ITicketEnumMeta>)[action] ?? {
+export const ticketAuditActionMeta = (action: string): ITicketMark =>
+  (TICKET_AUDIT_ACTION_META as Record<string, ITicketMark>)[action] ?? {
     ...UNKNOWN_TICKET_AUDIT_ACTION_META,
     label: humaniseWireValue(action),
   };
