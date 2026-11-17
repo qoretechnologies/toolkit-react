@@ -3,6 +3,7 @@ import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/T
 import { ChangeEvent, memo, useCallback, useEffect, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { withCodeFont } from '../codeFont';
 import { usePendingEdit } from '../pendingEdit';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
@@ -107,6 +108,8 @@ export const ReqraftBinaryFormField = memo(
           }}
           placeholder={fieldWords.binaryValuePlaceholder}
           {...rest}
+          // Encoded bytes (base64, hex): data, so it asks for monospace.
+          effect={withCodeFont(rest.effect)}
         />
         <ReqraftFileFormField disabled={rest.disabled} onChange={handleFileChange} />
       </ReqoreControlGroup>

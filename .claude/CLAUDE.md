@@ -140,6 +140,13 @@ Shared form field components built on ReQore, exported from `src/components/form
 
 A generic `<Field>` component dispatches to the appropriate field by type.
 
+**Code and prose in text boxes.** Reqore (0.79+) draws a textarea in the page's font, as prose, and leaves
+monospace to the fields that ask for it. Reqraft's code boxes ask through `withCodeFont`
+(`src/components/form/fields/codeFont.ts`): the `Object` field's YAML / JSON source (its Text tab), a
+`binary` field, an auto field of type `data` or `binary`, and a template's example value. A
+consumer's `effect` is kept, `fontFamily` included. `LongString`, `String` and `Markdown` stay
+prose (board f47, `__tests__/codeFieldsAreMonospace.test.tsx`).
+
 ### Menu Component (`src/components/menu/Menu.tsx`)
 
 - `ReqraftMenu` — navigation menu built on ReQore components

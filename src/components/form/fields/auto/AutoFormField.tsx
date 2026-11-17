@@ -9,6 +9,7 @@ import {
   ReqoreMessage,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { IReqoreEffect } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
@@ -43,6 +44,7 @@ import ColorFormField from '../color/Color';
 import CronFormField from '../cron/Cron';
 import { DateFormField } from '../date/Date';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
+import { withCodeFont } from '../codeFont';
 import LongStringFormField from '../long-string/LongString';
 import MarkdownFormField from '../markdown/Markdown';
 import { MultiSelectFormField } from '../multi-select/MultiSelectFormField';
@@ -760,6 +762,8 @@ function AutoField<T = any>({
                   fieldWords.binaryPlaceholder)
                 : (rest as { placeholder?: string }).placeholder
               }
+              // Encoded content, not prose: monospace (Reqore draws a textarea as prose).
+              effect={withCodeFont((rest as { effect?: IReqoreEffect }).effect)}
               type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}

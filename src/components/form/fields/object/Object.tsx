@@ -9,6 +9,7 @@ import { IReqoreTabsProps } from '@qoretechnologies/reqore/dist/components/Tabs'
 import { IReqoreTreeProps, ReqoreTree } from '@qoretechnologies/reqore/dist/components/Tree';
 import jsyaml from 'js-yaml';
 import { CSSProperties, memo, useCallback, useMemo, useState } from 'react';
+import { withCodeFont } from '../codeFont';
 import LongStringFormField, { ILongStringFormFieldProps } from '../long-string/LongString';
 import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
@@ -88,6 +89,8 @@ export const ReqraftObjectFormFieldTextarea = ({
         onChange={handleChange}
         scaleWithContent
         {...rest}
+        // YAML or JSON: code, so it asks for monospace (Reqore draws a textarea as prose).
+        effect={withCodeFont(rest.effect)}
         intent={isValid ? rest.intent : 'danger'}
       />
       <ReqoreControlGroup stack>

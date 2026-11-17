@@ -1,5 +1,6 @@
+import { MONO_FONT } from '@qoretechnologies/reqore/dist/constants/fonts';
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fireEvent, fn } from 'storybook/test';
+import { expect, fireEvent, fn, waitFor } from 'storybook/test';
 import { useMemo, useState } from 'react';
 
 import jsyaml from 'js-yaml';
@@ -417,5 +418,36 @@ export const NativeToYaml: Story = {
     );
     await testsClickButton({ label: 'Editor' });
     await testsWaitForText('"value2"');
+  },
+};
+
+export const ItsSourceIsInMonospace: Story = {
+  args: {
+    // the source text route, which a host with a guided editor of the same thing turns on
+    textEditing: true,
+    type: 'object',
+    dataType: 'yaml',
+    resultDataType: 'yaml',
+    value: jsyaml.dump({ region: 'eu-west', retries: 3, scopes: ['read', 'write'] }),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "With `textEditing` on, the Text tab shows the value's YAML source in Reqore's monospace face. Reqore 0.79 draws a textarea in the page's font, as prose, and leaves monospace to the fields that ask for it; YAML is code, so this one asks (board f47).",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await testsWaitForText('"eu-west"');
+    await testsClickButton({ label: 'Text' });
+
+    await waitFor(() => {
+      const textarea = canvasElement.querySelector('textarea') as HTMLTextAreaElement;
+
+      expect(textarea.value).toContain('region: eu-west');
+      // Reqore's own stack, not the browser's generic `monospace` (computed with double quotes)
+      expect(getComputedStyle(textarea).fontFamily).toBe(MONO_FONT.replace(/'/g, '"'));
+    });
   },
 };
