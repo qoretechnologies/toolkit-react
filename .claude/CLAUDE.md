@@ -102,8 +102,14 @@ Status enum: `OPEN | CLOSED | CONNECTING | PAUSED`
 ### `useFetch` Hook (`src/hooks/useFetch/useFetch.tsx`)
 
 - Wraps `query()` via `FetchContext`; supports GET/POST/PUT/DELETE
-- `loadOnMount` — triggers load immediately on mount
-- `load({ body?, mergeBodies? })` — imperative trigger; `mergeBodies` merges call-time body with hook-defined body
+- `loadOnMount` — triggers load immediately on mount, except for an answer the query cache holds
+  fresh (`hasFreshAnswer` / `queryStaleTime` in `src/utils/fetch.ts`: the window `query` itself
+  applies, five minutes by default, none with `cache: false`). That answer is rendered on the first
+  paint and not asked for again; a stale one is revalidated silently (no `loading`). A load-on-mount
+  that throws (a rejecting `FetchContext`, or none: the default throws "FetchContext not
+  implemented") ends in `error`, never in an unhandled rejection (board f61)
+- `load({ body?, mergeBodies? })` — imperative trigger; `mergeBodies` merges call-time body with
+  hook-defined body. Rejects when the context throws, so its caller can handle it
 - Returns: `{ data, loading, load, error, errorData, response }`
 
 ### Storage System (`src/hooks/useStorage/useStorage.ts`)
