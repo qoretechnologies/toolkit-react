@@ -389,7 +389,12 @@ const expectToolbarGlassOverHost = () => {
     .querySelector('.options-readfirst-toolbar')!
     .closest<HTMLElement>('.reqore-panel-title')!;
   const glass = getComputedStyle(toolbar);
-  expect(glass.position).toBe('sticky');
+  /* Reqore pins a header only while its panel is clearly taller than its scroller (decision 028,
+     reqore#715), and says so in `data-pins-header`; a form this short scrolls away with its toolbar.
+     A Reqore that does not say pins every header. */
+  if (toolbar.getAttribute('data-pins-header') !== 'false') {
+    expect(glass.position).toBe('sticky');
+  }
   const [r, g, b, alpha = 1] = (glass.backgroundColor.match(/[\d.]+/g) || []).map(Number);
   expect(alpha).toBeGreaterThanOrEqual(0.85);
   expect(hostColour(toolbar)).toEqual([r, g, b]);

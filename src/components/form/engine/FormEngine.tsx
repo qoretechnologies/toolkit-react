@@ -1816,19 +1816,28 @@ const FormEngineImpl = ({
            header's height below the top edge with nothing under it. Read from
            the element rather than from the props that produced it, so every
            route to that decision is accounted for. */
-        const pinned = getComputedStyle(header).position === 'sticky';
+        /* A Reqore that pins a header only while its panel is clearly taller than its scroller
+           (decision 028, reqore#715) says whether it pins in `data-pins-header`, and decides it
+           after it has measured, so the toolbar was not sticky yet when this first read it. */
+        const says = header.getAttribute('data-pins-header');
+        const pinned = says !== null ? says === 'true' : getComputedStyle(header).position === 'sticky';
         const next = pinned ? Math.round(header.getBoundingClientRect().height) : 0;
         return prev === next ? prev : next;
       });
     read();
     /* jsdom and older engines have no ResizeObserver; the one-shot read above
        still gives the right answer for a form whose toolbar never reflows. */
-    if (typeof ResizeObserver === 'undefined') {
-      return undefined;
-    }
-    const observer = new ResizeObserver(read);
-    observer.observe(header);
-    return () => observer.disconnect();
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(read);
+    observer?.observe(header);
+    /* The pin can change without the toolbar's size changing: Reqore measures first and pins
+       after, and pins no more once the form is short. */
+    const pinWatch =
+      typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(read);
+    pinWatch?.observe(header, { attributes: true, attributeFilter: ['data-pins-header'] });
+    return () => {
+      observer?.disconnect();
+      pinWatch?.disconnect();
+    };
     /* `compactNarrow` is a dependency, not decoration: crossing the width
        breakpoint takes the pin OFF the toolbar without changing its height, so
        the ResizeObserver never fires and a stale 124px would go on offsetting

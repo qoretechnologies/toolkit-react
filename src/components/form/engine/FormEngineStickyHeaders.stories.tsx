@@ -26,7 +26,16 @@ const SCROLLER = 'sticky-story-scroller';
  * Enough rows per bucket that scrolling lands INSIDE a box rather than between
  * two of them — a header pinned at the boundary proves nothing.
  */
-const longSchema = (optional = 12): IQorusFormSchema => {
+/**
+ * Rows in the Set box, and in the Optional box unless a story asks for more. Enough that each box is
+ * well over 1.5 times the scroller's 70vh: Reqore pins a box's header only while its box is that tall
+ * (instruction-files decision 028, reqore#715), and these stories are about boxes long enough to read
+ * with their header pinned. 12 rows (~430px) pinned only on a Reqore that pinned every header; at a 1080px screen a box needs about
+ * 1,090px (1.5 x a 756px scroller less its padding).
+ */
+const BOX_ROWS = 40;
+
+const longSchema = (optional = BOX_ROWS): IQorusFormSchema => {
   const schema: IQorusFormSchema = {};
   for (let i = 1; i <= 4; i++) {
     schema[`attention_${i}`] = {
@@ -36,7 +45,7 @@ const longSchema = (optional = 12): IQorusFormSchema => {
       required: true,
     };
   }
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= BOX_ROWS; i++) {
     schema[`set_${i}`] = {
       type: 'string',
       ui_type: 'string',
@@ -55,7 +64,7 @@ const longSchema = (optional = 12): IQorusFormSchema => {
 
 const longValue = (): IOptions => {
   const value: IOptions = {};
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= BOX_ROWS; i++) {
     value[`set_${i}`] = { type: 'string', value: `value ${i}` } as never;
   }
   return value;
@@ -281,7 +290,7 @@ export const OnlyOneBoxHeaderIsEverPinned: Story = {
   /* The last box is longer than the scroller at any screen height, so it can be scrolled past the line it pins at:
      with 12 rows, at a 1080px screen (a 756px scroller) the scroll ended before the box reached the line, and the
      story failed in Storybook's UI at that size while passing in the test runner's smaller window. */
-  args: { options: longSchema(30) },
+  args: { options: longSchema(BOX_ROWS + 4) },
   parameters: {
     docs: {
       description: {
