@@ -175,7 +175,7 @@ const cardSaturation = (messageId: string): number => {
   return max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
 };
 
-/** Neither side of a conversation is tinted (no purple, no blue); only an internal note is. */
+/** No card of a conversation is tinted (no purple, no blue, no amber), an internal note included. */
 const expectNeutralCards = async (ids: string[]) => {
   for (const id of ids) {
     await expect(cardSaturation(id)).toBeLessThan(0.2);
@@ -333,15 +333,16 @@ export const WithInterfaceReferences: Story = {
 
 /**
  * The staff viewpoint: staff messages sit on the right, the customer on the
- * left, and staff-only internal notes render amber + bordered under an "Internal
- * note" label so they can never be mistaken for a customer-visible reply.
+ * left, and a staff-only internal note says so in its label ("Internal note") and its
+ * eye-off avatar, on the same quiet edge as every card, so it can never be mistaken
+ * for a customer-visible reply.
  */
 export const StaffView: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, both as neutral cards, and staff-only internal notes render amber and bordered under an 'Internal note' label. The customer is named from the ticket ('Customer · Acme Corp').",
+          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, all as neutral cards; a staff-only internal note is marked by its 'Internal note' label and eye-off avatar, not by color. The customer is named from the ticket ('Customer · Acme Corp').",
       },
     },
   },
@@ -356,9 +357,8 @@ export const StaffView: Story = {
     await expect(canvas.getByText('Internal note')).toBeInTheDocument();
     await expect(canvas.getByText(/Support · nick/)).toBeInTheDocument();
     await expect(canvas.getAllByText(/Customer · Acme Corp/).length).toBeGreaterThan(0);
-    // both sides are neutral cards; the internal note alone is amber
-    await expectNeutralCards(['m1', 'm2']);
-    await expect(cardSaturation('m3')).toBeGreaterThan(0.3);
+    // every card is neutral, the internal note too: amber means "needs a look" (decision 001)
+    await expectNeutralCards(['m1', 'm2', 'm3']);
     // the reference chip renders with the built-in default icon (no resolver passed)
     await expect(canvas.getByText('nightly-deploy:1.2')).toBeInTheDocument();
   },
@@ -705,14 +705,15 @@ export const GroupedBurst: Story = {
   },
 };
 
-/** An internal note sits amber under "Internal note" for staff, next to a normal
- *  reply — the two must never be confusable. Customer never receives it. */
+/** An internal note sits under "Internal note" with the eye-off avatar for staff, next to a
+ *  normal reply, on the same quiet edge — the two must never be confusable. Customer never
+ *  receives it. */
 export const InternalNote: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Renders a staff thread where an internal note sits amber under 'Internal note' beside a normal reply, so the two can never be confused.",
+          "Renders a staff thread where an internal note sits under 'Internal note' with the eye-off avatar beside a normal reply, so the two can never be confused. Both are neutral cards: the note's words say what it is, not amber.",
       },
     },
   },
@@ -734,6 +735,8 @@ export const InternalNote: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Internal note')).toBeInTheDocument();
+    // the note's card is as quiet as the replies beside it: its words say what it is
+    await expectNeutralCards(['i0', 'i1', 'i2']);
   },
 };
 

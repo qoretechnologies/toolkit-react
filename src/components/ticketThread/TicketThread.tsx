@@ -64,9 +64,10 @@ import type { IStaffTicket } from '../supportTicket/ticketModel';
  * The `viewerRole` decides which side "you" sit on and how staff-only internal
  * notes render: the customer view never receives internal notes (the server
  * filters them) and sees staff under a masked "Qorus Support" label; the staff
- * view puts staff on the right and paints internal notes amber so they can never
- * be mistaken for a customer-visible reply. System messages render as a centered
- * muted line, not a card.
+ * view puts staff on the right and marks an internal note with its own words
+ * ("Internal note") and the eye-off avatar, on the same quiet edge as every other
+ * card, so it is never mistaken for a customer-visible reply. System messages
+ * render as a centered muted line, not a card.
  */
 
 export interface ITicketThreadAttachment {
@@ -171,11 +172,12 @@ const AUTHOR_META: Record<TTicketMessageAuthor, IAuthorMeta> = {
   system: { icon: 'InformationLine' },
 };
 
-// No side is tinted: the side, the avatar and the author label ("You", "Qorus
-// Support") already carry who is speaking, which leaves colour one job here —
-// amber for an internal note. Never the product's purple, which a support thread
-// does not wear (instruction-files decision 002: purple marks where you are, a
-// chart's accent, and Qonsole).
+// No card is tinted: the side, the avatar and the author label ("You", "Qorus
+// Support", "Internal note") already carry who is speaking and who can read it. An
+// internal note was amber, but amber says "needs a look" and a note needs none
+// (instruction-files decision 001: colour has a job), so it keeps its words and its
+// eye-off avatar on the ordinary edge. Never the product's purple either, which a
+// support thread does not wear (decision 002).
 
 /** Avatar glyph; an internal note carries the "not visible to the customer" eye. */
 const authorIcon = (message: ITicketThreadMessage): IReqoreIconName =>
@@ -864,9 +866,8 @@ export const TicketThread = ({
                 avatar={{ icon: authorIcon(message) }}
                 label={ticketMessageAuthorLabel(message, viewerRole, words, customer)}
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
-                // Both sides are neutral cards; an internal note is amber, so it can
-                // never be mistaken for a reply the customer sees.
-                intent={message.internal ? 'warning' : undefined}
+                // Every card is neutral: an internal note says what it is in its label
+                // and its eye-off avatar, never in amber, which means "needs a look".
                 flat={false}
                 minimal
               >
