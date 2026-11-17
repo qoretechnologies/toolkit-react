@@ -23,13 +23,20 @@ describe('an internal note', () => {
         <TicketThread
           viewerRole='staff'
           messages={[
-            { message_id: 'r', author_type: 'staff', author_id: 'nick', body: 'A reply.' },
+            {
+              message_id: 'r',
+              author_type: 'staff',
+              author_id: 'nick',
+              body: 'A reply.',
+              created: '2026-10-19T10:00:00Z',
+            },
             {
               message_id: 'n',
               author_type: 'staff',
               author_id: 'nick',
               internal: true,
               body: 'A note for us.',
+              created: '2026-10-19T10:05:00Z',
             },
           ]}
         />
