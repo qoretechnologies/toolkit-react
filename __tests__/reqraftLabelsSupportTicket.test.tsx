@@ -136,6 +136,23 @@ describe('the composer', () => {
     expect(container.textContent).toContain('Send');
   });
 
+  it('never disables Send: a press with nothing written says why and sends nothing', () => {
+    const onSend = vi.fn();
+    const { container, getAllByText, getByRole } = mount(
+      <Composer editor='plain' onSend={onSend} />
+    );
+    // A label may be drawn twice (the marquee keeps a hidden copy); both are in the one button.
+    const send = getAllByText('Send')[0].closest('button')!;
+
+    expect(send.disabled).toBe(false);
+    act(() => {
+      send.click();
+    });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(getByRole('alert').textContent).toBe('Write a message first');
+    expect(document.activeElement).toBe(container.querySelector('textarea'));
+  });
+
   it("says a host's words", () => {
     setReqraftLabels({ composer: { placeholder: 'Nachricht schreiben…', send: 'Senden' } });
     const { container } = composer();

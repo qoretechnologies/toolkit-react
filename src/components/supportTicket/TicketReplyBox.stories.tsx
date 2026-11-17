@@ -32,7 +32,7 @@ const expectWhiteSend = async (canvasElement: HTMLElement) => {
 /**
  * The customer composer, plain-editor variant (used here for a deterministic
  * type→send test): an attach button (no extra menu → a plain button, not a
- * dropdown) and Send. No internal-note toggle. Typing enables Send; clicking it
+ * dropdown) and Send. No internal-note toggle. After typing, clicking Send
  * calls `onSend` with the body and `internal: false`.
  */
 export const Default: Story = {
@@ -40,7 +40,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          "Renders the customer composer's plain-editor variant — an attach button and Send, no internal-note toggle; typing a reply enables Send — the white primary, not the Qonsole purple — which calls onSend with the body and internal: false.",
+          "Renders the customer composer's plain-editor variant — an attach button and Send, no internal-note toggle; after typing a reply, Send (the white primary, not the Qonsole purple) calls onSend with the body and internal: false.",
       },
     },
   },
@@ -358,3 +358,37 @@ export const WithScreenshotAndReferences: Story = {
     await expect(canvas.getByText('sftp-partner')).toBeInTheDocument();
   },
 };
+
+/**
+ * Pressed with nothing written, each send says what is missing in its own words: "Send reply" asks
+ * for a reply, "Add internal note" for the note. Neither is ever disabled, and neither sends.
+ */
+export const NothingWrittenSaysWhy: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the amber edge with its line is
+    // pictured by `Components/Composer · Nothing Written Says Why`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          "Renders the staff reply box; pressing Send reply with nothing written sends nothing and says 'Write a reply first' under the field, the caret's 'Add internal note' says 'Write the note first', and typing takes the line away.",
+      },
+    },
+  },
+  args: { allowInternalNote: true, editor: 'plain' },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByText('Send reply'));
+    await waitFor(() => expect(canvas.getByRole('alert')).toHaveTextContent('Write a reply first'));
+
+    await userEvent.click(canvasElement.querySelector('.ticket-send-more') as Element);
+    await userEvent.click(await screen.findByText('Add internal note'));
+    await waitFor(() => expect(canvas.getByRole('alert')).toHaveTextContent('Write the note first'));
+    await expect(args.onSend).not.toHaveBeenCalled();
+
+    await userEvent.type(canvasElement.querySelector('textarea')!, 'Looking into it');
+    await waitFor(() => expect(canvas.queryByRole('alert')).toBeNull());
+  },
+};
+

@@ -18,6 +18,8 @@ export interface IComposerLabels {
   attachFiles: string;
   /** The tooltip of the caret beside a split send button. */
   moreSendOptions: string;
+  /** What a press of Send says when nothing is written yet (a composer's `emptyMessage` wins). */
+  writeFirst: string;
 }
 
 /** The English words, the ones a host gets when it gives none. */
@@ -29,4 +31,5 @@ export const DEFAULT_COMPOSER_LABELS: IComposerLabels = {
   uploadFiles: 'Upload files',
   attachFiles: 'Attach files',
   moreSendOptions: 'More send options',
+  writeFirst: 'Write a message first',
 };

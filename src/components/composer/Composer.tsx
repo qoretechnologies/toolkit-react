@@ -70,6 +70,9 @@ export interface IComposerSendAction {
   customTheme?: TCustomTheme;
   /** render the button minimal (subtle, blends into the bar — the Qonsole style). */
   minimal?: boolean;
+  /** What a press of this action says when there is nothing to send yet; the composer's
+   *  `emptyMessage` otherwise. */
+  emptyMessage?: string;
 }
 
 /** Imperative handle for consumers that drive the editor externally (e.g. the
@@ -128,6 +131,14 @@ export interface IComposerProps {
   clearOnSend?: boolean;
   /** allow sending with empty text (e.g. attachments only). Default false. */
   allowEmptySend?: boolean;
+  /**
+   * What a press of Send says when there is nothing to send yet ("Write a reply first"). Send is
+   * never disabled (BRAND_DESIGN "The Submit says what is left before it is pressed"): a press
+   * with nothing written sends nothing, turns the composer's edge amber, says this under it and
+   * puts the caret in it. The line goes as soon as something is written. Defaults to the
+   * `composer.writeFirst` label.
+   */
+  emptyMessage?: string;
   /** Extra attach-menu entries beyond "Upload files" (receives `addFiles`). With any
    *  entry the attach control becomes a dropdown; otherwise a plain button. */
   attachMenuItems?: (addFiles: (files: File[]) => void) => TDropdownItems;
@@ -169,6 +180,15 @@ const StyledComposer = styled(StyledEffect)<{ $minimal?: boolean }>`
   padding: 4px;
   border: 1px solid transparent;
   border-radius: 6px;
+`;
+
+/** The line under the composer saying why a press sent nothing. */
+const StyledComposerProblem = styled.div<{ $color: string }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 0;
+  color: ${({ $color }) => $color};
 `;
 
 // Layout-neutral ref holder: `display: contents` generates no box, so it gives the
@@ -256,6 +276,7 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
     submitOnEnter = true,
     clearOnSend = true,
     allowEmptySend = false,
+    emptyMessage,
     attachMenuItems,
     attachIcon = 'AddLine',
     hideAttach,
@@ -352,11 +373,32 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
   };
 
   const text = getText();
-  const canSend = (allowEmptySend || !!text.trim() || files.length > 0) && !sending;
+  const hasSomethingToSend = allowEmptySend || !!text.trim() || files.length > 0;
+  /* Send is never disabled: a press with nothing to send says why at the field instead. */
+  /** The sentence a press with nothing to send left under the field, until something is written. */
+  const [needsText, setNeedsText] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (hasSomethingToSend) {
+      setNeedsText(undefined);
+    }
+  }, [hasSomethingToSend]);
+
+  const focusEditor = (): void =>
+    wrapperRef.current?.querySelector<HTMLElement>('[contenteditable="true"], textarea')?.focus();
 
   const handleSend = async (actionId?: string): Promise<void> => {
     const body = getText();
-    if (!canSend) {
+    if (sending) {
+      return;
+    }
+    if (!hasSomethingToSend) {
+      setNeedsText(
+        actions.find((action) => action.id === actionId)?.emptyMessage ??
+          emptyMessage ??
+          words.writeFirst
+      );
+      focusEditor();
       return;
     }
     const sent = await onSend(clearOnSend ? body.trim() : body, { files, action: actionId });
@@ -398,7 +440,6 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
       customTheme={action.customTheme}
       minimal={action.minimal}
       size={size}
-      disabled={!canSend}
       loading={sending}
       flat
       onClick={() => handleSend(action.id)}
@@ -414,10 +455,13 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
         as='div'
         theme={theme}
         $minimal={minimal}
+
         // transparent fill (like QonsoleInput) → the page shows through and only
         // the effect's gradient *border* glows; `minimal` opts into a solid fill.
         transparent={!minimal}
-        effect={effect}
+        // Amber once a press of Send found nothing to send: the composer's edge is its effect's
+        // gradient, so the gradient turns amber, the field that needs something.
+        effect={needsText ? { ...effect, gradient: { ...effect?.gradient, colors: 'warning' } } : effect}
         onPaste={handlePaste}
       >
         <input
@@ -544,7 +588,7 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
                     intent={primary.intent}
                     customTheme={primary.customTheme}
                     minimal={primary.minimal}
-                    disabled={!canSend}
+                    disabled={sending}
                     tooltip={words.moreSendOptions}
                     items={actions.map((action) => ({
                       label: action.label,
@@ -561,6 +605,19 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
           </ReqoreControlGroup>
         </ReqoreControlGroup>
       </StyledComposer>
+      {needsText ? (
+        <StyledComposerProblem
+          role='alert'
+          className='reqraft-composer-problem'
+          data-field-problem
+          $color={theme.intents.warning}
+        >
+          <ReqoreIcon icon='AlertLine' size='small' color='warning' />
+          <ReqoreSpan size='small' effect={{ color: theme.intents.warning }}>
+            {needsText}
+          </ReqoreSpan>
+        </StyledComposerProblem>
+      ) : null}
       {belowInput}
     </StyledContentsWrapper>
   );

@@ -121,14 +121,16 @@ export const TicketReplyBox = ({
         : words.sendReply;
 
   // Staff surface splits the send button; customer surface is a single "Send reply".
-  // Both send the reply as the white primary (`REPLY_SEND_STYLE`); the internal note
-  // stays amber (`warning`) so it can't be mistaken for a public reply.
+  // Both send the reply as the white primary (`REPLY_SEND_STYLE`). The internal note is
+  // the quiet choice beside it, told apart by its words ("Add internal note") and its
+  // sticky-note icon, never amber: amber means "needs a look" (decision 001).
   const sendActions: IComposerSendAction[] | undefined = allowInternalNote
     ? [
         {
           id: 'reply',
           label: labelFor(false),
           icon: 'SendPlane2Line',
+          emptyMessage: words.writeReplyFirst,
           ...REPLY_SEND_STYLE,
         },
         {
@@ -136,7 +138,7 @@ export const TicketReplyBox = ({
           label: labelFor(true),
           icon: 'StickyNoteLine',
           minimal: true,
-          intent: 'warning',
+          emptyMessage: words.writeNoteFirst,
         },
       ]
     : undefined;
@@ -164,6 +166,7 @@ export const TicketReplyBox = ({
       disabledReason={disabledReason ?? words.ticketClosed}
       onSend={handleSend}
       sendLabel={labelFor(false)}
+      emptyMessage={words.writeReplyFirst}
       sendIntent={REPLY_SEND_STYLE.intent}
       sendMinimal={REPLY_SEND_STYLE.minimal}
       sendActions={sendActions}

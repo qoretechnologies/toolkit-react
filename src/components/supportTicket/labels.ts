@@ -131,6 +131,10 @@ export interface ISupportTicketLabels {
   ticketClosed: string;
   writeAReply: string;
   sendReply: string;
+  /** What a press of "Send reply" says when nothing is written yet. */
+  writeReplyFirst: string;
+  /** What a press of "Add internal note" says when nothing is written yet. */
+  writeNoteFirst: string;
   addInternalNote: string;
 
   /* ── the thread (`TicketThread`) ── */
@@ -349,6 +353,8 @@ export const DEFAULT_SUPPORT_TICKET_LABELS: ISupportTicketLabels = {
   ticketClosed: 'This ticket is closed. Open a new ticket to continue the conversation.',
   writeAReply: 'Write a reply…',
   sendReply: 'Send reply',
+  writeReplyFirst: 'Write a reply first',
+  writeNoteFirst: 'Write the note first',
   addInternalNote: 'Add internal note',
 
   internalNote: 'Internal note',
