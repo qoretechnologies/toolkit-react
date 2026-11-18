@@ -11,14 +11,18 @@
  * drawn over it (405).
  *
  * The visible area is the scrollport minus the pinned chrome above the row:
- * the form's sticky toolbar and the sticky header of every status box the row
- * sits in. Both are read from the DOM when the reveal runs, so a host's own
+ * the form's sticky toolbar, the sticky header of every status box the row
+ * sits in, and the header of an open field's card that pins while its long
+ * body is read (`cardHeaderPin.ts`). Both are read from the DOM when the reveal runs, so a host's own
  * offset, a toolbar that wraps, or a header that is not pinned at all are all
  * accounted for without the caller knowing about them.
  */
 
 /** Selectors of the elements whose header may be pinned above a row. */
-const PINNED_HEADER_OWNERS = '.options-readfirst-group, .options-readfirst-scroll > .reqore-panel';
+const PINNED_HEADER_OWNERS =
+  '.options-readfirst-group, .options-readfirst-scroll > .reqore-panel, .options-readfirst-card';
+/** An owner's own header: a panel's title bar, or a card's heading. */
+const PINNED_HEADER = ':scope > .reqore-panel-title, :scope > .options-readfirst-card-header';
 
 const isScrollable = (element: HTMLElement): boolean => {
   const { overflowY } = getComputedStyle(element);
@@ -44,7 +48,7 @@ export const findScrollContainer = (element: HTMLElement): HTMLElement | undefin
 /**
  * How far below the top of the scrollport the pinned chrome above `element`
  * reaches: the largest `top + height` of any sticky header of an enclosing
- * status box or form toolbar. Zero when nothing above it is pinned.
+ * status box, form toolbar or card. Zero when nothing above it is pinned.
  */
 export const getPinnedChromeHeight = (element: HTMLElement): number => {
   let clearance = 0;
@@ -53,7 +57,7 @@ export const getPinnedChromeHeight = (element: HTMLElement): number => {
     owner;
     owner = owner.parentElement?.closest<HTMLElement>(PINNED_HEADER_OWNERS)
   ) {
-    const header = owner.querySelector<HTMLElement>(':scope > .reqore-panel-title');
+    const header = owner.querySelector<HTMLElement>(PINNED_HEADER);
     if (!header || header.contains(element)) {
       continue;
     }

@@ -115,7 +115,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   /** True when the toolbar renders no search row (hidden via `compactToolbar`,
    *  self-hidden on a single-option form, or no toolbar at all). */
   $tightHeader?: boolean;
-  /** True when the status boxes inside pin their headers. */
+  /** True when something inside pins: a status box's header, or an open card's heading. */
   $stickyBoxes?: boolean;
   /** True when a narrow form's header carries a consumer's label, icon or
    *  actions beside the toolbar, which then has to take a line of its own. */
@@ -296,7 +296,21 @@ export const StyledStatusBox = styled(ReqorePanel)<{
    * and no recessed Optional box are drawn over it.
    */
   $calm?: boolean;
+  /**
+   * The box's own header does not pin, but an open card's heading inside it does. Reqore clips the wrapper of a
+   * panel whose header does not pin, and a clipping box is the scrollport a sticky heading inside it pins to, so
+   * the wrapper stays unclipped. Nothing in a box reaches past its corners for the clip to cut.
+   */
+  $letPin?: boolean;
 }>`
+  ${({ $letPin }) =>
+    $letPin ?
+      css`
+        &&& {
+          overflow: visible;
+        }
+      `
+    : ''}
   /* The corner is the theme's, and the title's inset with it, both Reqore's: a box that drew a 10px corner of its
      own kept a title padded for the panel's radius, under the curve (admin portal review #44: "the panel label is
      too close to the border radius"; Reqore #715 pads a title clear of its corner). */
@@ -449,10 +463,13 @@ export const StyledClusterNode = styled.span<{ $color: string; $filled: boolean;
   }
 `;
 
+/** The room between an open card's heading and its body. */
+export const CARD_GAP = 8;
+
 export const StyledEditCard = styled.div<{ $bg: string; $border: string; $calm?: boolean }>`
   display: flex;
   flex-flow: column;
-  gap: 8px;
+  gap: ${CARD_GAP}px;
   background: ${({ $bg }) => $bg};
   /* Calm: an open field is a row of its section, set apart by the section's own
      hairlines and the active-row tint — not a second card drawn inside the

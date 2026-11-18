@@ -1245,6 +1245,19 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   compactStickyBoxHeaders?: boolean;
   /**
+   * Compact mode only: an open field's card keeps its heading (the field's name, badges and actions) on screen while
+   * its long body is read. Default `true`.
+   *
+   * It pins only while the card is more than one and a half times the height of its scroll area, the rule of every
+   * pinned heading in the Qore apps (decision 028), so a card that fits never pins. It pins under the form's own
+   * pinned toolbar and box header, never over them. Off by construction in a nested (`arg_schema`) sub-form: its
+   * card sits in the parent's card, whose heading pins instead.
+   *
+   * Turn it off where the card's own editor pins a heading of its own that says as much: the Qorus IDE's open test
+   * case pins a band that names the case and leads back to the cases.
+   */
+  compactStickyCardHeaders?: boolean;
+  /**
    * Compact mode only: how many pixels of the HOST's own sticky chrome sit
    * above this form, inside the same scroll container.
    *
@@ -1578,6 +1591,7 @@ const FormEngineImpl = ({
   onAttentionChange,
   outsideAttention,
   compactStickyBoxHeaders = true,
+  compactStickyCardHeaders = true,
   compactStickyOffset = 0,
   compactToolbar = true,
   commitMode = 'immediate',
@@ -4084,6 +4098,10 @@ const FormEngineImpl = ({
   // same surface and edge Reqore gives the section panels themselves).
   const cPanel = getCalmPanelSurface(theme);
   const cHairline = getCalmPanelHairline(theme);
+  /* An open field's card pins its heading while its long body is read (`compactStickyCardHeaders`), on the surface
+     the status box headers pin on. A nested sub-form's card sits in the parent's card, whose heading pins instead. */
+  const stickyCardHeaders = compact && compactStickyCardHeaders && !compactNested;
+  const pinnedHeaderSurface = calm ? cPanel : getMainBackgroundColor(theme);
 
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
@@ -4103,6 +4121,9 @@ const FormEngineImpl = ({
       codeEditor: componentOverrides?.['code-editor'],
       readSummaries,
       cardEditorTypes,
+      stickyCardHeaders,
+      stickyHostOffset: compactStickyOffset,
+      pinnedHeaderSurface,
       showAllDescriptions,
       expandedOptions,
       visitedOptions,
@@ -4158,6 +4179,9 @@ const FormEngineImpl = ({
       componentOverrides,
       readSummaries,
       cardEditorTypes,
+      stickyCardHeaders,
+      compactStickyOffset,
+      pinnedHeaderSurface,
       showAllDescriptions,
       expandedOptions,
       visitedOptions,
@@ -4903,8 +4927,8 @@ const FormEngineImpl = ({
                   $nested={compactNested}
                   $calm={calm}
                   // Keeps the wrapper from clipping, which is what a pinned box
-                  // header inside it needs — see StyledCompactPanel.
-                  $stickyBoxes={compactStickyBoxHeaders && !compactNested}
+                  // header or card heading inside it needs — see StyledCompactPanel.
+                  $stickyBoxes={(compactStickyBoxHeaders || stickyCardHeaders) && !compactNested}
                   // A narrow header the consumer dressed stacks its toolbar
                   // under the label and actions (see StyledCompactPanel).
                   $stackHeader={
@@ -5141,6 +5165,8 @@ const FormEngineImpl = ({
                              leaves with its box and only one is ever pinned. */
                           stickyHeader={stickyBoxHeaders}
                           stickyHeaderOffset={stickyBoxHeaders ? boxStickyOffset : undefined}
+                          // A box whose own header stays put still lets a card's heading pin inside it.
+                          $letPin={stickyCardHeaders && !stickyBoxHeaders}
                           collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
                           collapsible
                           // Which boxes start closed is the consumer's call
@@ -5234,7 +5260,17 @@ const FormEngineImpl = ({
                                 borderBottomLeftRadius: 'inherit',
                                 borderBottomRightRadius: 'inherit',
                               }
-                            : { paddingTop: 4, paddingBottom: 6 }
+                            : {
+                                paddingTop: 4,
+                                paddingBottom: 6,
+                                /* Reqore's body is `overflow: auto`, a scrollport that never scrolls here and
+                                   that a card's heading would pin to instead of the page. `clip` keeps the
+                                   horizontal guard (see the form's body), `flow-root` the formatting
+                                   context the `auto` gave. */
+                                ...(stickyCardHeaders ?
+                                  { overflowY: 'visible', overflowX: 'clip', display: 'flow-root' }
+                                : {}),
+                              }
                           }
                         >
                           {/* ONE group body per box: every field block (and the

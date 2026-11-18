@@ -359,3 +359,127 @@ export const StickyHeadersOnAPhone: Story = {
     expect(box.bottom - band.top).toBeLessThan(band.height / 5);
   },
 };
+
+/**
+ * A host's list editor that opens in the card (`cardEditorTypes`), one line per item: the shape of the Qorus IDE's
+ * test Cases field, whose card is a list a few screens long.
+ */
+const CaseListStandin = ({ value }: { value?: string[] }) => (
+  <div className='case-list-standin' style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    {(value ?? []).map((name) => (
+      <div
+        key={name}
+        className='case-list-standin-row'
+        style={{
+          padding: '6px 10px',
+          border: '1px solid #ffffff1a',
+          borderRadius: 6,
+          color: '#d6d6d6',
+          fontSize: 13,
+        }}
+      >
+        {name}
+      </div>
+    ))}
+  </div>
+);
+
+/** A form whose Cases field holds `count` cases, opened, among the long form's other rows. */
+const casesArgs = (count: number): Partial<IFormEngineProps> => {
+  const cases = Array.from({ length: count }, (_, index) => `Case ${index + 1}: an order that ships`);
+  return {
+    options: {
+      cases: {
+        type: 'list',
+        ui_type: 'case-list',
+        display_name: 'Cases',
+        short_desc: 'Ordered test cases',
+      },
+      ...longSchema(),
+    } as unknown as IQorusFormSchema,
+    value: { cases: { type: 'list', value: cases } as never, ...longValue() },
+    componentOverrides: { 'case-list': CaseListStandin } as never,
+    cardEditorTypes: ['case-list'],
+    initialExpandedOptions: ['cases'],
+  };
+};
+
+/** The Cases card, once it has opened with its list in it. */
+const casesCard = () =>
+  waitFor(() => {
+    const card = document.querySelector<HTMLElement>('.options-readfirst-card[data-field="cases"]');
+    expect(card, 'the Cases card').toBeTruthy();
+    expect(card!.querySelector('.case-list-standin-row'), 'its list').toBeTruthy();
+    return card!;
+  });
+
+const cardHeading = (card: HTMLElement) =>
+  card.querySelector(':scope > .options-readfirst-card-header') as HTMLElement;
+
+/**
+ * A card many screens long keeps its heading on screen while its body is read.
+ *
+ * Measured, as the box headers are: the heading's rect has to sit at the line the pinned chrome above it ends at,
+ * while the rows that started under it have gone past.
+ */
+export const ALongCardKeepsItsHeadingWhileItsBodyIsRead: Story = {
+  args: casesArgs(80),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'An open Cases field whose list is several screens long, in a long form. Scrolled into the list, the card’s heading (its name, its description and its actions) stays pinned under the form’s toolbar and the Set box’s header, opaque, so the reader keeps the name of what they are reading. It pins only because the card is more than one and a half times its scroll area.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    await waitFor(() => expect(card.getAttribute('data-pins-header')).toBe('true'));
+    const restingTop = cardHeading(card).getBoundingClientRect().top;
+
+    /* Into the middle of the list, well past the heading's place in the flow. */
+    await scrollTo(scroller().scrollTop + card.getBoundingClientRect().top - pinLine() + 600);
+
+    const heading = cardHeading(card).getBoundingClientRect();
+    /* It moved with the scroll, and then stopped: the scroll reached it. */
+    expect(heading.top).toBeLessThan(restingTop);
+    /* Under the Set box's pinned header, not over it and not behind it. */
+    const box = boxHeader('Set').getBoundingClientRect();
+    expect(box.top).toBeGreaterThanOrEqual(Math.floor(pinLine()) - 1);
+    expect(Math.abs(heading.top - box.bottom)).toBeLessThan(1.5);
+    /* The rows it heads have gone under it, which is what the pin is for. */
+    const firstRow = card.querySelector<HTMLElement>('.case-list-standin-row')!;
+    expect(firstRow.getBoundingClientRect().top).toBeLessThan(heading.top);
+    /* And they do not read through it. */
+    expect(getComputedStyle(cardHeading(card)).backgroundImage).toContain('linear-gradient');
+    expect(cardHeading(card).textContent).toContain('Cases');
+  },
+};
+
+/**
+ * A card that fits on the screen never pins its heading: pinned for the few pixels it overhung, it would draw a band
+ * with nothing under it to label (decision 028).
+ */
+export const AShortCardNeverPinsItsHeading: Story = {
+  args: casesArgs(6),
+  parameters: {
+    // Interaction-only: a card that does not pin looks as every open card did before.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'An open Cases field with six cases, in a long form. The card is shorter than its scroll area, so scrolled past, its heading leaves with it instead of pinning.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    await waitFor(() => expect(card.getAttribute('data-pins-header')).toBe('false'));
+    /* Scrolled until the card's last row is at the top of the scroller. */
+    const last = [...card.querySelectorAll<HTMLElement>('.case-list-standin-row')].pop()!;
+    await scrollTo(scroller().scrollTop + last.getBoundingClientRect().top - pinLine());
+
+    expect(getComputedStyle(cardHeading(card)).position).not.toBe('sticky');
+    expect(cardHeading(card).getBoundingClientRect().bottom).toBeLessThan(pinLine());
+  },
+};

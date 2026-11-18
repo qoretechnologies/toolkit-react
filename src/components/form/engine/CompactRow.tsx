@@ -44,6 +44,7 @@ import { resolveInheritProps } from './inheritProps';
 import { calmNoteIntent, useIsCalmForm } from './formAppearance';
 import { getRevealClearance, isCaretLineInView, revealRow } from './revealRow';
 import {
+  CARD_GAP,
   MONO_FONT_STACK,
   StyledActionSlot,
   StyledCardHeading,
@@ -92,6 +93,7 @@ import {
   getExpressionAst,
   markdownToProse,
 } from './readFirst';
+import { CARD_HEADER_PIN_Z_INDEX, useCardHeaderPin } from './cardHeaderPin';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { DpqlRendering } from '../expressions/DpqlRendering';
 import { restoredFieldChange } from '../expressions/argumentPresence';
@@ -293,6 +295,12 @@ export const CompactRow = memo(
     const CodeEditor = useContextSelector(CompactRowContext, (v) => v.codeEditor);
     const readSummaries = useContextSelector(CompactRowContext, (v) => v.readSummaries);
     const cardEditorTypes = useContextSelector(CompactRowContext, (v) => v.cardEditorTypes);
+    const stickyCardHeaders = useContextSelector(CompactRowContext, (v) => v.stickyCardHeaders);
+    const stickyHostOffset = useContextSelector(CompactRowContext, (v) => v.stickyHostOffset);
+    const pinnedHeaderSurface = useContextSelector(
+      CompactRowContext,
+      (v) => v.pinnedHeaderSurface
+    );
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
@@ -1079,6 +1087,12 @@ export const CompactRow = memo(
     // never pull a reader out of a control they moved into themselves.
     const editorRef = React.useRef<HTMLDivElement>(null);
     const rowRef = React.useRef<HTMLDivElement>(null);
+    /* Open as a card, a long body keeps its heading on screen (`cardHeaderPin.ts`). */
+    const cardPin = useCardHeaderPin(
+      rowRef,
+      !!stickyCardHeaders && isExpanded && (!readOnly || readOnlyOpens) && !inlineEditable,
+      stickyHostOffset
+    );
     React.useEffect(() => {
       if (!isExpanded) return undefined;
       const editor = editorRef.current;
@@ -1994,6 +2008,10 @@ export const CompactRow = memo(
           $bg={cHover}
           $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
           $calm={calm}
+          data-pins-header={stickyCardHeaders ? String(cardPin.pins) : undefined}
+          /* Its own stacking context while it pins, so its heading is above everything in its body and the card as
+             a whole stays under the form's toolbar and box headers (CARD_HEADER_PIN_Z_INDEX). */
+          style={cardPin.pins ? { isolation: 'isolate' } : undefined}
         >
           <div
             className='options-readfirst-card-header'
@@ -2004,6 +2022,20 @@ export const CompactRow = memo(
               alignItems: schema?.short_desc || cardTags.length ? 'flex-start' : 'center',
               justifyContent: 'space-between',
               gap: 12,
+              /* Pinned, the heading paints the card as it looks at rest, its tint over an opaque surface, so the
+                 body scrolls out of sight under it, and its surface reaches over the card's gap under it, so the
+                 rows go under a margin rather than right under its words. Padding the margin takes back, so it keeps
+                 its place in the flow: nothing moves when it pins. */
+              ...(cardPin.pins ?
+                {
+                  position: 'sticky',
+                  top: cardPin.top,
+                  zIndex: CARD_HEADER_PIN_Z_INDEX,
+                  background: `linear-gradient(${cHover}, ${cHover}) ${pinnedHeaderSurface}`,
+                  paddingBottom: CARD_GAP,
+                  marginBottom: -CARD_GAP,
+                }
+              : {}),
             }}
           >
             <StyledCardHeading>

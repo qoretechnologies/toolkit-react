@@ -163,6 +163,14 @@ export interface ICompactRowContext {
   readSummaries?: Record<string, TReadSummary>;
   /** The host's editors that open in the card below their row (see FormEngine's `cardEditorTypes`). */
   cardEditorTypes?: string[];
+  /** Whether an open field's card pins its header while its long body is read (`compactStickyCardHeaders`). */
+  stickyCardHeaders?: boolean;
+  /** The host's own pinned chrome above the form (`compactStickyOffset`), where a card header pins with nothing of
+   *  the form's pinned above it. */
+  stickyHostOffset?: number;
+  /** The opaque surface a pinned card header paints under the card's own tint, so the body scrolls out of sight
+   *  under it: the surface the status box headers pin on. */
+  pinnedHeaderSurface?: string;
 
   // Theme + theme-derived colors
   theme: IReqoreTheme;
