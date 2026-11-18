@@ -3482,6 +3482,12 @@ export const AnEmptiedFieldOpensThePicker: Story = {
   play: async ({ canvasElement, args }) => {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
+    /* What the click opens at the caret opens a moment later: an Escape pressed before it did puts away
+       nothing, and the list opened after it (CI under load: bdc4ef51, 41e62c7b). Let it open first. */
+    await waitFor(
+      () => expect(pickerLabels().length + completionLabels().length).toBeGreaterThan(0),
+      { timeout: 3000 }
+    ).catch(() => undefined);
     await userEvent.keyboard('{Escape}');
     await expectNothingOpen();
     // cleared
