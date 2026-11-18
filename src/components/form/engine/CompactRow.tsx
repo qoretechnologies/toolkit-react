@@ -316,9 +316,12 @@ export const CompactRow = memo(
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
-    const isFlashed = useContextSelector(CompactRowContext, (v) =>
-      v.flashedOptions.includes(optionName)
+    /* -1 when this row is not flashing; otherwise which of the two (identical) animations it plays, alternating
+       with each flash, so that flashing it again starts the animation again. */
+    const flashTurn = useContextSelector(CompactRowContext, (v) =>
+      v.flashedOptions.includes(optionName) ? v.flashGeneration % 2 : -1
     );
+    const isFlashed = flashTurn !== -1;
     const setHighlightedOptions = useContextSelector(
       CompactRowContext,
       (v) => v.setHighlightedOptions
@@ -2687,7 +2690,7 @@ export const CompactRow = memo(
             undefined
           : label
         }
-        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn || readOnlyOpens ? ' readfirst-row-way-in' : ''}${readOnlyOpens ? ' readfirst-row-opens' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn || readOnlyOpens ? ' readfirst-row-way-in' : ''}${readOnlyOpens ? ' readfirst-row-opens' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ` readfirst-row-flash${flashTurn ? ' readfirst-row-flash-again' : ''}` : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={
           readOnlyIsAWayIn || readOnlyOpens ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle

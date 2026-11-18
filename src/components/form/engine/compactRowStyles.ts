@@ -982,7 +982,20 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-flash {
     animation: readfirstRowFlash 1.4s ease;
   }
+  /* The same animation under another name: a row that flashes again alternates between the two, and a new
+     animation name is what starts an animation again (the class stays on once it has played). */
+  .readfirst-row-flash.readfirst-row-flash-again {
+    animation-name: readfirstRowFlashAgain;
+  }
   @keyframes readfirstRowFlash {
+    0% {
+      background: ${({ $focus }) => `${$focus}59`};
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  @keyframes readfirstRowFlashAgain {
     0% {
       background: ${({ $focus }) => `${$focus}59`};
     }

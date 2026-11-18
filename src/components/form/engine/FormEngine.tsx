@@ -1958,8 +1958,17 @@ const FormEngineImpl = ({
   // Required-groups linkage: hovering a group chip highlights every member row;
   // clicking a sibling in the chip's popover scrolls to it and flashes it.
   const [highlightedOptions, setHighlightedOptions] = useState<string[]>([]);
-  const [flashedOptions, setFlashedOptions] = useState<string[]>([]);
-  const flashTimeout = useRef<ReturnType<typeof setTimeout>>();
+  /* The rows flashing, and which time this is. A flash is a CSS animation that plays once when its class is set
+     and ends on the row's own background, so nothing takes the class off again: a timer did, 1.4s later, and that
+     update came from no event at all, so React reported it (and the context it changed, once for every row reading
+     it) as an update a test had not waited for - a thousand times a story in the IDE's API schema forms (board t-96).
+     `generation` says which time it is, so a row that flashes again starts its animation again (`CompactRow`). */
+  const [flash, setFlash] = useState<{ names: string[]; generation: number }>({
+    names: [],
+    generation: 0,
+  });
+  const flashedOptions = flash.names;
+  const flashGeneration = flash.generation;
   const flashOptions = useCallback((optionNames: string[], scrollToFirst = false) => {
     if (scrollToFirst && optionNames[0]) {
       // Defer to the next frame: when this fires for a field that just changed
@@ -1987,15 +1996,12 @@ const FormEngineImpl = ({
         }
       });
     }
-    setFlashedOptions(optionNames);
-    clearTimeout(flashTimeout.current);
-    flashTimeout.current = setTimeout(() => setFlashedOptions([]), 1400);
+    setFlash((current) => ({ names: optionNames, generation: current.generation + 1 }));
   }, []);
   const flashOption = useCallback(
     (optionName: string) => flashOptions([optionName], true),
     [flashOptions]
   );
-  useEffect(() => () => clearTimeout(flashTimeout.current), []);
 
   // Follow a field across panels: when its status bucket changes — e.g. you fill
   // an optional field and it jumps to Set / Needs attention — scroll to its new
@@ -4130,6 +4136,7 @@ const FormEngineImpl = ({
       revealRequired,
       highlightedOptions,
       flashedOptions,
+      flashGeneration,
       infoPanelOverrides,
       setHighlightedOptions,
       setInfoPanelOverrides,
@@ -4188,6 +4195,7 @@ const FormEngineImpl = ({
       revealRequired,
       highlightedOptions,
       flashedOptions,
+      flashGeneration,
       infoPanelOverrides,
       setHighlightedOptions,
       setInfoPanelOverrides,

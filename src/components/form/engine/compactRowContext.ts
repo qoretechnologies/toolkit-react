@@ -90,6 +90,8 @@ export interface ICompactRowContext {
   revealRequired: boolean;
   highlightedOptions: string[];
   flashedOptions: string[];
+  /** Which flash this is: a row flashing again starts its animation again. */
+  flashGeneration: number;
   infoPanelOverrides: Record<string, boolean>;
 
   // Setters
