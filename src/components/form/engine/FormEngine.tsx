@@ -80,6 +80,7 @@ import {
 import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
+import { useEqualValue } from '../../../hooks/useEqualValue';
 import { isQueryCancelled } from '../../../utils/fetch';
 import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
 import { Description } from '../../Description';
@@ -1601,12 +1602,12 @@ const FormEngineImpl = ({
   groups,
   optionsLoader,
   onValidityChange,
-  optionActions,
+  optionActions: optionActionsProp,
   optionActionsCollapse = 'auto',
-  componentOverrides,
+  componentOverrides: componentOverridesProp,
   codePreviewRenderer,
-  readSummaries,
-  cardEditorTypes,
+  readSummaries: readSummariesProp,
+  cardEditorTypes: cardEditorTypesProp,
   // consumed by the wrapper below, which publishes it to every description this
   // form draws; destructured here only so it cannot reach `rest` and be spread
   // onto a DOM node
@@ -1628,6 +1629,12 @@ const FormEngineImpl = ({
   ...rest
 }: IFormEngineProps) => {
   const feWords = useReqraftLabels().formEngine;
+  /* A host's lists and maps, as the same reference while they say the same thing: a host that writes them as
+     literals in its render handed a new one every time, and the rows' context was rebuilt with each (useEqualValue). */
+  const optionActions = useEqualValue(optionActionsProp);
+  const componentOverrides = useEqualValue(componentOverridesProp);
+  const readSummaries = useEqualValue(readSummariesProp);
+  const cardEditorTypes = useEqualValue(cardEditorTypesProp);
   // Built-ins + whatever the consumer declared for its own injected editors.
   const isRendererOnly = useMemo(
     () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
@@ -2717,6 +2724,12 @@ const FormEngineImpl = ({
     showInvalidOptionsOnly,
     schemaInForce,
   ]);
+  /* The schema and the values, as one value while neither changes: every row reads it through a selector
+     (`OptionFieldMessages`), and a new object on each render of the form asked every row again (board f70). */
+  const optionsContextValue = useMemo(
+    () => ({ schema: options, value: availableOptions }),
+    [options, availableOptions]
+  );
 
   // Per required-group: its member options, and which member (if any) already
   // satisfies it — drives the "One of" chips and the "covered by" notes.
@@ -4904,7 +4917,7 @@ const FormEngineImpl = ({
     };
 
     return (
-      <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
+      <OptionsContext.Provider value={optionsContextValue}>
         <CompactRowContext.Provider value={compactRowContextValue}>
           <ReqoreErrorBoundary>
             {showHelpForOption && (
@@ -5434,7 +5447,7 @@ const FormEngineImpl = ({
   }
 
   return (
-    <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
+    <OptionsContext.Provider value={optionsContextValue}>
       <ReqoreErrorBoundary>
         {showHelpForOption && (
           <OptionsHelpDialog
