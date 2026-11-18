@@ -4947,9 +4947,11 @@ const FormEngineImpl = ({
                   $headerBg={compactNested ? 'transparent' : headerBg}
                   $nested={compactNested}
                   $calm={calm}
-                  // Keeps the wrapper from clipping, which is what a pinned box
-                  // header or card heading inside it needs — see StyledCompactPanel.
-                  $stickyBoxes={(compactStickyBoxHeaders || stickyCardHeaders) && !compactNested}
+                  // Keeps the wrapper from clipping, which is what anything pinned inside it
+                  // needs: a box header, a card heading, or a host editor's own band — see
+                  // StyledCompactPanel.
+                  $stickyBoxes={compactStickyBoxHeaders || stickyCardHeaders}
+                  $letPin={!compactNested}
                   // A narrow header the consumer dressed stacks its toolbar
                   // under the label and actions (see StyledCompactPanel).
                   $stackHeader={
@@ -5186,8 +5188,9 @@ const FormEngineImpl = ({
                              leaves with its box and only one is ever pinned. */
                           stickyHeader={stickyBoxHeaders}
                           stickyHeaderOffset={stickyBoxHeaders ? boxStickyOffset : undefined}
-                          // A box whose own header stays put still lets a card's heading pin inside it.
-                          $letPin={stickyCardHeaders && !stickyBoxHeaders}
+                          // A box whose own header stays put still lets what is inside it pin: a card's
+                          // heading, or a host editor's own band (the IDE's open test case).
+                          $letPin={!stickyBoxHeaders}
                           collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
                           collapsible
                           // Which boxes start closed is the consumer's call
@@ -5285,12 +5288,12 @@ const FormEngineImpl = ({
                                 paddingTop: 4,
                                 paddingBottom: 6,
                                 /* Reqore's body is `overflow: auto`, a scrollport that never scrolls here and
-                                   that a card's heading would pin to instead of the page. `clip` keeps the
-                                   horizontal guard (see the form's body), `flow-root` the formatting
-                                   context the `auto` gave. */
-                                ...(stickyCardHeaders ?
-                                  { overflowY: 'visible', overflowX: 'clip', display: 'flow-root' }
-                                : {}),
+                                   that anything pinned inside it would pin to instead of the page. `clip`
+                                   keeps the horizontal guard (see the form's body), `flow-root` the
+                                   formatting context the `auto` gave. */
+                                overflowY: 'visible',
+                                overflowX: 'clip',
+                                display: 'flow-root',
                               }
                           }
                         >

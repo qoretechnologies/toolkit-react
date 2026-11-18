@@ -115,8 +115,10 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   /** True when the toolbar renders no search row (hidden via `compactToolbar`,
    *  self-hidden on a single-option form, or no toolbar at all). */
   $tightHeader?: boolean;
-  /** True when something inside pins: a status box's header, or an open card's heading. */
+  /** True when the form pins something itself: a status box's header, or an open card's heading. */
   $stickyBoxes?: boolean;
+  /** True when nothing in the form may be clipped vertically (every form but a nested one): see below. */
+  $letPin?: boolean;
   /** True when a narrow form's header carries a consumer's label, icon or
    *  actions beside the toolbar, which then has to take a line of its own. */
   $stackHeader?: boolean;
@@ -138,11 +140,21 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
      The clip is the panel's rounded corners, and this panel is transparent and
      border-less — \`flat raised minimal\`, no background of its own — so there
      is nothing for it to clip. */
-  ${({ $stickyBoxes }) =>
+  ${({ $stickyBoxes, $letPin }) =>
     $stickyBoxes ?
       css`
         &&& {
           overflow: visible;
+        }
+      `
+    : $letPin ?
+      /* With no pins of its own the form still lets a host editor's own band pin (the IDE's open test case pins
+         one in the Cases field), so the wrapper is no scrollport either way; \`clip\` keeps the horizontal guard
+         the \`hidden\` gave. */
+      css`
+        &&& {
+          overflow-y: visible;
+          overflow-x: clip;
         }
       `
     : ''}
@@ -297,9 +309,10 @@ export const StyledStatusBox = styled(ReqorePanel)<{
    */
   $calm?: boolean;
   /**
-   * The box's own header does not pin, but an open card's heading inside it does. Reqore clips the wrapper of a
-   * panel whose header does not pin, and a clipping box is the scrollport a sticky heading inside it pins to, so
-   * the wrapper stays unclipped. Nothing in a box reaches past its corners for the clip to cut.
+   * The box's own header does not pin, but what is inside it may: an open card's heading, or a host editor's own
+   * band (the IDE's open test case). Reqore clips the wrapper of a panel whose header does not pin, and a clipping
+   * box is the scrollport a sticky element inside it pins to, so the wrapper stays unclipped vertically; `clip`
+   * keeps the horizontal guard the `hidden` gave. Nothing in a box reaches past its corners for the clip to cut.
    */
   $letPin?: boolean;
 }>`
@@ -307,7 +320,8 @@ export const StyledStatusBox = styled(ReqorePanel)<{
     $letPin ?
       css`
         &&& {
-          overflow: visible;
+          overflow-y: visible;
+          overflow-x: clip;
         }
       `
     : ''}

@@ -524,3 +524,62 @@ export const ALongCardPinsAtTheTopWithNothingAboveIt: Story = {
     expect(getComputedStyle(toolbar()).position).not.toBe('sticky');
   },
 };
+
+/**
+ * A host editor that pins a band of its own, as the Qorus IDE's open test case pins its case's name and Run case
+ * at the top of the page while the case is read.
+ */
+const BandedListStandin = ({ value }: { value?: string[] }) => (
+  <div className='banded-list-standin'>
+    <div
+      className='banded-list-standin-band'
+      style={{ position: 'sticky', top: 0, zIndex: 5, padding: '8px 10px', background: '#262626' }}
+    >
+      Case 1 · Run case
+    </div>
+    <CaseListStandin value={value} />
+  </div>
+);
+
+/**
+ * With every pin of the form's off (its toolbar, its box headers, its card headings), a host editor's own band still
+ * pins at the top of the page: nothing between it and the page clips. A box whose header did not pin was clipped by
+ * Reqore, and a clipping box is where a sticky element inside it pins, so the IDE's case band scrolled away with
+ * the page when it turned the form's box headers off (qorus-ide-c2, t-87).
+ */
+export const AHostEditorsOwnBandPinsWithTheFormsPinsOff: Story = {
+  args: {
+    ...casesArgs(80),
+    componentOverrides: { 'case-list': BandedListStandin } as never,
+    compactStickyBoxHeaders: false,
+    compactStickyCardHeaders: false,
+    compactPanelProps: { stickyHeader: false },
+  },
+  parameters: {
+    // Interaction-only: what it draws is a stand-in.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'A Cases field whose editor pins a band of its own, in a form with its toolbar, box headers and card headings all left unpinned. Scrolled into the list, the band stays at the top of the scroller.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    const band = () => card.querySelector<HTMLElement>('.banded-list-standin-band')!;
+    await waitFor(() => expect(band()).toBeTruthy());
+    const restingTop = band().getBoundingClientRect().top;
+    const box = scroller();
+    // a sticky `top: 0` pins inside the scroller's padding
+    const line =
+      box.getBoundingClientRect().top +
+      (parseFloat(getComputedStyle(box).borderTopWidth) || 0) +
+      (parseFloat(getComputedStyle(box).paddingTop) || 0);
+
+    await scrollTo(box.scrollTop + card.getBoundingClientRect().top - line + 600);
+
+    expect(band().getBoundingClientRect().top).toBeLessThan(restingTop);
+    expect(Math.abs(band().getBoundingClientRect().top - line)).toBeLessThan(1.5);
+  },
+};
