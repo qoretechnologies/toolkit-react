@@ -79,6 +79,9 @@ describe("a template's type", () => {
   it('is read with the lookups the package exports', () => {
     expect(reqraft.templateType).toBe(templateType);
     expect(reqraft.templateBaseType).toBe(templateBaseType);
+    // and the words to say it in, for a host that draws its own list (`sayTemplateTypesInWords`)
+    expect(typeof reqraft.useTypeLabel).toBe('function');
+    expect(typeof reqraft.sayTemplateTypesInWords).toBe('function');
   });
 
   it("is a host's template's badge where the host gives no typed member", () => {

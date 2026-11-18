@@ -109,6 +109,13 @@ export { templateBaseType, templateType } from './helpers/templateType';
 // A list of templates whose values say their type in words, not as a badge (board r-ed-30): for a host that draws
 // its own list of a catalogue's values.
 export { sayTemplateTypesInWords } from './helpers/templateItems';
+// The words the surrounding form draws types in (the server's catalogue where a form fetched it): for a host that
+// draws its own list of values, with `sayTemplateTypesInWords`.
+export {
+  useTypeLabel,
+  useTypeName,
+  useTypeSentenceForm,
+} from './components/form/typeSentenceForm';
 export type { ITemplateTypeRow } from './helpers/templateType';
 
 // First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable
