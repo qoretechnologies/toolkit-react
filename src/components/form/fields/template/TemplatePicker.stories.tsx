@@ -174,7 +174,7 @@ export const AValuesTypeIsSaidInWords: Story = {
     docs: {
       description: {
         story:
-          'Opens Context Data. "Epoch Seconds" says "Whole number" under its name, and no chip on any row names a ' +
+          'Opens Context Data. "Epoch Seconds" ends what it says under its name with "Whole number", and no chip on any row names a ' +
           'type: the chips say what a row is ("Context"), never "int" or "Whole number". A type tag was a machine ' +
           'word in front of a reader choosing "the order\'s date" (board r-ed-30, decision 026).',
       },
@@ -183,9 +183,12 @@ export const AValuesTypeIsSaidInWords: Story = {
   play: async () => {
     await userEvent.click(await pickerRow('Context Data'));
     const epoch = await pickerRow('Epoch Seconds');
+    // at the end of what the row says, on its line
     await waitFor(() =>
-      expect(epoch.querySelector('.template-picker-row-type')?.textContent).toBe('Whole number')
+      expect(epoch.querySelector('.template-picker-row-type')?.textContent?.trim()).toMatch(/Whole number$/)
     );
+    const what = epoch.querySelector<HTMLElement>('.template-picker-row-what');
+    if (what) expect(what.contains(epoch.querySelector('.template-picker-row-type'))).toBe(true);
     const chips = Array.from(
       document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row .reqore-tag')
     ).map((chip) => chip.textContent?.trim());

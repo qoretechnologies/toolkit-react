@@ -162,8 +162,9 @@ const rowBadges = (node: ITemplateNode, calm: boolean): TReqoreBadge[] => {
 
 /**
  * What a row says under its name: where it is, when it is found by a search ("in Receive order › Customer"), and
- * what it is, in its own words; where it comes from, as its host says, after that; and last what kind of value it
- * is ("Whole number", never "int", and never a chip: board r-ed-30), as the $ list's detail ends with it. Where it is and what it is are
+ * what it is, in its own words, ending with what kind of value it is ("… · Whole number", never "int", and never a
+ * chip: board r-ed-30) as the other lists end with it; where it comes from, as its host says, after that. A row
+ * that says nothing else says its kind of value on a line of its own. Where it is and what it is are
  * drawn apart, so that a group's name is never read as a description of the row (qorus#646, David's review: each
  * state's data said "Receive order" as if it were what it is).
  */
@@ -197,6 +198,13 @@ const RowDescription = ({
           {renderMarkdown ?
             renderMarkdown({ value: node.description, compact: true })
           : markdownToProse(node.description)}
+          {/* its type, at the end of what it says, as the other lists say it: a line of its own made every row a
+              line taller, and a picker showed a row fewer (Qlip build 511) */}
+          {typeWords ?
+            <span className='template-picker-row-type' style={ROW_TYPE_STYLE}>
+              {` · ${typeWords}`}
+            </span>
+          : null}
         </span>
       : null}
       {node.source ?
@@ -204,7 +212,7 @@ const RowDescription = ({
           {editorWords.fromSource(node.source)}
         </span>
       : null}
-      {typeWords ?
+      {typeWords && !node.description ?
         <span className='template-picker-row-type' style={{ display: 'block', opacity: 0.7 }}>
           {typeWords}
         </span>
@@ -224,6 +232,9 @@ export const USE_WHOLE_STYLE: React.CSSProperties = {
 
 /** What "Use" beside a group says on hover. */
 export const useWholeSays = (label: string) => reqraftLabels().templateBrowser.useWhole(label);
+
+/** A value's type at the end of what its row says: quieter than the words before it. */
+const ROW_TYPE_STYLE: React.CSSProperties = { opacity: 0.7 };
 
 /** What a row says it is: up to three lines, wrapped, never past the row (the reqraft row rule). */
 const ROW_WHAT_STYLE: React.CSSProperties = {
