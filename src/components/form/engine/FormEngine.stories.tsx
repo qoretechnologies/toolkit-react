@@ -15240,3 +15240,134 @@ export const AClickOnARowAsTheFormOpensItKeepsItOpen: Story = {
     await expect(drawnClosedEditor()).toBeTruthy();
   },
 };
+
+/* ------------------------------------------------------------------------------------------------
+ * a field whose editor is always open (`alwaysExpandedOptions`, the IDE's test cases)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A host's list editor that opens in the card, one line per item: the shape of the IDE's test Cases field. */
+const AlwaysOpenCasesStandin = ({ value }: { value?: string[] }) => (
+  <div className='always-open-cases' style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    {(value ?? []).map((name) => (
+      <div
+        key={name}
+        className='always-open-case'
+        style={{ padding: '6px 10px', border: '1px solid #ffffff1a', borderRadius: 6, fontSize: 13 }}
+      >
+        {name}
+      </div>
+    ))}
+  </div>
+);
+
+/** What a field's open row or card draws to close it, empty it, or throw its edits away. */
+const closingControls = (field: string) =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>(
+      [
+        `.readfirst-row[data-field="${field}"] .options-readfirst-done`,
+        `.readfirst-row[data-field="${field}"] .options-readfirst-clear`,
+        `.readfirst-row[data-field="${field}"] .options-readfirst-cancel`,
+        `.options-readfirst-card[data-field="${field}"] .options-readfirst-done`,
+        `.options-readfirst-card[data-field="${field}"] .options-readfirst-clear`,
+        `.options-readfirst-card[data-field="${field}"] .options-readfirst-cancel`,
+      ].join(', ')
+    )
+  ).map((control) => control.className);
+
+export const AFieldThatIsAlwaysOpen: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A compact form whose Cases list (a host editor drawn in the card) and Note are named in `alwaysExpandedOptions`, and an Owner row that is not. Cases and Note are open from the start and draw no Done (✓), no Clear value (bin) and no Cancel: the editor is the field\'s content. Opening Owner (one row at a time, the default) leaves both open; a click on Note\'s label and Escape in it leave it open with what was typed. Owner keeps its Done. The IDE\'s test Cases field drew the engine\'s bin and ✓ on a list that is the page (t-87).',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      cases: {
+        type: 'list',
+        ui_type: 'case-list',
+        display_name: 'Cases',
+        short_desc: 'Ordered test cases',
+        preselected: true,
+      },
+      note: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Note',
+        short_desc: 'What the test is for',
+        preselected: true,
+      },
+      owner: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Owner',
+        preselected: true,
+      },
+    } as unknown as IOptionsSchema,
+    value: {
+      cases: {
+        type: 'list',
+        value: ['An order that ships', 'An order on hold', 'A canceled order'],
+      },
+      note: { type: 'string', value: 'Checks the order flow' },
+      owner: { type: 'string', value: 'ops' },
+    } as unknown as IOptions,
+    componentOverrides: { 'case-list': AlwaysOpenCasesStandin } as never,
+    cardEditorTypes: ['case-list'],
+    alwaysExpandedOptions: ['cases', 'note'],
+  },
+  play: async () => {
+    await waitFor(
+      () => {
+        expect(document.querySelector('.always-open-case'), 'the cases list').toBeTruthy();
+        expect(_isRowOpen('cases')).toBe(true);
+        expect(_isRowOpen('note')).toBe(true);
+        expect(_isRowOpen('owner')).toBe(false);
+      },
+      { timeout: 10000 }
+    );
+    expect(closingControls('cases')).toEqual([]);
+    expect(closingControls('note')).toEqual([]);
+
+    // another row opening, one at a time, leaves them open; it keeps its own Done
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="owner"]') as HTMLElement);
+    await waitFor(
+      () => {
+        expect(_isRowOpen('owner')).toBe(true);
+        expect(_isRowOpen('cases')).toBe(true);
+        expect(_isRowOpen('note')).toBe(true);
+        expect(
+          document.querySelector('.readfirst-row[data-field="owner"] .options-readfirst-done')
+        ).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+
+    // a click on its label and Escape in it leave it open, with what was typed
+    const note = document.querySelector<HTMLInputElement>(
+      '.readfirst-row[data-field="note"] input, .readfirst-row[data-field="note"] textarea'
+    )!;
+
+    await userEvent.type(note, ' and its holds');
+    await fireEvent.keyDown(note, { key: 'Escape' });
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="note"] .options-readfirst-label-block')!
+        .firstElementChild as HTMLElement
+    );
+    await sleep(300);
+    await waitFor(() => {
+      expect(_isRowOpen('note')).toBe(true);
+      expect(
+        document.querySelector<HTMLInputElement>(
+          '.readfirst-row[data-field="note"] input, .readfirst-row[data-field="note"] textarea'
+        )!.value
+      ).toBe('Checks the order flow and its holds');
+      expect(closingControls('note')).toEqual([]);
+    });
+  },
+};

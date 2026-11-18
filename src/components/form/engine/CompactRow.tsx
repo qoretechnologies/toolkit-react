@@ -312,6 +312,12 @@ export const CompactRow = memo(
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
+    /* Its editor is always open (`alwaysExpandedOptions`): the editor is the field's content, so the row draws
+       nothing that closes it, empties it or throws its edits away (the IDE's test cases). */
+    const alwaysOpen = useContextSelector(
+      CompactRowContext,
+      (v) => !!v.alwaysExpandedOptions?.includes(optionName)
+    );
     // the box this open field moves to when it is closed, when that is not the one it is shown in
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
@@ -1224,6 +1230,10 @@ export const CompactRow = memo(
     // Discard whatever was typed since the field was opened and close it. Used
     // by both the Cancel button and Escape, so the two cannot diverge.
     const cancelEdit = React.useCallback(() => {
+      // a row that is always open has no edit to cancel: what it holds is what its editor shows
+      if (alwaysOpen) {
+        return;
+      }
       // an edit still waiting for its pause is part of what is discarded
       pendingEdits.discard();
       const snapshot = editEntryValue.current;
@@ -1237,7 +1247,7 @@ export const CompactRow = memo(
         handleValueChange(optionName, ...restoredFieldChange(snapshot));
       }
       collapseOption(optionName);
-    }, [handleValueChange, optionField?.value, optionName, collapseOption, pendingEdits]);
+    }, [handleValueChange, optionField?.value, optionName, collapseOption, pendingEdits, alwaysOpen]);
 
     // The sub-schema describing this field's value, when it has one. A value the
     // form knows the shape of is previewed THROUGH that shape (see
@@ -1357,7 +1367,7 @@ export const CompactRow = memo(
       });
     };
     const clearValueButton =
-      hasValue && !readOnly && editorLacksOwnClear ?
+      hasValue && !readOnly && editorLacksOwnClear && !alwaysOpen ?
         <ReqoreButton
           className='options-readfirst-clear'
           size='small'
@@ -1401,7 +1411,7 @@ export const CompactRow = memo(
     // Not offered when the close action is passive (a fixed choice) —
     // nothing can have been typed, so there is nothing to cancel.
     const cancelEditButton =
-      !isPassiveCloseAction && editedSinceOpened ?
+      !isPassiveCloseAction && editedSinceOpened && !alwaysOpen ?
         <ReqoreButton
           className='options-readfirst-cancel'
           size='small'
@@ -1426,7 +1436,7 @@ export const CompactRow = memo(
       !editEntryValue.current ||
       isEqual(editEntryValue.current.value, originalValue.current?.[optionName]?.value);
     const editRowRevertButton = openedWithFormLoadValue ? null : revertButton;
-    const closeExpandedFieldButton = (
+    const closeExpandedFieldButton = alwaysOpen ? null : (
       <ReqoreButton
         className='options-readfirst-done'
         size='small'
@@ -2139,7 +2149,7 @@ export const CompactRow = memo(
               {cancelEditButton}
               {/* Clear-value sits before the More menu — the card analog of the
                   inline row's Clear. Empties the value (keeps the field). */}
-              {hasValue && !readOnly ?
+              {hasValue && !readOnly && !alwaysOpen ?
                 <ReqoreButton
                   size='small'
                   icon='DeleteBinLine'

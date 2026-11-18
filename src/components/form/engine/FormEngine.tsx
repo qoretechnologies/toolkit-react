@@ -1525,6 +1525,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * No-op in classic (non-compact) mode.
    */
   expandOptionsRequest?: { options: string[]; key: string | number };
+  /**
+   * Rows whose editor is always open: the editor is the field's content, not a value to open, change and close (the
+   * IDE's test cases). Each is open as soon as the form holds it, and nothing closes it, neither a click on its
+   * label, nor Escape, nor another row opening in `expandMode: 'single'`. It draws no Done, no Clear value and no
+   * Cancel, so what it holds is kept: a value is changed in the editor itself. No-op in classic (non-compact) mode.
+   */
+  alwaysExpandedOptions?: string[];
 
   /**
    * Which record or object `value` belongs to. When it changes, the form takes the new `value` as it is: an
@@ -1560,6 +1567,8 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
 const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
 /** How faded reqore draws a panel's title icon. */
 const PANEL_TITLE_ICON_ALPHA = 0.7;
+/** No rows: one array, so a form with none hands its rows the same one every render. */
+const NO_OPTION_NAMES: string[] = [];
 
 const FormEngineImpl = ({
   name,
@@ -1632,6 +1641,7 @@ const FormEngineImpl = ({
   expandFirstRequired,
   initialExpandedOptions,
   expandOptionsRequest,
+  alwaysExpandedOptions: alwaysExpandedOptionsProp,
   valueKey,
   maxFieldsShown,
   // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
@@ -1647,6 +1657,9 @@ const FormEngineImpl = ({
   const componentOverrides = useEqualValue(componentOverridesProp);
   const readSummaries = useEqualValue(readSummariesProp);
   const cardEditorTypes = useEqualValue(cardEditorTypesProp);
+  const alwaysExpandedOptionsList = useEqualValue(alwaysExpandedOptionsProp);
+  /** The rows that stay open (`alwaysExpandedOptions`), in a compact form. */
+  const alwaysExpandedOptions = (compact && alwaysExpandedOptionsList) || NO_OPTION_NAMES;
   // Built-ins + whatever the consumer declared for its own injected editors.
   const isRendererOnly = useMemo(
     () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
@@ -1715,7 +1728,21 @@ const FormEngineImpl = ({
   const [showHelpForOption, setShowHelpForOption] = useState<string | undefined>();
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
-  const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  const [expandedOptions, setExpandedOptionsState] = useState<string[]>([]);
+  /** The rows that stay open, read by every change to the open rows. */
+  const alwaysExpandedRef = useRef<string[]>(alwaysExpandedOptions);
+  alwaysExpandedRef.current = alwaysExpandedOptions;
+  /** Every change to the open rows goes through here: a row that stays open, once open, is never closed by one. */
+  const setExpandedOptions = useCallback((update: React.SetStateAction<string[]>) => {
+    setExpandedOptionsState((prev) => {
+      const next = typeof update === 'function' ? update(prev) : update;
+      const kept = alwaysExpandedRef.current.filter(
+        (name) => prev.includes(name) && !next.includes(name)
+      );
+
+      return kept.length ? [...next, ...kept] : next;
+    });
+  }, []);
   // The fields the person has opened and left. An empty required field becomes a
   // fault only then (or after a submit attempt, `revealRequired`): a form nobody has
   // touched is not already wrong.
@@ -3320,6 +3347,9 @@ const FormEngineImpl = ({
     [expandOption]
   );
   const collapseOption = useCallback((optionName: string) => {
+    if (alwaysExpandedRef.current.includes(optionName)) {
+      return;
+    }
     hasAutoFocusedRef.current = true;
     setExpandedOptions((prev) =>
       prev.includes(optionName) ? prev.filter((name) => name !== optionName) : prev
@@ -3356,6 +3386,25 @@ const FormEngineImpl = ({
     hasAppliedInitialExpansionRef.current = true;
     setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
   }, [initialExpandedOptions, compact, availableOptions]);
+
+  // --- Rows that stay open (opt-in) ----------------------------------------
+  // Opened before the form paints, as soon as the schema holds them (it can arrive in pieces), and kept open by
+  // `setExpandedOptions` and `collapseOption`.
+  useLayoutEffect(() => {
+    if (!alwaysExpandedOptions.length) {
+      return;
+    }
+    const names = Object.keys(availableOptions);
+    const toOpen = alwaysExpandedOptions.filter((name) => names.includes(name));
+
+    if (toOpen.length) {
+      setExpandedOptionsState((prev) => {
+        const missing = toOpen.filter((name) => !prev.includes(name));
+
+        return missing.length ? [...prev, ...missing] : prev;
+      });
+    }
+  }, [alwaysExpandedOptions, availableOptions]);
 
   // --- Host-requested rows (opt-in) ----------------------------------------
   // Each new key opens the rows it names; a key already answered is not answered again. Waits, as the starting
@@ -4170,6 +4219,7 @@ const FormEngineImpl = ({
       pinnedHeaderSurface,
       showAllDescriptions,
       expandedOptions,
+      alwaysExpandedOptions,
       visitedOptions,
       revealRequired,
       highlightedOptions,
@@ -4229,6 +4279,7 @@ const FormEngineImpl = ({
       pinnedHeaderSurface,
       showAllDescriptions,
       expandedOptions,
+      alwaysExpandedOptions,
       visitedOptions,
       revealRequired,
       highlightedOptions,

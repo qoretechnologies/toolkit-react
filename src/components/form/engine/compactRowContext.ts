@@ -83,6 +83,8 @@ export interface ICompactRowContext {
   // display name in the read-first chip.
   templates?: IReqoreFormTemplates;
   expandedOptions: string[];
+  /** Rows whose editor is always open (`alwaysExpandedOptions`): no Done, no Clear value, no Cancel. */
+  alwaysExpandedOptions?: string[];
   /** Fields the person has opened and left: an empty required one among them is a
    *  fault (`todo`); one they have not been to yet is only `pending`. */
   visitedOptions: string[];
