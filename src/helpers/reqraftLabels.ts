@@ -296,6 +296,13 @@ export interface IFormEngineLabels {
   boxPending: string;
   oneOfRequired: string;
   nothingSet: string;
+  /** A field that holds its default, which nobody set: "Uses Qore", or "Uses 30 for Timeout" where the value does
+   *  not name itself. */
+  usesDefault: (value: string, label?: string) => string;
+  /** Opens a field that holds its default, to change it. */
+  changeDefault: string;
+  /** The same, named for a screen reader: "Change Language". */
+  changeDefaultLabel: (label: string) => string;
   noFieldsMatch: string;
   showFewer: string;
   moreFields: (count: number, optional: boolean) => string;
@@ -712,6 +719,9 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     boxPending: 'To fill in',
     oneOfRequired: 'One of the below is required',
     nothingSet: 'Nothing is set.',
+    usesDefault: (value, label) => (label ? `Uses ${value} for ${label}` : `Uses ${value}`),
+    changeDefault: 'Change',
+    changeDefaultLabel: (label) => `Change ${label}`,
     noFieldsMatch: 'No fields match the current filters.',
     showFewer: 'Show fewer',
     moreFields: (count, optional) =>

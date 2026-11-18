@@ -57,7 +57,18 @@ import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererT
 import { revealRow } from './revealRow';
 import { findRowFocusTarget } from './rowFocus';
 import { useEmittedValues } from '../fields/emittedValues';
-import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, omit, uniq } from 'lodash';
+import {
+  cloneDeep,
+  findKey,
+  flatten,
+  forEach,
+  isEqual,
+  isPlainObject,
+  last,
+  omit,
+  sortBy,
+  uniq,
+} from 'lodash';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
@@ -119,6 +130,7 @@ import {
   ICompactToolbarContext,
   TCompactSort,
 } from './compactToolbarContext';
+import { DefaultsNote } from './DefaultsNote';
 import { HiddenFieldsNote, IHiddenFieldWithValue } from './HiddenFieldsNote';
 import {
   OptionFieldMessages,
@@ -1708,6 +1720,9 @@ const FormEngineImpl = ({
   // fault only then (or after a submit attempt, `revealRequired`): a form nobody has
   // touched is not already wrong.
   const [visitedOptions, setVisitedOptions] = useState<string[]>([]);
+  /* The fields the person chose to change from their default ("Uses Qore · Change"): ordinary rows from then on
+     (`DefaultsNote`). */
+  const [changedDefaults, setChangedDefaults] = useState<string[]>([]);
   const lastExpandedOptions = useRef<string[]>([]);
   useEffect(() => {
     const left = lastExpandedOptions.current.filter((name) => !expandedOptions.includes(name));
@@ -3294,6 +3309,16 @@ const FormEngineImpl = ({
     },
     [expandMode]
   );
+  /* "Change" on a default (`DefaultsNote`): the field becomes an ordinary row, opened to be changed. */
+  const changeDefault = useCallback(
+    (optionName: string) => {
+      setChangedDefaults((current) =>
+        current.includes(optionName) ? current : [...current, optionName]
+      );
+      expandOption(optionName);
+    },
+    [expandOption]
+  );
   const collapseOption = useCallback((optionName: string) => {
     hasAutoFocusedRef.current = true;
     setExpandedOptions((prev) =>
@@ -4558,10 +4583,48 @@ const FormEngineImpl = ({
       if (!readOnly) return fresh;
       return fresh === 'optional' ? undefined : 'set';
     };
+    /* A field the person never touched whose value is its default is not something they set: it is said under the
+       form ("Uses Qore · Change", `DefaultsNote`), not listed as "Set" (board r-ed-19, Filip's option B). Not a field
+       they have been to, opened, or chose to change; not one nobody can change, one whose value is an expression,
+       or a structured value (a hash or a list, which its row summarises). */
+    const defaultEntries: TRowEntry[] = [];
+    const isUntouchedDefault = (name: string): boolean => {
+      const schema = options?.[name];
+      if (
+        !schema ||
+        !('default_value' in schema) ||
+        // a field nobody can change is a row, which says why (its lock)
+        schema.disabled ||
+        (schema as { readonly?: boolean }).readonly ||
+        changedDefaults.includes(name) ||
+        expandedOptions.includes(name) ||
+        visitedOptions.includes(name)
+      ) {
+        return false;
+      }
+      const fallback = getDefaultValue(schema);
+      const field = availableOptions?.[name] as IQorusFormField | undefined;
+      if (fallback === undefined || fallback === null || fallback === '' || !field) {
+        return false;
+      }
+      if ((field as { is_expression?: boolean }).is_expression) {
+        return false;
+      }
+      /* A plain value only (text, a number, yes / no, a choice): "Uses 3 fields for Connection" would say
+         nothing that a hash or a list's own row does not say better. */
+      if (typeof fallback === 'object') {
+        return false;
+      }
+      return isEqual(field.value, fallback);
+    };
     groupKeys.forEach((groupName) => {
       grouped[groupName].forEach((entry) => {
         const b = readBucketOf(entry);
         if (!b) return;
+        if (b === 'set' && !entry.hidden && isUntouchedDefault(entry.name)) {
+          defaultEntries.push(entry);
+          return;
+        }
         if (!buckets[b][groupName]) {
           buckets[b][groupName] = [];
           bucketGroups[b].push(groupName);
@@ -5328,6 +5391,25 @@ const FormEngineImpl = ({
                       );
                     })
                   }
+                  {/* the defaults nobody set, under the boxes (r-ed-19) */}
+                  <DefaultsNote
+                    fields={sortBy(defaultEntries, ({ name }) =>
+                      Object.keys(options || {}).indexOf(name)
+                    ).map(({ name }) => ({
+                      name,
+                      label: (options?.[name]?.display_name as string | undefined) || name,
+                      value:
+                        (options?.[name]?.default_value_display_name as string | undefined) ||
+                        formatOptionValue(
+                          availableOptions?.[name] as IQorusFormField,
+                          options?.[name]
+                        ),
+                      choice: !!(options?.[name]?.allowed_values as unknown[] | undefined)?.length,
+                      description: options?.[name]?.default_value_desc as string | undefined,
+                    }))}
+                    color={cMuted}
+                    onChange={readOnly ? undefined : changeDefault}
+                  />
                 </StyledCompactPanel>
                 {/* The rows, each drawn once into its own node; the boxes above show them (`rowPlaces`). After the
                     boxes, so the places they draw are in the page when the rows' own effects run. */}

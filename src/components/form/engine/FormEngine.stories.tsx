@@ -4104,8 +4104,18 @@ export const CompactBasic: Story = {
     });
 
     // A scalar row (Number option = 42, ui_type number) edits inline. (The
-    // '123' options are ui_type richtext — complex — and open the card.)
-    await _testsClickText('42');
+    // '123' options are ui_type richtext — complex — and open the card.) 42 is its default and nobody set it,
+    // so it is said under the form ("Uses 42 for Number option") until it is changed (r-ed-19).
+    await waitFor(() =>
+      expect(
+        document.querySelector('.form-default-note[data-field-default="numberOption"]')?.textContent
+      ).toContain('Uses 42 for Number option')
+    );
+    await fireEvent.click(
+      document.querySelector(
+        '.form-default-note[data-field-default="numberOption"] .form-default-change'
+      ) as HTMLElement
+    );
     await waitFor(() => expect(document.querySelector('.options-readfirst-inline')).toBeTruthy(), {
       timeout: 10000,
     });
@@ -6212,18 +6222,19 @@ export const CompactEnumRichtextValue: Story = {
     } as unknown as IOptions,
   },
   play: async () => {
-    // Read-first resolves the richtext-wrapped value to its label + logo.
+    // Qore is the field's default and nobody set it: it is said under the form, by its label (r-ed-19).
     await waitFor(
-      () => {
-        const row = document.querySelector('.readfirst-row[data-field="lang"]');
-        expect(row?.textContent).toContain('Qore');
-        expect(row?.querySelector('.reqore-icon img')).toBeTruthy();
-      },
+      () =>
+        expect(
+          document.querySelector('.form-default-note[data-field-default="lang"]')?.textContent
+        ).toContain('Uses Qore'),
       { timeout: 10000 }
     );
-    // Drill in → the RADIO renders (not a rich-text box) with every language.
+    // Change → the RADIO renders (not a rich-text box) with every language.
     await fireEvent.click(
-      document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement
+      document.querySelector(
+        '.form-default-note[data-field-default="lang"] .form-default-change'
+      ) as HTMLElement
     );
     await waitFor(
       () => {
@@ -7875,7 +7886,14 @@ export const CompactShowcase: Story = {
 
     // Default-value notes and validation/dependency hints now render as a compact
     // INLINE reason (no ⓘ, no panel) — visible without any interaction.
-    await _testsWaitForText('Default: thirty — Falls back to 30 seconds when unset.');
+    // A field at its default nobody set is said under the form, its default's description with it (r-ed-19).
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll('.form-default-note')].some((note) =>
+          (note.textContent ?? '').includes('Falls back to 30 seconds when unset.')
+        )
+      ).toBe(true)
+    );
     // Dedicated schema messages stay prominent PANELS, also always visible.
     await expect(infoPanel('apiEndpoint')).toBeTruthy();
     await _testsWaitForText('v1 endpoints are deprecated — migrate to /v2 before 2026-09.');
