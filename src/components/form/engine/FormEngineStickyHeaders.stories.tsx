@@ -483,3 +483,44 @@ export const AShortCardNeverPinsItsHeading: Story = {
     expect(cardHeading(card).getBoundingClientRect().bottom).toBeLessThan(pinLine());
   },
 };
+
+/**
+ * With nothing of the form's pinned above it (the toolbar's pin off, the box headers' off: a host whose form is one
+ * long field, as the Qorus IDE's Cases are), the heading pins at the scroller's visible top edge, its padding taken
+ * off as Reqore takes it off a panel's header.
+ */
+export const ALongCardPinsAtTheTopWithNothingAboveIt: Story = {
+  args: {
+    ...casesArgs(80),
+    compactStickyBoxHeaders: false,
+    compactPanelProps: { stickyHeader: false },
+  },
+  parameters: {
+    // Interaction-only: the pinned heading is pictured by `ALongCardKeepsItsHeadingWhileItsBodyIsRead`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The long Cases card in a form whose toolbar and box headers do not pin. Scrolled into the list, the card’s heading pins at the very top of the scroller, inside its padding, not a padding’s height below it.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    await waitFor(() => expect(card.getAttribute('data-pins-header')).toBe('true'));
+    const restingTop = cardHeading(card).getBoundingClientRect().top;
+    const edge = () => {
+      const box = scroller();
+
+      return box.getBoundingClientRect().top + (parseFloat(getComputedStyle(box).borderTopWidth) || 0);
+    };
+
+    await scrollTo(scroller().scrollTop + card.getBoundingClientRect().top - edge() + 600);
+
+    const heading = cardHeading(card).getBoundingClientRect();
+
+    expect(heading.top).toBeLessThan(restingTop);
+    expect(Math.abs(heading.top - edge())).toBeLessThan(1.5);
+    expect(getComputedStyle(toolbar()).position).not.toBe('sticky');
+  },
+};

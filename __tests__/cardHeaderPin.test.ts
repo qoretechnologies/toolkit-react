@@ -85,6 +85,13 @@ describe('a card heading pins while its long body is read', () => {
     expect(measureCardHeaderPin(card, 30)).toEqual({ pins: true, top: 10 });
   });
 
+  it("pins at the scroller's visible edge, inside its padding, when nothing is pinned above it", () => {
+    const { card } = buildForm({ boxPins: false });
+    document.getElementById('toolbar')!.style.position = 'relative';
+    setHeight(card, 2000);
+    expect(measureCardHeaderPin(card)).toEqual({ pins: true, top: -20 });
+  });
+
   it("counts a pinned card heading as chrome above the card's own rows", () => {
     buildForm();
     const heading = document.getElementById('card-header')!;

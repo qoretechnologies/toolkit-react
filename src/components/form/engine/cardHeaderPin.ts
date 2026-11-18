@@ -83,10 +83,11 @@ export const measureCardHeaderPin = (card: HTMLElement, hostOffset = 0): ICardHe
     return NOT_PINNED;
   }
   /* A sticky `top` counts from the scrollport's content box, inside its padding; the pinned headers above report
-     theirs in the same terms (Reqore takes the padding off), so the two compose. */
+     theirs in the same terms (Reqore takes the padding off), so the two compose. With nothing pinned above it, the
+     heading pins at the host's line, which in a padded scrollport is a `top` below zero. */
   return {
     pins: true,
-    top: Math.round(Math.max(hostOffset - inset, getPinnedChromeHeight(card))),
+    top: Math.round(getPinnedChromeHeight(card, hostOffset - inset)),
   };
 };
 

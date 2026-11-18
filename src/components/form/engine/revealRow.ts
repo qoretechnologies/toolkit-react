@@ -48,10 +48,12 @@ export const findScrollContainer = (element: HTMLElement): HTMLElement | undefin
 /**
  * How far below the top of the scrollport the pinned chrome above `element`
  * reaches: the largest `top + height` of any sticky header of an enclosing
- * status box, form toolbar or card. Zero when nothing above it is pinned.
+ * status box, form toolbar or card. `floor` (zero by default) when nothing
+ * above it is pinned: a sticky `top` that puts something at the scrollport's
+ * visible edge is less than zero in a padded scrollport.
  */
-export const getPinnedChromeHeight = (element: HTMLElement): number => {
-  let clearance = 0;
+export const getPinnedChromeHeight = (element: HTMLElement, floor = 0): number => {
+  let clearance = floor;
   for (
     let owner = element.parentElement?.closest<HTMLElement>(PINNED_HEADER_OWNERS);
     owner;
