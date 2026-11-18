@@ -230,6 +230,13 @@ yarn build:test         # Type-check without emit
 ### Storybook Stories & visual testing
 
 - Stories are co-located alongside source: `src/hooks/useFetch/useFetch.stories.tsx`
+- **Parse a story file right after editing it:** `yarn stories:parse <files>` (no files: every story
+  file changed against HEAD) runs Storybook's own indexer (`scripts/parse-stories.mjs`) in about a second
+  and names the line it cannot read. Run it before anything else: a story run, a capture, a commit. A
+  story file Storybook cannot index fails the whole index of a running Storybook the moment it is saved,
+  and every story run fails before its first story (qorus-ide, 18 Nov: unescaped quotes in a
+  description). Gate: `__tests__/storyFilesAreIndexable.test.ts`. Mind the quotes in a story's
+  description, and give a subagent that edits story files the same instruction.
 - Storybook port: **6008**
 - Story + interaction tests run on **Vitest browser mode** (Playwright/Chromium): `yarn test:stories [file-substring]`. Run `yarn install-playwright` once first.
 - **Story network — mocks must follow the instance, and stories must not share connections.**
