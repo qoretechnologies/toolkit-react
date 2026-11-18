@@ -78,7 +78,8 @@ describe('a catalogue marked with where its templates come from', () => {
       String(leaves.find((item) => item.label === label)?.description ?? '');
     expect(describe('pos')).toContain('Row field');
     expect(describe('pos')).toContain('The position');
-    expect(describe('bezeichnung')).toBe('Row field');
-    expect(describe('Order id')).toBe('');
+    // where it comes from first; its type in words after, never as a badge (r-ed-30)
+    expect(describe('bezeichnung')).toBe('Row field · Text');
+    expect(describe('Order id')).toBe('Whole number');
   });
 });

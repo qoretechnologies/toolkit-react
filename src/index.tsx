@@ -104,8 +104,11 @@ export {
 } from './hooks/useQorusTypes';
 export type { IQorusTypeObject, IUseTypes } from './hooks/useQorusTypes';
 // A template's type and base type, as a typed member of its row (`metadata.type`, `metadata.baseType`), else the
-// row's badge where a host keeps it there: a list of templates names the type in the badge it draws (qorus#646).
+// row's badge where a host keeps it there: a list of templates says the type in words, never as a badge (r-ed-30).
 export { templateBaseType, templateType } from './helpers/templateType';
+// A list of templates whose values say their type in words, not as a badge (board r-ed-30): for a host that draws
+// its own list of a catalogue's values.
+export { sayTemplateTypesInWords } from './helpers/templateItems';
 export type { ITemplateTypeRow } from './helpers/templateType';
 
 // First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable

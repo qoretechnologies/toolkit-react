@@ -828,7 +828,8 @@ export const buildTemplates = (
           // reveal it. The single line cuts at the rendered width, so the
           // preview adapts to any popover/panel width without breakpoints.
           descriptionEffect: exampleIsLong ? { noWrap: true } : undefined,
-          badge: type,
+          /* No badge: the type is the template's, a typed member (`metadata.type`) a field matches it by, and a list
+             says it in words, not as a badge reading "int" (`sayTemplateTypesInWords`; board r-ed-30). */
           metadata: {
             image: logo,
             displayName: display_name,

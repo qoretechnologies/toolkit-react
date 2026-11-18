@@ -1,5 +1,8 @@
+import { createElement, Fragment, ReactNode } from 'react';
 import type { TMarkdownRenderer } from '../components/Description/markdownRendererContext';
 import { markdownToProse } from './markdownText';
+import { builtInTypeLabel, TTypeLabel } from './qorusTypeCatalogue';
+import { templateBaseType, templateType } from './templateType';
 
 /**
  * What a template picker should actually list.
@@ -81,3 +84,62 @@ export const renderTemplateItemDescriptions = <T,>(
     return next as T;
   });
 };
+
+/** What a value's row says under its name: what it said before, then its type in words, as the $ list's detail. */
+const withTypeWords = (words: string, description: unknown): ReactNode => {
+  if (description === undefined || description === null || description === '') {
+    return words;
+  }
+  if (typeof description === 'string') {
+    return `${description} · ${words}`;
+  }
+  // a description already drawn (`renderTemplateItemDescriptions`): the words on a line under it
+  return createElement(
+    Fragment,
+    null,
+    description as ReactNode,
+    createElement('span', { style: { display: 'block' } }, words)
+  );
+};
+
+/**
+ * A list of templates whose values say their type in words, in their description ("For example: 1705496417 · Whole
+ * number", last, as the $ list's detail says it), never as their badge (board r-ed-30; decision 026: no machine word in front of a business reader).
+ * A row's badge said its type's code ("int"), and a reader choosing "the order's number" had a type name to read
+ * past. The type stays the value's, a typed member (`metadata.type`) a field matches it by (`templateType`), also
+ * where a host's row kept it only in its badge: that badge goes. Any other badge stays, and a group keeps its own
+ * (the app it comes from).
+ *
+ * At the LAST hop only, as `renderTemplateItemDescriptions`: where a description is already drawn, the words are
+ * drawn with it, and a drawn description must never reach a list that is stringified.
+ */
+export const sayTemplateTypesInWords = <T,>(
+  items: T[] | undefined,
+  typeLabel: TTypeLabel = builtInTypeLabel
+): T[] | undefined =>
+  items?.map((item) => {
+    const entry = item as {
+      value?: unknown;
+      badge?: unknown;
+      description?: unknown;
+      items?: unknown;
+      metadata?: Record<string, unknown>;
+    };
+    if (Array.isArray(entry.items) && entry.value === undefined) {
+      return { ...entry, items: sayTemplateTypesInWords(entry.items as T[], typeLabel) } as T;
+    }
+    const type = templateType(entry);
+    if (!type) {
+      return item;
+    }
+    const words = typeLabel(type, templateBaseType(entry));
+    // the badge goes where it was the type: a host's row that kept it only there, or kept it there too
+    const badgeWasType = typeof entry.badge === 'string' && (entry.badge === type || !entry.metadata?.type);
+    const { badge, ...rest } = entry;
+    return {
+      ...rest,
+      ...(badgeWasType ? {} : { badge }),
+      metadata: { ...entry.metadata, type },
+      ...(words ? { description: withTypeWords(words, entry.description) } : {}),
+    } as T;
+  });

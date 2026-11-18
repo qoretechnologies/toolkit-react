@@ -1,12 +1,13 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A template's type is named in every list a template is picked from, never shown as its code.
+// A template's type is named in every list a template is picked from, never shown as its code, and never as a badge.
 //
 // A template kept its type only as its list row's badge (`buildTemplates`: `badge: type`), which Reqore draws as
 // it is, so every list of templates said "int", "string", "qoretechnologies/money" beside a template; and the
 // field read the badge back as the template's type, so it could not be named there. The type is now a typed
 // member of the template (`metadata.type`, with its base type in `metadata.baseType`), and the lists name it by
 // the type catalogue (`qorusTypeDisplayName`): a user type with no base type by its path, any other unknown type
-// as "Unknown type" (qorus#646).
+// as "Unknown type" (qorus#646). A list says it in words under the template's name, not as its badge: a badge
+// reading even "Whole number" is a type tag in front of a business reader (board r-ed-30, decision 026).
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { useTemplateTags } from '../src/components/form/fields/rich-text/useTemplateTags';
@@ -44,6 +45,7 @@ const ORDER = buildTemplates({
 type TRow = {
   label?: string;
   badge?: unknown;
+  description?: unknown;
   value?: string;
   metadata?: Record<string, unknown>;
   items?: TRow[];
@@ -85,7 +87,8 @@ describe("a template's type", () => {
 
   it('is named in the list a click opens, and stays the type the field reads', () => {
     const rows = leaves(styleTemplateItems(ORDER?.items as never) as TRow[]);
-    expect(Object.fromEntries(rows.map((row) => [row.label, row.badge]))).toEqual(NAMES);
+    expect(Object.fromEntries(rows.map((row) => [row.label, row.description]))).toEqual(NAMES);
+    expect(rows.map((row) => row.badge)).toEqual(rows.map(() => undefined));
     expect(Object.fromEntries(rows.map((row) => [row.label, templateType(row as never)]))).toEqual({
       Count: 'int',
       Note: 'string',
@@ -99,8 +102,24 @@ describe("a template's type", () => {
     const [row] = styleTemplateItems([
       { label: 'pos', value: '$record:{pos}', badge: 'int' },
     ] as never) as TRow[];
-    expect(row.badge).toBe('Whole number');
+    expect(row.badge).toBeUndefined();
+    expect(row.description).toBe('Whole number');
     expect(templateType(row as never)).toBe('int');
+  });
+
+  it("is said after what a template's row said under its name, and leaves a host's own badge", () => {
+    const [row] = reqraft.sayTemplateTypesInWords([
+      {
+        label: 'Order number',
+        value: '$local:id',
+        badge: 'From the order',
+        description: 'For example: ORD-1002',
+        metadata: { type: 'string' },
+      },
+    ]) as TRow[];
+    expect(row.description).toBe('For example: ORD-1002 · Text');
+    expect(row.badge).toBe('From the order');
+    expect(templateType(row as never)).toBe('string');
   });
 
   it('is named by the catalogue a list is given', () => {
@@ -108,7 +127,7 @@ describe("a template's type", () => {
       styleTemplateItems(ORDER?.items as never, (type) => `${type} in other words`) as TRow[],
       'Count'
     );
-    expect(count?.badge).toBe('int in other words');
+    expect(count?.description).toBe('int in other words');
   });
 
   it('is named in the detail of the list a $ opens', () => {
@@ -122,7 +141,8 @@ describe("a template's type", () => {
   it('is named in the list of the text editor', () => {
     const { result } = renderHook(() => useTemplateTags(ORDER, true));
     const rows = leaves(result.current?.templates?.items as TRow[]);
-    expect(Object.fromEntries(rows.map((row) => [row.label, row.badge]))).toEqual(NAMES);
+    expect(Object.fromEntries(rows.map((row) => [row.label, row.description]))).toEqual(NAMES);
+    expect(rows.map((row) => row.badge)).toEqual(rows.map(() => undefined));
   });
 
   it('is what a value written as one template alone is, from a list drawn with the names', () => {

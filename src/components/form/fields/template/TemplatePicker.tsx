@@ -137,12 +137,12 @@ const isDeadEnd = (node: ITemplateNode) =>
 const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
 
 /**
- * A row's badges: what it is (State data, Context, Field...) and its type, named; a group's app, as its catalogue
- * badges it (the app it comes from, never a type: qorus#646, 8909de2f).
+ * A row's badges: what it is (State data, Context, Field...); a group's app, as its catalogue badges it (the app it
+ * comes from, never a type: qorus#646, 8909de2f). Never its type: that is said in words under its name
+ * (`RowDescription`; board r-ed-30, decision 026), and stays the value's to be matched by (`node.type`).
  */
-const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel, calm: boolean): TReqoreBadge[] => {
+const rowBadges = (node: ITemplateNode, calm: boolean): TReqoreBadge[] => {
   const kind = templateNodeKindLabel(node.kind);
-  const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
   const app = !node.row?.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
   return [
     ...(app ? [{ label: app, minimal: true, size: 'small' as const }] : []),
@@ -157,13 +157,13 @@ const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel, calm: boolean): T
         },
       ]
     : []),
-    ...(type ? [{ label: type, minimal: true, size: 'small' as const }] : []),
   ] as TReqoreBadge[];
 };
 
 /**
  * What a row says under its name: where it is, when it is found by a search ("in Receive order › Customer"), and
- * what it is, in its own words; where it comes from, as its host says, after that. Where it is and what it is are
+ * what it is, in its own words; where it comes from, as its host says, after that; and last what kind of value it
+ * is ("Whole number", never "int", and never a chip: board r-ed-30), as the $ list's detail ends with it. Where it is and what it is are
  * drawn apart, so that a group's name is never read as a description of the row (qorus#646, David's review: each
  * state's data said "Receive order" as if it were what it is).
  */
@@ -171,14 +171,17 @@ const RowDescription = ({
   node,
   showWhere,
   renderMarkdown,
+  typeLabel,
 }: {
   node: ITemplateNode;
   showWhere: boolean;
   renderMarkdown?: TMarkdownRenderer;
+  typeLabel: TTypeLabel;
 }) => {
   const editorWords = useReqraftLabels().editor;
   const where = showWhere && node.trail.length ? node.trail.join(' › ') : undefined;
-  if (!where && !node.description && !node.source) {
+  const typeWords = node.type ? typeLabel(node.type, node.baseType) : undefined;
+  if (!where && !typeWords && !node.description && !node.source) {
     return null;
   }
   return (
@@ -199,6 +202,11 @@ const RowDescription = ({
       {node.source ?
         <span className='template-picker-row-source' style={{ display: 'block', opacity: 0.7 }}>
           {editorWords.fromSource(node.source)}
+        </span>
+      : null}
+      {typeWords ?
+        <span className='template-picker-row-type' style={{ display: 'block', opacity: 0.7 }}>
+          {typeWords}
         </span>
       : null}
     </span>
@@ -855,9 +863,10 @@ export const TemplatePicker = memo(
                     node={node}
                     showWhere={!!query.trim()}
                     renderMarkdown={renderMarkdown}
+                    typeLabel={typeLabel}
                   />
                 }
-                badge={rowBadges(node, typeLabel, calm) as any}
+                badge={rowBadges(node, calm) as any}
                 /* a group opens; a context only the server knows goes on into what is in it as it is typed. One whose
                    catalogue lists nothing in it is no submenu: what follows it is written (`$rest:`) */
                 rightIcon={group || (node.continues && !node.catalogue) ? 'ArrowRightSLine' : undefined}

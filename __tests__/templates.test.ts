@@ -402,11 +402,13 @@ describe('helpers/templates', () => {
     const leafNamed = (label: string) =>
       buildTemplates(payload)?.items?.[0].items?.find((item) => item.label === label);
 
-    it('maps leaves with type badge and example-value description', () => {
+    it('maps leaves with their type as a typed member, no badge, and an example-value description', () => {
       const leaf = leafNamed('Interface ID');
       expect(leaf?.label).toBe('Interface ID');
       expect(leaf?.value).toBe('$local:id');
-      expect(leaf?.badge).toBe('string');
+      // the type is the template's (`templateType`), said in words by a list, never its badge (r-ed-30)
+      expect(leaf?.badge).toBeUndefined();
+      expect(leaf?.metadata?.type).toBe('string');
       expect(leaf?.description).toBe('Example value: 42');
       expect(leaf?.leftAction).toBeUndefined();
       // Group-level data_role is inherited by items without their own.

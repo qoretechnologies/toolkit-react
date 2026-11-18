@@ -165,6 +165,40 @@ export const KindChipsCarryNoColor: Story = {
   },
 };
 
+/**
+ * A value's type is said in words under its name, never as its badge: "Epoch Seconds" read "int" in a chip beside it
+ * (board r-ed-30, decision 026). The type stays the value's, what a field matches it by.
+ */
+export const AValuesTypeIsSaidInWords: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens Context Data. "Epoch Seconds" says "Whole number" under its name, and no chip on any row names a ' +
+          'type: the chips say what a row is ("Context"), never "int" or "Whole number". A type tag was a machine ' +
+          'word in front of a reader choosing "the order\'s date" (board r-ed-30, decision 026).',
+      },
+    },
+  },
+  play: async () => {
+    await userEvent.click(await pickerRow('Context Data'));
+    const epoch = await pickerRow('Epoch Seconds');
+    await waitFor(() =>
+      expect(epoch.querySelector('.template-picker-row-type')?.textContent).toBe('Whole number')
+    );
+    const chips = Array.from(
+      document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row .reqore-tag')
+    ).map((chip) => chip.textContent?.trim());
+    expect(chips.length).toBeGreaterThan(0);
+    for (const word of ['int', 'Whole number', 'date', 'Date', 'bool', 'Yes or no', 'any']) {
+      expect(chips).not.toContain(word);
+    }
+    expectRowsFit(
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row'))
+    );
+  },
+};
+
 /** A search finds a template at any depth by its name, and says where it is. */
 export const SearchReachesDeepPaths: Story = {
   args: { onPick: fn() },
