@@ -21,6 +21,12 @@ export interface IInterfaceReferenceTagsProps {
    *  instead of it if it fails. Consumers with their own icon vocabulary (the IDE)
    *  pass one; when omitted the built-in per-kind default is used. */
   resolveInterfaceIcon?: TResolveInterfaceIcon;
+  /**
+   * The word a chip says its reference's kind with, before its name, and in its tooltips ("Workflow", "Data
+   * provider"). A host with its own words for the kinds (the IDE's, in sentence case) passes them; when omitted the
+   * kind is said as the reference carries it.
+   */
+  kindLabel?: (kind: IInterfaceReference['interface_kind']) => string;
   /** Open a referenced interface; chips are static (informational) when omitted —
    *  e.g. the staff view, which can't reach the customer's instance. */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
@@ -82,6 +88,7 @@ export const InterfaceReferenceTags = ({
   references,
   label,
   resolveInterfaceIcon,
+  kindLabel,
   onInterfaceClick,
   isInterfaceLinkable,
   unlinkableReason,
@@ -122,26 +129,27 @@ export const InterfaceReferenceTags = ({
         // A refused chip keeps its look and says why, instead of opening nothing.
         const linkable = !!onInterfaceClick && (isInterfaceLinkable?.(reference) ?? true);
         const reason = onInterfaceClick && !linkable ? unlinkableReason?.(reference) : undefined;
+        // the kind in the host's words, where it gives them
+        const kind = kindLabel?.(reference.interface_kind) ?? reference.interface_kind;
         return (
           <ReqoreTag
             key={reference.reference_id ?? interfaceReferenceKey(reference)}
             icon={icon}
             leftIconProps={loaded ? { image } : undefined}
             rightIcon={onInterfaceClick && !linkable ? 'LinkUnlinkM' : undefined}
-            labelKey={reference.interface_kind}
+            labelKey={kind}
             label={reference.interface_name}
             size={size}
             intent={intent}
             customTheme={customTheme}
             tooltip={
-              linkable ? words.openReference(reference.interface_kind, reference.interface_name)
-              : reason ?
-                words.referenceUnlinkable(reference.interface_kind, reference.interface_name, reason)
-              : words.referenceWritten(reference.interface_kind, reference.interface_name)
+              linkable ? words.openReference(kind, reference.interface_name)
+              : reason ? words.referenceUnlinkable(kind, reference.interface_name, reason)
+              : words.referenceWritten(kind, reference.interface_name)
             }
             onClick={linkable ? () => onInterfaceClick(reference) : undefined}
             onRemoveClick={onRemove ? () => onRemove(reference) : undefined}
-            removeTooltip={words.removeReference(reference.interface_kind, reference.interface_name)}
+            removeTooltip={words.removeReference(kind, reference.interface_name)}
           />
         );
       })}
