@@ -211,6 +211,12 @@ export interface IEditorLabels {
 export interface IFormEngineLabels {
   opensInNewTab: (address: string) => string;
   /**
+   * The reveal of a value a read row clips (the whole source, value or text), named after what it shows, and its
+   * way back: never a bare "Show more".
+   */
+  revealWhole: { source: string; value: string; text: string };
+  revealLess: { source: string; value: string; text: string };
+  /**
    * The reveal of a field message's `details` and its way back, named after what it holds (`what`: the message's
    * `detailsName`, else `errorDetails`): "Show the error details", "Hide the error details".
    */
@@ -648,6 +654,16 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
   },
   formEngine: {
     opensInNewTab: (address) => `${address} (opens in a new tab)`,
+    revealWhole: {
+      source: 'Show the whole source',
+      value: 'Show the whole value',
+      text: 'Show the whole text',
+    },
+    revealLess: {
+      source: 'Show less of the source',
+      value: 'Show less of the value',
+      text: 'Show less of the text',
+    },
     showMessageDetails: (what) => `Show ${what}`,
     hideMessageDetails: (what) => `Hide ${what}`,
     errorDetails: 'the error details',

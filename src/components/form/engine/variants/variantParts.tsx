@@ -5,12 +5,12 @@
  */
 import {
   ReqoreButton,
-  ReqoreCollapsibleContent,
   ReqoreControlGroup,
   ReqoreIcon,
   ReqoreInput,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { ReadReveal } from '../ReadReveal';
 import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import {
@@ -283,7 +283,7 @@ export const VariantToolbar = ({ form }: { form: TVariantForm }) => {
 /** Complex value preview — the SAME nested tree + "Show more" fade the compact
  *  engine uses, so hash/list fields show their contents immediately. */
 export const ComplexPreview = ({ value, onOpen }: { value: unknown; onOpen?: () => void }) => (
-  <ReqoreCollapsibleContent maxCollapsedHeight={120}>
+  <ReadReveal holds='value' maxCollapsedHeight={120}>
     <div onClick={(e) => e.stopPropagation()}>
       <StructuredDataView
         value={value}
@@ -292,7 +292,7 @@ export const ComplexPreview = ({ value, onOpen }: { value: unknown; onOpen?: () 
         onItemClick={onOpen}
       />
     </div>
-  </ReqoreCollapsibleContent>
+  </ReadReveal>
 );
 
 /** Inline editor: mounts the REAL field editor (AutoFormField) for the row's

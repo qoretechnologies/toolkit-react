@@ -98,6 +98,11 @@ import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { SelectFormField } from '../fields/select/Select';
 import { FieldMessageDetails } from './FieldMessageDetails';
+import {
+  ReadRevealPlacementProvider,
+  TReadRevealPlacement,
+  useReadRevealPlacement,
+} from './ReadReveal';
 import type { TSelectFieldCollectionGroups } from '../fields/select/SelectCollection';
 import {
   ITemplateFieldProps,
@@ -1138,6 +1143,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * classic collection layout only passes it on to its field editors.
    */
   appearance?: TFormEngineAppearance;
+  /**
+   * Where the reveal of a value a read row clips (its source, its value, its text) sits: `'below'`, on its own line
+   * under the clipped value, so it never covers its last lines; `'overlay'`, inside the fade. Unset, it is Reqore's
+   * default (the overlay). `'below'` needs Reqore 0.79 or later (`buttonPlacement`), so it is handed to Reqore only
+   * when set. Inherited by a nested sub-form that sets none. The reveal says what it shows either way.
+   */
+  readRevealPlacement?: TReadRevealPlacement;
   /**
    * Compact mode only: drop the read-first wrap's horizontal gutter (the 12px
    * breathing room) so the form sits flush to its container's edges. For embeds
@@ -5913,6 +5925,9 @@ export const FormEngine = (props: IFormEngineProps) => {
   // halfway down its parent.
   const inherited = useFormAppearance();
   const appearance = props.appearance ?? inherited;
+  // where a read row's reveal sits: the form's own, else the form's it sits in
+  const inheritedRevealPlacement = useReadRevealPlacement();
+  const readRevealPlacement = props.readRevealPlacement ?? inheritedRevealPlacement;
   // what the host knows of references beyond the catalogue, for every chip the form draws
   const referenceNames = useMemo(
     () => props.templateReferences ?? NO_REFERENCE_NAMES,
@@ -5922,12 +5937,14 @@ export const FormEngine = (props: IFormEngineProps) => {
   return (
     <MarkdownRendererContext.Provider value={props.markdownRenderer}>
       <FormAppearanceProvider value={appearance}>
-        {/* and the server's words for each type, which a reference's hover says */}
-        <TypeSentenceFormProvider>
-          <TemplateReferenceNamesProvider value={referenceNames}>
-            <FormEngineImpl {...props} />
-          </TemplateReferenceNamesProvider>
-        </TypeSentenceFormProvider>
+        <ReadRevealPlacementProvider value={readRevealPlacement}>
+          {/* and the server's words for each type, which a reference's hover says */}
+          <TypeSentenceFormProvider>
+            <TemplateReferenceNamesProvider value={referenceNames}>
+              <FormEngineImpl {...props} />
+            </TemplateReferenceNamesProvider>
+          </TypeSentenceFormProvider>
+        </ReadRevealPlacementProvider>
       </FormAppearanceProvider>
     </MarkdownRendererContext.Provider>
   );

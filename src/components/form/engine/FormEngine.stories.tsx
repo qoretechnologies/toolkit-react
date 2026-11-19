@@ -4544,7 +4544,7 @@ export const CompactHashStructuredView: Story = {
     await fireEvent.click(
       document.querySelector('[data-field="orderState"] .options-readfirst-viewmore') as HTMLElement
     );
-    await _testsWaitForText('Show less'); // fade expanded → full tree on screen
+    await _testsWaitForText('Show less of the value'); // fade expanded → full tree on screen
 
     // The hash sits low in the (tall) Basic form, so frame it: scroll the open
     // structured value into view so Chromatic's snapshot lands on the expanded
@@ -6864,7 +6864,7 @@ export const CompactFieldTypes: Story = {
     // beneath the row. A short hash shows in full; a tall one clips behind the
     // "Show more" gradient fade (the clipped content stays in the DOM).
     await _testsWaitForText('db.local'); // hash sub-value rendered in the tree
-    await _testsWaitForText('Show more'); // the many-field hash clips + fades
+    await _testsWaitForText('Show the whole value'); // the many-field hash clips + fades
 
     // Field chrome: icon/image render before the label, intent stripes the row,
     // sensitive masks, the default-value note number shows.

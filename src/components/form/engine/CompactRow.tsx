@@ -2,7 +2,6 @@ import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 import { useDestructiveButtonProps } from '../../../hooks/useDestructiveButtonProps';
 import {
   ReqoreButton,
-  ReqoreCollapsibleContent,
   ReqoreControlGroup,
   ReqoreDropdown,
   ReqoreIcon,
@@ -44,6 +43,7 @@ import { resolveInheritProps } from './inheritProps';
 import { calmNoteIntent, useIsCalmForm } from './formAppearance';
 import { getRevealClearance, isCaretLineInView, revealRow } from './revealRow';
 import { FieldMessageDetails } from './FieldMessageDetails';
+import { ReadReveal } from './ReadReveal';
 import {
   CARD_GAP,
   MONO_FONT_STACK,
@@ -2907,7 +2907,8 @@ export const CompactRow = memo(
               className='options-readfirst-inset'
               onClick={(e) => e.stopPropagation()}
             >
-              <ReqoreCollapsibleContent
+              <ReadReveal
+                holds='value'
                 // The schema view spends more height per datum than a data tree
                 // does — a labelled row rather than a packed chip — but there is
                 // far less of it to read, so it gets enough room to show a
@@ -2983,7 +2984,7 @@ export const CompactRow = memo(
                     />
                   }
                 </div>
-              </ReqoreCollapsibleContent>
+              </ReadReveal>
             </StyledRowInset>
           : null}
           {/* Code-editor preview: same inset placement as hash/list — a monospace
@@ -2996,7 +2997,8 @@ export const CompactRow = memo(
               className='options-readfirst-inset options-readfirst-code-inset'
               onClick={(e) => e.stopPropagation()}
             >
-              <ReqoreCollapsibleContent
+              <ReadReveal
+                holds='source'
                 maxCollapsedHeight={96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
@@ -3035,7 +3037,7 @@ export const CompactRow = memo(
                     {optionField.value as string}
                   </StyledCodePreview>
                 }
-              </ReqoreCollapsibleContent>
+              </ReadReveal>
             </StyledRowInset>
           : null}
           {/* Markdown preview: same inset, same collapse, drawn by the host's
@@ -3050,26 +3052,28 @@ export const CompactRow = memo(
               className='options-readfirst-inset options-readfirst-markdown-inset'
               onClick={(e) => e.stopPropagation()}
             >
-              <ReqoreCollapsibleContent
+              <ReadReveal
+                holds='text'
                 maxCollapsedHeight={96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
                 <div className='options-readfirst-markdown'>
                   {markdownRenderer!({ value: optionField.value as string, compact: true })}
                 </div>
-              </ReqoreCollapsibleContent>
+              </ReadReveal>
             </StyledRowInset>
           : null}
           {/* Read-only long text: see `showLongTextInset`. No click guard —
               the read row has no click to guard against. */}
           {showLongTextInset ?
             <StyledRowInset className='options-readfirst-inset options-readfirst-text-inset'>
-              <ReqoreCollapsibleContent
+              <ReadReveal
+                holds='text'
                 maxCollapsedHeight={96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
                 <div className='options-readfirst-text'>{optionField.value as string}</div>
-              </ReqoreCollapsibleContent>
+              </ReadReveal>
             </StyledRowInset>
           : null}
         </StyledRowValue>

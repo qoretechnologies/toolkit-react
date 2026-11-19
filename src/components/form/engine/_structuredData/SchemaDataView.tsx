@@ -1,10 +1,10 @@
 import {
-  ReqoreCollapsibleContent,
   ReqoreIcon,
   ReqoreLink,
   ReqoreP,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { ReadReveal } from '../ReadReveal';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import {
   IQorusFormField,
@@ -583,7 +583,8 @@ const SchemaRecord = ({
                   <StyledFieldLabel $color={colors.key} $opacity={labelOpacity}>{labelWithType}</StyledFieldLabel>
                 </StyledNestedLabel>
                 <StyledCodeCell onClick={(event) => event.stopPropagation()}>
-                  <ReqoreCollapsibleContent
+                  <ReadReveal
+                    holds='source'
                     maxCollapsedHeight={96}
                     buttonProps={{ className: 'options-readfirst-viewmore' }}
                   >
@@ -604,7 +605,7 @@ const SchemaRecord = ({
                         {value}
                       </StyledCodePreview>
                     }
-                  </ReqoreCollapsibleContent>
+                  </ReadReveal>
                 </StyledCodeCell>
               </React.Fragment>
             );
