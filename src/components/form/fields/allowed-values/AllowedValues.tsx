@@ -28,6 +28,7 @@ import {
   UNAVAILABLE_ITEM_CLASS,
 } from '../select/SelectCollection';
 import { ISelectFormFieldItem, SelectFormField as Select } from '../select/Select';
+import type { TSelectFieldCollectionGroups } from '../select/SelectCollection';
 import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
 import { ChoiceGroupHeading, useSelectedChoiceIntent } from '../ChoiceGroupHeading';
 import type { IReqraftAllowedValue } from '../Field';
@@ -49,6 +50,8 @@ export interface IFieldAllowedValuesProps extends Pick<
   action?: string;
   showSavedValues?: boolean;
   forceDropdown?: boolean;
+  /** How the groups the values are listed in are drawn (the field's `allowed_values_groups`). */
+  groups?: TSelectFieldCollectionGroups;
   [key: string]: any;
 }
 
@@ -241,6 +244,7 @@ export const FieldAllowedValues = memo(
     name,
     readOnly,
     label,
+    groups,
   }: IFieldAllowedValuesProps) => {
     const fieldWords = useReqraftLabels().fields;
     /* Resolved against the form this field stands in — the value's own
@@ -300,6 +304,7 @@ export const FieldAllowedValues = memo(
       return (
         <Select
           items={fullItems}
+          groups={groups}
           value={value}
           onChange={(value) => onChange(name, value)}
           canCreateItems
@@ -330,6 +335,7 @@ export const FieldAllowedValues = memo(
       return (
         <Select
           items={fullItems}
+          groups={groups}
           value={value}
           onChange={(value) => onChange(name, value)}
           fluid
@@ -348,6 +354,7 @@ export const FieldAllowedValues = memo(
     return (
       <Select
         items={fullItems}
+        groups={groups}
         markedValue={heldAllowedValue(value, items)}
         onChange={(value) => onChange(name, value)}
         fluid

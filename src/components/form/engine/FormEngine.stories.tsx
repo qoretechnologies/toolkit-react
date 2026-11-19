@@ -11045,6 +11045,153 @@ export const CompactTextRowOpensItsTextBox: Story = {
   },
 };
 
+/**
+ * A select's choices in groups, as the IDE's assertion-kind picker lists its kinds: the most used first, then by what
+ * is checked, and the whole-run checks last and folded. The field says how its groups are drawn
+ * (`allowed_values_groups`: a place and a fold each), each value which groups it is in (`groups`), and a search finds a
+ * value inside a folded group: the group opens while the search runs.
+ */
+const GroupedKindChoice = (display_name: string, value: string, groups: string[], short_desc: string) => ({
+  display_name,
+  short_desc,
+  value: { type: 'string', value },
+  groups,
+});
+
+const GroupedChoicesSchema = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'What the step checks',
+    required: true,
+    preselected: true,
+    allowed_values: [
+      GroupedKindChoice('Equals', 'equals', ['Most used', 'Payload checks'], 'The value is exactly this'),
+      GroupedKindChoice('Contains', 'contains', ['Payload checks'], 'The value holds this text'),
+      GroupedKindChoice('Matches a pattern', 'matches', ['Payload checks'], 'The value fits a pattern'),
+      GroupedKindChoice('Finished in time', 'in_time', ['Most used', 'Timing checks'], 'The step ended in time'),
+      GroupedKindChoice('Waited at most', 'waited', ['Timing checks'], 'No wait was longer than this'),
+      GroupedKindChoice(
+        'Process coverage',
+        'process_coverage',
+        ['Whole-run coverage'],
+        'The process you name ran code'
+      ),
+      GroupedKindChoice(
+        'Simulated services only',
+        'simulated',
+        ['Whole-run coverage'],
+        'Nothing left the test'
+      ),
+    ],
+    allowed_values_groups: {
+      'Most used': { sort: -1 },
+      'Payload checks': { sort: 1 },
+      'Timing checks': { sort: 2 },
+      'Whole-run coverage': { sort: 10, collapsed: true },
+    },
+  },
+} as unknown as IOptionsSchema;
+
+const groupedDialogHeadings = () =>
+  [
+    ...document.querySelectorAll<HTMLElement>(
+      '.reqraft-select-dialog .reqore-collection-group > .reqore-panel-title'
+    ),
+  ].map((title) => title.textContent?.trim());
+
+const groupedDialogRow = (name: string) =>
+  [...document.querySelectorAll<HTMLElement>('.reqraft-select-dialog .reqore-collection-item')].find(
+    (row) => row.querySelector('.reqore-panel-title')?.textContent?.includes(name)
+  );
+
+/** Opens the Kind row's picker, checks the groups at rest, then searches into the folded one. */
+const playGroupedChoices = async () => {
+  await _testsWaitForText('Kind');
+  await _testsClickButton({ selector: '[data-field="kind"].readfirst-row' });
+
+  await waitFor(
+    () => {
+      expect(groupedDialogHeadings()).toEqual([
+        'Most used',
+        'Payload checks',
+        'Timing checks',
+        'Whole-run coverage',
+      ]);
+      expect(groupedDialogRow('Equals'), 'a value listed under Most used').toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+  // folded: its heading is listed, its values are not
+  expect(groupedDialogRow('Process coverage')).toBeUndefined();
+
+  const search = document.querySelector<HTMLInputElement>('.reqraft-select-dialog input')!;
+  await userEvent.type(search, 'process');
+
+  await waitFor(
+    () => {
+      expect(groupedDialogRow('Process coverage'), 'the match in the folded group').toBeTruthy();
+      expect(groupedDialogHeadings()).toEqual(['Whole-run coverage']);
+    },
+    { timeout: 5000 }
+  );
+};
+
+export const SelectChoicesInGroups: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a Kind picker whose choices are listed in groups: Most used first, then Payload checks and Timing checks, and Whole-run coverage last and folded. Searching "process" opens the folded group on its one match; clearing the search folds it again.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    forceDropdown: false,
+    minColumnWidth: '360px',
+    options: GroupedChoicesSchema,
+    value: {},
+  },
+  play: async () => {
+    await playGroupedChoices();
+
+    await userEvent.clear(document.querySelector<HTMLInputElement>('.reqraft-select-dialog input')!);
+    await waitFor(
+      () => {
+        expect(groupedDialogHeadings()).toHaveLength(4);
+        expect(groupedDialogRow('Process coverage'), 'folded again').toBeUndefined();
+      },
+      { timeout: 5000 }
+    );
+  },
+};
+
+export const SelectChoicesInGroupsOnAPhone: Story = {
+  ...SelectChoicesInGroups,
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The grouped Kind picker on a phone (390 px), searched for "process": the folded Whole-run coverage group is open on its one match, inside the screen.',
+      },
+    },
+  },
+  play: async () => {
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      await playGroupedChoices();
+
+      if (narrowed) {
+        const box = groupedDialogRow('Process coverage')!.getBoundingClientRect();
+        expect(box.left).toBeGreaterThanOrEqual(0);
+        expect(box.right).toBeLessThanOrEqual(PHONE_VIEWPORT.width + 1);
+      }
+    });
+  },
+};
+
 /** The reported case behind the object-value preview: the Qog variables editor,
  *  read-only, with a data-provider variable selected. Its "Initial value" row
  *  used to read `11 fields` — a count that looks like a string and says nothing

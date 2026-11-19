@@ -19,6 +19,7 @@ import {
   getSelectItemUnavailability,
   ISelectFieldCollectionItem,
   SelectFieldCollection,
+  TSelectFieldCollectionGroups,
   UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
 import { useUnavailableLabelOpacity } from './unavailableRow';
@@ -62,6 +63,12 @@ export interface ISelectFormFieldProps {
    * single value, then selecting another value should replace the one that's there").
    */
   markedValue?: unknown;
+  /**
+   * How the groups the items are listed in (`groups` on each item) are drawn: a heading's label and icon, the
+   * groups' order, and which start folded (a folded group opens while a search runs). The full list of choices
+   * (`forceDropdown={false}`) draws them; the anchored list lists the items flat.
+   */
+  groups?: TSelectFieldCollectionGroups;
   showPlaceholder?: boolean;
   showRightIcon?: boolean;
   hideItemCount?: boolean;
@@ -103,6 +110,7 @@ export const SelectFormField = memo(
     canCreateItems,
     valueLabel,
     markedValue,
+    groups,
     showPlaceholder = true,
     showRightIcon = true,
     hideItemCount,
@@ -521,6 +529,7 @@ export const SelectFormField = memo(
             <SelectFieldCollection
               items={filteredItems}
               filters={filters}
+              groups={groups}
               value={value ?? markedValue}
               onItemSelect={handleSelectClick}
               onClose={() => setCollectionOpen(false)}

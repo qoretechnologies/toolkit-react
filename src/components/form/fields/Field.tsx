@@ -35,6 +35,7 @@ import {
   getSelectItemUnavailability,
   ISelectFieldCollectionItem,
   ISelectFieldCollectionItemAction,
+  TSelectFieldCollectionGroups,
   TSelectFieldCollectionItemTooltip,
   UNAVAILABLE_ITEM_CLASS,
 } from './select/SelectCollection';
@@ -102,6 +103,11 @@ export interface IReqraftAllowedValue extends IQorusAllowedValue {
   tooltip?: TSelectFieldCollectionItemTooltip;
   /** Affordances inline with the value's name, where the row already has the height. */
   title_actions?: ISelectFieldCollectionItemAction[];
+  /**
+   * The groups the value is listed in, by name, in the full list of choices; how each is drawn is the field's
+   * `allowed_values_groups`.
+   */
+  groups?: string[];
 }
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> extends Omit<
@@ -123,6 +129,8 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> exte
   /** For list fields: the type of each element */
   element_type?: string;
   ui_element_type?: string;
+  /** How the groups the allowed values are listed in are drawn — see `ISelectFieldCollectionGroup`. */
+  allowed_values_groups?: TSelectFieldCollectionGroups;
   /** Fixed allowed values for list items */
   element_allowed_values?: IQorusAllowedValue[];
   element_allowed_values_creatable?: boolean;
@@ -142,6 +150,7 @@ export const FormField = <T extends TFormFieldType>({
   labelPosition = 'top', // eslint-disable-line @typescript-eslint/no-unused-vars
   allowed_values,
   allowed_values_creatable,
+  allowed_values_groups,
   arg_schema,
   element_type,
   ui_element_type,
@@ -606,6 +615,7 @@ export const FormField = <T extends TFormFieldType>({
       actions: item.actions,
       title_actions: extended.title_actions,
       tooltip: extended.tooltip,
+      groups: extended.groups,
       metadata: item.metadata,
       // Both sources of a refusal end up here, as one state: the click handler
       // is dropped and the reason is printed, whichever of them decided.
@@ -643,6 +653,7 @@ export const FormField = <T extends TFormFieldType>({
       return (
         <SelectFormField
           items={allowed_values.map(mapAllowedValue)}
+          groups={allowed_values_groups}
           value={value}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
           canCreateItems
@@ -659,6 +670,7 @@ export const FormField = <T extends TFormFieldType>({
       return (
         <SelectFormField
           items={allowed_values.map(mapAllowedValue)}
+          groups={allowed_values_groups}
           // a pick replaces what the field holds, and the list ticks the suggestion it holds (qorus#646)
           markedValue={heldAllowedValue(value, allowed_values)}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
@@ -754,6 +766,7 @@ export const FormField = <T extends TFormFieldType>({
     return (
       <SelectFormField
         items={allowed_values.map(mapAllowedValue)}
+        groups={allowed_values_groups}
         value={value}
         onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
         fluid

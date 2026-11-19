@@ -56,6 +56,7 @@ import { SchemaDefinitionEditor } from '../schema-definition';
 import { useHostEditorValue } from './hostEditorValue';
 import { IDataSchemaDefinition } from '../schema-definition/types';
 import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
+import type { TSelectFieldCollectionGroups } from '../select/SelectCollection';
 import { StringFormField } from '../string/String';
 import { UrlFormField } from '../url/Url';
 import { FormFieldsSkeleton } from '../../engine/FormFieldsSkeleton';
@@ -132,6 +133,12 @@ export interface IAutoFieldProps
   allowSaving?: boolean;
   /** SEAM: inert in reqraft — saved-values storage is IDE-only. */
   showSavedValues?: boolean;
+  /**
+   * How the groups this field's values are listed in (`groups` on each allowed value) are drawn in its picker: a
+   * heading's label and icon, the groups' order (`sort`), and which start folded (`collapsed`; a folded group opens
+   * while a search runs). See `ISelectFieldCollectionGroup`.
+   */
+  allowed_values_groups?: TSelectFieldCollectionGroups;
 
   app?: string;
   action?: string;
@@ -601,6 +608,7 @@ function AutoField<T = any>({
         forceDropdown={rest.forceDropdown}
         allowCreation={rest.allowed_values_creatable}
         showSavedValues={showSavedValues}
+        groups={rest.allowed_values_groups}
         readOnly={rest.readonly}
         canAutoSelect={!size(rest.required_groups)}
       />
@@ -1103,6 +1111,7 @@ function AutoField<T = any>({
                 ...av,
                 value: allowedValueOf(av),
               }))}
+              groups={rest.allowed_values_groups}
               value={value}
               onChange={(val) => handleChange(name, val)}
             />

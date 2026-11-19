@@ -97,6 +97,7 @@ import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { SelectFormField } from '../fields/select/Select';
+import type { TSelectFieldCollectionGroups } from '../fields/select/SelectCollection';
 import {
   ITemplateFieldProps,
   TCustomTemplateItems,
@@ -229,6 +230,13 @@ type TDistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K
  */
 export type IOptionsSchemaArg = TDistributiveOmit<TQorusFormFieldSchema, 'messages'> & {
   messages?: IOptionFieldMessage[];
+  /**
+   * How the groups the allowed values are listed in (`groups` on each value, `IReqraftAllowedValue`) are drawn in the field's picker: a
+   * heading's `label` and `icon`, the groups' order (`sort`, lowest first), and which start folded (`collapsed`; a
+   * folded group opens while a search runs, so a match in it is shown). The full list of choices draws the groups
+   * (`forceDropdown={false}`); the anchored list lists the values flat.
+   */
+  allowed_values_groups?: TSelectFieldCollectionGroups;
   /**
    * Siblings this field renders inside its own editor instead of on rows of
    * their own — a code editor and its language, say.
@@ -4061,6 +4069,9 @@ const FormEngineImpl = ({
             isDefaultTemplate={options?.[optionName]?.default_view === 'template'}
             allowed_values={options?.[optionName]?.allowed_values}
             allowed_values_creatable={options?.[optionName]?.allowed_values_creatable}
+            allowed_values_groups={
+              (options?.[optionName] as IOptionsSchemaArg | undefined)?.allowed_values_groups
+            }
             disabled={
               options?.[optionName]?.disabled ||
               // a system-owned field states that as `readonly`; only the older
