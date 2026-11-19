@@ -22,6 +22,12 @@ export interface IReqraftTemplateListLabels {
    * copy): what failed and what to do instead.
    */
   copyFailed: string;
+  /**
+   * The headings of the groups a list of templates is in, keyed by the server's group code (`trigger`, `step`,
+   * `time`, `flow`, `kept_data`, `variables`, `settings`, `test`), with a line under each where it has one. A code
+   * with no words here draws no heading: its values are listed with no group around them.
+   */
+  valueGroups: Record<string, { label: string; description?: string }>;
 }
 
 /** The English words, the ones a host gets when it passes none. */
@@ -34,6 +40,16 @@ export const DEFAULT_TEMPLATE_LIST_LABELS: IReqraftTemplateListLabels = {
   copied: 'Example value copied to clipboard',
   copyFailed:
     'Could not copy the example value: the browser did not allow access to the clipboard. Select the text and copy it yourself.',
+  valueGroups: {
+    trigger: { label: 'The event that started the Qog' },
+    step: { label: 'Earlier steps' },
+    time: { label: 'Dates and times' },
+    flow: { label: 'This run' },
+    kept_data: { label: 'Data it keeps while it runs' },
+    variables: { label: 'Variables' },
+    settings: { label: 'Settings' },
+    test: { label: 'Values for tests' },
+  },
 };
 
 /**

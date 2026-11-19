@@ -321,3 +321,46 @@ export const WORKFLOW_CONTEXT_DATA_PAYLOAD: ITemplatesPayload = {
     items: [...(CONTEXT_DATA_PAYLOAD._context.items ?? []), ...WORKFLOW_CONTEXT_ITEMS],
   },
 };
+
+/**
+ * A Qog state's templates as a server that groups its values sends them: each top-level value carries the group the
+ * server puts it in, `_context`'s in the server's order (Unix time last among the dates and times).
+ */
+export const GROUPED_TEMPLATE_PAYLOAD: ITemplatesPayload = {
+  _context: {
+    display_name: 'Context Data',
+    internal: true,
+    items: [
+      { name: 'now', display_name: 'Now', value: '$local:now', type: 'date', group: 'time' },
+      { name: 'today', display_name: 'Start of today', value: '$local:today', type: 'date', group: 'time' },
+      { name: 'unix', display_name: 'Unix time', value: '$local:unix_time', type: 'int', group: 'time' },
+      { name: 'run', display_name: 'Run ID', value: '$local:run_id', type: 'int', group: 'flow' },
+      { name: 'kept', display_name: 'Kept order', value: '$local:kept_order', type: 'hash', group: 'kept_data' },
+      { name: 'cases', display_name: 'Test cases', value: '$local:test_cases', type: 'list', group: 'test' },
+    ],
+  },
+  _vars: {
+    display_name: 'Variables',
+    internal: true,
+    items: [{ name: 'count', display_name: 'Count', value: '$var:count', type: 'int', group: 'variables' }],
+  },
+  _config: {
+    display_name: 'Config',
+    internal: true,
+    items: [{ name: 'limit', display_name: 'Limit', value: '$config:limit', type: 'int', group: 'settings' }],
+  },
+  receive_order: {
+    display_name: 'Receive order',
+    is_event_trigger: true,
+    items: [
+      { name: 'id', display_name: 'Order ID', value: '$data:{receive_order.id}', type: 'int', group: 'trigger' },
+    ],
+  },
+  look_up_customer: {
+    display_name: 'Look up customer',
+    items: [
+      { name: 'name', display_name: 'Name', value: '$data:{look_up_customer.name}', type: 'string', group: 'step' },
+    ],
+  },
+};
+

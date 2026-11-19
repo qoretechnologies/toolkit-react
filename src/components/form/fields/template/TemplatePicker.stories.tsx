@@ -22,6 +22,7 @@ import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
 import {
   CONTEXT_DATA_PAYLOAD,
+  GROUPED_TEMPLATE_PAYLOAD,
   QOG_FIELD_TEMPLATES,
   RECORD_FIELDS,
 } from './__fixtures__/qogTemplatePayloads';
@@ -480,3 +481,38 @@ export const OnAPhone: Story = {
     await waitFor(() => expect(args.onPick).toHaveBeenLastCalledWith('$local:auth_enabled'));
   },
 };
+
+/** A server's values in the groups it puts them in, in its order, and the values for tests last. */
+export const GroupedByTheServersGroups: Story = {
+  args: { templates: buildTemplates(GROUPED_TEMPLATE_PAYLOAD), fields: undefined, onPick: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A Qog field's templates from a server that groups its values: The event that started the Qog, Earlier steps " +
+          '(a list per step), Dates and times, This run, Data it keeps while it runs, Variables, Settings, and Values ' +
+          'for tests last, closed. Inside Dates and times the values keep the server order, Unix time last.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() =>
+      expect(pickerLabels()).toEqual([
+        'The event that started the Qog',
+        'Earlier steps',
+        'Dates and times',
+        'This run',
+        'Data it keeps while it runs',
+        'Variables',
+        'Settings',
+        'Values for tests',
+      ])
+    );
+    await userEvent.click(await pickerRow('Dates and times'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['Now', 'Start of today', 'Unix time']));
+    await userEvent.click(document.querySelector<HTMLElement>('.template-picker-back')!);
+    await userEvent.click(await pickerRow('Earlier steps'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['Look up customer']));
+  },
+};
+

@@ -6,7 +6,7 @@ import {
   TReqoreDropdownItem,
   TReqoreDropdownItems,
 } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
-import { cloneDeep, size } from 'lodash';
+import { cloneDeep, size, uniq } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
 import { reqraftLabels } from './reqraftLabels';
@@ -728,10 +728,47 @@ export const filterTemplatesByType = (
   return newTemplates;
 };
 
-// --- buildTemplates — ported verbatim from qorus-ide `helpers/functions.tsx`
-// (line ~870). Converts the server's `system/getContextData` payload into
-// ReQore dropdown templates. SEAM (reqraft): the IDE's optional `states`
-// (FSM validity) parameter is dropped — without it every group is valid.
+// --- buildTemplates — ported from qorus-ide `helpers/functions.tsx` (line ~870). Converts the server's
+// `system/getContextData` payload into ReQore dropdown templates; a host says which of its steps are valid
+// (`isStepValid`), and the values are grouped by the server's group codes where it sends them.
+
+/**
+ * The order of the groups a list of templates is drawn in, by the server's group code, and the groups that are not
+ * in the list by default (drawn last, each closed), as the server's registry has them. A host that mirrors the
+ * server's registry gives its own (`setReqraftTemplateGroups`); these are the server's lists of 19 Nov 2026.
+ */
+export interface IReqraftTemplateGroups {
+  order: string[];
+  notListedByDefault: string[];
+}
+
+export const DEFAULT_REQRAFT_TEMPLATE_GROUPS: IReqraftTemplateGroups = {
+  order: ['trigger', 'step', 'time', 'flow', 'kept_data', 'variables', 'settings', 'test'],
+  notListedByDefault: ['test'],
+};
+
+let templateGroups: IReqraftTemplateGroups = DEFAULT_REQRAFT_TEMPLATE_GROUPS;
+
+/**
+ * Gives the order of the groups a list of templates is drawn in, and the groups not listed by default, for the
+ * page: each list given replaces Reqraft's whole list; one left out stays as it was by default. A host that mirrors
+ * the server's registry of group codes passes it here, so a group the server adds is placed as the server says.
+ */
+export const setReqraftTemplateGroups = (groups: Partial<IReqraftTemplateGroups> = {}): void => {
+  templateGroups = { ...DEFAULT_REQRAFT_TEMPLATE_GROUPS, ...groups };
+};
+
+/** The order and the hidden groups now (`setReqraftTemplateGroups`). */
+export const reqraftTemplateGroups = (): IReqraftTemplateGroups => templateGroups;
+
+/** What a host tells `buildTemplates` about its own data. */
+export interface IBuildTemplatesOptions {
+  /**
+   * Whether the step a group of data is from (the payload's key) is valid: an invalid one is drawn disabled, in
+   * danger, as its data cannot be read until it is fixed. Unset, every step is valid.
+   */
+  isStepValid?: (dataId: string) => boolean;
+}
 
 interface ITemplateItemPayload {
   /** Its key, as Qorus names it (`customer.address.city` for a record's field). */
@@ -752,6 +789,11 @@ interface ITemplateItemPayload {
   data_role?: string;
   /** The values it is one of, written as a field's are; its hover lists them (`templateTooltip`). */
   allowed_values?: unknown[];
+  /**
+   * The group the server puts it in (`trigger`, `step`, `time`, `flow`, `kept_data`, `variables`, `settings`,
+   * `test`), on a top-level value; a record's field follows its record.
+   */
+  group?: string;
 }
 
 export interface ITemplatesPayload {
@@ -778,7 +820,8 @@ export type { IReqraftTemplateListLabels } from './templateListLabels';
  */
 export const buildTemplates = (
   templates?: ITemplatesPayload,
-  labels?: Partial<IReqraftTemplateListLabels>
+  labels?: Partial<IReqraftTemplateListLabels>,
+  options: IBuildTemplatesOptions = {}
 ): IReqoreFormTemplates | undefined => {
   if (!templates || !Object.keys(templates).length) {
     return undefined;
@@ -794,9 +837,11 @@ export const buildTemplates = (
     display_name?: string,
     builtIn?: boolean,
     isEventTrigger?: boolean,
-    dataRole?: string
-  ): TReqoreDropdownItems =>
-    items.map(
+    dataRole?: string,
+    // by the label a reader sees (`byLabel`); a group the server orders keeps the server's order
+    sorted = true
+  ): TReqoreDropdownItems => {
+    const mapped = items.map(
       ({
         display_name: itemDisplayName,
         value,
@@ -898,44 +943,120 @@ export const buildTemplates = (
 
         return item;
       }
-    ).sort(byLabel);
+    );
+    return sorted ? mapped.sort(byLabel) : mapped;
+  };
 
-  return {
-    items: Object.values(templates).map(
-      ({
-        display_name,
-        items,
-        app,
-        action,
-        short_desc,
-        builtin,
-        is_event_trigger,
-        data_role,
-        logo,
-      }): TReqoreDropdownItem => ({
-        label: display_name,
-        description: short_desc,
+  type TEntry = ITemplatesPayload[string];
+  /** An entry's own look: its logo and app, its role, and whether its step can be read. */
+  const entryLook = (entry: TEntry, dataId: string): Partial<TReqoreDropdownItem> => {
+    const valid = entry.internal || !options.isStepValid || options.isStepValid(dataId);
+    return {
+      flat: false,
+      transparent: false,
+      minimal: true,
+      leftIconProps: { image: entry.logo },
+      badge: entry.app,
+      ...(valid ? {} : { disabled: true, intent: 'danger' }),
+      metadata: {
+        dataRole: entry.data_role,
+        // the server's own context: a host that already holds it is not given it again
+        ...(dataId === '_context' ? { serverContext: true } : {}),
+      },
+    } as Partial<TReqoreDropdownItem>;
+  };
+  const entryItems = (entry: TEntry, items: ITemplateItemPayload[] | undefined, sorted: boolean) =>
+    mapTemplates(
+      items,
+      entry.app,
+      entry.action,
+      entry.logo,
+      entry.display_name,
+      entry.builtin,
+      entry.is_event_trigger,
+      entry.data_role,
+      sorted
+    );
+
+  const grouped = Object.values(templates).some(({ items }) => items?.some(({ group }) => group));
+  if (!grouped) {
+    // an older server sends no group codes: each block of data is a group of its own, as before
+    return {
+      items: Object.entries(templates)
+        .map(
+          ([dataId, entry]): TReqoreDropdownItem => ({
+            label: entry.display_name,
+            description: entry.short_desc,
+            ...entryLook(entry, dataId),
+            items: entryItems(entry, entry.items, true),
+          })
+        )
+        .sort(byLabel),
+    } as IReqoreFormTemplates;
+  }
+
+  /* The values in the groups the server puts them in, each group in the server's order of its values, the groups in
+     the order the host gives (`setReqraftTemplateGroups`). "Earlier steps" holds a list per step, in the payload's
+     order; the groups not listed by default come last. */
+  const buckets = new Map<string, { look: Partial<TReqoreDropdownItem>; items: TReqoreDropdownItems }>();
+  const steps: TReqoreDropdownItem[] = [];
+  for (const [dataId, entry] of Object.entries(templates)) {
+    const byCode = new Map<string, ITemplateItemPayload[]>();
+    for (const item of entry.items ?? []) {
+      const code = item.group ?? '';
+      byCode.set(code, [...(byCode.get(code) ?? []), item]);
+    }
+    byCode.forEach((items, code) => {
+      if (code === 'step') {
+        steps.push({
+          label: entry.display_name,
+          description: entry.short_desc,
+          ...entryLook(entry, dataId),
+          items: entryItems(entry, items, false),
+        } as TReqoreDropdownItem);
+        return;
+      }
+      const bucket = buckets.get(code) ?? { look: entryLook(entry, dataId), items: [] };
+      bucket.items.push(...entryItems(entry, items, false));
+      buckets.set(code, bucket);
+    });
+  }
+
+  const { order, notListedByDefault } = templateGroups;
+  const hidden = new Set(notListedByDefault);
+  const seenCodes = [...(steps.length ? ['step'] : []), ...Array.from(buckets.keys())].filter(Boolean);
+  // a code the host does not order goes where Reqraft's own order puts it, else where the payload has it
+  const unordered = uniq([...DEFAULT_REQRAFT_TEMPLATE_GROUPS.order, ...seenCodes]).filter(
+    (code) => seenCodes.includes(code) && !order.includes(code) && !hidden.has(code)
+  );
+  const codes = [
+    ...order.filter((code) => !hidden.has(code)),
+    ...unordered,
+    ...order.filter((code) => hidden.has(code)),
+    ...notListedByDefault.filter((code) => !order.includes(code)),
+  ];
+  const groupOf = (code: string): TReqoreDropdownItems => {
+    const heading = words.valueGroups?.[code];
+    const items =
+      code === 'step' ? (steps as TReqoreDropdownItems) : (buckets.get(code)?.items ?? []);
+    if (!items.length) return [];
+    // a group with no words draws no heading: its values are listed as they are
+    if (!heading) return items;
+    return [
+      {
+        label: heading.label,
+        description: heading.description,
         flat: false,
         transparent: false,
         minimal: true,
-        leftIconProps: {
-          image: logo,
-        },
-        badge: app,
-        metadata: {
-          dataRole: data_role,
-        },
-        items: mapTemplates(
-          items,
-          app,
-          action,
-          logo,
-          display_name,
-          builtin,
-          is_event_trigger,
-          data_role
-        ),
-      })
-    ).sort(byLabel),
+        ...(code === 'step' ? {} : buckets.get(code)?.look),
+        items,
+      } as TReqoreDropdownItem,
+    ];
+  };
+
+  return {
+    // values with no group code at all, then the groups
+    items: [...(buckets.get('')?.items ?? []), ...codes.flatMap(groupOf)],
   } as IReqoreFormTemplates;
 };

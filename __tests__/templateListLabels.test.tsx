@@ -51,6 +51,7 @@ const PSEUDO: IReqraftTemplateListLabels = {
   copy: '[Çöpy]',
   copied: '[Çöpîéd]',
   copyFailed: '[Nöt çöpîéd]',
+  valueGroups: { variables: { label: '[Väríäblés]' } },
 };
 
 const items = (labels?: Partial<IReqraftTemplateListLabels>) =>

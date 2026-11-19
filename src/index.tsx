@@ -7,6 +7,18 @@ export * from './helpers/templateCatalogueContext';
 // the words a list of templates is read with, which a host that translates its interface passes to `buildTemplates`
 export * from './helpers/reqraftLabels';
 export * from './helpers/templateListLabels';
+// the one builder of a list of templates from the server's payload, grouped by the server's group codes
+export {
+  buildTemplates,
+  DEFAULT_REQRAFT_TEMPLATE_GROUPS,
+  reqraftTemplateGroups,
+  setReqraftTemplateGroups,
+} from './helpers/templates';
+export type {
+  IBuildTemplatesOptions,
+  IReqraftTemplateGroups,
+  ITemplatesPayload,
+} from './helpers/templates';
 export {
   validateField,
   validateFieldWithResult,
