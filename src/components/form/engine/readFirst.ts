@@ -1170,5 +1170,15 @@ export const recordIdentity = (
   };
 };
 
+/**
+ * A list of hashes whose items are each a name and its value: a set of named values
+ * kept as rows (`[{ name, value }]`, the item schema's first field naming the item).
+ * The host says so with `metadata: { named_values: true }` on the field, and the read
+ * view then draws each item as one line, its name as a quiet label and its value
+ * beside it, instead of a numbered item headed by its name.
+ */
+export const isNamedValuesField = (fieldSchema: unknown): boolean =>
+  !!(fieldSchema as { metadata?: Record<string, unknown> } | undefined)?.metadata?.named_values;
+
 export const fieldLabel = (key: string, fieldSchema: TQorusFormFieldSchema | undefined): string =>
   (fieldSchema as { display_name?: string } | undefined)?.display_name || key;

@@ -89,6 +89,7 @@ import {
   hasBeenToTheField,
   getValueType,
   isFixedCompactAllowedValueOption,
+  isNamedValuesField,
   isOptionValueEmpty,
   optionHasImages,
   getExpressionAst,
@@ -2950,6 +2951,7 @@ export const CompactRow = memo(
                       value={optionField?.value}
                       schema={previewArgSchema!}
                       showTypes={showFieldTypes}
+                      namedValues={isNamedValuesField(schema)}
                       colors={{
                         key: cKey,
                         muted: cMuted,

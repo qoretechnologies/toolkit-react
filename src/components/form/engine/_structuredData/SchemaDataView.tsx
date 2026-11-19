@@ -218,13 +218,19 @@ const StyledItemFields = styled.div<{ $border: string; $rule: boolean }>`
  * case-sensitive — a service method is `onOrderStatus`, not `ONORDERSTATUS` —
  * and the item heading is a value.
  */
-const StyledFieldLabelBase = styled(StyledRowLabel)<{ $calm?: boolean; $opacity: number }>`
+const StyledFieldLabelBase = styled(StyledRowLabel)<{
+  $calm?: boolean;
+  $opacity: number;
+  $asWritten?: boolean;
+}>`
   font-size: 12px;
   /* Calm: the name as written. The calm look forces nothing into capitals, and
      its detail pages no longer do either, so the vocabulary this label borrows
-     is sentence case there too. */
-  text-transform: ${({ $calm }) => ($calm ? 'none' : 'uppercase')};
-  letter-spacing: ${({ $calm }) => ($calm ? 'normal' : '0.06em')};
+     is sentence case there too. A named value's name (\`$asWritten\`) is the
+     data's own spelling, which an expression reads case and all, so it is never
+     put in capitals in either look. */
+  text-transform: ${({ $calm, $asWritten }) => ($calm || $asWritten ? 'none' : 'uppercase')};
+  letter-spacing: ${({ $calm, $asWritten }) => ($calm || $asWritten ? 'normal' : '0.06em')};
   opacity: ${({ $opacity }) => $opacity};
 `;
 
@@ -242,11 +248,12 @@ const StyledFieldLabel = (
   );
 };
 
-const StyledFields = styled.div`
+const StyledFields = styled.div<{ $flush?: boolean }>`
   /* The supporting fields step in under the heading, so the heading keeps the
      left edge to itself. This is the half that answers "the name is written in
-     the position of the label": with the labels indented, it no longer is. */
-  padding-left: 14px;
+     the position of the label": with the labels indented, it no longer is.
+     Named values have no heading to step in under, so they keep the edge. */
+  padding-left: ${({ $flush }) => ($flush ? '0' : '14px')};
   display: grid;
   grid-template-columns: var(${LABEL_COL_VAR}, 140px) minmax(0, 1fr);
   column-gap: 10px;
@@ -311,6 +318,16 @@ export interface ISchemaDataViewProps {
    * contrast — a muted label measures 1.3:1.
    */
   colors: { key: string; muted: string; border: string; accent: string };
+  /**
+   * A list whose items are each a name and its value (`{ name, value }`, the
+   * schema's first field naming the item and one more field holding its value):
+   * a set of named values kept as rows. Each item then reads as one line of a fact
+   * sheet, its name as the quiet field label and its value beside it, rather than
+   * as a numbered item headed by its name. A list where any item holds more than
+   * a name and one value keeps the numbered look. The form engine sets it from
+   * the field's `metadata.named_values`.
+   */
+  namedValues?: boolean;
   onItemClick?: () => void;
 }
 
@@ -337,9 +354,41 @@ const LABEL_CHAR_PX = 9.5;
 /** Gap to the value, so the longest label is not flush against it. */
 const LABEL_SLACK_PX = 14;
 
-const labelColumn = (value: unknown, schema: IQorusFormSchema): string => {
+/**
+ * The names of a list of named values, in order, or `undefined` when the value is
+ * not one: every item must be a record whose first declared field holds a name
+ * and which holds at most one other field. One item that is more than that keeps
+ * the whole list numbered, so a list never mixes the two looks.
+ */
+const namedValueNames = (value: unknown, schema: IQorusFormSchema): string[] | undefined => {
   const inner = unwrap(value);
-  const records = (Array.isArray(inner) ? inner.map(unwrap) : [inner]).filter(isRecord);
+  const nameKey = Object.keys(schema)[0];
+  if (!Array.isArray(inner) || !inner.length || !nameKey) {
+    return undefined;
+  }
+  const nameSchema = schema[nameKey] as TQorusFormFieldSchema | undefined;
+  const names: string[] = [];
+  for (let index = 0; index < inner.length; index++) {
+    const record = unwrap(inner[index]);
+    if (!isRecord(record)) {
+      return undefined;
+    }
+    const raw = unwrap(record[nameKey]);
+    if ((typeof raw !== 'string' && typeof raw !== 'number') || raw === '') {
+      return undefined;
+    }
+    if (orderedKeys(record, schema).filter((key) => key !== nameKey).length > 1) {
+      return undefined;
+    }
+    names.push(formatOptionValue({ type: nameSchema?.type, value: raw } as IQorusFormField, nameSchema));
+  }
+  return names;
+};
+
+const labelColumn = (value: unknown, schema: IQorusFormSchema, namedValues?: boolean): string => {
+  const inner = unwrap(value);
+  const names = namedValues ? namedValueNames(value, schema) : undefined;
+  const records = names ? [] : (Array.isArray(inner) ? inner.map(unwrap) : [inner]).filter(isRecord);
   const longest = records.reduce((widest, record) => {
     const own = orderedKeys(record, schema).reduce(
       (max, key) =>
@@ -355,7 +404,9 @@ const labelColumn = (value: unknown, schema: IQorusFormSchema): string => {
   // BREAKS THE NAME IN HALF: `LEGACY_FLAG` came out over two lines the moment
   // the labels became uppercase. Erring high costs a few px of gap; erring low
   // costs a broken word.
-  return longest ? `min(${Math.ceil(longest * LABEL_CHAR_PX + LABEL_SLACK_PX)}px, 45%)` : '140px';
+  // Named values are labelled by their names, so the names are what is measured.
+  const widest = names ? names.reduce((max, name) => Math.max(max, name.length), 0) : longest;
+  return widest ? `min(${Math.ceil(widest * LABEL_CHAR_PX + LABEL_SLACK_PX)}px, 45%)` : '140px';
 };
 
 /**
@@ -508,6 +559,7 @@ const SchemaRecord = ({
   showTypes,
   colors,
   skipKey,
+  name,
 }: {
   record: Record<string, unknown>;
   schema: IQorusFormSchema;
@@ -515,6 +567,12 @@ const SchemaRecord = ({
   colors: ISchemaDataViewProps['colors'];
   /** Rendered as the item's heading already, so it must not repeat as a row. */
   skipKey?: string;
+  /**
+   * A named value's name: the label of the one field left once `skipKey` is
+   * left out, written as the data spells it. With no field left, the name is
+   * shown alone.
+   */
+  name?: string;
 }) => {
   // The SAME host renderer the row above uses for a `code-editor` field. Read
   // from context rather than threaded through props: a nested level is arbitrarily
@@ -523,127 +581,183 @@ const SchemaRecord = ({
   const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
   // a field's name, softer than its value: as soft as it still reads
   const labelOpacity = useReadableOpacity(0.55);
+  const keys = orderedKeys(record, schema).filter((key) => key !== skipKey);
+  const named = name !== undefined;
+
+  if (named && !keys.length) {
+    return (
+      <StyledFields className='schema-view-fields schema-view-named-value' $flush>
+        <StyledFieldLabel $color={colors.key} $opacity={labelOpacity} $asWritten title={name}>
+          {name}
+        </StyledFieldLabel>
+        <span />
+      </StyledFields>
+    );
+  }
 
   return (
-    <StyledFields className='schema-view-fields'>
-      {orderedKeys(record, schema)
-        .filter((key) => key !== skipKey)
-        .map((key) => {
-          const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
-          const nested = (fieldSchema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
-          // A schema-declared field the form materialised but never filled in
-          // arrives as `{type: 'int'}` with no `value` key. `unwrap` cannot see
-          // that — `isUiEncodedValue` requires a `value` — so it fell through as
-          // CONTENT and was wrapped as one below, and `formatOptionValue` counted
-          // the envelope's own `type` key: an untouched Runtime Defaults read
-          // "Timeout (Seconds) 1 field" three times over while the sub-form it
-          // previews correctly said 0/3 set. `fieldSchema` is what licenses the
-          // reading: the schema declares this field, so a `{type}`-only object
-          // under it is an empty envelope, never somebody's data.
-          const raw = record[key];
-          // `!nested` is the discriminator, and it is not a detail: a field that
-      // declares its OWN level describes what is inside it, so `{type: 'default'}`
-      // there is content — the scheme's Scheme Type, reading "Default RBAC" —
-      // not an envelope. Only a leaf can be empty in this sense.
-      const value =
-        fieldSchema && !nested && isEmptyUiEnvelope(raw) ? undefined : unwrap(raw);
-          const label = fieldLabel(key, fieldSchema);
-          const labelWithType =
-            showTypes && fieldSchema?.type ? `${label} · ${fieldSchema.type}` : label;
+    <StyledFields
+      className={`schema-view-fields${named ? ' schema-view-named-value' : ''}`}
+      $flush={named}
+    >
+      {keys.map((key) => {
+        const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+        const nested = (fieldSchema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
+        // A schema-declared field the form materialised but never filled in
+        // arrives as `{type: 'int'}` with no `value` key. `unwrap` cannot see
+        // that — `isUiEncodedValue` requires a `value` — so it fell through as
+        // CONTENT and was wrapped as one below, and `formatOptionValue` counted
+        // the envelope's own `type` key: an untouched Runtime Defaults read
+        // "Timeout (Seconds) 1 field" three times over while the sub-form it
+        // previews correctly said 0/3 set. `fieldSchema` is what licenses the
+        // reading: the schema declares this field, so a `{type}`-only object
+        // under it is an empty envelope, never somebody's data.
+        const raw = record[key];
+        // `!nested` is the discriminator, and it is not a detail: a field that
+        // declares its OWN level describes what is inside it, so `{type: 'default'}`
+        // there is content — the scheme's Scheme Type, reading "Default RBAC" —
+        // not an envelope. Only a leaf can be empty in this sense.
+        const value = fieldSchema && !nested && isEmptyUiEnvelope(raw) ? undefined : unwrap(raw);
+        // a named value is labelled by its name, as the data spells it
+        const label = name ?? fieldLabel(key, fieldSchema);
+        const labelWithType =
+          showTypes && fieldSchema?.type ? `${label} · ${fieldSchema.type}` : label;
 
-          // A field that describes its own level renders AS that level, indented
-          // under its name — the same decision, one step down.
-          if (nested && (isRecord(value) || Array.isArray(value))) {
-            return (
-              <React.Fragment key={key}>
-                <StyledNestedLabel>
-                  <StyledFieldLabel $color={colors.key} $opacity={labelOpacity}>{labelWithType}</StyledFieldLabel>
-                </StyledNestedLabel>
-                <StyledNested $border={colors.border}>
-                  <SchemaLevel
-                    value={value}
-                    schema={nested}
-                    showTypes={showTypes}
-                    colors={colors}
-                  />
-                </StyledNested>
-              </React.Fragment>
-            );
-          }
-
-          // A code value is source, and source is read as source: the host's renderer
-          // gives it the syntax highlighting (and read-only LSP hover) it has in the
-          // Source Code field, and "Show more" keeps a long body from taking over the
-          // preview. Flattening it to one mono line — which is what a plain value cell
-          // does — throws all of that away for a field whose whole content is code.
-          if (isCodeField(fieldSchema) && typeof value === 'string') {
-            return (
-              <React.Fragment key={key}>
-                <StyledNestedLabel>
-                  <StyledFieldLabel $color={colors.key} $opacity={labelOpacity}>{labelWithType}</StyledFieldLabel>
-                </StyledNestedLabel>
-                <StyledCodeCell onClick={(event) => event.stopPropagation()}>
-                  <ReadReveal
-                    holds='source'
-                    maxCollapsedHeight={96}
-                    buttonProps={{ className: 'options-readfirst-viewmore' }}
-                  >
-                    {codePreviewRenderer ?
-                      codePreviewRenderer({
-                        value,
-                        name: key,
-                        schema: fieldSchema,
-                        options: schema,
-                        values: record as never,
-                      })
-                    : <StyledCodePreview
-                        className='options-readfirst-code'
-                        $bg={cHover}
-                        $border={`${colors.border}88`}
-                        $fg={colors.key}
-                      >
-                        {value}
-                      </StyledCodePreview>
-                    }
-                  </ReadReveal>
-                </StyledCodeCell>
-              </React.Fragment>
-            );
-          }
-
+        // A field that describes its own level renders AS that level, indented
+        // under its name — the same decision, one step down.
+        if (nested && (isRecord(value) || Array.isArray(value))) {
           return (
             <React.Fragment key={key}>
-              <StyledFieldLabel $color={colors.key} $opacity={labelOpacity} title={label}>
-                {labelWithType}
-              </StyledFieldLabel>
-              <FieldValue
-                field={{ type: fieldSchema?.type, value } as IQorusFormField}
-                fieldSchema={fieldSchema}
-                color={colors.key}
-              />
+              <StyledNestedLabel>
+                <StyledFieldLabel $color={colors.key} $opacity={labelOpacity} $asWritten={named}>
+                  {labelWithType}
+                </StyledFieldLabel>
+              </StyledNestedLabel>
+              <StyledNested $border={colors.border}>
+                <SchemaLevel
+                  value={value}
+                  schema={nested}
+                  showTypes={showTypes}
+                  colors={colors}
+                />
+              </StyledNested>
             </React.Fragment>
           );
-        })}
+        }
+
+        // A code value is source, and source is read as source: the host's renderer
+        // gives it the syntax highlighting (and read-only LSP hover) it has in the
+        // Source Code field, and "Show more" keeps a long body from taking over the
+        // preview. Flattening it to one mono line — which is what a plain value cell
+        // does — throws all of that away for a field whose whole content is code.
+        if (isCodeField(fieldSchema) && typeof value === 'string') {
+          return (
+            <React.Fragment key={key}>
+              <StyledNestedLabel>
+                <StyledFieldLabel $color={colors.key} $opacity={labelOpacity} $asWritten={named}>
+                  {labelWithType}
+                </StyledFieldLabel>
+              </StyledNestedLabel>
+              <StyledCodeCell onClick={(event) => event.stopPropagation()}>
+                <ReadReveal
+                  holds='source'
+                  maxCollapsedHeight={96}
+                  buttonProps={{ className: 'options-readfirst-viewmore' }}
+                >
+                  {codePreviewRenderer ?
+                    codePreviewRenderer({
+                      value,
+                      name: key,
+                      schema: fieldSchema,
+                      options: schema,
+                      values: record as never,
+                    })
+                  : <StyledCodePreview
+                      className='options-readfirst-code'
+                      $bg={cHover}
+                      $border={`${colors.border}88`}
+                      $fg={colors.key}
+                    >
+                      {value}
+                    </StyledCodePreview>
+                  }
+                </ReadReveal>
+              </StyledCodeCell>
+            </React.Fragment>
+          );
+        }
+
+        return (
+          <React.Fragment key={key}>
+            <StyledFieldLabel
+              $color={colors.key}
+              $opacity={labelOpacity}
+              $asWritten={named}
+              title={label}
+            >
+              {labelWithType}
+            </StyledFieldLabel>
+            <FieldValue
+              field={{ type: fieldSchema?.type, value } as IQorusFormField}
+              fieldSchema={fieldSchema}
+              color={colors.key}
+            />
+          </React.Fragment>
+        );
+      })}
     </StyledFields>
   );
 };
 
-/** A level: a list of numbered items, or a single described hash. */
+/** Named values, one line each: as close together as one record's own fields. */
+const StyledNamedValues = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+`;
+
+/** A level: a list of numbered items, named values, or a single described hash. */
 const SchemaLevel = ({
   value,
   schema,
   showTypes,
   colors,
+  namedValues,
 }: {
   value: unknown;
   schema: IQorusFormSchema;
   showTypes?: boolean;
   colors: ISchemaDataViewProps['colors'];
+  namedValues?: boolean;
 }) => {
   const inner = unwrap(value);
   // Same reason as `FieldValue`: a heading and a bare list entry are values too,
   // and a reference in one reads as a name everywhere else in the form.
   const templates = useContextSelector(CompactRowContext, (v) => v.templates);
+  const names = namedValues ? namedValueNames(value, schema) : undefined;
+
+  // A set of named values reads as a fact sheet: each name a quiet label, its
+  // value beside it in its own look. Numbering them and heading each with its
+  // name, as a list of records is, draws every name as a heading.
+  if (names && Array.isArray(inner)) {
+    const nameKey = Object.keys(schema)[0];
+    return (
+      <StyledNamedValues className='schema-view-named-values'>
+        {inner.map((item, index) => (
+          <SchemaRecord
+            key={index}
+            record={unwrap(item) as Record<string, unknown>}
+            schema={schema}
+            showTypes={showTypes}
+            colors={colors}
+            skipKey={nameKey}
+            name={names[index]}
+          />
+        ))}
+      </StyledNamedValues>
+    );
+  }
 
   if (Array.isArray(inner)) {
     return (
@@ -732,13 +846,21 @@ const SchemaLevel = ({
 };
 
 export const SchemaDataView = React.memo(
-  ({ value, schema, showTypes, colors, onItemClick }: ISchemaDataViewProps) => (
+  ({ value, schema, showTypes, colors, namedValues, onItemClick }: ISchemaDataViewProps) => (
     <StyledSchemaView
       className='schema-data-view'
       onClick={onItemClick}
-      style={{ [LABEL_COL_VAR]: labelColumn(value, schema) } as React.CSSProperties}
+      style={
+        { [LABEL_COL_VAR]: labelColumn(value, schema, namedValues) } as React.CSSProperties
+      }
     >
-      <SchemaLevel value={value} schema={schema} showTypes={showTypes} colors={colors} />
+      <SchemaLevel
+        value={value}
+        schema={schema}
+        showTypes={showTypes}
+        colors={colors}
+        namedValues={namedValues}
+      />
     </StyledSchemaView>
   )
 );
