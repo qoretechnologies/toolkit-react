@@ -5494,7 +5494,7 @@ export const CompactListYamlField: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with a list-of-YAML option — the row summary shows the item count and opening the row exposes the YAML editor.',
+          'Renders a compact form with a list option whose value arrives as its own YAML source: the row summarizes the scopes, never the raw source, and opening it shows them as rows, a scope each.',
       },
     },
     chromatic: { disable: true },
@@ -5532,6 +5532,17 @@ export const CompactListYamlField: Story = {
         expect(
           document.querySelector('.options-readfirst-card[data-field="oauth2_scopes"]')
         ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    // the scopes the source holds, as rows: not one string, and not a row per character
+    await waitFor(
+      () => {
+        const rows = document.querySelectorAll(
+          '.options-readfirst-card[data-field="oauth2_scopes"] .array-auto-item'
+        );
+        expect(rows).toHaveLength(4);
+        expect(rows[2].textContent).toContain('email');
+      },
       { timeout: 10000 }
     );
   },

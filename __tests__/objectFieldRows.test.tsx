@@ -2,8 +2,10 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { AutoFormField } from '../src/components/form/fields/auto/AutoFormField';
 import {
   objectDataFromRows,
+  objectDataOf,
   objectRowsFromData,
   ReqraftObjectFormField,
 } from '../src/components/form/fields/object/Object';
@@ -65,6 +67,29 @@ describe('rows from data, and back', () => {
         'object'
       )
     ).toEqual({ a: 1 });
+  });
+});
+
+describe('a record or a list given as its own YAML source', () => {
+  const SOURCE = '%YAML 1.2\n---\n["email", "profile", "openid"]\n';
+
+  it('is read as the data it holds', () => {
+    expect(objectDataOf(SOURCE, 'array')).toEqual(['email', 'profile', 'openid']);
+    expect(objectDataOf('region: eu\n', 'object')).toEqual({ region: 'eu' });
+    // a word is a word, not a record
+    expect(objectDataOf('plain words', 'object')).toBe('plain words');
+  });
+
+  it('is drawn as its rows, as the IDE hands a list over', () => {
+    const { container } = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={emptyFetchContext()}>
+          <AutoFormField name='scopes' type={'list' as never} value={SOURCE} onChange={vi.fn()} />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+    expect(container.querySelectorAll('.array-auto-item')).toHaveLength(3);
   });
 });
 

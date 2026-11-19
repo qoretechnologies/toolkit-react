@@ -92,6 +92,24 @@ export const objectRowsSchema = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+/**
+ * A record or a list as the data it is, where it arrived as its own YAML source (`%YAML 1.2 --- [...]`, as the IDE
+ * hands a list over): read as one string, its rows were none (the tree drew a row per character).
+ */
+export const objectDataOf = (data: unknown, type: 'object' | 'array'): unknown => {
+  if (typeof data !== 'string') {
+    return data;
+  }
+
+  try {
+    const parsed = jsyaml.load(data);
+
+    return (type === 'array' ? Array.isArray(parsed) : isRecord(parsed)) ? parsed : data;
+  } catch {
+    return data;
+  }
+};
+
 /** A row as its form holds it, whether or not it arrived in a `{ type: 'hash', value }` envelope. */
 const rowFields = (row: unknown): TObjectRow =>
   isRecord(row) && typeof row.type === 'string' && isRecord(row.value) ? row.value : (
@@ -271,15 +289,20 @@ export const ReqraftObjectFormField = memo(
         return undefined;
       }
 
-      switch (dataType) {
-        case 'json':
-          return JSON.parse(value as string);
-        case 'yaml':
-          return jsyaml.load(value as string);
-        default:
-          return value;
-      }
-    }, [value]);
+      const data = (() => {
+        switch (dataType) {
+          case 'json':
+            return JSON.parse(value as string);
+          case 'yaml':
+            return jsyaml.load(value as string);
+          default:
+            return value;
+        }
+      })();
+
+      // a record or a list given as its own YAML source is the data it holds
+      return objectDataOf(data, type) as IReqoreTreeProps['data'];
+    }, [value, dataType, type]);
 
     const textData: string = useMemo(() => {
       if (!value) {
