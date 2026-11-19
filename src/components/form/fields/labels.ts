@@ -56,9 +56,18 @@ export interface IFieldLabels {
   /** The tabs of an object field. */
   editorTab: string;
   textTab: string;
-  /** Start an empty list or object in an object field. */
+  /** @deprecated An object field draws its rows straight away now; nothing reads these. */
   newList: string;
   newObject: string;
+  /**
+   * A row of an object field's values: its name and its value, each with a line under it, and the name of the rows
+   * where the field has none of its own (its add button reads "Add new item for …").
+   */
+  rowName: string;
+  rowNameDescription: string;
+  rowValue: string;
+  rowValueDescription: string;
+  rowsName: string;
   /** The heading of the window a field is edited in, full screen. */
   focusedEditing: string;
   /** The heading of the values a field holds one of, and of those it offers where it takes others too. */
@@ -105,6 +114,11 @@ export const DEFAULT_FIELD_LABELS: IFieldLabels = {
   textTab: 'Text',
   newList: 'New list',
   newObject: 'New object',
+  rowName: 'Name',
+  rowNameDescription: 'What the value is called.',
+  rowValue: 'Value',
+  rowValueDescription: 'Pick what kind of value it is, then fill it in.',
+  rowsName: 'Values',
   focusedEditing: 'Focused editing',
   allowedValues: 'Allowed values',
   suggestedValues: 'Suggested values',

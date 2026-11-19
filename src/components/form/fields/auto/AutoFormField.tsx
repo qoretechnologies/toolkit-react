@@ -887,6 +887,9 @@ function AutoField<T = any>({
               type='object'
               dataType='yaml'
               resultDataType='yaml'
+              name={name}
+              // its rows read as the form around it does
+              compact={compact}
               {...rest}
             />
           );
@@ -1017,6 +1020,9 @@ function AutoField<T = any>({
               type='array'
               dataType='yaml'
               resultDataType='yaml'
+              name={name}
+              // its rows read as the form around it does
+              compact={compact}
               {...rest}
             />
           );

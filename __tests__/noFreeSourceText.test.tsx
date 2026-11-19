@@ -1,8 +1,9 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /*
  * Nobody is asked to type JSON or YAML (Filip, 10 Nov: "there should NEVER be a free json text. Can you imagine a
- * supply chain Dana filling that?"). A hash or a list with no schema is edited in its structured editor - keys and
- * typed values, nested where the value is - and Reqraft offers no "Text" tab to write it as source. The one exception
+ * supply chain Dana filling that?"). A hash or a list with no schema is edited as rows - a name and a typed value
+ * each, or a value each for a list, a record or a list in a value being rows of its own (decision 027) - and Reqraft
+ * offers no "Text" tab to write it as source. The one exception
  * is a host editing a source it also has a guided editor of the same thing for (the IDE's DB and API schema
  * builders), which turns the text route on itself (`textEditing`); Reqraft never does.
  */
@@ -36,11 +37,13 @@ describe('a value with no schema', () => {
   it.each([
     ['a hash', 'hash', { region: 'eu', retries: 3 }],
     ['a list', 'list', ['alpha', 'beta']],
-  ])('%s is edited in its structured editor, with no source text', (_, type, value) => {
+  ])('%s is edited as rows, with no source text', (_, type, value) => {
     const container = drawn(
       <AutoFormField name='field' type={type as never} value={value} onChange={vi.fn()} />
     );
-    expect(container.querySelector('.reqore-tree')).toBeTruthy();
+    // a row a value, and no tree of keys and braces
+    expect(container.querySelectorAll('.array-auto-item')).toHaveLength(2);
+    expect(container.querySelector('.reqore-tree')).toBeNull();
     expect(sourceRoutes(container)).toEqual({ textBoxes: 0, textTabs: 0 });
   });
 });

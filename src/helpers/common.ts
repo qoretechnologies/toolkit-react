@@ -7,7 +7,8 @@ import yaml from 'js-yaml';
 type TTypedValue = { type: string; value: unknown };
 type MaybeTyped = TTypedValue | undefined;
 
-const inferTypedValue = (raw: unknown): MaybeTyped => {
+/** A plain value with its type, at every depth: `3` is `{ type: 'int', value: 3 }`, a record a hash of such. */
+export const inferTypedValue = (raw: unknown): MaybeTyped => {
   if (raw === null || raw === undefined) return undefined;
   if (typeof raw === 'boolean') return { type: 'bool', value: raw };
   if (typeof raw === 'number')
@@ -26,7 +27,8 @@ const inferTypedValue = (raw: unknown): MaybeTyped => {
   return { type: 'any', value: raw };
 };
 
-const typedToPlain = (typed: MaybeTyped): unknown => {
+/** The plain value inside a typed one, at every depth (the reverse of `inferTypedValue`). */
+export const typedToPlain = (typed: MaybeTyped): unknown => {
   if (typed === undefined || typed === null) return undefined;
   // A raw primitive (string/number/bool) is already plain — e.g. a `list` whose
   // items are bare values rather than `{ type, value }` wrappers. Destructuring it

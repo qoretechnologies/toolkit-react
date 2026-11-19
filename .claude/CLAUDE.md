@@ -140,7 +140,7 @@ Shared form field components built on ReQore, exported from `src/components/form
 | `LongString`  | Multi-line text                   |
 | `Markdown`    | Markdown editor/preview           |
 | `Number`      | Numeric input                     |
-| `Object`      | YAML/JSON object editor           |
+| `Object`      | A hash or list with no schema, as rows: a name and a typed value each (a value each for a list), a record or list in a value as rows of its own (decision 027). Its value in and out stays YAML, JSON or the data; source text only where a host turns on `textEditing` |
 | `RadioGroup`  | Radio group with optional images  |
 | `String`      | Single-line text                  |
 

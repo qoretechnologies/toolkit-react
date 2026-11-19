@@ -429,6 +429,7 @@ export const FormField = <T extends TFormFieldType>({
             type='object'
             dataType='yaml'
             resultDataType='yaml'
+            name={name}
             disabled={rest.disabled}
             size={fieldSize}
           />
@@ -543,6 +544,7 @@ export const FormField = <T extends TFormFieldType>({
             type='array'
             dataType='yaml'
             resultDataType='yaml'
+            name={name}
             disabled={rest.disabled}
             size={fieldSize}
           />
