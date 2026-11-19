@@ -4167,7 +4167,7 @@ export const CompactReadOnlyRichText: Story = {
     await _testsWaitForText('Rich Text option');
     // A read view says what is wrong with the record, as an editable one does:
     // the fixture's invalid value and its empty required fields say so.
-    await _testsWaitForText('Text value is empty');
+    await _testsWaitForText('Value must be text');
     await _testsWaitForText(CALM_REQUIRED_READ_LABEL);
 
     const row = (name: string) => document.querySelector(`.readfirst-row[data-field="${name}"]`);

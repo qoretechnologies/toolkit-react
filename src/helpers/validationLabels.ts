@@ -90,7 +90,10 @@ export interface IValidationLabels {
   cronInvalid: string;
 
   // hashes and lists; `index` counts from 0
-  hashArgumentsInvalid: string;
+  /** A required argument of a hash with no value: `name` is the argument's display name, else its key. */
+  hashArgumentRequired: (name: string) => string;
+  /** An argument of a hash whose value is refused: `name` as `hashArgumentRequired`'s, `reason` why, when known. */
+  hashArgumentInvalid: (name: string, reason?: string) => string;
   listItemInvalid: (index: number) => string;
   notListOfHashes: string;
   hashEmptyAt: (index: number) => string;
@@ -327,7 +330,9 @@ export const DEFAULT_VALIDATION_LABELS: IValidationLabels = {
   cronRequired: 'Cron value is required',
   cronInvalid: 'Cron expression is invalid',
 
-  hashArgumentsInvalid: 'Hash arguments are invalid',
+  hashArgumentRequired: (name) => `“${name}” needs a value`,
+  hashArgumentInvalid: (name, reason) =>
+    reason ? `“${name}”: ${reason}` : `“${name}” has a value it does not accept`,
   listItemInvalid: (index) => `List item ${index} is invalid`,
   notListOfHashes: 'Value must be a list of hashes',
   hashEmptyAt: (index) => `Hash at index ${index} must not be empty`,

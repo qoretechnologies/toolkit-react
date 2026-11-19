@@ -459,7 +459,7 @@ export const _validateField = (
 
   switch (type) {
     case 'richtext': {
-      if (!value || !size(value)) {
+      if (value === undefined || value === null || value === '') {
         return invalidResult(words().textEmpty);
       }
 
@@ -467,7 +467,12 @@ export const _validateField = (
         return validResult();
       }
 
-      if (isRichTextWithoutValue(value)) {
+      // A number or a yes / no is not empty text: it is not text (it said "Text value is empty" of 123).
+      if (typeof value !== 'object') {
+        return invalidResult(valueMustBe('string'));
+      }
+
+      if (!size(value) || isRichTextWithoutValue(value)) {
         return invalidResult(words().textEmpty);
       }
 
@@ -572,8 +577,13 @@ export const _validateField = (
     case 'method-name':
     case 'code-editor':
     case 'data': {
-      if (value === undefined || value === null || value === '' || typeof value !== 'string') {
+      if (value === undefined || value === null || value === '') {
         return invalidResult(words().nonEmptyText);
+      }
+
+      // A value of another type is not empty: it is not text.
+      if (typeof value !== 'string') {
+        return invalidResult(valueMustBe('string'));
       }
 
       const reasons: string[] = [];
@@ -815,26 +825,35 @@ export const _validateField = (
       const parsedValue: any = typeof value === 'object' ? value : maybeParseYaml(value);
 
       if (field?.arg_schema) {
-        const result = every(
-          field.arg_schema,
-          (fieldData: TQorusFormFieldSchema, argName: string) => {
-            const argValue = readArgValue(parsedValue?.[argName]);
+        // The first argument that is wrong, named, and what is wrong with it: "Hash arguments are invalid" named
+        // nothing, and the author had to find the argument and guess why.
+        for (const [argName, fieldData] of Object.entries(
+          field.arg_schema as Record<string, TQorusFormFieldSchema>
+        )) {
+          const argValue = readArgValue(parsedValue?.[argName]);
+          const argLabel = (fieldData.display_name as string | undefined) || argName;
 
-            // Absent and present-but-empty are the same answer to the only
-            // question the schema asks here: was the arg supplied?
-            if (argValue === undefined) {
-              return !fieldData.required;
+          // Absent and present-but-empty are the same answer to the only
+          // question the schema asks here: was the arg supplied?
+          if (argValue === undefined) {
+            if (fieldData.required) {
+              return invalidResult(words().hashArgumentRequired(argLabel));
             }
-
-            return validateFieldWithResult(
-              (fieldData.ui_type as string) || (fieldData.type as string),
-              argValue,
-              fieldData as unknown as IFieldValidationProps
-            ).isValid;
+            continue;
           }
-        );
 
-        return resultFromBoolean(result, words().hashArgumentsInvalid);
+          const argResult = validateFieldWithResult(
+            (fieldData.ui_type as string) || (fieldData.type as string),
+            argValue,
+            fieldData as unknown as IFieldValidationProps
+          );
+
+          if (!argResult.isValid) {
+            return invalidResult(words().hashArgumentInvalid(argLabel, argResult.reason));
+          }
+        }
+
+        return validResult();
       }
 
       if (!parsedValue || !isObject(parsedValue)) {
