@@ -238,6 +238,14 @@ export type IOptionsSchemaArg = TDistributiveOmit<TQorusFormFieldSchema, 'messag
    */
   allowed_values_groups?: TSelectFieldCollectionGroups;
   /**
+   * The field's own words for its way into its templates (its "Use template", and its Template tab), where the
+   * page's (`setReqraftLabels`) do not fit it: a test's value field picks from the values a run captured, so it says
+   * "Pick a captured value". The page's words where not given.
+   */
+  template_label?: string;
+  /** The hover of that way in, likewise; the page's where not given. */
+  template_tooltip?: string;
+  /**
    * Siblings this field renders inside its own editor instead of on rows of
    * their own — a code editor and its language, say.
    */
@@ -4071,6 +4079,10 @@ const FormEngineImpl = ({
             allowed_values_creatable={options?.[optionName]?.allowed_values_creatable}
             allowed_values_groups={
               (options?.[optionName] as IOptionsSchemaArg | undefined)?.allowed_values_groups
+            }
+            templateLabel={(options?.[optionName] as IOptionsSchemaArg | undefined)?.template_label}
+            templateTooltip={
+              (options?.[optionName] as IOptionsSchemaArg | undefined)?.template_tooltip
             }
             disabled={
               options?.[optionName]?.disabled ||

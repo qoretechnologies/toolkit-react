@@ -231,6 +231,15 @@ export interface ITemplateFieldProps extends Partial<
   templateBadge?: TTemplateBadge;
   /** The words of the value tabs, for a host that translates them; English where not given. */
   valueTabsLabels?: Partial<IValueTabsLabels>;
+  /**
+   * This field's own words for its way into its templates, where the page's (`setReqraftLabels`) do not fit it: its
+   * "Use template" (the button and the ⋮ item), its Template tab, and the picker they open. A test's value field picks
+   * from the values a run captured, so it says "Pick a captured value". The page's words where not given (a field's
+   * `template_label`).
+   */
+  templateLabel?: string;
+  /** The hover of that way in, likewise (a field's `template_tooltip`); the page's where not given. */
+  templateTooltip?: string;
   /** The words of an expression's own Text / Visual toggle (no value tabs), for a host that translates them. */
   expressionModeLabels?: Partial<IExpressionModeLabels>;
   /**
@@ -661,6 +670,8 @@ const TemplateFieldImpl = memo(
     allowTextExpressions,
     valueTabs,
     valueTabsLabels,
+    templateLabel,
+    templateTooltip,
     expressionModeLabels,
     textWidth = 'field',
     savedValues: savedValuesProp,
@@ -1738,13 +1749,13 @@ const TemplateFieldImpl = memo(
             ...(canOfferTemplate ?
               [
                 {
-                  label: fieldWords.useTemplate,
+                  label: templateLabel ?? fieldWords.useTemplate,
                   icon: 'MoneyDollarCircleLine' as const,
                   /* With no template on offer here - a context whose catalogue has none, or none of this
                      type - the way in leads to an empty list: it is shown, not taken, and says why
                      (qorus#646, David: "Are there cases where no templates or fields are available?"). */
                   ...(hasTemplatesOnOffer ?
-                    { tooltip: fieldWords.useTemplateTooltip }
+                    { tooltip: templateTooltip ?? fieldWords.useTemplateTooltip }
                   : {
                       disabled: true,
                       description: fieldWords.noTemplatesOnOffer,
@@ -1799,6 +1810,8 @@ const TemplateFieldImpl = memo(
         takeSavedValue,
         hasOnlyExpressions,
         fieldWords,
+        templateLabel,
+        templateTooltip,
       ]
     );
 
@@ -1807,7 +1820,9 @@ const TemplateFieldImpl = memo(
        by value would loop. */
     const publishedKey = [
       canOfferExpression && !hasOnlyExpressions && !functions.loading ? 'expression' : '',
-      canOfferTemplate ? `template${hasTemplatesOnOffer ? '' : '-none-on-offer'}` : '',
+      canOfferTemplate ?
+        `template${hasTemplatesOnOffer ? '' : '-none-on-offer'}:${templateLabel ?? ''}:${templateTooltip ?? ''}`
+      : '',
       canOfferCustomValue ? 'custom-value' : '',
       canSaveValue ? 'save-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
@@ -1979,7 +1994,7 @@ const TemplateFieldImpl = memo(
                     // none on offer: shown, not taken, and saying why (as the menu's item does)
                     tooltip={
                       hasTemplatesOnOffer ?
-                        fieldWords.useTemplateTooltip
+                        (templateTooltip ?? fieldWords.useTemplateTooltip)
                       : fieldWords.noTemplatesOnOffer
                     }
                     disabled={!hasTemplatesOnOffer}
@@ -1988,7 +2003,7 @@ const TemplateFieldImpl = memo(
                     onClick={handleTemplateToggleClick}
                   >
                     {' '}
-                    {fieldWords.useTemplate}{' '}
+                    {templateLabel ?? fieldWords.useTemplate}{' '}
                   </ReqoreButton>
                 : null}
 
@@ -2147,7 +2162,13 @@ const TemplateFieldImpl = memo(
 
     // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
     if (tabsKind && !rest.disabled) {
-      const words: IValueTabsLabels = { ...fieldLabels.valueTabs, ...valueTabsLabels };
+      const words: IValueTabsLabels = {
+        ...fieldLabels.valueTabs,
+        ...valueTabsLabels,
+        // the field's own words for its way into its templates, where it has them
+        ...(templateLabel ? { template: templateLabel } : {}),
+        ...(templateTooltip ? { templateTooltip } : {}),
+      };
       /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form (none for no type). */
       const typeInSentence: (type: string | undefined) => string | undefined =
         words.typeName ?? qorusTypes.getTypeSentenceForm;
@@ -2370,7 +2391,8 @@ const TemplateFieldImpl = memo(
           onRemoveClick={replaceWithAValue}
           templateBadge={templateBadge}
           size={rest.size}
-          label={label}
+          // its own words for what it picks, where it has them
+          label={label ?? templateLabel}
           hasOnlyAllowedValues={hasOnlyAllowedValues}
         />
       );
@@ -2671,7 +2693,8 @@ const TemplateFieldImpl = memo(
             onRemoveClick={handleRemoveTemplateClick}
             templateBadge={templateBadge}
             size={rest.size}
-            label={label}
+            // its own words for what it picks, where it has them
+            label={label ?? templateLabel}
             hasOnlyAllowedValues={hasOnlyAllowedValues}
           />
         : null}

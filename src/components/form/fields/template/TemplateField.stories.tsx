@@ -2607,3 +2607,95 @@ export const APickerIsBelowItsFieldOfSeveralLinesAndGoesWithIt: StoryObj<typeof 
     expectNoRowCut();
   },
 };
+
+/** The words a test's value field says its way into its templates in (a field's `template_label` in a form). */
+const PICK_A_CAPTURED_VALUE = {
+  templateLabel: 'Pick a captured value',
+  templateTooltip: 'Use a value an earlier step of the run captured',
+};
+
+/** Its Template tab, read once it says the field's own words. */
+const theTemplateTab = () => document.querySelector<HTMLElement>('.value-tab[data-tab="template"]');
+
+const playItsTemplateTab = async () => {
+  await waitFor(
+    () => expect(theTemplateTab()?.textContent).toContain(PICK_A_CAPTURED_VALUE.templateLabel),
+    { timeout: 10000 }
+  );
+  expect(theTemplateTab()?.textContent).not.toContain('Template');
+  await userEvent.click(theTemplateTab()!);
+  await waitFor(() => expect(theTemplateTab()?.getAttribute('aria-pressed')).toBe('true'));
+  // the picker it opens says the same
+  await waitFor(() =>
+    expect(document.querySelector('.template-selector')?.textContent).toContain(
+      PICK_A_CAPTURED_VALUE.templateLabel
+    )
+  );
+};
+
+export const ItsTemplateTabSaysWhatItPicks: StoryObj<typeof meta> = {
+  args: {
+    component: auto,
+    type: 'date',
+    value: '2026-06-30T12:00:00Z',
+    valueTabs: true,
+    ...PICK_A_CAPTURED_VALUE,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a date field whose way into its templates is in its own words: its tabs are Value and "Pick a captured value" (not the page-wide Template), and choosing that tab opens a picker that says "Pick a captured value" too.',
+      },
+    },
+  },
+  play: playItsTemplateTab,
+};
+
+export const ItsTemplateTabSaysWhatItPicksOnAPhone: StoryObj<typeof meta> = {
+  ...ItsTemplateTabSaysWhatItPicks,
+  ...onAPhone,
+  parameters: {
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          'The same field on a phone (390 px): Value and "Pick a captured value" side by side, inside the screen.',
+      },
+    },
+  },
+  play: async () => {
+    await playItsTemplateTab();
+    expect(theTemplateTab()!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      PHONE_VIEWPORT.width
+    );
+  },
+};
+
+export const ItsUseTemplateSaysWhatItPicks: StoryObj<typeof meta> = {
+  args: {
+    component: Number,
+    type: 'int',
+    value: 5,
+    ...PICK_A_CAPTURED_VALUE,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a number field with no value tabs whose "Use template" is in its own words: its menu offers "Pick a captured value", with its own hover.',
+      },
+    },
+  },
+  async play() {
+    await _testsOpenTemplateMenu();
+    await waitFor(
+      () =>
+        expect(document.querySelector('.template-toggle')?.textContent).toContain(
+          PICK_A_CAPTURED_VALUE.templateLabel
+        ),
+      { timeout: 10000 }
+    );
+    expect(document.querySelector('.template-toggle')?.textContent).not.toContain('Use template');
+  },
+};
