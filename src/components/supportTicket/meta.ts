@@ -118,7 +118,8 @@ export const TICKET_PRIORITY_META: Record<TTicketPriority, ITicketEnumMeta> = {
   low: worded((words) => words.priorities.low, 'muted', 'ArrowDownLine'),
   normal: worded((words) => words.priorities.normal, 'info', 'SubtractLine'),
   high: worded((words) => words.priorities.high, 'warning', 'ArrowUpLine'),
-  urgent: worded((words) => words.priorities.urgent, 'danger', 'AlarmWarningLine'),
+  // an ordering mark, as low's and high's: an alarm said the ticket was in trouble
+  urgent: worded((words) => words.priorities.urgent, 'danger', 'ArrowUpDoubleLine'),
 };
 
 export const TICKET_CATEGORY_META: Record<TTicketCategory, ITicketMark> = {
@@ -260,12 +261,13 @@ export const ticketStatusAttention = (
   return 'quiet';
 };
 
-/** A priority only orders the queue, so it is a word: red for urgent, amber for high, quiet otherwise - never a
- *  dot that could read as the ticket's health. */
-export const ticketPriorityAttention = (priority: TTicketPriority): TTicketAttention =>
-  priority === 'urgent' ? 'bad'
-  : priority === 'high' ? 'warn'
-  : 'quiet';
+/** A priority describes the ticket, it is not the ticket's state now: it orders the queue, and it is a plain gray
+ *  word, Urgent included, with no dot and no status color. Red and amber stay for what needs someone now (the
+ *  ticket's status, `ticketStatusAttention`). An urgent priority was red with an alarm, a high one amber, so a
+ *  ticket that was being handled read as failing. */
+// the priority is still asked for, so a caller keeps passing it should a level ever matter again
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const ticketPriorityAttention = (_priority: TTicketPriority): TTicketAttention => 'quiet';
 
 /** A reply may be sent while a ticket is in any state except `closed`. */
 export const REPLYABLE_STATUSES: TTicketStatus[] = [

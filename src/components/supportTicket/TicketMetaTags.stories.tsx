@@ -1,3 +1,4 @@
+import { ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { StoryMeta } from '../../types';
@@ -32,7 +33,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          'Renders the status, priority, and category as words on one line, each with its icon from the shared supportTicket/meta vocabularies. Only what needs the person looking takes a color (ticketStatusAttention, ticketPriorityAttention): here the high priority is amber, while Open and Bug read in gray, since a category is a topic rather than a verdict.',
+          'Renders the status, priority, and category as words on one line, each with its icon from the shared supportTicket/meta vocabularies. Only what needs the person looking takes a color (ticketStatusAttention): here Open, High and Bug all read in gray, since a priority orders the queue and a category is a topic, neither is the ticket\'s state.',
       },
     },
   },
@@ -44,10 +45,42 @@ export const Default: Story = {
     await expect(canvasElement.querySelector('.reqore-tag')).toBeNull();
     await expect(
       canvasElement.querySelector<HTMLElement>('.ticket-meta-priority')?.dataset.attention
-    ).toBe('warn');
+    ).toBe('quiet');
     await expect(
       canvasElement.querySelector<HTMLElement>('.ticket-meta-category')?.dataset.attention
     ).toBe('quiet');
+  },
+};
+
+export const APriorityIsAGrayWord: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders four tickets, low, normal, high and urgent priority, to the staff who handle them. Each priority is a plain gray word with its ordering mark, Urgent included: no status color, no dot, no alarm. A priority orders the queue; it is not the ticket\'s state, and an urgent ticket being handled is not failing.',
+      },
+    },
+  },
+  render: () => (
+    <ReqoreControlGroup vertical>
+      {(['low', 'normal', 'high', 'urgent'] as TTicketPriority[]).map((priority) => (
+        <div key={priority} className={`priority-${priority}`}>
+          <TicketMetaTags ticket={ticket('open', priority, 'bug')} viewerRole='staff' />
+        </div>
+      ))}
+    </ReqoreControlGroup>
+  ),
+  async play({ canvasElement }) {
+    const word = (priority: string) =>
+      canvasElement.querySelector<HTMLElement>(`.priority-${priority} .ticket-meta-priority`)!;
+    const colors = ['low', 'normal', 'high', 'urgent'].map(
+      (priority) => getComputedStyle(word(priority)).color
+    );
+    for (const priority of ['low', 'normal', 'high', 'urgent']) {
+      await expect(word(priority).dataset.attention).toBe('quiet');
+    }
+    // one gray for every priority
+    await expect(new Set(colors).size).toBe(1);
   },
 };
 

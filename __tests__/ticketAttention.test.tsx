@@ -8,6 +8,7 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
+  TICKET_PRIORITY_META,
   ticketPriorityAttention,
   ticketStatusAttention,
   TTicketAttention,
@@ -44,13 +45,17 @@ describe("a ticket status's attention", () => {
 });
 
 describe("a ticket priority's attention", () => {
-  it('is red for urgent, amber for high and quiet otherwise', () => {
+  it('marks urgent as an order, never with an alarm', () => {
+    expect(TICKET_PRIORITY_META.urgent.icon).toBe('ArrowUpDoubleLine');
+  });
+
+  it('is quiet for every priority, urgent included: a priority is a gray word', () => {
     const priorities: TTicketPriority[] = ['low', 'normal', 'high', 'urgent'];
     expect(priorities.map(ticketPriorityAttention)).toEqual<TTicketAttention[]>([
       'quiet',
       'quiet',
-      'warn',
-      'bad',
+      'quiet',
+      'quiet',
     ]);
   });
 });
@@ -80,7 +85,7 @@ describe('TicketMetaTags', () => {
   it('colors only what needs the person looking: never the category', () => {
     const { container } = draw({ viewerRole: 'customer' });
     expect(word(container, 'status')?.dataset.attention).toBe('warn');
-    expect(word(container, 'priority')?.dataset.attention).toBe('bad');
+    expect(word(container, 'priority')?.dataset.attention).toBe('quiet');
     expect(word(container, 'category')?.dataset.attention).toBe('quiet');
     // a bug is a topic, not a failure: the category reads in the same soft shade as the dot between words
     const category = getComputedStyle(word(container, 'category') as HTMLElement).color;
