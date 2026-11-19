@@ -388,6 +388,42 @@ export const seedQueryCache = <T>({
 export const isQueryCancelled = (error: unknown): error is CancelledError =>
   isCancelledError(error);
 
+/**
+ * How long `query` counts a cached answer as fresh, in ms: none for a write or a call
+ * with `cache: false`, the caller's `staleTime`, or five minutes.
+ */
+export const queryStaleTime = ({
+  method = 'GET',
+  cache = true,
+  staleTime,
+}: Pick<IReqraftQueryConfig, 'method' | 'cache' | 'staleTime'>): number =>
+  method === 'DELETE' || method === 'POST' || !cache ? 0 : (staleTime ?? CACHE_EXPIRATION_TIME);
+
+/**
+ * Whether the cache holds a successful answer under `key` that `query` would hand back
+ * WITHOUT a request: one that is not stale within `staleTime` (see `queryStaleTime`).
+ *
+ * A caller that only wants the answer can skip asking for it - board f61:
+ * `useFetch` asked the `FetchContext` on mount for a resource it had already rendered
+ * from this cache, and with no reqraft provider above it that request was a throw.
+ */
+export const hasFreshAnswer = (
+  queryClient: QueryClient,
+  key: string,
+  staleTime: number
+): boolean => {
+  const entry = queryClient.getQueryCache().find([key]);
+  const answer = entry?.state.data as { ok?: boolean; data?: unknown } | undefined;
+
+  return (
+    !!entry &&
+    !!answer &&
+    answer.ok !== false &&
+    answer.data !== undefined &&
+    !entry.isStaleByTime(staleTime)
+  );
+};
+
 export async function query<T>({
   url,
   method = 'GET',
@@ -403,7 +439,6 @@ export async function query<T>({
   redirectOnUnauthorized = true,
   signal,
 }: IReqraftQueryConfig): Promise<IReqraftFetchResponse<T>> {
-  const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const key = cacheKey ?? reqraftCacheKey({ url, method, body, noApiPrefix, instance, token });
 
   const requestData = await queryClient.fetchQuery({
@@ -435,7 +470,7 @@ export async function query<T>({
         response,
       };
     },
-    staleTime: shouldCache ? (staleTime ?? CACHE_EXPIRATION_TIME) : 0,
+    staleTime: queryStaleTime({ method, cache, staleTime }),
   });
 
   if (!requestData.ok) {
