@@ -10,7 +10,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A change the host makes in the same commit as an edit in the form (qorus#646).
+ * A change the host makes in the same commit as an edit in the form.
  *
  * The form's emit effect runs before its sync-down. In a commit where both the host's value and the form's
  * own copy had changed, the emit sent the form's copy - built before the host's change - and the sync-down

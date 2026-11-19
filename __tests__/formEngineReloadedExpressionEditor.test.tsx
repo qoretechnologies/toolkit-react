@@ -111,7 +111,7 @@ const showsRawEnvelope = (container: HTMLElement) => {
 const showsExpressionBuilder = (container: HTMLElement) =>
   container.querySelector('.expression') !== null;
 
-/* The expression editor opened: on its Text view, the view an expression opens in (qorus#646, David), and
+/* The expression editor opened: on its Text view, the view an expression opens in, and
    its Visual view draws the builder when it is chosen. */
 const opensTheExpressionEditor = async (container: HTMLElement) => {
   const toggle = (name: string) =>

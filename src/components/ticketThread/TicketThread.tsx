@@ -175,9 +175,9 @@ const AUTHOR_META: Record<TTicketMessageAuthor, IAuthorMeta> = {
 // No card is tinted: the side, the avatar and the author label ("You", "Qorus
 // Support", "Internal note") already carry who is speaking and who can read it. An
 // internal note was amber, but amber says "needs a look" and a note needs none
-// (instruction-files decision 001: colour has a job), so it keeps its words and its
-// eye-off avatar on the ordinary edge. Never the product's purple either, which a
-// support thread does not wear (decision 002).
+// (a color has a job), so it keeps its words and its eye-off avatar on the
+// ordinary edge. Never the product's purple either, which a support thread does
+// not wear.
 
 /** Avatar glyph; an internal note carries the "not visible to the customer" eye. */
 const authorIcon = (message: ITicketThreadMessage): IReqoreIconName =>
@@ -454,7 +454,7 @@ const MessageBody = ({ children }: { children: string }) => {
   const theme = useReqoreTheme();
   const readable = getReadableColor(theme);
   /* the links in the info intent and the text a shade softer, each as far as it still reads on the theme's
-     surfaces (qorus#646: the info blue was 3.5:1 on a bubble) */
+     surfaces (the info blue was 3.5:1 on a bubble) */
   const { link, text } = useMemo(() => {
     const surfaces = getThemeSurfaces(theme);
     return {
@@ -647,7 +647,7 @@ const StyledSystemPill = styled.div`
  * reader something, and can carry the customer's answer — while every other event stays
  * the centred muted line, marked with its event's icon when the event is known.
  *
- * The card wears the notification look (Nick, 2026-10-20): the same frosted surface,
+ * The card wears the notification look: the same frosted surface,
  * icon tile and action row as a toast, because a thread message that asks the reader to
  * act is a notification that happens to live in the thread. It never times out and
  * cannot be dismissed; the answer is the one action on it.
@@ -777,7 +777,7 @@ export const TicketThread = ({
   const threadRef = useRef<HTMLDivElement>(null);
   const words = useReqraftLabels().supportTicket;
   /* The empty state's deboss (its icon and title washed back), the system notes and the message count: as
-     faint as they still read - 3:1 the icon, 4.5:1 the text (qorus#646). */
+     faint as they still read - 3:1 the icon, 4.5:1 the text. */
   const emptyIconOpacity = useReadableOpacity(0.28, READABLE_ICON);
   const emptyTitleOpacity = useReadableOpacity(0.4);
   const systemNoteOpacity = useReadableOpacity(0.55);

@@ -421,8 +421,8 @@ export const CompactRow = memo(
       formatted: string,
       /* An editable row's plain text wraps, up to three lines: its value line is a summary you click to open,
          and the whole value is in the row's editor. It was one line with an ellipsis, and an address or a
-         sentence lost its end at every width (qorus#646, Foxhoundn on qlip #383: "wrap texts so users on both
-         phones and desktops can easily read and copy it"; David, 2026-10-22). A read-only row is the only
+         sentence lost its end at every width. Wrapped, it can be read and copied on a phone and a desktop alike.
+         A read-only row is the only
          rendering the value gets, so it wraps in full (`full`), a long text moving to the inset under the row
          with "Show more". */
       full = false
@@ -500,7 +500,7 @@ export const CompactRow = memo(
       const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
 
       /* A template or an expression is shown as one, whatever the field's type, so these two come before
-         any type draws a value of its own (qorus#646). A color's branch came first and called a template
+         any type draws a value of its own. A color's branch came first and called a template
          or an expression on a color option "Set"; a file's printed the raw reference as a file name. */
       if (
         typeof field?.value === 'string' &&
@@ -546,7 +546,7 @@ export const CompactRow = memo(
         );
       }
 
-      // a yes/no holding a template has read as the template, above, not as Yes (qorus#646)
+      // a yes/no holding a template has read as the template, above, not as Yes
       if (valueType === 'bool' || valueType === 'boolean') {
         // Calm: Yes and No are words. Neither is a status — "No" is not a
         // failure — so neither is coloured.
@@ -629,7 +629,7 @@ export const CompactRow = memo(
                 return null;
               }
               /* What the value is called and its picture, as its own control draws it: a language is "Qore" with
-                 its logo, not the value it is stored as, "qore" (qorus#646, David's review). */
+                 its logo, not the value it is stored as, "qore". */
               const absorbedSchema = options?.[absorbedName];
               const choice = findAllowedValueOption(absorbedValue, absorbedSchema) as
                 { image?: string } | undefined;
@@ -750,8 +750,8 @@ export const CompactRow = memo(
       }
 
       /* A value that is a web address is a link to it, in an editable row and a read-only one: it opens in a
-         new tab, and a click or a key on it follows it and does not open the row (Foxhoundn on qlip #383:
-         "Please render links as links"; David, 2026-10-22). Only the value as typed: a value drawn as a label
+         new tab, and a click or a key on it follows it and does not open the row. Only the value as typed: a
+         value drawn as a label
          or masked is not its address. */
       const link = formatted === field?.value ? webLinkOf(formatted) : undefined;
       return withExpressionMarker(
@@ -766,7 +766,7 @@ export const CompactRow = memo(
     const schema = options?.[optionName];
     const label = schema?.display_name || optionName;
     /* The name and its asterisk, which a word joiner (U+2060) holds to the name's last character: it is on the
-       name's (last) line, never on a line of its own under it (Foxhoundn, qlip #392). The name stays one text,
+       name's (last) line, never on a line of its own under it. The name stays one text,
        found by its words as it always was. */
     const nameWithAsterisk = (asterisk: boolean) => (
       <>
@@ -968,7 +968,7 @@ export const CompactRow = memo(
       : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     /* A complex field (a tall or nested editor) opens in the card below the row: reqraft's own complex types, and
        the host's editors it names (`cardEditorTypes`): a host editor of its own, such as a sheet contract, opened
-       in the row's value column, about 240px wide (qorus#646). */
+       in the row's value column, about 240px wide. */
     const isHostCardEditor = !!cardEditorTypes?.includes(editType);
     const opensInCard = COMPACT_COMPLEX_TYPES.has(editType) || isHostCardEditor;
     /* What the host draws for the row when it is closed (`readSummaries`): a summary of its own, under which the
@@ -978,7 +978,7 @@ export const CompactRow = memo(
     /* In a read-only form, a row whose content its line does not show - a host editor that opens in the card, or a
        row the host summarizes - opens its card with the editor read-only, and its fullscreen view: the summary is
        one line ("4 columns · 1 rule"), and with no preview under it, the card is where what it holds is read
-       (qorus#646). Any other read-only row shows all it holds and opens nothing. */
+       Any other read-only row shows all it holds and opens nothing. */
     const readOnlyOpens = !!readOnly && !hidden && (isHostCardEditor || !!ReadSummary);
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
@@ -1463,10 +1463,10 @@ export const CompactRow = memo(
     /* A field not set yet keeps quiet in the Optional box, but not once it is opened: its editor is where
        its messages are read, and one saying why the field cannot be used is the answer to opening it. Such
        a row used to show them only when its editor reported '' on opening, which put the field in the form
-       (qorus#646: the Qorus IDE's "Wait (ms)", disabled while "Until Step" is set). */
+       (the Qorus IDE's "Wait (ms)", disabled while "Until Step" is set). */
     const infoActive = !hidden || isExpanded;
     /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
-       take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
+       take for marks. Markdown a server wrote is made prose where it comes in. */
     type TInfoMsg = {
       intent?: string;
       title?: string;
@@ -1564,17 +1564,16 @@ export const CompactRow = memo(
     // the inline editor: opening a field used to drop it, leaving an editing row
     // with no route to the field's description at all. Stops propagation because
     // both labels are click targets themselves (the row expands / collapses).
-    /* A real button (qorus#646, David's decision): in the tab order with a focus ring, a finger's size on a touch
+    /* A real button: in the tab order with a focus ring, a finger's size on a touch
        screen (`small`) and a mouse's on a desktop (`tiny`), opening the help on a click, Enter or Space. It was a
        12px icon the keyboard could not reach. It sits in a label or a row that opens or closes on the same keys and
        clicks, so it keeps them: the row does not also open or close. */
-    /* What kind of value the option takes (qorus#646, David's review: "type information should be shown on hover or
-       after clicking the 'Show all field information' control rather than by default"): in its name's hover and
-       in its help, beside its description, and beside its name only while the form shows all field information or
-       its types. */
+    /* What kind of value the option takes, shown on hover or once the form shows all field information, not by
+       default: in its name's hover and in its help, beside its description, and beside its name only while the
+       form shows all field information or its types. */
     const typeWords = optionTypeWords(schema, typeName);
     const typeSentence = optionTypeSentence(schema, typeName, typeSentenceForm);
-    // what the option is, or, where it has no description at all, why nothing says so (qorus#646)
+    // what the option is, or, where it has no description at all, why nothing says so
     const labelHover =
       [
         schema?.short_desc || (!schema?.desc && typeSentence ? feWords.noDescription : undefined),
@@ -1584,13 +1583,13 @@ export const CompactRow = memo(
         .join('\n') || undefined;
     const typeShown = !!showFieldTypes || showAllDescriptions === true;
     /* the help says what the option takes, and its description where it has one: every option with either has
-       it, a short description too, so a touch screen, which has no hover, reaches the type (qorus#646, David) */
+       it, a short description too, so a touch screen, which has no hover, reaches the type */
     const helpIcon =
       schema?.desc || schema?.short_desc || typeSentence ?
         <ReqoreButton
           icon='QuestionLine'
           /* `small`, as the row's other controls are (its clear, its list, Done, its revert): it was `tiny` with a
-             mouse, and stood 26px high beside the open editor's 32px buttons (qorus#646). A finger had `small`
+             mouse, and stood 26px high beside the open editor's 32px buttons. A finger had `small`
              already, so a touch screen draws it as before. */
           size='small'
           minimal
@@ -2036,7 +2035,7 @@ export const CompactRow = memo(
             style={{
               display: 'flex',
               // a heading of one line is centred on the card's actions; one with a description or tags under
-              // its name lines up by its top (David's review of qorus#646: the name sat above the buttons)
+              // its name lines up by its top (centered, a taller heading's name sat above the buttons)
               alignItems: schema?.short_desc || cardTags.length ? 'flex-start' : 'center',
               justifyContent: 'space-between',
               gap: 12,
@@ -2287,7 +2286,7 @@ export const CompactRow = memo(
       !isExpression;
     /* Where the host draws the row's summary (`readSummaries`), the row draws no preview of its own under it: the
        host's summary says what the value is ("4 columns · 1 rule"), and a structured preview of the same value
-       under it ("columns · List · 4 items") said it again, in reqraft's words (qorus#646). The card, which a
+       under it ("columns · List · 4 items") said it again, in reqraft's words. The card, which a
        read-only form opens for such a row too (`readOnlyOpens`), is where the value is read in full. */
     const hostSummarizes = !!ReadSummary;
     /* A data provider previews the PROVIDER, not the object the picker stores. That object also holds what the
@@ -2599,7 +2598,7 @@ export const CompactRow = memo(
       //
       // What the row was drawn as decides, not the state by the time the update lands: a click on a row drawn
       // closed opens it, even if the first-required scan's update has opened it in the meantime (a toggle closed
-      // it again: qorus#646, the Qorus IDE's Schema "Draft Is Saved").
+      // it again, as in the Qorus IDE's Schema "Draft Is Saved").
       (isExpanded ? collapseOption : expandOption)(optionName);
     };
 
@@ -2842,7 +2841,7 @@ export const CompactRow = memo(
           : <span className='options-readfirst-valuetext'>
               {ReadSummary && !hidden ?
                 /* the host's own summary: an editor that reports a status says it here, set or not
-                   ("Field mappings required", "… incomplete"), where "2 items" said nothing of it (qorus#646) */
+                   ("Field mappings required", "… incomplete"), where "2 items" said nothing of it */
                 <ReadSummary
                   name={optionName}
                   value={optionField?.value}
@@ -3009,7 +3008,7 @@ export const CompactRow = memo(
                 : CodeEditor ?
                   /* Code is shown as the host shows code: its own editor, read-only, given what it inherits (its
                      language) - highlighted, with its language server - and as a plain block only where there is
-                     none (qorus#646, David's decision). */
+                     none. */
                   <div className='options-readfirst-code options-readfirst-code-editor'>
                     <CodeEditor
                       {...(schema as object)}

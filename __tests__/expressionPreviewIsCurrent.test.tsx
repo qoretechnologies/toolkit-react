@@ -4,9 +4,9 @@
 // The Preview is the server's rendering of the expression, asked for after a pause in typing. It kept the last
 // rendering it had until the next one arrived, so after an edit, for the pause and the server's answer, it drew the
 // previous expression's rendering under the new text: "record: pos" under `bezeichnung == bezeichnung`
-// (FormEngine · The Text Lists What Can Be Written At The Caret On A Phone, caught in r15's capture). It now draws
+// (FormEngine · The Text Lists What Can Be Written At The Caret On A Phone, caught in a Qlip capture). It now draws
 // nothing until the rendering of the current expression arrives, and an answer for any other expression - one that
-// arrives late, or out of order - is never drawn (qorus#646).
+// arrives late, or out of order - is never drawn.
 //
 // The server here answers when, and in the order, the test says: nothing hangs on timing.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';

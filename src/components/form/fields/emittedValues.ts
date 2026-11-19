@@ -62,7 +62,7 @@ export class EmittedValues<T> {
    * flight, `current` - the value the parent holds now. An edit is a change only when it differs from this.
    * Compared with `current` alone, an edit back to the parent's old value, made while the emit before it was in
    * flight, looked like no change and was never sent; the echo of that emit then left the parent holding the
-   * edit that had been undone (qorus#646).
+   * edit that had been undone.
    */
   settled(current: T): T {
     return this.pending.length ? this.pending[this.pending.length - 1] : current;

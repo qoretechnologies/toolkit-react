@@ -39,14 +39,14 @@ const DECIMAL_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
 
 /**
  * What a typed text is: the number it writes, or - when it writes none - the text as typed. A field of a
- * number type is typed freely (David's review of qorus#646): a template (`$local:x`) or an expression
+ * number type is typed freely: a template (`$local:x`) or an expression
  * (`@qty * 2`) is taken up by the field around it, and anything else is kept as typed for the form to flag
  * as not a number. `parseInt` cut `12abc` to 12 without a word.
  */
 /**
  * The kind of number a field of this type holds: a decimal for `float` and `number` (and their soft and
  * nullable forms), a whole number for anything else. A field handed no kind took every number for a whole
- * one, so a float field reported `12.5` as the text "12.5" (qorus#646).
+ * one, so a float field reported `12.5` as the text "12.5".
  */
 export const numberKindOf = (type?: string): 'int' | 'float' =>
   /float|number/.test(type ?? '') ? 'float' : 'int';
@@ -78,7 +78,7 @@ export const NumberFormField = ({
   const emitted = useEmittedValues<number | string | undefined>();
   /* What the parent holds, as the field shows it: no value is the empty text. Compared with `undefined`,
      the empty text of a field opened without a value was a change, and the field reported '' 100 ms after
-     it opened - the form counted itself edited, and an unset field got '' (qorus#646). */
+     it opened - the form counted itself edited, and an unset field got ''. */
   const held = value ?? '';
 
   /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field

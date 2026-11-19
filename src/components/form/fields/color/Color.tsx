@@ -34,7 +34,7 @@ export interface IColorFormFieldValue {
 }
 
 /**
- * What the color field reads as a color (qorus#646): a stored color, `{ r, g, b, a? }`, or a value stored the wrong
+ * What the color field reads as a color: a stored color, `{ r, g, b, a? }`, or a value stored the wrong
  * way, which it still reads so it can show it and store it right - a hex code (3, 4, 6 or 8 digits, with or without
  * its `#`), `{ hex }` (with an opacity beside it), or a color with fields beside its own (react-color stored a
  * `hex`). Only the first is a stored color (`isStoredColor`); the field stores that shape whenever it edits any of
@@ -380,7 +380,7 @@ const sliderStyles = (track: number, reach: number) => ({
 /**
  * Where a thumb travels: its bar or area, less the half of the thumb - and its ring - that would reach past an end.
  * A thumb at an end (the area's corner for black or white, the opacity bar's end for an opaque color) was cut by the
- * area, or by whatever is around the field (qorus#646). Laid out by class, not by an inline style, so the thumb is
+ * area, or by whatever is around the field. Laid out by class, not by an inline style, so the thumb is
  * still the one element with a `left`.
  */
 const StyledThumbTrack = styled.div<{ $x: number; $y: number }>`
@@ -480,8 +480,7 @@ const StyledHelp = styled.div<{ $text: string; $coarse: boolean }>`
 /**
  * How far a swatch draws past its edge: its picked ring (2px) and, focused, its outline (2px, 2px off it). The
  * swatches keep that much room on every side, so a swatch at an edge is drawn whole even where something around the
- * field cuts off what reaches past it - a picked swatch's ring was cut on its left and bottom in a host's form
- * (qorus#646).
+ * field cuts off what reaches past it - a picked swatch's ring was cut on its left and bottom in a host's form.
  */
 const SWATCH_REACH = 4;
 
@@ -548,7 +547,7 @@ export const ColorFormField = ({
 }: IColorFormFieldProps) => {
   const theme = useReqoreTheme();
   const text = getReadableColor(theme);
-  // The keyboard's ring in the one ring color (decision 030), not the full text color.
+  // The keyboard's ring in the one ring color every focus ring is drawn in, not the full text color.
   const ring = useMemo(() => getFocusRingColor(theme), [theme]);
   const coarse = useCoarsePointer();
   const sizes = sizesFor(coarse);
@@ -625,7 +624,7 @@ export const ColorFormField = ({
       }
       setPicked({ rgba: color, hsva: { ...showAs, a: color.a } });
       // A hue moved on a grey is the same color: nothing to store - unless the value is not stored as a color
-      // is (a hex code, `{ hex }`, a channel past its range): an edit stores it as one (qorus#646, David).
+      // is (a hex code, `{ hex }`, a channel past its range): an edit stores it as one.
       if (stored && sameRgba(stored, color) && isStoredColor(value)) {
         return;
       }

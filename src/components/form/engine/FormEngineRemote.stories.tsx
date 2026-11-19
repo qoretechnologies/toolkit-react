@@ -652,7 +652,7 @@ export const InjectedOptionActionsEditCard: Story = {
       ).toBeTruthy();
     });
 
-    // the card's name is centred on its actions, not above them (David's review of qorus#646)
+    // the card's name is centred on its actions, not above them
     const header = document.querySelector('.options-readfirst-card-header') as HTMLElement;
     const [heading, actions] = [...header.children].map((el) => el.getBoundingClientRect());
     await expect(Math.abs(heading.top + heading.height / 2 - (actions.top + actions.height / 2))).toBeLessThanOrEqual(2);

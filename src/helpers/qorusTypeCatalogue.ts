@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The Qorus server's type catalogue as reqraft keeps it (qorus#646): what each type is called as a label (its
+// The Qorus server's type catalogue as reqraft keeps it: what each type is called as a label (its
 // display name) and inside a sentence (its sentence form). No React here: the form's validation names types too,
 // and the hook (`useQorusTypes`) that answers with the server's catalogue builds on it.
 import { reqraftLabels } from './reqraftLabels';
@@ -360,7 +360,7 @@ let serverQorusTypes: IQorusTypeObject[] | undefined;
 /**
  * The type catalogue for code outside a component: the server's answer once a `useQorusTypes` has it, reqraft's
  * copy (`defaultQorusTypes`) until then. It gave reqraft's copy always, so a type or a conversion only the server
- * knows was never seen by the checks that decide which values and templates fit a field (qorus#646). A component
+ * knows was never seen by the checks that decide which values and templates fit a field. A component
  * gives the checks `useQorusTypes().value` instead, so that it draws again when the answer comes.
  */
 export const getQorusTypes = (): IQorusTypeObject[] => serverQorusTypes ?? defaultQorusTypes;
@@ -388,7 +388,7 @@ export const setServerQorusTypes = (types: IQorusTypeObject[] | undefined): void
 /** Forgets the server's answer, so that a test or a story starts without one. */
 export const _resetServerQorusTypesForTests = (): void => setServerQorusTypes(undefined);
 
-/** Qore's other names for a type the catalogue lists under its own (qorus#646). */
+/** Qore's other names for a type the catalogue lists under its own. */
 const QORE_TYPE_ALIASES: Record<string, string> = { boolean: 'bool', integer: 'int' };
 
 /**
@@ -442,10 +442,10 @@ const unlistedTypeName = (typeName: string): string =>
 /**
  * What a type is called as a label ("Whole number"), by the type catalogue, or by its `baseType` where the
  * catalogue lists it under no name (see `qorusTypeEntry`). A type named by neither is never named by its code: a
- * user type is named by its path, anything else is "Unknown type" (qorus#646).
+ * user type is named by its path, anything else is "Unknown type".
  *
  * No type (`undefined` or an empty name: a place whose type is not known yet) has no name: `undefined`, and the
- * caller draws or words its text without one (qorus#646).
+ * caller draws or words its text without one.
  */
 export const qorusTypeDisplayName = (
   types: IQorusTypeObject[] | undefined,
@@ -458,7 +458,7 @@ export const qorusTypeDisplayName = (
 
 /**
  * What a type is called inside a sentence ("a whole number": "The expression gives a whole number"), by the type
- * catalogue - its sentence form, which the server gives in the language it is asked for (qorus#646, c6b3fb97c).
+ * catalogue - its sentence form, which the server gives in the language it is asked for (Qorus c6b3fb97c).
  *
  * A catalogue with no sentence form for it (a server before c6b3fb97c) gives a wording that needs no article -
  * "a value of type Whole number" - with its display name. An English article is never built from a display name:
@@ -467,7 +467,7 @@ export const qorusTypeDisplayName = (
  *
  * No type (`undefined` or an empty name) has no sentence form: `undefined`, and the caller words its sentence
  * without a type ("This expression gives nothing", "Converted to a whole number") rather than "a value of type
- * undefined" (qorus#646).
+ * undefined".
  */
 export const qorusTypeSentenceForm = (
   types: IQorusTypeObject[] | undefined,
@@ -529,7 +529,7 @@ export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName, baseType) =
 /**
  * A type's name as a label - its display name ("Whole number") - only where the catalogue lists it, else
  * undefined: a type it does not list is not named by its code (`<string>`), which is no word for a reader
- * (qorus#646, IDE rule: no raw data).
+ * (a reader is never shown raw data).
  */
 export const qorusTypeKnownName = (
   types: IQorusTypeObject[] | undefined,
@@ -602,8 +602,8 @@ export const optionTypeSentence = (
 
 /**
  * Whether a place of type `typeName` (its base type `baseType`) takes a record whole - a hash, a Qog state's data:
- * where the catalogue lists it as a hash, or as taking a hash in its own right (qorus#646, David's review: "Any or
- * hash yes, scalar no"). Text, which converts any value, is not a place for a record; a place of any type is
+ * where the catalogue lists it as a hash, or as taking a hash in its own right: any or
+ * hash yes, scalar no. Text, which converts any value, is not a place for a record; a place of any type is
  * judged by its caller (`isUntypedOptionType`), as the catalogue names no such type.
  */
 export const qorusTypeTakesRecords = (

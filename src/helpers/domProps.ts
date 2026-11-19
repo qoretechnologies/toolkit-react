@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
 /**
- * The attributes any HTML element takes, beside `aria-*`, `data-*` and event handlers (qorus#646).
+ * The attributes any HTML element takes, beside `aria-*`, `data-*` and event handlers.
  *
  * A component that renders a plain element and takes the rest of its props for it passes that element only these.
  * What else it is handed is not an attribute: a Reqore control group hands each component in it its layout props

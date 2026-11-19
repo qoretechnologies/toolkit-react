@@ -6,7 +6,7 @@
  * editor as tall as what it holds. The IDE's test Cases field is one, with a case list a few screens long. Scrolled
  * into it, the heading had left the screen, and with it the name of what the reader was looking at and its actions.
  *
- * The rule is the one every pinned heading in the Qore apps follows (instruction-files decision 028; Reqore's
+ * The rule is the one every pinned heading in the Qore apps follows (Reqore's
  * `STICKY_HEADER_TALL_SCREENS`): the heading pins only while its card is more than one and a half times the height of
  * its scroll area. A card that fits, or nearly does, never puts the reader out of sight of its heading, and pinned for
  * the few pixels it overhung it would draw a band with nothing under it to label.
@@ -21,7 +21,7 @@ import { getPinnedChromeHeight } from './revealRow';
 
 /**
  * How many screens of its scroll area a card must span before its header pins. The same line as Reqore's
- * `STICKY_HEADER_TALL_SCREENS` (decision 028), stated here because reqraft supports Reqore releases older than it.
+ * `STICKY_HEADER_TALL_SCREENS`, stated here because reqraft supports Reqore releases older than it.
  */
 export const CARD_HEADER_TALL_SCREENS = 1.5;
 

@@ -9,7 +9,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A read-first row opened and left alone leaves the form as it was (qorus#646).
+ * A read-first row opened and left alone leaves the form as it was.
  *
  * An unset number or binary row reported '' 100 ms after it opened: the row's Cancel appeared as if
  * something had been typed, and the host was told the field was ''. The Qorus IDE's API schema builder

@@ -247,7 +247,7 @@ export const HelpExplainsTheControls: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with transparency. When "What do these mean?" is clicked, its help says in plain words what the square and the color bar do, what a hex code is, what Red, Green and Blue are and what Opacity is, with the example values (6495ED, F80, FF8800, 0, 0, 0 …) in the data style.',
+          'Renders the Color field with transparency. When "What do these mean?" is clicked, its help says in plain words what the square and the color bar do, what a hex code is, what Red, Green and Blue are and what Opacity is, with the example values (`6495ED`, `F80`, `FF8800`, 0, 0, 0 …) in the data style.',
       },
     },
   },

@@ -264,7 +264,7 @@ function AutoField<T = any>({
   showSavedValues,
   uniqueName,
   componentOverrides,
-  // qorus#347-followup (scope forwarding): destructure so it does NOT
+  // Scope forwarding: destructure so it does NOT
   // land in `...rest` — otherwise the primitive field renderers spread
   // rest onto DOM nodes and React warns about the unknown attribute.
   // Only the nested arg_schema mount sites re-forward this into their
@@ -447,8 +447,8 @@ function AutoField<T = any>({
       const returnType: IQorusType = type || currentType;
       /* A value edited here - typed, picked from the allowed values, set to null - is a value, not an
          expression. This argument used to carry whether the type can be null, which every reader takes for
-         the expression flag: a value picked from a '*string' field's list reached the form as an expression
-         (qorus#646), which a host reads as no value at all. */
+         the expression flag: a value picked from a '*string' field's list reached the form as an expression,
+         which a host reads as no value at all. */
       if (onChange && returnType) {
         onChange(name, val, returnType, false);
       }
@@ -525,7 +525,7 @@ function AutoField<T = any>({
   }
 
   // Render the structured DataSchema editor for the schema object's
-  // `definition` hash — server-driven via `?action=options` (qorus#225).
+  // `definition` hash — server-driven via `?action=options`.
   if (
     (type as string) === 'schema-definition' ||
     (rest as any).ui_type === 'schema-definition'
@@ -554,7 +554,7 @@ function AutoField<T = any>({
         readOnly={rest.readonly || rest.disabled}
         /* the field's templates, as every other field of the form has them (its context data, a Qog state's
            data): a click in the field lists them as their catalogue nests them, and names their chips. They
-           were left out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review) */
+           were left out, so a DPQL field offered no template until a `$` was typed */
         templates={rest.allowTemplates !== false && size(rest.templates?.items) ? rest.templates : undefined}
       />
     );
@@ -813,7 +813,7 @@ function AutoField<T = any>({
           return (
             /* An empty yes / no with a default opens on that default: the folded row reads "Yes"
                for it, and the switch opened on No (later on no answer at all), as if looking at the
-               field had changed it. Without a default it stays unanswered (qorus#646). */
+               field had changed it. Without a default it stays unanswered. */
             <BooleanFormField
               {...rest}
               checked={yesNoShown(getValueOrDefaultValue(value, default_value))}
@@ -863,11 +863,11 @@ function AutoField<T = any>({
                 // Forward consumer-injected editors into the nested sub-form
                 // so its own fields can render host-injected types (e.g. a
                 // `code-editor` override for a `body` sub-field inside a
-                // list-of-hash row). Was missing pre-qorus#347-followup —
+                // list-of-hash row). Was missing before scope forwarding —
                 // catches an existing gap surfaced by the nested inherit_props
                 // story.
                 componentOverrides={componentOverrides}
-                // qorus#347-followup (scope forwarding): thread the accumulated
+                // Scope forwarding: thread the accumulated
                 // inheritance bag into the nested sub-form so its own fields'
                 // `inherit_props` can reach ancestor-scope values (e.g. a
                 // service-method row's `body` picking up `language` from the
@@ -983,7 +983,7 @@ function AutoField<T = any>({
                 allowed_values={rest.element_allowed_values}
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
-                // each element of a type with no editor is edited as its base type (qorus#646)
+                // each element of a type with no editor is edited as its base type
                 base_type={element_base_type}
                 // Propagate compact into every row, exactly as the `hash` case
                 // above does for a single sub-form. `compact` is destructured
@@ -994,7 +994,7 @@ function AutoField<T = any>({
                 // sibling field rendered as a compact read-first row.
                 compact={compact}
                 componentOverrides={componentOverrides}
-                // qorus#347-followup (scope forwarding): thread the accumulated
+                // Scope forwarding: thread the accumulated
                 // inheritance bag through the list wrapper so each row's
                 // arg_schema sub-form sees it. ArrayAuto forwards this via
                 // TemplateField's `rest` into each row's AutoFormField, which
@@ -1173,7 +1173,7 @@ function AutoField<T = any>({
           /* A type with no editor here - a string format type such as an email address, a user type, a
              type a newer server adds - is edited as its base type (`base_type`), as the type catalogue
              names it by its base type (`qorusTypeEntry`); it showed "Unknown type!", and a form could not
-             set it (qorus#646). Only a type with no base type that has an editor is unknown. */
+             set it. Only a type with no base type that has an editor is unknown. */
           const baseType = editorTypeOf(base_type) as IQorusType | undefined;
           if (baseType && baseType !== currentType) {
             return renderField(baseType);

@@ -220,7 +220,7 @@ export interface ITemplateFieldProps extends Partial<
    */
   allowTextExpressions?: boolean;
   /**
-   * The value is entered on tabs (qorus#646, David): Value · Expression · Visual where the field takes
+   * The value is entered on tabs: Value · Expression · Visual where the field takes
    * templates and expressions written as text, Value · Template where it takes templates only. A form's
    * options set it (FormEngine); an expression's operands and other hosts keep the field as it was.
    */
@@ -250,7 +250,7 @@ export interface ITemplateFieldProps extends Partial<
    *   room, where the editor is cut at the field's edge (a chip's name is still on its hover). An
    *   expression's operand is drawn so: a reference chip takes the font of the text it sits in, so a long
    *   one is wider than a narrow condition's column, and a field never narrower than what it holds pushed
-   *   its own ⋮ out of the row (qorus#646).
+   *   its own ⋮ out of the row.
    */
   textWidth?: 'field' | 'content';
   /**
@@ -317,7 +317,7 @@ const TEXTABLE_INPUT_MODES: Record<string, 'numeric' | 'decimal'> = {
 
 export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = DEFAULT_REQRAFT_LABELS.valueTabs;
 
-/** A value the host keeps for reuse (qorus#646): saved from one field, offered in every field of its type. */
+/** A value the host keeps for reuse: saved from one field, offered in every field of its type. */
 export interface ITemplateFieldSavedValue {
   id: string;
   label: string;
@@ -778,7 +778,7 @@ const TemplateFieldImpl = memo(
     ]);
     /* Where each template comes from, as the host says (`templateBadge`): the template picker showed it beside
        the template held, and the lists of templates the value's text and an expression's text open show it in
-       the template's row - a text field's templates are picked there, not on a tab of their own (qorus#646). */
+       the template's row - a text field's templates are picked there, not on a tab of their own. */
     const sourceOfTemplate = useMemo(
       () =>
         templateBadge ?
@@ -820,7 +820,7 @@ const TemplateFieldImpl = memo(
     // template mode regardless, by the `!allowCustomValues` term.
     const typeIsAnyLike = isUntypedOptionType(type);
     /* a field of any type or a hash takes a record whole: a record and a Qog state's data are offered whole as well
-       as opened (qorus#646, David's review); a scalar field's are only opened */
+       as opened; a scalar field's are only opened */
     const takesRecords =
       typeIsAnyLike ||
       qorusTypeTakesRecords(qorusTypes.value, type, rest.base_type as string | undefined);
@@ -860,11 +860,11 @@ const TemplateFieldImpl = memo(
     const opensOnTemplates = isEmptyValue && emptyLandsOnTemplates;
     /* An untyped field holding null is written in the same text field, as `null`: the editor an untyped
        field otherwise falls to drew null as an empty box, the same as a field holding nothing, so the
-       author could not tell the two apart (qorus#646). */
+       author could not tell the two apart. */
     const nullWrittenAsText =
       value === null && typeIsAnyLike && !!allowCustomValues && !hasOnlyAllowedValues;
 
-    /* The tabs a value is entered on (qorus#646, David): Value · Expression · Visual where the field takes
+    /* The tabs a value is entered on: Value · Expression · Visual where the field takes
        templates and expressions written as text, Value · Template where it takes templates only, none where
        it takes no templates. One value, three views: see `selectTab`. */
     const valueTabIsText = isWrittenAsTextOnTheValueTab(type as string) && !hasOnlyAllowedValues;
@@ -876,7 +876,7 @@ const TemplateFieldImpl = memo(
     const valueIsExpression =
       !!(isFunction || isDefaultFunction) && value !== null && typeof value === 'object';
     /** An expression that is nothing but one template (`value($record:{pos})`, as a host may hold a reference to
-     *  a field): the Value tab shows it as that template, where it can show no other expression (qorus#646). */
+     *  a field): the Value tab shows it as that template, where it can show no other expression. */
     const expressionTemplate = valueIsExpression ? templateOfExpression(value) : undefined;
     /** Where a saved value opens: an expression on Expression; a template on Value where it is written as
      *  text, else on Expression (or Template, for a template-only field); anything else on Value. */
@@ -897,7 +897,7 @@ const TemplateFieldImpl = memo(
     );
     /* What the author wrote on the Expression tab that the field does not hold (it did not parse), and the value
        it was written over. The tab's editor goes when the tab is left; the next visit shows the text as it was
-       written while the field still holds that value, not the value written out (qorus#646). */
+       written while the field still holds that value, not the value written out. */
     const expressionDraft = useRef<{ text: string; over: unknown } | null>(null);
     const valueRef = useRef(value);
     valueRef.current = value;
@@ -934,7 +934,7 @@ const TemplateFieldImpl = memo(
     // expression mode — kept so the switch is undoable, and so the editor
     // opens on the Text view the author was already writing in.
     const [expressionFromText, setExpressionFromText] = useState<string | null>(null);
-    /* The view the expression editor (without value tabs) is on. It opens on Text (qorus#646, David); when it
+    /* The view the expression editor (without value tabs) is on. It opens on Text; when it
        is mounted again - an expression removed in Visual and put back empty by its host, as a row rule's
        condition is - it opens where the author was, not back on Text. */
     const [expressionMode, setExpressionMode] = useState<TExpressionMode>('text');
@@ -966,7 +966,7 @@ const TemplateFieldImpl = memo(
       }
       /* Emptied from outside the editor - the card's "Clear value", an undo, a host's reset - the text the
          value is written in is emptied too. It kept its own copy, so a cleared value went on showing what it
-         had held (qorus#646: "Clear value" had no effect). The editor's own emptying sets this already. */
+         had held ("Clear value" had no effect). The editor's own emptying sets this already. */
       if (isEmptyValue && templateValue) {
         setTemplateValue(null);
       }
@@ -1084,12 +1084,12 @@ const TemplateFieldImpl = memo(
       if (templateValue) {
         /* On the tabs this text is the Value or the Template tab's - a value, never an expression -
            whichever tab is open by the time it arrives: an edit sent as its field goes away (the tab
-           switched straight after it) arrives on the next tab (qorus#646). */
+           switched straight after it) arrives on the next tab. */
         const asExpression = tabsKindRef.current ? false : effectiveIsFunction;
         /* Read from the text where the field is written as text: a lone template takes its own
            type in an untyped field, a scalar's literal is that literal, other text is text. The Value
            tab's text is the value written as text too, even where the field takes no value of the
-           author's own (an untyped field's templates are picked there: qorus#646). */
+           author's own (an untyped field's templates are picked there). */
         if (templateSupportsCustomValues || (tabsKindRef.current && valueTabIsText)) {
           const read = templateTextValue(templateValue, type as string, filteredTemplates);
           onChange?.(name, read.value, read.type as TQorusType, asExpression);
@@ -1119,8 +1119,8 @@ const TemplateFieldImpl = memo(
        specific to that field: every empty untyped field with templates on
        offer got the same downgrade. The editor still offers the same templates
        on focus, so nothing is lost by being able to type as well. */
-    /* And so can a scalar: a whole number, a number or a yes/no is written as text too
-       (qorus#646). A template chosen into it is a chip in that text, not a pick-only
+    /* And so can a scalar: a whole number, a number or a yes/no is written as text too.
+       A template chosen into it is a chip in that text, not a pick-only
        control that holds the template and nothing else, so text can be written around it;
        what the field then holds is read from the text (writtenAsText). A date keeps its
        date control. */
@@ -1316,7 +1316,7 @@ const TemplateFieldImpl = memo(
       }
     }, [name, onChange, value, templateValue]);
 
-    /* One value, three views (qorus#646, David). Value → Expression writes the literal or template as
+    /* One value, three views. Value → Expression writes the literal or template as
        expression text, emitting nothing until it is edited. Expression ↔ Visual is the editor's own toggle.
        Expression → Value converts only a literal or a lone template; any other expression stays, and the
        Value tab says it cannot show it and offers to replace it. Nothing is lost silently. */
@@ -1327,7 +1327,7 @@ const TemplateFieldImpl = memo(
       async (next: TValueTab) => {
         if (next === tab) return;
         /* What was just typed on the Expression tab is read before the tab goes, and is the expression the
-           field now holds; it was lost with the editor when the tab was left before it was read (qorus#646). */
+           field now holds; it was lost with the editor when the tab was left before it was read. */
         const flushed = tab === 'expression' ? await expressionFlush.current?.() : undefined;
         // left with text that did not parse: the Value tab says the field keeps its value
         setLeftWithDraft(tab === 'expression' && !flushed && !!expressionDraft.current);
@@ -1351,7 +1351,7 @@ const TemplateFieldImpl = memo(
         } else {
           /* The seed is the value written as text while it is not an expression yet. One that is shows itself:
              a seed left from an earlier visit was shown in its place - the value as it was opened, not the
-             expression written since - and leaving the tab saved it (qorus#646). */
+             expression written since - and leaving the tab saved it. */
           setExpressionSeed(!flushed && !valueIsExpression ? expressionTextOfValue(value) : null);
           // the text written there that did not parse, while the field still holds what it was written over
           const draft = expressionDraft.current;
@@ -1479,7 +1479,7 @@ const TemplateFieldImpl = memo(
           setExpressionFromText(null);
         }
         /* On the Expression tab a lone template is kept as the expression the server parses it into,
-           template(...): the option takes expressions (qorus#646, David). A template-only option has no
+           template(...): the option takes expressions. A template-only option has no
            Expression tab and keeps the bare template. A lone value (12, true) is that value, the field's own
            shape (see `loneValueOf`). */
         const onTabs = !!tabsKindRef.current;
@@ -1534,7 +1534,7 @@ const TemplateFieldImpl = memo(
         setExpressionFromText(text);
         /* The value is an expression now, and the Text view shows it. A seed left from an earlier visit to
            the Expression tab - the value as it was then - was shown in its place, and leaving the tab saved
-           it: what had just been typed was lost (qorus#646). */
+           it: what had just been typed was lost. */
         setExpressionSeed(null);
         setInternalIsFunction(true);
         setIsTemplate(false);
@@ -1565,8 +1565,8 @@ const TemplateFieldImpl = memo(
       onChange?.(name, expressionFromText, type as TQorusType, false);
       /* Text that cannot be a value of the field's type (`12 + 2` in a whole number) is not a value it can
          keep: put back, it is a value the field refuses. It is offered again as an expression, beside that
-         refusal, so the way back is in sight; text that can be a value is kept as one, as the undo asked
-         (David on FormEngine · Expression Typed On Value Switches With Undo, qorus#646). */
+         refusal, so the way back is in sight; text that can be a value is kept as one
+         (FormEngine · Expression Typed On Value Switches With Undo). */
       const detected = detectedTexts.current.get(expressionFromText);
       if (detected?.outcome === 'switch') {
         setDpqlOffer({ text: expressionFromText, expression: detected.expression });
@@ -1614,8 +1614,7 @@ const TemplateFieldImpl = memo(
       : null;
 
     /* The offer beside the field it is of, to its right, and under it only where the row has no room for both: under
-       it, with the field's message under that, an offer was one more line to read before the value (Foxhoundn, qlip
-       #392: "move the `Use as an expression` to the right of the field"). */
+       it, with the field's message under that, an offer was one more line to read before the value. */
     const withOfferBeside = (field: React.ReactNode) =>
       dpqlOfferPrompt ?
         <ReqoreControlGroup fluid wrap gapSize='small' verticalAlign='flex-start' className='dpql-offer-beside'>
@@ -1633,7 +1632,7 @@ const TemplateFieldImpl = memo(
       !effectiveIsFunction &&
       /* the template editor is text too: an expression written around a template is detected there; and a
          form's Value tab written as text takes any text, whatever the field says of custom values (an untyped
-         option's did, and an expression typed there was kept as text, offered as nothing: qorus#646) */
+         option's did, and an expression typed there was kept as text, offered as nothing) */
       (!isTemplate || templateSupportsCustomValues || (tabsKind === 'full' && valueTabIsText)) &&
       !hasOnlyAllowedValues &&
       !rest.readonly &&
@@ -1689,8 +1688,8 @@ const TemplateFieldImpl = memo(
               detectedTexts.current.set(text, { expression: parsed.expression, outcome });
             }
 
-            /* An expression detected is offered, never switched to: the author chooses (qorus#646, David's
-               review: "@pos + @bezeichnung" became an expression without asking). Text that cannot be a value
+            /* An expression detected is offered, never switched to: the author chooses (text
+               such as "@pos + @bezeichnung" became an expression without asking). Text that cannot be a value
                of the field's type is said to be one it refuses, beside the offer. */
             if (outcome !== 'none') {
               setDpqlOffer({ text, expression: parsed.expression });
@@ -1753,7 +1752,7 @@ const TemplateFieldImpl = memo(
                   icon: 'MoneyDollarCircleLine' as const,
                   /* With no template on offer here - a context whose catalogue has none, or none of this
                      type - the way in leads to an empty list: it is shown, not taken, and says why
-                     (qorus#646, David: "Are there cases where no templates or fields are available?"). */
+                     (a context can offer no templates or fields at all). */
                   ...(hasTemplatesOnOffer ?
                     { tooltip: templateTooltip ?? fieldWords.useTemplateTooltip }
                   : {
@@ -2173,7 +2172,7 @@ const TemplateFieldImpl = memo(
       const typeInSentence: (type: string | undefined) => string | undefined =
         words.typeName ?? qorusTypes.getTypeSentenceForm;
       /* A condition field's Expression tab is called Expression, as every field's is: a condition is written as
-         an expression, and the tab's hover says so (qorus#646). */
+         an expression, and the tab's hover says so. */
       const conditionField = isConditionOption(rest);
       const expressionTabLabel = words.expression;
       const tabButton = (
@@ -2199,7 +2198,7 @@ const TemplateFieldImpl = memo(
         </ReqoreButton>
       );
       /* A lone template of another type than the field's is converted when the value is used: said as a
-         warning, not a block - whether it converts depends on the data (qorus#646, David). */
+         warning, not a block - whether it converts depends on the data. */
       const loneTemplate =
         typeof value === 'string' && isCompleteTemplateToken(value) ? value : expressionTemplate;
       const loneTemplateType =
@@ -2245,7 +2244,7 @@ const TemplateFieldImpl = memo(
                 className='template-selector value-tab-text'
                 valueFormat='text'
                 /* A whole number or a number is typed on a numeric keyboard where the device has one, as its own
-                   input was (qorus#646); templates are picked from the list the field opens, and an expression
+                   input was; templates are picked from the list the field opens, and an expression
                    is written on the Expression tab. */
                 inputMode={TEXTABLE_INPUT_MODES[type as string]}
                 singleLine={isSingleLineStringType('string')}
@@ -2262,7 +2261,7 @@ const TemplateFieldImpl = memo(
                 {...rest}
                 fixed={false}
                 fluid
-                /* The value takes the row the tabs give it (qorus#646, David: a small box beside empty room
+                /* The value takes the row the tabs give it (a small box beside empty room
                    was clicked beside, and offered nothing). An operand's own field sizes itself to its
                    column instead - that is the field outside the tabs. */
                 panelProps={{
@@ -2347,7 +2346,7 @@ const TemplateFieldImpl = memo(
               fields={rest.dpql_fields}
               /* The record the server names for the option (`dpql_provider`: its connection and path), with the
                  server's own default record type. It was never read: the server sends it, and the Text view
-                 offered no field of the record (qorus#646). */
+                 offered no field of the record. */
               provider={rest.dpql_provider}
               recordType={rest.dpql_provider ? 'record' : undefined}
               serverHandled={rest.server_expression_handling}
@@ -2398,7 +2397,7 @@ const TemplateFieldImpl = memo(
       );
       /* A field that takes templates and no expression, whose value is written as text: the text takes its
          templates as chips, from the list it opens, so a Template tab beside it would be a second way to do the
-         one thing (qorus#646, David). It is the value alone, with the field's menu beside it. */
+         one thing. It is the value alone, with the field's menu beside it. */
       if (tabsKind === 'template' && valueTabIsText) {
         const controls = renderControls();
         return (
@@ -2508,7 +2507,7 @@ const TemplateFieldImpl = memo(
                 size={rest.size}
                 modeLabels={expressionModeLabels}
                 /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
-                   Expression before Visual (qorus#646, David); without a language server it falls back to
+                   Expression before Visual; without a language server it falls back to
                    Visual by itself. It opened on Visual, on an empty "Select operation", unless the
                    expression had just been typed as text. Mounted again, it opens on the view the author
                    was on - except for an expression just typed as text, which is shown as the text it is. */
@@ -2647,7 +2646,7 @@ const TemplateFieldImpl = memo(
             valueFormat='text'
             singleLine={isSingleLineStringType('string')}
             /* null shows as null, not as an empty field: the two are different values, and an
-               untyped field holding null looked exactly like one holding nothing (qorus#646) */
+               untyped field holding null looked exactly like one holding nothing */
             value={
               typeof templateValue === 'string' ? templateValue : (
                 (untypedTextOf(value, type as string) ?? '')

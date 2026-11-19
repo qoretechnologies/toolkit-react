@@ -231,7 +231,7 @@ const dedupeRefs = (refs: IResolvedInterfaceReference[]): IResolvedInterfaceRefe
 };
 
 /* A row's kind and provenance, smaller. Not faded here: the entity row already draws its metadata softer than its
-   name, and fading it again on top took it to 2.3:1 (qorus#646). */
+   name, and fading it again on top took it to 2.3:1. */
 const META_EFFECT = { textSize: 'small' } as const;
 
 // ---------------------------------------------------------------------------
@@ -351,12 +351,12 @@ const Thumb = styled.button`
   position: relative;
   transition: border-color 0.15s;
   /* A screenshot is something to read, not a hand-off to Qonsole, so its hover and focus
-     brighten the tile's own edge instead of wearing the product's purple (decision 002). */
+     brighten the tile's own edge instead of wearing the product's purple, which marks Qonsole. */
   &:hover {
     border-color: rgba(255, 255, 255, 0.35);
   }
   &:focus-visible {
-    /* The one ring color (decision 030): the text color it inherits at 0.7, readable on a light
+    /* The one focus ring color every control draws for the keyboard: the text color it inherits at 0.7, readable on a light
        theme too, where a fixed white at 0.6 vanished. */
     outline: 2px solid color-mix(in srgb, currentColor 70%, transparent);
     outline-offset: 2px;

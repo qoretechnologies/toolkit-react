@@ -104,7 +104,8 @@ const withTypeWords = (words: string, description: unknown): ReactNode => {
 
 /**
  * A list of templates whose values say their type in words, in their description ("For example: 1705496417 · Whole
- * number", last, as the $ list's detail says it), never as their badge (board r-ed-30; decision 026: no machine word in front of a business reader).
+ * number", last, as the $ list's detail says it), never as their badge (no machine word in front of a business
+ * reader).
  * A row's badge said its type's code ("int"), and a reader choosing "the order's number" had a type name to read
  * past. The type stays the value's, a typed member (`metadata.type`) a field matches it by (`templateType`), also
  * where a host's row kept it only in its badge: that badge goes. Any other badge stays, and a group keeps its own

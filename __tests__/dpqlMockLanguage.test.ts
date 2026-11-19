@@ -237,7 +237,7 @@ describe('dpql/serialize and dpql/renderExpression', () => {
     metadata: { displayName: 'Local Context' },
   };
 
-  it('serializes a stored template as the template, as the UI form evaluates it (qorus#646)', () => {
+  it('serializes a stored template as the template, as the UI form evaluates it', () => {
     expect(mockSerializeDpql(STORED)).toEqual({
       dpql: '$local:name == "John"',
       richtext: {
@@ -452,10 +452,10 @@ describe('the stand-in tokenizer reads field names in any script, as the server 
   });
 });
 
-// qorus#646 (David's review: `pos + 1 + $pos` said nothing): text the server cannot read is published as the
-// server publishes it. Every expected value is what Qore's DataProvider says for the same text
-// (parseDpqlExpressionWithInfo, Qore batch 6 at 28a6bbcb14, installed on professor): its codes, its ranges, and
-// its words, which since batch 6 say what to do, in plain words.
+// Text the server cannot read is published as the server publishes it (`pos + 1 + $pos` said nothing). Every
+// expected value is what Qore's DataProvider says for the same text (parseDpqlExpressionWithInfo, Qore batch 6 at
+// 28a6bbcb14, installed on a Qorus instance): its codes, its ranges, and its words, which since batch 6 say what to
+// do, in plain words.
 describe('text the server cannot read is published, in its words and where it is', () => {
   const published = (text: string) =>
     mockPublishedDiagnostics(text).map(({ code, message, range }) => ({
@@ -639,8 +639,8 @@ describe('text the server cannot read is published, in its words and where it is
   });
 });
 
-// qorus#646: the server's parser refuses a `+` whose operands it cannot combine (DPQL-E050); the mock answers
-// as professor's language server did for the case the stories write, a hash and a number.
+// The server's parser refuses a `+` whose operands it cannot combine (DPQL-E050); the mock answers
+// as a live Qorus language server did for the case the stories write, a hash and a number.
 describe('operands the operator cannot combine', () => {
   const fields = { create: { type: 'hash' }, quantity: { type: 'int' } };
   const E050 =
@@ -670,7 +670,7 @@ describe('operands the operator cannot combine', () => {
   });
 });
 
-describe('each part of && || ! is read as a condition (qorus#646)', () => {
+describe('each part of && || ! is read as a condition', () => {
   // the server's own cases (lsp-websocket.qtest), with the record's field types
   const fields = { n: { type: 'int' }, flag: { type: 'bool' }, name: { type: 'string' } };
   const codes = (text: string) =>

@@ -6,7 +6,7 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-/* A refused value's name is dimmed, as far as it still reads on the list, drawn in its own color (qorus#646: 0.55
+/* A refused value's name is dimmed, as far as it still reads on the list, drawn in its own color (0.55
    was 4.1:1). Only the name: the reason under it stays as reqore draws a row's description (dimming the whole row
    took it to 3.1:1). */
 const DIMMED = getUnavailableLabelOpacity(

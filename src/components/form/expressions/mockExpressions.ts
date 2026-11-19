@@ -103,7 +103,7 @@ export const mockExpressions: IExpressionSchema[] = [
     varargs: true,
     min_args: 1,
     groups: ['Logic'],
-    // any value: each part is read as a condition is, not required to be a bool (qorus#646)
+    // any value: each part is read as a condition is, not required to be a bool
     args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
   },
   {
@@ -119,7 +119,7 @@ export const mockExpressions: IExpressionSchema[] = [
     varargs: true,
     min_args: 1,
     groups: ['Logic'],
-    // any value: each part is read as a condition is, not required to be a bool (qorus#646)
+    // any value: each part is read as a condition is, not required to be a bool
     args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
   },
   {

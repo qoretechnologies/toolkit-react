@@ -133,8 +133,8 @@ export interface IExpressionBuilderProps {
    */
   condition?: boolean;
   /**
-   * What the server says of each part of the condition's `&&`, `||` and `!` (`dpql/parse` with `condition: true`,
-   * qorus#646), in its walk order: each is drawn on its part's card. Given to the builder at the top; it hands
+   * What the server says of each part of the condition's `&&`, `||` and `!` (`dpql/parse` with `condition: true`),
+   * in its walk order: each is drawn on its part's card. Given to the builder at the top; it hands
    * each card its own (`conditionPartCards`).
    */
   conditionParts?: IConditionPart[];
@@ -328,8 +328,8 @@ export const Expression = ({
     [extraActions, selectedExpression, JSON.stringify(value)]
   );
 
-  // The type the expression gives is the server's, the same as everywhere else in Qorus
-  // (qoretechnologies/qorus#713); it is not known, and nothing is judged by it, until the server gives it.
+  // The type the expression gives is the server's, the same as everywhere else in Qorus;
+  // it is not known, and nothing is judged by it, until the server gives it.
   // `ui_type` is compared with the types this place takes, which are UI types; what the expression gives is
   // named, and judged as a condition, by the type's own name, as the Text view names it (`inferred_type`:
   // "a whole number", where the UI type of every number is `number`).
@@ -374,7 +374,6 @@ export const Expression = ({
   // An empty card gives nothing, which is known without asking: it does not fit a place that takes something.
   const typeNotKnownYet = !!value.value?.exp && !serverType;
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
-  // (qorus#646)
   const expectedReturnTypeText = typesInASentence(
     isArray(returnType) ? returnType : [returnType],
     (type) => types.getTypeSentenceForm(type, returnBaseType)
@@ -740,14 +739,14 @@ export const Expression = ({
     ];
   }
 
-  /* The expression as a condition (qorus#646): a Qog if state's, a while or for block's, a transition's
+  /* The expression as a condition: a Qog if state's, a while or for block's, a transition's
      condition is read by the server as true unless its value is zero or empty (Fsm.qc calls .toBool()). What
      it gives is said as every condition editor says it: a number or a list is accepted with a warning under
      it, text, a date or a time is refused. Only where the host says it is a condition: a value of type bool
      is checked as a bool, and an int does not fit it. */
   const condition = level === 0 && isCondition ? conditionVerdict(expressionGivesType) : undefined;
   /* A part of the condition's AND, OR or NOT (this card's own, or the one a NOT reads): read as true or false
-     by its value as the whole condition is, and judged by the server by the same rule (qorus#646). Its verdict
+     by its value as the whole condition is, and judged by the server by the same rule. Its verdict
      is the server's, drawn here; nothing on this side checks a part as a bool. */
   const part = partCards?.[path ?? ''];
   const partVerdict = conditionPartVerdict(part);
@@ -761,7 +760,7 @@ export const Expression = ({
      because the type worked out here happened to be a number's (a warning, in the server's words). */
   /* A part whose operation is not chosen yet gives nothing yet, and nothing is said of what it gives: it was told
      "This expression gives nothing, which this field does not take" - a type it never claimed - beside the Text
-     view's "Fill in each …" (qorus#646, David's review). What it lacks is said instead (`noOperationYetText`). */
+     view's "Fill in each …". What it lacks is said instead (`noOperationYetText`). */
   const noOperationYet = !value?.value?.exp;
   /** What the place takes, said with what it lacks: only a type that is a type (not untyped, not `auto`). */
   const takesText =
@@ -878,7 +877,7 @@ export const Expression = ({
 
     /* A typed operand mounts a text field, and the caret goes there. An untyped one has nothing to type into:
        its first control is its template picker, a list that opens when it is focused, and since reqore 0.78
-       one focused as it mounts opens at once. Adding a value is not asking for that list (David, qorus#646),
+       one focused as it mounts opens at once. Adding a value is not asking for that list,
        so the operand itself takes the focus, and its picker opens when the user goes to it. */
     (added.querySelector<HTMLElement>('textarea, input') ?? added).focus();
   }, [argCount]);
@@ -1178,7 +1177,7 @@ export const Expression = ({
       bottomActions={[
         {
           /* a yes/no place, or a part of an AND or an OR, which another AND or OR can stand for (a part
-             takes any value, qorus#646) */
+             takes any value) */
           show:
             !!selectedExpression &&
             (!!group || areQorusTypesCompatible('bool', returnType, types.value)) &&
@@ -1266,7 +1265,7 @@ export const Expression = ({
         />
       )}
       {/* One sentence for an expression with nothing chosen yet: what it lacks and what its place takes. It
-          was said twice, here and under the card (qorus#646). */}
+          was said twice, here and under the card. */}
       {nothingChosenYet ?
         <ReqoreMessage
           size='small'
@@ -1613,7 +1612,7 @@ export const Expression = ({
 
 /**
  * What an expression, or a part of one, whose operation is not chosen yet says: what it lacks, as the Text view's
- * holes do, and what its place takes where that is a type (qorus#646). `takes` names the type inside the sentence.
+ * holes do, and what its place takes where that is a type. `takes` names the type inside the sentence.
  */
 export const noOperationYetText = (part: boolean, takes: string | undefined): string =>
   reqraftLabels().expressions.noOperationYet(part, takes);
@@ -1806,7 +1805,7 @@ const ExpressionBuilderBody = ({
                   type={type}
                   onValueChange={handleChange}
                   /* what its operator takes, as the catalogue declares it: any value, on a Qorus that reads
-                     each part of an AND or an OR as a condition (qorus#646) */
+                     each part of an AND or an OR as a condition */
                   returnType={
                     (_expressions.expressions?.find((exp) => exp.name === value.value.exp)
                       ?.args?.[0]?.ui_type ?? 'any') as any
@@ -1841,7 +1840,7 @@ const ExpressionBuilderBody = ({
   /* A field path written with accessors - `orders[*].id`, `prices{*}` - is drawn as the path, the chip a record
      field is, not as the accessor operations it is made of: their operands misread (the `@value` of a hash
      wildcard is the item's value, not a record field), and an operation with a source and a body is not what
-     was written (David, qorus#646). It is edited on the Expression tab; here it can be removed, as any operand
+     was written. It is edited on the Expression tab; here it can be removed, as any operand
      can, with its field's controls. */
   const fieldPath = fieldPathOf(value);
   if (fieldPath !== undefined) {

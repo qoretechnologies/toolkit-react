@@ -10,8 +10,7 @@ export const SMALLEST_CHIP_HEIGHT = 20;
 /**
  * `chip` (a `.reqore-tag`, or an element inside one) is drawn `small` or bigger, and everything in it - its icon,
  * its label, its remove button - is inside its box. The one reference chip was `tiny`, a 14px box holding a label
- * in the 14px text around it: the label ran out of the box, top and bottom (Foxhoundn on qlip #383, "the text IS
- * literally leaking out of the chip").
+ * in the 14px text around it: the label ran out of the box, top and bottom.
  */
 export const expectChipFits = (chip: HTMLElement) => {
   const tag = (chip.closest('.reqore-tag') as HTMLElement | null) ?? chip;
@@ -36,8 +35,8 @@ export const expectChipFits = (chip: HTMLElement) => {
 /**
  * Every reference chip named `labels` under `root` is the one chip: the same shape, a tag's corners, and the same
  * height within the text it sits in. The rich text editor drew its chips as badges, pills with rounder corners,
- * beside the tags of every other view (Foxhoundn on qlip #392: "Some template chips are pills, some are badges -
- * let's unify them please").
+ * beside the tags of every other view, so a template chip was a pill in one view and a
+ * badge in another.
  */
 export const expectOneChipShape = (root: ParentNode, labels: string[]) => {
   const chips = Array.from(root.querySelectorAll<HTMLElement>('.reqore-tag')).filter((tag) =>

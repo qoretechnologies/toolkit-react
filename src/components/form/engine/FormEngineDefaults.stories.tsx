@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A default nobody set reads as a default, not as "Set" (board r-ed-19, Filip's option B, 18 Nov).
+ * A default nobody set reads as a default, not as "Set".
  *
  * On a new workflow the only thing "Set" was "Language: Qore", which a person who does not write code never chose.
  * A field the person has not touched whose value is its default is said under the form, "Uses Qore · Change"; it

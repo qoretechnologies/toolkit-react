@@ -17,7 +17,7 @@ export interface IConfirmMismatchedTypesModalProps extends Omit<IReqoreModalProp
 
 /**
  * How wide a type confirmation is: as wide as its title and its three buttons, not reqore's 80% of the screen, which
- * stretched a few short lines across a wide one (Foxhoundn, qlip #400: "Please make the dialog narrower"). On a
+ * stretched a few short lines across a wide one. On a
  * screen narrower than that, the screen's width.
  */
 export const CONFIRM_DIALOG_WIDTH = 560;
@@ -118,7 +118,7 @@ export const ConfirmMismatchedTypesModal = memo(
                 key={index}
                 description={
                   fixedArgs[index].types_mismatch === false
-                    ? // the types named inside a sentence, by their sentence forms (qorus#646)
+                    ? // the types named inside a sentence, by their sentence forms
                       conversionText(
                         types.getTypeSentenceForm(
                           getArgumentType(expressions, arg, expression.args[index])

@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What a code editor does for the text typed in it (qorus#646, David: the DPQL editor that replaces Monaco loses
- * nothing): brackets matched, strings and chips told apart from the brackets around them, a search's matches.
+ * What a code editor does for the text typed in it (the DPQL editor that replaces Monaco loses nothing): brackets
+ * matched, strings and chips told apart from the brackets around them, a search's matches.
  */
 import { describe, expect, it } from 'vitest';
 import {

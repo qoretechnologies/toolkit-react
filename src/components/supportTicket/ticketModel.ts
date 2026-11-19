@@ -64,7 +64,7 @@ export interface ITicketMessage {
   /** interfaces referenced in this message, as `{kind, name}` snapshots */
   referenced_interfaces?: IInterfaceReference[];
   /**
-   * For a `system` message: the event it records (qorus#693), e.g.
+   * For a `system` message: the event it records, e.g.
    * `support_access.requested`. A thread renders a known event with its own mark, and the
    * `support_access.requested` event as a card that can carry the customer's Grant action;
    * absent on the plain system lines (status changes, assignments).

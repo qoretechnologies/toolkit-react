@@ -392,7 +392,7 @@ export const Error409: Story = {
 };
 
 /* ------------------------------------------------------------------------------------------------
- * loadOnMount and the query cache (board f61)
+ * loadOnMount and the query cache
  * ---------------------------------------------------------------------------------------------- */
 
 const SEEDED_INFO = { 'instance-key': 'seeded-by-the-host', edition: 'Enterprise' };
@@ -445,7 +445,7 @@ export const AFreshCachedAnswerIsNotAskedFor: Story = {
     docs: {
       description: {
         story:
-          'The host has seeded `public/info` into the query cache (as the IDE seeds the type catalog it fetched before the bundle parsed). `useFetch({ loadOnMount: true })` renders that answer on its first paint and does not ask its FetchContext for it: "Asked the server 0 times". It used to ask anyway, and with no reqraft provider above it the default context threw (board f61).',
+          'The host has seeded `public/info` into the query cache (as the IDE seeds the type catalog it fetched before the bundle parsed). `useFetch({ loadOnMount: true })` renders that answer on its first paint and does not ask its FetchContext for it: "Asked the server 0 times". It used to ask anyway, and with no reqraft provider above it the default context threw.',
       },
     },
   },
@@ -496,7 +496,7 @@ export const AFailedLoadOnMountShowsItsError: Story = {
     docs: {
       description: {
         story:
-          'A FetchContext whose request rejects (here, a closed connection) under `useFetch({ loadOnMount: true })`: the failure ends in `error`, so the component shows it, and it is not left as an unhandled rejection. It used to escape the mount effect: the page showed "Loaded" with no data, and a test runner failed the whole run (board f61).',
+          'A FetchContext whose request rejects (here, a closed connection) under `useFetch({ loadOnMount: true })`: the failure ends in `error`, so the component shows it, and it is not left as an unhandled rejection. It used to escape the mount effect: the page showed "Loaded" with no data, and a test runner failed the whole run.',
       },
     },
   },

@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /*
- * A field's own words for its way into its templates (queue item 35, the IDE's test value field: "Pick a captured
+ * A field's own words for its way into its templates (as the IDE's test value field's: "Pick a captured
  * value"). The page's words (`setReqraftLabels`) are one for every field, so a field that picks something else says
  * it on its schema (`template_label`, `template_tooltip`): on its Template tab, and on its "Use template" where it has
  * no tabs. The page's words where it says nothing.

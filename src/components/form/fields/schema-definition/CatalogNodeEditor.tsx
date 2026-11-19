@@ -1,7 +1,7 @@
 /**
  * The recursive heart of the schema-definition editor.
  *
- * The qorus#225 catalogue is a tree of four node kinds — leaf, group,
+ * The schema-definition catalogue is a tree of four node kinds — leaf, group,
  * map, list. The rendering strategy mirrors the IDE's interface detail
  * pages:
  *
@@ -441,7 +441,7 @@ const CatalogMapEditor = memo(
       () => ({
         color: getReadableColor(theme, undefined, undefined, true),
         bg: `${getReadableColor(theme)}14`,
-        // an empty cell's dash, faint: as faint as it still reads (qorus#646)
+        // an empty cell's dash, faint: as faint as it still reads
         faint: getReadableTextOpacity(theme, 0.3),
         // a note ("No … defined yet") and an item's number: softer, as far as they still read
         soft: getReadableTextOpacity(theme, 0.5),
@@ -596,7 +596,7 @@ const CatalogListEditor = memo(
       () => ({
         color: getReadableColor(theme, undefined, undefined, true),
         bg: `${getReadableColor(theme)}14`,
-        // an empty cell's dash, faint: as faint as it still reads (qorus#646)
+        // an empty cell's dash, faint: as faint as it still reads
         faint: getReadableTextOpacity(theme, 0.3),
         // a note ("No … defined yet") and an item's number: softer, as far as they still read
         soft: getReadableTextOpacity(theme, 0.5),

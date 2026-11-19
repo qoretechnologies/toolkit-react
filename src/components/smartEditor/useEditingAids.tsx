@@ -70,7 +70,7 @@ export const useEditingAids = ({
      done as the editor makes the edit the key asks for (its `insertText`, its `deleteBackward`), at the caret the
      editor has then. An edit made in the keydown came before the editor read where the page's caret was: a click's
      caret still to be read was read at the next key, after the pair, and put the caret back before the quotes, so
-     `"a" + 1` came out `a" + 1""` (qorus#646, PullRequestTests). */
+     `"a" + 1` came out `a" + 1""` (PullRequestTests). */
   const pendingKeyRef = useRef<string | null>(null);
   const languageRef = useRef(language);
   languageRef.current = language;

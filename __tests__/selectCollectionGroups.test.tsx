@@ -7,7 +7,7 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * A select's choices in groups (queue item 31, the IDE's assertion-kind picker): the field says how its groups are
+ * A select's choices in groups (as in the IDE's assertion-kind picker): the field says how its groups are
  * drawn (`allowed_values_groups`), the engine hands that to the picker, and the picker to Reqore's collection: the
  * groups' order, their headings, and which start folded. A folded group opens while a search runs, so a match in it
  * is shown.

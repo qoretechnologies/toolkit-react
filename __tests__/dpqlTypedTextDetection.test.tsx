@@ -201,7 +201,7 @@ describe('DPQL typed into a plain field', () => {
     expect(storedExpression(onChange)).toBeUndefined();
   });
 
-  /* qorus#646, David's review: "@pos + @bezeichnung" became an expression without asking. An expression detected
+  /* "@pos + @bezeichnung" once became an expression without asking. An expression detected
      is offered, never switched to - text that cannot be a value of the field's type too: the field says it refuses
      it, beside the offer, and the author chooses. */
   it('OFFERS, and stores nothing, where the text cannot be a value of the field type either', async () => {
@@ -250,8 +250,8 @@ describe('DPQL typed into a plain field', () => {
 
   it('offers the undone text again as an expression where it cannot be a value of the field type', async () => {
     // `@a > 5` is no legal identifier: put back by the undo, it is a value the field refuses, so the way back
-    // to the expression is offered beside it (David on FormEngine · Expression Typed On Value Switches With
-    // Undo, qorus#646). Accepted, it is the expression again.
+    // to the expression is offered beside it (FormEngine · Expression Typed On Value Switches With
+    // Undo). Accepted, it is the expression again.
     probe.mockResolvedValue(expressionResult('>'));
 
     const onChange = await renderTypedField('@a > 5', { has_to_be_valid_identifier: true });
@@ -283,7 +283,7 @@ describe('DPQL typed into a plain field', () => {
   });
 
   it('takes expression text typed into a numeric field as an expression', async () => {
-    // A numeric field is typed freely now (David's review of qorus#646): it used to render
+    // A numeric field is typed freely now: it used to render
     // `input[type=number]`, which dropped `@`, `>` and spaces, so detection never saw the text and only
     // the digits survived. The text is offered as the expression it is, and taken as one when accepted.
     probe.mockResolvedValue(expressionResult('>'));

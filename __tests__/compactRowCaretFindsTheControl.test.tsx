@@ -53,8 +53,7 @@ describe('the caret an opened row takes', () => {
     await waitFor(() => expect(focusedField()).toBe('kind'));
     const active = document.activeElement as HTMLElement;
     // Not a text box — the point of the case. The row offers a pick-one, and
-    // the caret is on the first choice: a native radio, one choice of two
-    // (qorus#646).
+    // the caret is on the first choice: a native radio, one choice of two.
     expect(active.tagName).not.toBe('TEXTAREA');
     expect((active as HTMLInputElement).type).toBe('radio');
     expect(active.closest('.reqore-checkbox')?.textContent).toContain('Service');

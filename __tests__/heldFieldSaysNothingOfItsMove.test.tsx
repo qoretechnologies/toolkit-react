@@ -12,8 +12,8 @@ import { emptyFetchContext } from './support/fetchContext';
 /**
  * An open field is held in the box it was opened in, so finishing an edit does not move it and take the focus. A
  * note under the first such field said where it would move when closed ('Moves to "Set" when you close it (✓)');
- * it was one more line to read while writing a value, and it is gone (Foxhoundn, qlip #392: "Remove the whole
- * `Moves to` please"). The field is still held, and moves when it is closed.
+ * it was one more line to read while writing a value, and it is gone. The field is still held, and moves when it
+ * is closed.
  */
 const NOTE = 'when you close it (✓)';
 

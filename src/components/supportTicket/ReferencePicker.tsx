@@ -141,8 +141,8 @@ const Panes = styled.div`
  * The line is the theme's neutral hairline, a step brighter on focus. Only `$active` (the
  * field has a query) colours it, in `$accent` — blue by default, the same signal
  * `intent='info'` carries on a plain filter control: blue says a filter is narrowing the
- * list, and nothing else (instruction-files decision 001). It is never the product's
- * purple, which a support surface does not wear (decision 002).
+ * list, and nothing else (a color has one job). It is never the product's purple, which a
+ * support surface does not wear.
  */
 const Search = styled.div<{ $accent: string; $line: string; $focus: string; $active?: boolean }>`
   padding: 6px 4px 4px;
@@ -338,7 +338,7 @@ export const ReferencePicker = ({
   );
   const readable = getReadableColor(theme);
   const [query, setQuery] = useState<string>('');
-  // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1; qorus#646)
+  // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1)
   const noteOpacity = useReadableOpacity(0.4);
   /* a kind the search doesn't match, dimmed as far as its name still reads and its icon - which reqore draws at
      70% - still stands out (0.35 left the icon at 2.0:1) */

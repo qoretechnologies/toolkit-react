@@ -104,7 +104,7 @@ describe('an argument holding the DPQL null literal', () => {
 
   it('still offers the templates for a genuinely empty argument, in a field written as text', async () => {
     // The rule itself must survive: an argument with NO value, `any`-typed,
-    // with templates on offer, offers them - since qorus#646 in the text field
+    // with templates on offer, offers them - now in the text field
     // the argument is written in (a template chosen into it is a chip, with text
     // around it), not in a pick-only selector.
     renderBuilder([{}], () => undefined);

@@ -168,7 +168,7 @@ export const FormField = <T extends TFormFieldType>({
   ...rest
 }: IFormFieldProps<T>) => {
   const fieldWords = useReqraftLabels().fields;
-  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  // an item that cannot be picked is dimmed, as far as its name still reads
   const unavailableOpacity = useReadableOpacity(0.55);
   const id = useId();
   const selectedChoiceIntent = useSelectedChoiceIntent();
@@ -673,7 +673,7 @@ export const FormField = <T extends TFormFieldType>({
         <SelectFormField
           items={allowed_values.map(mapAllowedValue)}
           groups={allowed_values_groups}
-          // a pick replaces what the field holds, and the list ticks the suggestion it holds (qorus#646)
+          // a pick replaces what the field holds, and the list ticks the suggestion it holds
           markedValue={heldAllowedValue(value, allowed_values)}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
           placeholder={fieldWords.savedAndSuggestedValues}
@@ -711,7 +711,7 @@ export const FormField = <T extends TFormFieldType>({
               <ReqoreCheckbox
                 margin='right'
                 label={label}
-                // one choice, a radio in its own group; a picture beside the name, the radio kept (qorus#646)
+                // one choice, a radio in its own group; a picture beside the name, the radio kept
                 type='radio'
                 name={`${id}-choice`}
                 {...pictureBesideTheName(

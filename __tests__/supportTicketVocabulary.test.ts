@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The support-ticket vocabulary qorus#693 adds: audit actions with a fallback, interface
+// The support-ticket vocabulary for support access: audit actions with a fallback, interface
 // reference identity across kind spellings, and the delegated-access thread events.
 //
 // The portal's audit tab used to index TICKET_AUDIT_ACTION_META directly, so the first
@@ -44,7 +44,7 @@ describe('ticketAuditActionMeta', () => {
       const meta = TICKET_AUDIT_ACTION_META[action];
       expect(meta.label).toBeTruthy();
       expect(meta.icon).toBeTruthy();
-      // a record, not a verdict: said by its word and icon, with no color (decision 001)
+      // a record, not a verdict: said by its word and icon, with no color
       expect('intent' in meta).toBe(false);
     });
   });

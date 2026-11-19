@@ -3,7 +3,7 @@
  * Qorus `schema` object's DataSchema `definition` document.
  *
  * Everything the editor renders comes from the server option catalogue
- * (`GET /schemas?action=options`, qorus#225) — there is no hard-coded
+ * (`GET /schemas?action=options`) — there is no hard-coded
  * DataSchema shape and no FE fallback. If the catalogue cannot be
  * loaded the editor renders a blocking callout instead of a form.
  *

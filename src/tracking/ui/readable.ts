@@ -7,7 +7,7 @@ import {
 import { getLuminance, mix } from 'polished';
 
 /*
- * Colors the A/B test UI picks itself, in a shade that reads (WCAG 2.1 AA, qorus#646): 4.5:1 for text, 3:1 for an
+ * Colors the A/B test UI picks itself, in a shade that reads (WCAG 2.1 AA): 4.5:1 for text, 3:1 for an
  * icon. The tracking module ships on its own and imports nothing of the rest of reqraft, so this is its own copy of
  * what reqraft's `helpers/readableColors` does.
  */

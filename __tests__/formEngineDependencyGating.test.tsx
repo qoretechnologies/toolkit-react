@@ -130,7 +130,7 @@ describe('an unfulfilled dependency withholds a field instead of offering it', (
 
   it('hides a dependent field that already has a value, keeps the value, and says so', async () => {
     // A profile saved as a cookie scheme and later switched to Permissive still carries the value. The field
-    // does not apply, so it is not shown (qorus#646, David: a field waiting, locked, in front of its value, is
+    // does not apply, so it is not shown (a field waiting, locked, in front of its value, is
     // removed until it can be used). The value is not dropped: the form keeps it, and its note says so.
     const onChange = vi.fn();
     const { container } = render(

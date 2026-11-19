@@ -14,7 +14,7 @@ import {
   READABLE_TEXT,
 } from '../src/helpers/readableColors';
 
-/* The name of a refused value's row in a pick list is dimmed, as far as it still reads on the list (qorus#646). */
+/* The name of a refused value's row in a pick list is dimmed, as far as it still reads on the list. */
 const THEMES: Record<string, IReqoreTheme> = {
   dark: buildTheme(DEFAULT_THEME as never),
   light: buildTheme({ ...DEFAULT_THEME, main: '#ffffff' } as never),

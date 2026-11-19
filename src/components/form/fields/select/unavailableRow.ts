@@ -44,7 +44,7 @@ const rowSurfaces = (theme: IReqoreTheme, listMain?: TReqoreHexColor): string[] 
   : getThemeSurfaces(theme);
 
 /**
- * How far the name of a row whose value cannot be picked is dimmed in `theme` (qorus#646):
+ * How far the name of a row whose value cannot be picked is dimmed in `theme`:
  * `UNAVAILABLE_LABEL_OPACITY`, or as little less as it takes to still read on the list - the theme's surfaces, or
  * `listMain` for a list drawn in its own color.
  *

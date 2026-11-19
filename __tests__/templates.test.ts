@@ -406,7 +406,7 @@ describe('helpers/templates', () => {
       const leaf = leafNamed('Interface ID');
       expect(leaf?.label).toBe('Interface ID');
       expect(leaf?.value).toBe('$local:id');
-      // the type is the template's (`templateType`), said in words by a list, never its badge (r-ed-30)
+      // the type is the template's (`templateType`), said in words by a list, never its badge
       expect(leaf?.badge).toBeUndefined();
       expect(leaf?.metadata?.type).toBe('string');
       expect(leaf?.description).toBe('Example value: 42');

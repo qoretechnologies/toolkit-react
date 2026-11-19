@@ -163,7 +163,7 @@ export const ReqraftLog = ({
   // what the log is given says it, before the host's words
   const copyMessageNotificationContent = givenCopiedContent ?? words.copied;
   const copyMessageFailedNotificationContent = givenCopyFailedContent ?? words.copyFailed;
-  // a message's time, softer than the message: as soft as it still reads (main:lighten:8 was 2.6:1; qorus#646)
+  // a message's time, softer than the message: as soft as it still reads (main:lighten:8 was 2.6:1)
   const timestampOpacity = useReadableOpacity(0.35);
   const [query, setQuery] = useState<string>('');
   const [message, setMessage] = useState<string>('');

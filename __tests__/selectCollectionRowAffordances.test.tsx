@@ -204,8 +204,8 @@ describe('the descriptors, on their own', () => {
 });
 
 describe('the item the field holds', () => {
-  // qorus#646, David: "using color on the icon on the choice makes it harder to see which one is chosen and
-  // impossible to see for people with issues recognizing colors"
+  // a color on the choice's icon makes it harder to see which one is chosen, and impossible for people who do
+  // not tell colors apart
   it('is marked with a tick and a word, not only a color, whatever icon or picture it has', async () => {
     render(
       <ReqoreUIProvider>

@@ -1,6 +1,6 @@
 /**
  * A field the person never touched whose value is its default reads as a default under the form ("Uses Qore ·
- * Change"), not as a "Set" row (board r-ed-19, Filip's option B). A field they changed or opened, or one whose
+ * Change"), not as a "Set" row. A field they changed or opened, or one whose
  * value is not its default, is an ordinary row. Story: `Form/Engine/Defaults`.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';

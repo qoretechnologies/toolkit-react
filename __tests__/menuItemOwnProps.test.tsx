@@ -1,6 +1,6 @@
 /**
  * A menu item's own props (`activePaths`, `submenu`, `divider`) decide what the menu draws and never reach
- * the DOM, and an item's active state follows its `activePaths` (qorus#646).
+ * the DOM, and an item's active state follows its `activePaths`.
  *
  * ReqraftMenuItem read `activePaths` to decide whether it is active, then spread every prop it was given into
  * ReqoreMenuItem. An item drawn as a router link (`as: Link`, as qorus-ide's sidebar draws its items) hands the

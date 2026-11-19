@@ -11,7 +11,7 @@ const stateRow = (templates: { items?: unknown[] }, label: string) =>
 
 /**
  * A Qog state's data is a hash: a field that takes a record is offered it whole, though nothing it holds fits the
- * field (qorus#646, David's review: Look up customer - an ID and a tier - had no Use in a hash field). Its members
+ * field (Look up customer - an ID and a tier - had no Use in a hash field). Its members
  * are shown, none of them to be picked; a text field is offered none of it.
  */
 describe('a Qog state none of whose data fits the field', () => {

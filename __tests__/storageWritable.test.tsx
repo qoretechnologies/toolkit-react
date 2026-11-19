@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A user whose storage is not theirs to keep writes it in memory only (qorus#693).
+// A user whose storage is not theirs to keep writes it in memory only.
 //
 // A staff member in an interactive support session reads a customer's workspace as the
 // workspace's reader principal. The server marks that identity `storage_writable: false`:

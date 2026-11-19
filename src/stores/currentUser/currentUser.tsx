@@ -2,10 +2,10 @@ import { create } from 'zustand';
 import { IReqraftFetchResponse, isQueryCancelled, query } from '../../utils/fetch';
 
 /**
- * The interactive support session a current user is in, when it is one (qorus#693
- * Layer 3): a staff member reading a customer's workspace in the IDE, read-only, as
- * the workspace's support reader. Exactly what the server puts on the request context
- * for such a session, never a token. Absent for every ordinary user.
+ * The interactive support session a current user is in, when it is one: a staff member
+ * reading a customer's workspace in the IDE, read-only, as the workspace's support reader.
+ * Exactly what the server puts on the request context for such a session, never a token.
+ * Absent for every ordinary user.
  */
 export interface ICurrentUserSupportSession {
   /** the session's id on the control plane */
@@ -60,7 +60,7 @@ export interface ICurrentUser {
    * writable, as on every server from before the flag.
    */
   storage_writable?: boolean;
-  /** present only in an interactive support session (qorus#693 Layer 3) */
+  /** present only in an interactive support session */
   support_session?: ICurrentUserSupportSession;
 }
 

@@ -351,7 +351,7 @@ export const MixedLinkability: Story = {
     docs: {
       description: {
         story:
-          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover (qorus#693).',
+          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover.',
       },
     },
   },

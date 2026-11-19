@@ -1,8 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The stories' stand-in server reads what the real one reads (qorus#646, qlip #418: DpqlEditor · With Semantic
- * Tokens and A Record Field Is One Chip showed errors the real server never gives): a regular expression literal
- * after `=~` - a `$` or an `@` in it the pattern's - and a record field with accessors, braced or written with `@`.
+ * The stories' stand-in server reads what the real one reads (in a Qlip build, DpqlEditor · With Semantic Tokens
+ * and A Record Field Is One Chip showed errors the real server never gives): a regular expression literal after
+ * `=~` - a `$` or an `@` in it the pattern's - and a record field with accessors, braced or written with `@`.
  */
 import { describe, expect, it } from 'vitest';
 import { mockPublishedDiagnostics } from '../src/components/form/expressions/dpqlMockLanguage';

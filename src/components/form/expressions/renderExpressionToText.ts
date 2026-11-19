@@ -113,7 +113,7 @@ const renderInContext = (
   contextPrec: number
 ): string => {
   if (!value?.exp) return '';
-  // a field path reads as the path, the reference a record field operand is (fieldPath, qorus#646)
+  // a field path reads as the path, the reference a record field operand is (fieldPath)
   const path = fieldPathOf(value);
   if (path !== undefined) return renderLiteral(fieldPathTemplate(path));
   /* A `value` expression IS its literal.

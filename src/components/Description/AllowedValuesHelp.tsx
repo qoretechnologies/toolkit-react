@@ -100,11 +100,11 @@ const rowOf = (entry: unknown) => {
 };
 
 /**
- * The values a field takes, as help shows them (qorus#646, David's policy): a bold heading, then a small table, a
+ * The values a field takes, as help shows them: a bold heading, then a small table, a
  * row a value - the exact value as data, its name where it has one of its own, and its description. A column no
  * value has anything in is left out. One font size throughout, and every cell wraps, so it fits a phone. It was a
- * bulleted list, whose descriptions ran on straight after their values in a larger font (David: "try a table for
- * this instead"). "Suggested values" heads the values of a field that takes others too.
+ * bulleted list, whose descriptions ran on straight after their values in a larger font; a table reads
+ * better. "Suggested values" heads the values of a field that takes others too.
  */
 export const AllowedValuesHelp = ({ values, suggested, compact }: IAllowedValuesHelpProps) => {
   const theme = useReqoreTheme();

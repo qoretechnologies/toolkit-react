@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /* An internal note says what it is in its words ("Internal note") and its eye-off avatar, never in amber:
- * amber means "needs a look" (instruction-files decision 001), and a note needs none. */
+ * amber means "needs a look", and a note needs none. */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

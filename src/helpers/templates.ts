@@ -83,21 +83,21 @@ export type TReferenceChipProps = Pick<
 /**
  * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
  * text editor and the expression editor: one chip, so a reference is the same size wherever it is shown, at
- * whatever size its text is (qorus#646). One object for all of them: written out in each, the views drifted
+ * whatever size its text is. One object for all of them: written out in each, the views drifted
  * apart, and a chip jumped as a value moved between them.
  *
  * - `small`, never smaller: a chip is pressed (a tap opens its card, a click its list), and a control a finger
  *   must hit is not `micro` or `tiny` (BRAND_DESIGN, "Tap targets are finger-sized"). The one chip was `tiny`, a
  *   14px box with the 14px text it sits in: the label was taller than its box and ran out of it, and the name
- *   was all but cut off (Foxhoundn on qlip #383; David, 2026-10-22: one chip for every view at `small`).
+ *   was all but cut off. So one chip for every view, at `small`.
  * - its label in the font of the text it sits in, padded inside the box;
  * - and wrapping: a chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the
  *   line's width with its label centred in it, and lost both ends - its icon, the start and the end of the path,
- *   and its remove button (Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
+ *   and its remove button: the tag overflowed its line.
  * - a tag, never a badge: reqore's rich text editor draws its chips as compact badges (`asBadge`, `compact`), a
  *   pill with rounder corners and its own height, so a reference in an expression or a rich text field was a pill
- *   beside the tags of every other view (Foxhoundn on qlip #392: "Some template chips are pills, some are badges -
- *   let's unify them please"). Said here, the editor's chip is the tag the others are.
+ *   beside the tags of every other view, some chips pills and some badges. Said here, the editor's chip is the tag
+ *   the others are.
  */
 export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
   size: 'small',
@@ -145,7 +145,7 @@ export const getTemplateValue = (value: string): string => {
  * template here" while typing; use the strict check below when a decision
  * must not misfire on user-typed dollar-strings.
  *
- * A braced segment ends where Qorus ends it (UserApi `_priv_get_template_bracket_arg`, qorus#646): braces nest,
+ * A braced segment ends where Qorus ends it (UserApi `_priv_get_template_bracket_arg`): braces nest,
  * and `\{`, `\}` and `\\` are a brace or a backslash of the value, not one that opens or closes it. So
  * `$record:{prices{*}}` - a wildcard written as a template - is one token; a pattern ending the value at its first
  * `}` drew the chip "record: prices{*" and a stray "}". No pattern can count braces, so the grammar is read one
@@ -154,7 +154,7 @@ export const getTemplateValue = (value: string): string => {
 const TEMPLATE_KEY = /[A-Za-z_][\w-]*/y;
 /* A plain segment as Qorus reads one (UserApi `_priv_get_template_arg`: `\w+[\w.]*`): words and the dots between
    them - `$static:order.id` is one reference, its key `order.id`, and `*` alone, the whole of the context
-   (`$data:*`) - (qorus#646: it was cut at the dot, the chip
+   (`$data:*`) - (it was once cut at the dot, the chip
    "static: order" and the text ".id"). A dot that ends it is not part of it: `$data:receive_order.` is a reference
    being written on. */
 const TEMPLATE_WORD_SEGMENT = /\*(?![\w.])|\w[\w-]*(?:\.[\w-]+)*/y;
@@ -234,7 +234,7 @@ export const isCompleteTemplateToken = (value?: unknown): value is string =>
 /**
  * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
  * two templates side by side. In text it is text; a whole number, a number, a yes/no or a date cannot
- * hold it (qorus#646).
+ * hold it.
  */
 export const hasTextAroundATemplate = (value?: unknown): value is string =>
   typeof value === 'string' &&
@@ -296,7 +296,7 @@ export const isBracedTemplateToken = (value?: unknown): value is string =>
  */
 /**
  * Whether two keyed references are one, braces or not: `$data:{a.b}` (how a catalogue spells it) is
- * `$data:a.b` (how the language server completes it, and how it may be typed) - qorus#646.
+ * `$data:a.b` (how the language server completes it, and how it may be typed).
  */
 const sameKeyedReference = (a: unknown, b: string): boolean =>
   typeof a === 'string' &&
@@ -461,7 +461,7 @@ export const resolveTemplateLabel = (
   const extended = exact ? undefined : findTemplateByPath(templates, value);
   const item = exact ?? extended?.item;
   if (!item) {
-    // a Qog state's data taken whole, which no row is: named by its state (qorus#646, David's review)
+    // a Qog state's data taken whole, which no row is: named by its state
     const group = catalogueGroupFor(templates, value);
     return group ?
         { label: group.label, item: group.row as TReqoreDropdownItem, path: group.path }
@@ -469,7 +469,7 @@ export const resolveTemplateLabel = (
   }
   const own = (item.label as string) || value;
   const name = extended ? composeExtendedLabel(own, extended.remainder) : own;
-  /* Named with where it is (qorus#646, David's decision): the data it is part of before its name - a Qog state, a
+  /* Named with where it is: the data it is part of before its name - a Qog state, a
      record - "Receive order › … › Address › City", up to three steps whole; its whole path, with the groups that only
      gather templates (Context Data), is its hover's title. Two states both have an "ID". */
   const trail = catalogueRowTrail(templates, item);
@@ -558,12 +558,12 @@ export const templateTooltip = (
   const templateTypeName = templateType(item);
   const type = templateTypeName ? typeSentenceForm(templateTypeName, templateBaseType(item)) : undefined;
   /* What it is, and where nothing says so, why: a hover with no description said only the name, and a reader
-     could not tell an undescribed value from a broken hover (qorus#646, David). */
+     could not tell an undescribed value from a broken hover. */
   const given = [description, host?.description].find(
     (text): text is string => typeof text === 'string' && !!text.trim()
   );
   /* what its color means (`TEMPLATE_INTENT_MEANINGS`), where the catalogue lists it: the same on its chip and
-     its row (qorus#646, David: "what is the significance of the colors?") */
+     its row, so a reader can tell what the colors mean */
   const intent = item ? templateRowIntent(item.metadata as Record<string, unknown>) : 'info';
   // blue is any other data: only green and purple say something of their own
   const meaning =
@@ -604,7 +604,7 @@ export const templateAllowedValues = (item: unknown): unknown[] => {
 
 /**
  * What a reference's hover says under its name: what kind of value it is, in words - "A whole number." from the
- * type's sentence form - then its description (qorus#646, David: a field's hover should say the field's type).
+ * type's sentence form - then its description: a field's hover says the field's type.
  * The type was in the catalogue (its badge) and in no hover; where a hover said it, it said it raw, `(int)`.
  * Undefined when there is neither.
  */
@@ -666,7 +666,7 @@ export const filterTemplatesByType = (
         newSubItem.items = filterItems(subItem.items);
 
         /* A Qog state's data is a hash, taken whole where the field takes a record, though none of what it holds
-           fits the field (qorus#646, David's review: Look up customer had no Use in a hash field): its members are
+           fits the field (Look up customer once had no Use in a hash field): its members are
            shown, and none of them can be picked. */
         if (!size(newSubItem.items) && takesRecords && stateOfGroup(subItem.items)) {
           newSubItem.items = subItem.items.map((member) => ({ ...member, disabled: true }));
@@ -829,7 +829,7 @@ export const buildTemplates = (
           // preview adapts to any popover/panel width without breakpoints.
           descriptionEffect: exampleIsLong ? { noWrap: true } : undefined,
           /* No badge: the type is the template's, a typed member (`metadata.type`) a field matches it by, and a list
-             says it in words, not as a badge reading "int" (`sayTemplateTypesInWords`; board r-ed-30). */
+             says it in words, not as a badge reading "int" (`sayTemplateTypesInWords`). */
           metadata: {
             image: logo,
             displayName: display_name,

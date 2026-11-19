@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The DPQL stories' stand-in server and catalogue answer as Qorus does (qorus#646, David's review: "it's not clear
- * which parts are story config issues"): a story that shows what the product never does hides the product's real
+ * The DPQL stories' stand-in server and catalogue answer as Qorus does, so it is clear which parts are the
+ * product's and which the story's set-up: a story that shows what the product never does hides the product's real
  * behaviour. Context data is what `getContextData` serves (`GenericContextInfo`, every item with its base type), a
  * Qog's state data what `getStateData` serves (each item named by its path, with its own description), and what
  * the server completes inside a template what Qorus's catalogue lists (`QorusTemplateCatalogue::listValues()`), from

@@ -6,8 +6,8 @@
 // field read the badge back as the template's type, so it could not be named there. The type is now a typed
 // member of the template (`metadata.type`, with its base type in `metadata.baseType`), and the lists name it by
 // the type catalogue (`qorusTypeDisplayName`): a user type with no base type by its path, any other unknown type
-// as "Unknown type" (qorus#646). A list says it in words under the template's name, not as its badge: a badge
-// reading even "Whole number" is a type tag in front of a business reader (board r-ed-30, decision 026).
+// as "Unknown type". A list says it in words under the template's name, not as its badge: a badge
+// reading even "Whole number" is a type tag in front of a business reader, and no machine word goes there.
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { useTemplateTags } from '../src/components/form/fields/rich-text/useTemplateTags';

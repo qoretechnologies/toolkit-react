@@ -157,8 +157,8 @@ export const LongStringFormField = ({
       /* A one-line field holds no line break, but a long one wraps: it grows with its text, so the whole value
          is read in the row's editor (an editable row shows three lines of it, and the rest is here). It offers
          no resize grip: its height is its text's, and in its one-line height the clear button covered the
-         corner the grip is drawn in - the grip showed and could not be dragged (David on FormEngine · A Row
-         Stacks On A Narrow Form Even With Short Labels, qorus#646). A multi-line field grows and keeps its grip. */
+         corner the grip is drawn in - the grip showed and could not be dragged (FormEngine · A Row
+         Stacks On A Narrow Form Even With Short Labels). A multi-line field grows and keeps its grip. */
       scaleWithContent
       rows={singleLine ? 1 : undefined}
       fluid

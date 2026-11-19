@@ -13,8 +13,8 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * An object field's values are rows (queue item 32, decision 027): a name and a typed value each, or a value each
- * for a list, and a record or a list in a value is rows of its own. The field's value in and out stays what it was
+ * An object field's values are rows (data is entered through a form, never as JSON): a name and a typed value
+ * each, or a value each for a list, and a record or a list in a value is rows of its own. The field's value in and out stays what it was
  * (YAML, JSON or the data itself), so every host keeps its contract.
  */
 

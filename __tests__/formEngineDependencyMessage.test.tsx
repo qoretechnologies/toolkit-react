@@ -127,7 +127,7 @@ describe('the unmet-dependency message', () => {
 });
 
 /*
- * The form says reqraft's own sentence as it is (qorus#646): a dependency on the value `__other__` read as
+ * The form says reqraft's own sentence as it is: a dependency on the value `__other__` read as
  * markdown, its underscores taken for bold, and the row said the field must be "other". A field whose dependency
  * does not hold is hidden now, and one that holds a value is said in the form's note, which quotes it the same way.
  */

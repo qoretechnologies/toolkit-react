@@ -56,7 +56,7 @@ describe('markdownToProse', () => {
 });
 
 /**
- * qorus#646 (found by the IDE agent): a code span's backticks were taken off after the emphasis passes, so what
+ * Found in the Qorus IDE: a code span's backticks were taken off after the emphasis passes, so what
  * the span quoted was read as markup - `__other__` came out as "other", `*y*` as "y". And a backslash escape was
  * not read at all: `\_\_x\_\_` came out with its backslashes. A code span holds its text exactly, and an escaped
  * mark is the mark itself, as CommonMark reads them.

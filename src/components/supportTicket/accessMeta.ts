@@ -6,7 +6,7 @@ import { ITicketEnumMeta, humaniseWireValue } from './meta';
 import type { TTicketAttention, TTicketViewerRole } from '../supportTicket/meta';
 
 /*
- * The delegated-support-access vocabulary (qorus#692): how the account's access
+ * The delegated-support-access vocabulary: how the account's access
  * setting, a grant's state, the reasons a grant ended, the duration presets and the
  * grant's own audit trail read on every surface that shows them — the customer's IDE
  * (the sign-up step, the account tab, the ticket drawer) and the staff portal (the

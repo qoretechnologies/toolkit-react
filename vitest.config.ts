@@ -49,7 +49,7 @@ const qlip = qlipVitestPlugin({
  * off. Turning Chromium's touch emulation off over the DevTools protocol (how a touch story used to borrow
  * a desktop page) leaves the page with the hover and pointer the machine reports, not the mouse Playwright
  * launched it with (`--blink-settings=primaryHoverType=2,…`), and a Linux CI runner reports none: every
- * later story in the page found `(hover: none)` (qorus#646).
+ * later story in the page found `(hover: none)`.
  */
 const storyBrowser = (phone = false) => ({
   enabled: true,

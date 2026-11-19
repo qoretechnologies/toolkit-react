@@ -74,7 +74,7 @@ if (typeof window !== 'undefined') {
 // Font parity with .storybook/preview-body.html.
 const style = document.createElement('style');
 // No text caret in a capture: it blinks, so a story ending with the cursor in a field was captured with it on
-// or off at random, and qlip flagged the same frame as changed (Template › Template Value, qorus#646).
+// or off at random, and qlip flagged the same frame as changed (Template › Template Value).
 style.textContent = `
   html,
   body {
@@ -90,7 +90,7 @@ document.head.appendChild(style);
 
 /* Each story's browser is the one its project promises (vitest.config.ts): a desktop with a mouse, or, for
    the stories tagged `touch`, a phone. The phone's stories run first, so every desktop story checks, after
-   them, that it still has its mouse: a touch screen that left a desktop page without one (qorus#646) fails
+   them, that it still has its mouse: a touch screen that left a desktop page without one fails
    the next story here. */
 beforeEach(() => {
   // a project's browser runs as a project of its own, named after both: "storybook-touch (chromium)"

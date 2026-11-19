@@ -6,7 +6,7 @@
  *   1. The **option catalogue** returned by `GET /schemas?action=options`
  *      (`ISchemaOptionCatalog`) — the server contract the editor renders
  *      its forms from. Mirrors `Classes/SchemaMetadata.qc::getOptionCatalog`
- *      shipped by qorus#225.
+ *      on the Qorus server.
  *   2. The **DataSchema definition document** (`IDataSchemaDefinition`) —
  *      the value the editor reads and writes. Only the well-known top
  *      level is typed; deeper structures stay loose because the editor is
@@ -88,7 +88,7 @@ export interface ICatalogAction {
 }
 
 /**
- * The full `GET /schemas?action=options` response (qorus#225).
+ * The full `GET /schemas?action=options` response.
  *
  * - `fields` — the wrapper metadata form (name, datasource, …).
  * - `definition` — the DataSchema editor catalogue; keys are the

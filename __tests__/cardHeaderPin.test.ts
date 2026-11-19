@@ -1,10 +1,10 @@
 /**
  * An open field's card pins its heading only while it is clearly taller than its scroll area (more than one and a
- * half times, decision 028), and then under whatever the form already pins above it: its toolbar and the header of
+ * half times), and then under whatever the form already pins above it: its toolbar and the header of
  * the status box it sits in. A row inside a pinned card is revealed clear of the card's heading too.
  *
- * The story gate is `Form/Engine/Sticky Headers · A Long Card Keeps Its Heading While Its Body Is Read` (board t-87
- * B-9: the Qorus IDE's Cases card lost its pinned heading when it became a read-first card).
+ * The story gate is `Form/Engine/Sticky Headers · A Long Card Keeps Its Heading While Its Body Is Read` (the
+ * Qorus IDE's Cases card lost its pinned heading when it became a read-first card).
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import {

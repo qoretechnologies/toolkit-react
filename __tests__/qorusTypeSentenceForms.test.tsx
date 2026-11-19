@@ -12,7 +12,7 @@ import {
 import { emptyFetchContext, okResponse } from './support/fetchContext';
 
 /**
- * qorus#646: a type has two names in the server's catalogue (GET /system/qorus-type-info, qorus c6b3fb97c): its
+ * A type has two names in the server's catalogue (GET /system/qorus-type-info): its
  * display name labels it ("Whole number"), and its sentence form names it inside a sentence ("a whole number").
  * Every reqraft message that names a type in a sentence says its sentence form: "The expression gives a whole
  * number, and this field takes key-value pairs (a hash)". A server that gives no sentence form (an older one) is answered

@@ -1,5 +1,5 @@
 /**
- * The story network guard blocks, and names, every request a story makes that no mock answers (qorus#646).
+ * The story network guard blocks, and names, every request a story makes that no mock answers.
  *
  * Unanswered, such a request went to the instance the stories were configured with: every story file fetched
  * the current user from the live Qorus, and reqraft's useStorage stories passed only while it answered.
@@ -17,10 +17,10 @@ const PAGE = 'http://localhost:63315/__vitest_test__/';
 describe('outsideTarget', () => {
   it('names a request to another origin, by origin and path', () => {
     expect(
-      outsideTarget('https://hq.qoretechnologies.com:8092/api/latest/users?action=current', PAGE)
-    ).toBe('https://hq.qoretechnologies.com:8092/api/latest/users');
-    expect(outsideTarget('wss://hq.qoretechnologies.com:8092/lsp', PAGE)).toBe(
-      'wss://hq.qoretechnologies.com:8092/lsp'
+      outsideTarget('https://qorus.example.com:8092/api/latest/users?action=current', PAGE)
+    ).toBe('https://qorus.example.com:8092/api/latest/users');
+    expect(outsideTarget('wss://qorus.example.com:8092/lsp', PAGE)).toBe(
+      'wss://qorus.example.com:8092/lsp'
     );
   });
 
@@ -63,10 +63,10 @@ describe('guardRealNetwork', () => {
   it('fails a fetch no mock answered, without sending it, and names it', async () => {
     const { win, network, realFetch } = guarded();
     await expect(
-      win.realFetch!('https://hq.qoretechnologies.com:8092/api/latest/users?action=current')
+      win.realFetch!('https://qorus.example.com:8092/api/latest/users?action=current')
     ).rejects.toThrow('is not mocked');
     expect(realFetch).not.toHaveBeenCalled();
-    expect(network.take()).toEqual(['fetch https://hq.qoretechnologies.com:8092/api/latest/users']);
+    expect(network.take()).toEqual(['fetch https://qorus.example.com:8092/api/latest/users']);
     // taken once
     expect(network.take()).toEqual([]);
   });
@@ -82,23 +82,23 @@ describe('guardRealNetwork', () => {
     const { win, network, opened, dialled, sendBeacon } = guarded();
     new win.realXMLHttpRequest!().open(
       'GET',
-      'https://hq.qoretechnologies.com:8092/api/latest/system/pid'
+      'https://qorus.example.com:8092/api/latest/system/pid'
     );
-    new win.WebSocket!('wss://hq.qoretechnologies.com:8092/lsp');
+    new win.WebSocket!('wss://qorus.example.com:8092/lsp');
     expect(win.navigator.sendBeacon('https://telemetry.example.com/v1', null)).toBe(false);
     expect(opened).toEqual([['GET', BLOCKED_HTTP_URL]]);
     expect(dialled).toEqual([BLOCKED_WS_URL]);
     expect(sendBeacon).not.toHaveBeenCalled();
     expect(network.take()).toEqual([
-      'XHR https://hq.qoretechnologies.com:8092/api/latest/system/pid',
-      'WebSocket wss://hq.qoretechnologies.com:8092/lsp',
+      'XHR https://qorus.example.com:8092/api/latest/system/pid',
+      'WebSocket wss://qorus.example.com:8092/lsp',
       'beacon https://telemetry.example.com/v1',
     ]);
   });
 });
 
 /**
- * An element's own load is a request too: the template fixtures' app logo was an `<img>` on the live hq
+ * An element's own load is a request too: the template fixtures' app logo was an `<img>` on a live Qorus
  * instance, which no mock could answer and the fetch guard never saw.
  */
 describe('guardRealNetwork: what an element loads', () => {
@@ -128,7 +128,7 @@ describe('guardRealNetwork: what an element loads', () => {
     return network;
   };
 
-  const LOGO = 'https://hq.qoretechnologies.com:8092/api/public/apps/Qorus/logo';
+  const LOGO = 'https://qorus.example.com:8092/api/public/apps/Qorus/logo';
 
   it('puts an image another origin serves nowhere, set as an attribute or as a property, and names it', () => {
     const network = guarded();

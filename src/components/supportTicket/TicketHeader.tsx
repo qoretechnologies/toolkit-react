@@ -58,7 +58,7 @@ const StyledMonoId = styled.span<{ $color: string }>`
 `;
 
 /* Softer than the title: the theme's text, faded only as far as it still reads (a fixed white at 45% was 4.5:1 at
-   best on a dark theme and unreadable on a light one; qorus#646). */
+   best on a dark theme and unreadable on a light one). */
 export const TicketMonoId = ({ children }: { children: ReactNode }) => {
   const theme = useReqoreTheme();
   const color = useMemo(
@@ -258,7 +258,7 @@ export const TicketHeaderText = ({
   muted?: boolean;
   tooltip?: string;
 }) => {
-  // an absent value is faded, as far as it still reads (qorus#646)
+  // an absent value is faded, as far as it still reads
   const mutedOpacity = useReadableOpacity(0.5);
 
   return (

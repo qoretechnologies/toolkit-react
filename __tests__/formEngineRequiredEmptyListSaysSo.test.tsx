@@ -23,8 +23,7 @@ const SAYS: Record<TFormEngineAppearance, { box: string; words: string }> = {
 };
 
 /**
- * A required list holding no items says "A value is required", as any other empty required field does
- * (qorus#646).
+ * A required list holding no items says "A value is required", as any other empty required field does.
  *
  * The form counts an empty list as not set: the row is in "Needs attention", and an optional one is not saved.
  * The row's messages counted it as a value, since an empty list is truthy, so nothing said why the row needed

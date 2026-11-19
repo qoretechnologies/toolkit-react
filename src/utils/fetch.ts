@@ -329,7 +329,7 @@ export const queryStaleTime = ({
  * Whether the cache holds a successful answer under `key` that `query` would hand back
  * WITHOUT a request: one that is not stale within `staleTime` (see `queryStaleTime`).
  *
- * A caller that only wants the answer can skip asking for it - board f61:
+ * A caller that only wants the answer can skip asking for it:
  * `useFetch` asked the `FetchContext` on mount for a resource it had already rendered
  * from this cache, and with no reqraft provider above it that request was a throw.
  */

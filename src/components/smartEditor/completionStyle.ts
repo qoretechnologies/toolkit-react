@@ -12,8 +12,8 @@ import { COMPLETION_KIND_INTENTS } from './styling';
 import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
 
 /*
- * One look for the two lists a field offers what can be written in (qorus#646, David: "use the same
- * components ... a consistent UX"): the completion list typing opens (`CompletionList`) and the list a field's
+ * One look for the two lists a field offers what can be written in, the same components for one consistent
+ * experience: the completion list typing opens (`CompletionList`) and the list a field's
  * templates are browsed in (`TemplateBrowser`, kept apart because a large catalogue needs its hierarchy). Both
  * take their color, their rows' font, and their kinds' icons and chips from here, so they cannot drift.
  */
@@ -52,7 +52,7 @@ const QONSOLE_SNIPPET_KIND = 15;
  * The color a row's kind chip takes in the lists of values (`useCompletionListTheme`): its kind's in the classic look;
  * none in the calm one, where the chip's words already say what the row is - blue says only "a filter is on", and
  * purple only an AI or Qonsole action, so Qonsole's own items keep theirs. A value's chip in the text it is written
- * in keeps its color either way (Filip, 10 Nov: the template chips stay as they are).
+ * in keeps its color either way: the template chips stay as they are.
  */
 export const listKindIntent = <T extends string | undefined>(
   intent: T,

@@ -2,7 +2,7 @@
 // What a field holds for the text written in its template editor.
 //
 // A field that takes templates and custom values shows ONE editor for both: a text
-// field where a chosen template is a chip, with text typed around it (qorus#646). The
+// field where a chosen template is a chip, with text typed around it. The
 // field's value is read from that text:
 //
 // - a template standing alone is that template - in an untyped field, of the
@@ -48,7 +48,7 @@ export const isWrittenAsText = (type?: string): boolean =>
 
 /**
  * Whether a form option of this type is written as text on its Value tab - a text field taking templates as
- * chips and detecting expressions - rather than on its own control (qorus#646, David): text, untyped values,
+ * chips and detecting expressions - rather than on its own control: text, untyped values,
  * whole numbers and numbers. A yes / no, a date and fixed choices keep their own control.
  */
 export const isWrittenAsTextOnTheValueTab = (type?: string): boolean =>
@@ -114,7 +114,7 @@ export const loneTemplateOf = (expression: unknown): string | undefined =>
 /**
  * The template an expression is when it is nothing but that template: `value($record:{pos})` or
  * `template($record:{pos})`, as a host may hold a reference to a field (the Qorus IDE reads a test's reference
- * back as `value(...)`, qorus#646). The Value tab shows it as that template. Undefined for any other expression.
+ * back as `value(...)`). The Value tab shows it as that template. Undefined for any other expression.
  */
 export const templateOfExpression = (expression: unknown): string | undefined =>
   templateOperandOf(expression, ['value', 'template']);

@@ -37,7 +37,7 @@ export const DpqlRendering = ({ text, templates, 'data-testid': testId }: IDpqlR
       readOnly
       /* The text is a rendering, not something being written: nothing to diagnose. Its hover says what a
          function, an operator or a reference in it is, as the editor's does: a collapsed row's `trim(…)` told a
-         reader nothing of `trim` (David on FormEngine · Compact Expression Template Chips, qorus#646). */
+         reader nothing of `trim` (FormEngine · Compact Expression Template Chips). */
       showDiagnostics={false}
       templateTagsUseIntent
       templates={templates}

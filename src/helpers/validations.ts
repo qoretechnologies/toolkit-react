@@ -187,8 +187,8 @@ const validResult = (): IValidationResult => ({ isValid: true, reasons: [] });
 /**
  * Why a value its field's pattern refuses is refused, in words the author can act on: what the pattern accepts,
  * as the server says it ("Must be a host name and a port."); else the form a value must have, by the field's
- * example; the pattern itself last, as a detail (qorus#646, David: "we need to tell the user why there's an error -
- * i.e. what doesn't match the pattern - what is the pattern"). It said "Value does not match validation pattern".
+ * example; the pattern itself last, as a detail: the author is told why there is an error, what does not match
+ * and what the pattern is. It said "Value does not match validation pattern".
  */
 export const patternMismatchReason = (field?: {
   validation_regex?: string;
@@ -317,12 +317,12 @@ const isValueDefined = (type: string, value: any): boolean => {
 
 /**
  * A type named inside a sentence: its sentence form in the server's type catalogue ("a whole number"), as reqraft
- * keeps it - the form's own words, said before and without any server (qorus#646).
+ * keeps it - the form's own words, said before and without any server.
  */
 const typeInSentence = (type: string): string | undefined =>
   qorusTypeSentenceForm(defaultQorusTypes, type);
 
-/** What is said of a value that is not of its field's type, the type named where there is one (qorus#646). */
+/** What is said of a value that is not of its field's type, the type named where there is one. */
 const valueMustBe = (type: string): string => words().valueMustBe(typeInSentence(type));
 
 /** The types a value is written as text in, where text around a template makes it text and not one of them. */
@@ -391,7 +391,7 @@ export const _validateField = (
   }
   /* A value whose type is not text, written with text around a template, is not of that type: a whole
      number written as "$record:{pos} Stk." passed as a template - anything starting with `$` and holding
-     a `:` did - and the form could be saved with a value its type cannot hold (qorus#646). A template
+     a `:` did - and the form could be saved with a value its type cannot hold. A template
      alone, a literal and an expression are judged as before. */
   const textAroundReason = textAroundATemplateReason(type, value);
   if (textAroundReason) {
@@ -844,7 +844,7 @@ export const _validateField = (
       return validResult();
     }
     case 'rgbcolor': {
-      // the hash { r, g, b, a? } (qorus#646, David): a hex code, bare or as { hex }, is shown but not stored
+      // the hash { r, g, b, a? }: a hex code, bare or as { hex }, is shown but not stored
       const problem = storedColorProblem(value);
 
       return problem ? invalidResult(problem) : validResult();
@@ -1757,7 +1757,7 @@ export const _validateField = (
         /* Which operand, where its name alone does not say: every operand of a call taking any number of
            them is "Value" (qlip build 20261008-083118: "which "value" is the message mentioning"). Said by
            its position too, as the editor shows them, left to right - and so is a lone operand of a call that
-           can take more (David, qorus#646), as the operands that join it will be. The words say the position
+           can take more, as the operands that join it will be. The words say the position
            their own way ("the 2nd"); it is given only where it is said. */
         const position =
           expressionDefinition.varargs ||
@@ -1819,8 +1819,8 @@ export const _validateField = (
         });
 
         if (!result.isValid) {
-          // an operand not filled in yet says what to do; one that is wrong says which and why (David's
-          // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
+          // an operand not filled in yet says what to do; one that is wrong says which and why (it said
+          // "Value for argument 1 ("Value") is invalid: Missing value" while building)
           if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
             return { ...invalidResult(words().enterOperand(argLabel, position)), missingOperand: true };
           }

@@ -15,7 +15,7 @@ export {
   useCompletionKeys,
   useLspAutocomplete,
 } from './useLspAutocomplete';
-// the one look and the two lists a field offers what can be written in (qorus#646)
+// the one look and the two lists a field offers what can be written in
 export { CompletionList, CompletionMenu } from './CompletionMenu';
 export type { ICompletionListProps, ICompletionMenuProps } from './CompletionMenu';
 export {

@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A template's type, as a typed member of its row in a list of templates (qorus#646).
+ * A template's type, as a typed member of its row in a list of templates.
  *
  * A template kept its type only as its row's `badge`, which Reqore draws as it is: every list of templates said
  * "int" or "qoretechnologies/money" beside a template, and the badge could not be named, because the field read

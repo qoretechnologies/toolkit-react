@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The keys of a code editor's editing aids (qorus#646, David: the DPQL editor that replaces Monaco loses nothing),
+ * The keys of a code editor's editing aids (the DPQL editor that replaces Monaco loses nothing),
  * on a Slate editor as the DPQL editor has it: pairs closed, a selection wrapped, a closing bracket stepped over,
  * an empty pair taken back whole, a quote after a word left an apostrophe, a line's indent kept, lines moved and
  * copied.
@@ -72,7 +72,7 @@ const caret = (editor: Editor) => editor.selection?.anchor.offset;
 
 describe('pairs', () => {
   it("are closed by the editor's own insertion, at the caret it has then, not in the keydown", () => {
-    /* qorus#646, PullRequestTests: an edit made in the keydown came before the editor read the page's caret, and
+    /* in the pull-request tests, an edit made in the keydown came before the editor read the page's caret, and
        the next key went before the pair; the keydown leaves the key to the editor's insertion */
     const editor = editorWith(['concat'], 6);
     expect(press(editor, '(')).toMatchObject({ taken: false, prevented: false, text: 'concat()' });

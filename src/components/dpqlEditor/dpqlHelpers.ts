@@ -13,7 +13,7 @@ import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from '../smart
 // text is read one character at a time, as the tokenizer reads it, rather than with one pattern: where a bracketed
 // value or a quoted field ends depends on escapes, nested braces and string literals, which no pattern can follow.
 //
-// A field name is bare in any script, as DPQL reads it (qorus#646): a letter of any script or `_`, then
+// A field name is bare in any script, as DPQL reads it: a letter of any script or `_`, then
 // letters, combining marks, digits and `_`, with dot-separated parts. `\w` is ASCII only, so
 // `@menge_bestätigt` was cut to the tag `@menge_best` and the text `ätigt`.
 const NAME_START = '[\\p{L}_]';
@@ -25,7 +25,7 @@ const BARE_FIELD = new RegExp(`@${FIELD_NAME}(?:\\.${FIELD_NAME})*`, 'uy');
  * One accessor after a field, read where it starts, as the server writes it back (Qore DpqlSerializer): `.name`,
  * `[n]`, `[*]`, `{*}`, or keys in braces - `{"id"}`, `{b}` (a key after a field: `@a.b` is the field `a.b`),
  * `{a, "b c"}`. A field with accessors is one reference (`@create.items[*].id`, `@create.items[0].id`): the chip was
- * `create.items` and the accessors plain text after it (David, qorus#646). A name after a dot may hold a dash before
+ * `create.items` and the accessors plain text after it. A name after a dot may hold a dash before
  * a letter (`.order-id`), as the tokenizer reads one. A slice or an expression in brackets is not one of them, and
  * ends the chip.
  */
@@ -54,7 +54,7 @@ const TEMPLATE_HEAD = /\$\w+:/y;
 // method call ends the value: the server's readable rendering writes `ends-with` as
 // `$local:str.endsWith($local:p, true)`, and a path that took every dot turned `str.endsWith` into one reference.
 // A dot goes on to a sub-field: a path that ends with one is not written yet (`$data:receive_order.`), and was read
-// as whole, drawn as a chip mid-path (qorus#646, David's review).
+// as whole, drawn as a chip mid-path.
 const TEMPLATE_BARE_VALUE = /\w+(?:\.(?!\w+\()\w+)*/y;
 /** A character a field cannot start after: one that would make the `@` part of a word (`user@host`) or a path. */
 const BEFORE_NO_FIELD = /^[.\p{L}\p{M}\p{N}_]$/u;
@@ -257,7 +257,7 @@ export function plainTextToSlate(text: string): ISlateElement[] {
  * chip is drawn over do not show. `"$local:name" == "John"` and
  * `$local:name == "John"` read the same. A record field is drawn as the chip of
  * the template it stands for (`makeDpqlTagRenderer`), so it reads as that
- * template: `@pos + 1` and `$record:{pos} + 1` read the same (qorus#646).
+ * template: `@pos + 1` and `$record:{pos} + 1` read the same.
  */
 export function dpqlDisplayedText(text: string): string {
   return plainTextToSlate(text)
@@ -473,7 +473,7 @@ const REFERENCE_BEING_WRITTEN = /[@$][\p{L}\p{M}\p{N}_.:{}[\]*-]*$/u;
  * How much of the end of `textBefore` (the DPQL text before the caret) is a reference still being written - a `$`
  * or an `@` with no more than part of a name after it: the `$` typed to ask for a template, `$rec`, `$record:{po`.
  * A template picked there takes its place, as one picked from the completion list does: left in front of the chip,
- * it made `pos + 1 + $pos`, which the server refuses (qorus#646, David's review). 0 when there is none: after a
+ * it made `pos + 1 + $pos`, which the server refuses. 0 when there is none: after a
  * whole reference (`$record:{pos}`, `@pos`), which is a value already, and after an `@` in a string, which is text
  * there - a template in a string is still one (`readReferences`).
  */

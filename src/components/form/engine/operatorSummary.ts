@@ -12,8 +12,8 @@ interface IOperatorName {
  *
  * The option by its display name, each operator by the server's `display_name`, and the value as the row reads
  * it, text in quotes. It was `WHERE status IS equals "COMPLETE"`: keywords no form uses, the option's key, the
- * operator's key and the value written as JSON (qorus#646, David: "what is this expression, and what is
- * 'is equals'?").
+ * operator's key and the value written as JSON, which left a reader asking what the expression was and what
+ * "is equals" meant.
  */
 export const operatorSummary = ({
   label,

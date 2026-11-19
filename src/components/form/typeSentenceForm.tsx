@@ -13,7 +13,7 @@ import {
 import { useQorusTypes } from '../../hooks/useQorusTypes';
 
 /**
- * The words a form draws types in (qorus#646): a type inside a sentence, as a reference chip's hover says it ("A
+ * The words a form draws types in: a type inside a sentence, as a reference chip's hover says it ("A
  * whole number."), and a type's name as a label, as an open option's type tag shows it ("Whole number"). The
  * server's catalogue, in the language it was asked for, where a form has fetched it (`TypeSentenceFormProvider`,
  * which `FormEngine` puts around everything it draws); the built-in one elsewhere. A chip drawn on its own

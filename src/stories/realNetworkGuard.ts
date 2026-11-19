@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * No story reaches a real server (qorus#646).
+ * No story reaches a real server.
  *
  * Stories are answered by mocks: storybook-addon-mock for HTTP, mock-socket for WebSockets. A request no mock
  * answers went out to whatever instance the story was configured with: reqraft's useStorage stories reached
@@ -14,7 +14,7 @@
  * `!test` and never run under it.
  *
  * A request is not only a fetch. An `<img>` whose `src` is a server's URL loads it too: the template fixtures'
- * app logo was a URL on the live hq instance, so a chip's logo came from the network or, once that URL was gone,
+ * app logo was a URL on a live Qorus instance, so a chip's logo came from the network or, once that URL was gone,
  * left an empty slot in every capture of it. So an element's own load - an image, a frame, a script, a
  * stylesheet, a medium - is blocked and named as a request is, and whatever else the page still loads from
  * another origin (a CSS `url()`, a font) is named from the browser's own record of what it loaded.

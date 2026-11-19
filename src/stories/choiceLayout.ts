@@ -5,7 +5,7 @@ import { expect } from 'storybook/test';
 const FOCUS_RING_REACH = 4;
 
 /**
- * A choice drawn with a picture is laid out as David asked (qorus#646): as far from its radio as from its name, the
+ * A choice drawn with a picture is laid out this way: as far from its radio as from its name, the
  * radio's focus ring clear of the picture, the name centered on the picture (each within 1px); once one is chosen
  * the others' pictures are gray and the chosen one's in color. `chosen` names the one chosen, if one is.
  */

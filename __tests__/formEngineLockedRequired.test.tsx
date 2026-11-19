@@ -13,7 +13,7 @@ const fetchContext = emptyFetchContext();
  * listed under "Needs attention" anyway — the form counted a required empty field as needing attention whether or
  * not it applied — which is how a guided check in qorus-ide came to ask for its Path, Minimum, Maximum and
  * Expected value before the author had even picked what kind of check it was. Then it was shown locked, waiting,
- * with what unlocks it; now (qorus#646, David) it is not shown at all until it applies.
+ * with what unlocks it; now it is not shown at all until it applies.
  *
  * What does need attention is the field that unlocks it, when that one is itself
  * required; and the field the moment its dependency holds and it is still empty.
@@ -267,7 +267,7 @@ describe('a locked required field and the completeness status', () => {
 
   it('keeps a value a hidden field holds, does not let it hold the form back, and says it is not valid', async () => {
     // The field does not apply, and is not in the form, so nothing in it can be fixed there: it does not make
-    // the form invalid. Its value is kept, and the form's note says it is not valid (qorus#646).
+    // the form invalid. Its value is kept, and the form's note says it is not valid.
     const onValidityChange = vi.fn();
     const { container } = render(
       <ReqoreUIProvider>

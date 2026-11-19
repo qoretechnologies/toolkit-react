@@ -140,12 +140,12 @@ const meta = {
   },
   async beforeEach(context) {
     /* Every story starts with the mouse off the page: the hover stories leave theirs resting where their hover is
-       open, so that the capture shows the hover they are about (qorus#646, Foxhoundn: "If a story is about hover,
-       the hover needs to be seen"), and a mouse left there opened a hover in the story after. */
+       open, so that the capture shows the hover they are about (a story about a hover has to show it), and a mouse
+       left there opened a hover in the story after. */
     await mouseOffThePage();
     // Live stories (those with `parameters: { live: true }`) skip
     // the mock-socket server so the editor's WebSocket reaches the
-    // real Qorus `/lsp` endpoint at `wss://hq.qoretechnologies.com:8092/lsp`.
+    // `/lsp` endpoint of a running Qorus server (`wss://<qorus-host>:8092/lsp`).
     // Prereq: set `REACT_APP_QORUS_TOKEN` before running storybook.
     if (context.parameters?.live) {
       return undefined;
@@ -177,7 +177,7 @@ const meta = {
         signatureHelpProvider: {
           triggerCharacters: ['(', ',', ' ', '-', '='],
         },
-        // the real server answers hovers: functions, operators, fields, accessors, templates (qorus#646)
+        // the real server answers hovers: functions, operators, fields, accessors, templates
         hoverProvider: true,
       },
       handlers: {
@@ -583,7 +583,7 @@ const chipLabels = (editable: HTMLElement) =>
   );
 
 /**
- * The fields the server writes quoted (qorus#646): `dpql/serialize` writes a record field whose name DPQL does
+ * The fields the server writes quoted: `dpql/serialize` writes a record field whose name DPQL does
  * not read bare as `@"…"` - a path with `[*]` or an index, a dashed key - which is how `$record:{create.items[*].id}`
  * comes back after a tab switch. Each is its chip, as `@name` is, labeled with the name it stands for; a template
  * with an escaped brace is one chip; and a field in a string is the string.
@@ -648,7 +648,7 @@ export const QuotedFieldTypedOutIsAChip: Story = {
 };
 
 /**
- * A field with accessors (David, qorus#646): the server writes a reference with a selector back as
+ * A field with accessors: the server writes a reference with a selector back as
  * `@create.items[*].id`, a key after an index as `.id`, and a key that needs quoting in braces. Each is one chip,
  * labeled with the whole path, and written back as it was.
  */
@@ -705,7 +705,7 @@ export const ARecordFieldIsOneChip: Story = {
     docs: {
       description: {
         story:
-          'Renders the DpqlEditor with one record field written both ways - @orders[*].id, as the server writes DPQL, and $record:{orders[*].id}, as a value holds it. They are the same field and the same chip: both labeled record: orders[*].id, in the color and with the icon of every template chip (qorus#646, David: one chip for one record field). Before, the field was a light blue chip with black text, labeled orders[*].id.',
+          'Renders the DpqlEditor with one record field written both ways - @orders[*].id, as the server writes DPQL, and $record:{orders[*].id}, as a value holds it. They are the same field and the same chip: both labeled record: orders[*].id, in the color and with the icon of every template chip (one record field is one chip). Before, the field was a light blue chip with black text, labeled orders[*].id.',
       },
     },
   },
@@ -730,7 +730,7 @@ const shownHovers = () =>
 
 /**
  * The hover's card is a surface: an opaque background under its words, as a chip's hover is drawn. Drawn as glass it
- * was its words over an empty page (Foxhoundn, qlip #392: "It looks like the background is transparent?").
+ * was its words over an empty page, and its background read as transparent.
  */
 const expectHoverOnACard = () => {
   const card = document.querySelector<HTMLElement>('.reqore-popover-content .reqore-popover-text');
@@ -782,7 +782,7 @@ export const HoverSaysWhatAFunctionIs: Story = {
     docs: {
       description: {
         story:
-          'Renders the DpqlEditor with size(@create.items[*].id) > size(@prices{*}) && … and rests the mouse on size: the hover says what the server says of it - "function size", "Get Size", what it returns and its argument - as the live Qorus /lsp answers (qorus#646, David: "there are no mouseover / hovers on the functions").',
+          'Renders the DpqlEditor with size(@create.items[*].id) > size(@prices{*}) && … and rests the mouse on size: the hover says what the server says of it - "function size", "Get Size", what it returns and its argument - as the live Qorus /lsp answers.',
       },
     },
   },
@@ -806,7 +806,7 @@ export const HoverOverAChipSaysWhatItsPathIs: Story = {
     docs: {
       description: {
         story:
-          'Renders the DpqlEditor with the field path @create.items[*].id drawn as one chip, and rests the mouse on the chip: the hover says what the server says of each part of it - the field @create.items, the list wildcard [*], and the field id after it - as its text would, in one card (qorus#646, David: "there are no mouseover / hovers on the chips").',
+          'Renders the DpqlEditor with the field path @create.items[*].id drawn as one chip, and rests the mouse on the chip: the hover says what the server says of each part of it - the field @create.items, the list wildcard [*], and the field id after it - as its text would, in one card.',
       },
     },
   },
@@ -857,7 +857,7 @@ export const DetailsOnAChipOnATouchScreen: Story = {
         { timeout: 10000 }
       );
       if (touch.narrowed) {
-        // in a row a phone's width, Details is its icon alone, still named (Foxhoundn, qlip #383)
+        // in a row a phone's width, Details is its icon alone, still named
         await waitFor(() => expect(details.textContent?.trim()).toBe(''));
         await expect(details).toHaveAccessibleName('Show what the word at the cursor is');
       }
@@ -911,7 +911,7 @@ export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
 
     // another chip: the list is at that chip, where it is drawn - past the first one on a wide line, below it on
     // the next line where the line wraps (a phone) - under it from its left edge, not at the caret the click left
-    // after it (Foxhoundn, qlip #392), nor still at the first chip (the popover the list was in says it closed
+    // after it, nor still at the first chip (the popover the list was in says it closed
     // after the list opened there)
     await userEvent.click(customer);
     await waitFor(() => expectListUnder(customer, chipList(editable)));
@@ -941,7 +941,7 @@ export const AChipLongerThanItsLineWrapsInsideIt: Story = {
     docs: {
       description: {
         story:
-          'Renders the accessor chains in an editor 240 px wide, narrower than the chips record: create.items[*].id and record: headers.content-type. Each wraps its label inside its line, with its icon and its remove button, rather than running past the line and losing both ends (Foxhoundn, qlip #383: "The template tag is overflowing, you need to wrap it"). A chip that fits stays on one line, the height it always had.',
+          'Renders the accessor chains in an editor 240 px wide, narrower than the chips record: create.items[*].id and record: headers.content-type. Each wraps its label inside its line, with its icon and its remove button, rather than running past the line and losing both ends (a chip wider than its line wraps, never overflows). A chip that fits stays on one line, the height it always had.',
       },
     },
   },
@@ -1262,7 +1262,7 @@ const caretAt = async (editable: HTMLElement, offset: number) => {
 
 /**
  * A Qog state's data picked from the list after `$data:receive_order.` is written as its chip, the whole reference:
- * it was written as its bare key (`order_id`), plain text the server cannot read (qorus#646, David's review).
+ * it was written as its bare key (`order_id`), plain text the server cannot read.
  */
 export const AStateDataPickIsWrittenAsItsChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -1297,8 +1297,8 @@ export const AStateDataPickIsWrittenAsItsChip: Story = {
 
 /**
  * A state picked from the list after `$data:` opens the picker at its data, and the data picked there is the one
- * chip of the whole reference (qorus#646, David's review of With Fsm Context: picking a state wrote its chip, a `.`
- * typed after it was lost when Event type was picked, and the text read `$data:receive_order$data:{…}`).
+ * chip of the whole reference (in With Fsm Context, picking a state wrote its chip, a `.` typed after it was lost
+ * when Event type was picked, and the text read `$data:receive_order$data:{…}`).
  */
 export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -1321,8 +1321,8 @@ export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
     await typeAsAPerson(userEvent, '$data:');
-    /* a state taken is gone on into: its reference is written as text, and its data is listed next (qorus#646,
-       David: "accepting an intermediate level continues to the next level") */
+    /* a state taken is gone on into: its reference is written as text, and its data is listed next (accepting a
+       level on the way continues to the next level) */
     await userEvent.click(await completionRow('Receive order'));
     await waitFor(() => expect(plainTextOf(editable)).toBe('$data:receive_order.'));
     await waitFor(() =>
@@ -1341,7 +1341,7 @@ export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
 
 /**
  * A `.` typed after a state's chip goes on from it: a pick of the state's data takes the chip's place as well as
- * the `.` - one reference, one chip (qorus#646, David's review).
+ * the `.` - one reference, one chip.
  */
 export const AStateChipAndADotGoOnToOneChip: Story = {
   args: { ...WithFsmContext.args, value: '$data:receive_order', onChange: fn() },
@@ -1375,8 +1375,8 @@ export const AStateChipAndADotGoOnToOneChip: Story = {
 };
 
 /**
- * What typing a reference offers is only what it reaches (qorus#646, David's review: `$data` showed what the empty
- * field did, `$data:` added the state, and every template was listed under whatever was typed): `$d`, `$data` and
+ * What typing a reference offers is only what it reaches (before, `$data` showed what the empty field did, `$data:`
+ * added the state, and every template was listed under whatever was typed): `$d`, `$data` and
  * `$data:` offer the states; `$data:receive_order.` that state's data. The row that opens every template is last.
  */
 export const TypingNarrowsToWhatItReaches: Story = {
@@ -1396,7 +1396,7 @@ export const TypingNarrowsToWhatItReaches: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    /* level by level, each filtered by what is typed of it (qorus#646, David): `$d` the contexts it starts, the
+    /* level by level, each filtered by what is typed of it: `$d` the contexts it starts, the
        server's among them; `$data` the one; `$data:` its states; `$data:rec` the one */
     // a Qog's field: no workflow-only $dynamic: (Qorus `listTemplateContexts`, a DPQL document is a Qog's)
     await typeAsAPerson(userEvent, '$d');
@@ -1425,14 +1425,14 @@ export const TypingNarrowsToWhatItReaches: Story = {
       { timeout: 30000 }
     );
     /* every row fits its list: its name whole, its type label not cut mid-word, its description inside it
-       (qorus#646, David's review: Customer read as "t", its description over the row's edge) */
+       (before, Customer read as "t", its description over the row's edge) */
     expectRowsFit(completionRows());
   },
 };
 
 /**
- * A row says where it is apart from what it is (qorus#646, David's review: each state's data said "Receive order"
- * under its name, and was called a Variable): "in Receive order" on its line, State data and its type as its
+ * A row says where it is apart from what it is (before, each state's data said "Receive order" under its name, and
+ * was called a Variable): "in Receive order" on its line, State data and its type as its
  * badges, what it is in its documentation.
  */
 export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
@@ -1461,9 +1461,9 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
     expect(row.textContent).toContain('State data');
     expect(row.textContent).toContain('Text');
     expect(completionListed().join(' | ')).not.toContain('Variable');
-    // what it is, in the row under its name - no hover over the row's edge (qorus#646, David's review)
+    // what it is, in the row under its name - no hover over the row's edge
     expect(row.textContent).toContain('What happened to the order');
-    // typed on, key by key, the row stays; Tab takes it (qorus#646, David: Tab took the text as it was)
+    // typed on, key by key, the row stays; Tab takes it (it used to take the text as it was)
     await typeAsAPerson(userEvent, 'v');
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('Event type'));
     await userEvent.keyboard('{Tab}');
@@ -1473,8 +1473,8 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
 
 /**
  * A click in the empty field opens the template picker at the top of what the field can refer to: its context
- * data, each Qog state, and the record's fields as a group of their own (qorus#646, David's review: the fields `@`
- * offers were not among the templates an empty field showed).
+ * data, each Qog state, and the record's fields as a group of their own (the fields `@` offers were not among the
+ * templates an empty field showed).
  */
 export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -1502,7 +1502,7 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
           'Look up customer',
           'Receive order',
           'Record fields',
-          // every completion the field has (qorus#646): its contexts, each taken whole or gone into, the
+          // every completion the field has: its contexts, each taken whole or gone into, the
           // functions and the values
           'Template contexts',
           'Functions',
@@ -1521,7 +1521,7 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
 /**
  * A record field the host lists as a template (`$record:{status}` under "Fields of the row") is that field: the
  * picker lists it once, where the host does, and not again under Record fields from the record and its language
- * server (qorus#646, the IDE's Sheet Contract Review: the first click showed two groups holding the same fields).
+ * server (in the IDE, the first click showed two groups holding the same fields).
  */
 export const TheRowsFieldsAreListedOnce: Story = {
   args: {
@@ -1615,7 +1615,7 @@ export const TheKeyboardBrowsesThePicker: Story = {
 };
 
 /**
- * The template button puts the template at the caret, not at the end of the text (qorus#646): its search finds a
+ * The template button puts the template at the caret, not at the end of the text: its search finds a
  * template at any depth by its name, and says where it is.
  */
 export const TheTemplateButtonInsertsAtTheCaret: Story = {
@@ -1659,8 +1659,7 @@ export const TheTemplateButtonInsertsAtTheCaret: Story = {
 };
 
 /**
- * A click on a chip opens the picker at the chip's group, its row the keyboard's, and the pick takes its place
- * (qorus#646).
+ * A click on a chip opens the picker at the chip's group, its row the keyboard's, and the pick takes its place.
  */
 export const AChipIsReplacedFromItsGroup: Story = {
   args: { ...WithFsmContext.args, value: '$data:{receive_order.order_id} > 10', onChange: fn() },
@@ -1797,8 +1796,8 @@ export const WithSignatureHelp: Story = {
 };
 
 /**
- * **Live spike — hits the real Qorus `/lsp` endpoint** at
- * `wss://hq.qoretechnologies.com:8092/lsp` with `languageId: 'dpql'`.
+ * **Live spike — hits the real Qorus `/lsp` endpoint** of a running
+ * Qorus server (`wss://<qorus-host>:8092/lsp`) with `languageId: 'dpql'`.
  * Used to validate `useLspSignatureHelp` end-to-end against the
  * shipped Qorus DPQL handler (`dpql-get-signature-help` in
  * `qorus/Classes/QorusLspWebSocketHandler.qc`).
@@ -2022,7 +2021,7 @@ export const ReadOnly: Story = {
 /**
  * Templates via the `$` trigger: the templates the editor is given, as whole values. The server answers `$` with
  * its template contexts (`$data:`, `$config:`, …), each of which needs a name typed after it, so a pick of one left
- * the text invalid (qorus#646, David: "clicking a variable immediately results in errors"); they are not listed,
+ * the text invalid (a click on a variable must not end in an error); they are not listed,
  * and a context can still be typed by hand. `@` lists the record's fields.
  */
 export const WithTemplates: Story = {
@@ -2158,7 +2157,7 @@ export const TypingBeforeTheServerIsReadyIsStillAnswered: Story = {
 
 /**
  * `$` in an editor given no templates: the list says there are none. It listed the server's template contexts, and
- * a pick of one left the text invalid (qorus#646).
+ * a pick of one left the text invalid.
  */
 export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
   args: { value: '', onChange: fn() },
@@ -2169,8 +2168,8 @@ export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
       description: {
         story:
           'Type `$` in an editor given no templates: the list offers the server\'s template contexts ($config:, ' +
-          '$data:, ...), each of which a pick writes and goes on from, listing what is in it (qorus#646, David: ' +
-          'typing should offer the language server\'s completions).',
+          '$data:, ...), each of which a pick writes and goes on from, listing what is in it (typing offers the ' +
+          'language server\'s completions).',
       },
     },
   },
@@ -2272,7 +2271,7 @@ export const CanTypeText: Story = {
  * A reference that is the whole expression: the chip starts AND ends the line.
  * A click (or tap) at the end of the line puts the caret at the line's last
  * caret position, and what is typed there is written after the reference
- * (qorus#646, "can't type" in the Text view). Slate requires a text node on
+ * (before, nothing could be typed there in the Text view). Slate requires a text node on
  * each side of a chip; when the loaded document had none, the last caret
  * position was inside the chip, where Slate drops every keystroke, so the
  * editor looked focused and ignored typing.
@@ -2460,7 +2459,7 @@ export const TwoEditorsOneConnection: Story = {
 
 /**
  * A bracket typed is closed, a closing one typed before it steps over it, Backspace between an empty pair takes
- * both - as the Monaco editor the DPQL field had did (qorus#646, David: the editor that replaces it loses nothing).
+ * both - as the Monaco editor the DPQL field had did (the editor that replaces it loses nothing).
  */
 export const BracketsAndQuotesAreClosed: Story = {
   args: { value: '', onChange: fn() },
@@ -2644,8 +2643,8 @@ export const LongLinesDoNotWrap: Story = {
 };
 
 /**
- * A Qog state's data and a record are taken whole as well as opened (qorus#646, David: "if a user wants to choose
- * the entire Receive order or record hash, is this possible? If not, it should be."): the row's Use.
+ * A Qog state's data and a record are taken whole as well as opened (a user can choose the entire Receive order or
+ * record hash): the row's Use.
  */
 export const AStateOrARecordIsTakenWhole: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -2674,7 +2673,7 @@ export const AStateOrARecordIsTakenWhole: Story = {
     const customer = await completionRow('Customer');
     const use = customer.parentElement!.querySelector<HTMLElement>('.completion-use');
     expect(use, 'Use beside Customer').toBeTruthy();
-    // set apart from the row's ">" by a divider, and saying what it does on hover (qorus#646, David's review)
+    // set apart from the row's ">" by a divider, and saying what it does on hover
     expect(getComputedStyle(use!).borderLeftStyle).toBe('solid');
     await userEvent.hover(use!);
     await waitFor(() =>
@@ -2684,9 +2683,8 @@ export const AStateOrARecordIsTakenWhole: Story = {
 };
 
 /**
- * A template's color means one thing everywhere, and its hover says what (qorus#646, David: "what is the
- * significance of the colors?"): green is the data of the event that starts the Qog, purple a value Qorus gives,
- * blue any other data.
+ * A template's color means one thing everywhere, and its hover says what: green is the data of the event that
+ * starts the Qog, purple a value Qorus gives, blue any other data.
  */
 export const AChipSaysWhatItsColorMeans: Story = {
   args: { ...WithFsmContext.args, value: '$data:{receive_order.event_type} == $timestamp:now' },
@@ -2714,8 +2712,8 @@ export const AChipSaysWhatItsColorMeans: Story = {
 
 /**
  * What is typed is completed by the language server as well as from the field's templates, in the same list,
- * ranked by how well it fits (qorus#646, David: "typing '$dat' or '@nam' does not result in any LSP completion
- * support, but it should"): a template context, a function, a record field.
+ * ranked by how well it fits (typing `$dat` or `@nam` is completed by the language server too): a template
+ * context, a function, a record field.
  */
 export const TypingOffersTheServersCompletionsToo: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -2756,9 +2754,8 @@ export const TypingOffersTheServersCompletionsToo: Story = {
 };
 
 /**
- * Tab takes the completion the keyboard is on, as a code editor's Tab does, and the text keeps the focus (qorus#646,
- * David: "if I type $data:receive_order.ev and hit <tab> ... it accepts the value as it is"). Typed one key at a
- * time, as a person types.
+ * Tab takes the completion the keyboard is on, as a code editor's Tab does, and the text keeps the focus (Tab after
+ * `$data:receive_order.ev` used to take the value as it was). Typed one key at a time, as a person types.
  */
 export const TabTakesTheHighlightedCompletion: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -2800,7 +2797,7 @@ export const TabTakesTheHighlightedCompletion: Story = {
 
 /**
  * Space after a half-typed reference puts the list away and types a space; the reference is left as the text it
- * was typed as, and the editor says it names nothing - never taken as a reference (qorus#646, David's review).
+ * was typed as, and the editor says it names nothing - never taken as a reference.
  */
 export const SpaceLeavesAHalfReferenceAsAnError: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -2836,7 +2833,7 @@ export const SpaceLeavesAHalfReferenceAsAnError: Story = {
 
 /**
  * A `:` between a reference's parts (`$data:receive_order:ev`) is refused as the server refuses it: "':' can't be
- * used here" (DPQL-E001) - not taken as written (qorus#646, David's review).
+ * used here" (DPQL-E001) - not taken as written.
  */
 export const AColonBetweenAReferencesPartsIsRefused: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -2872,9 +2869,9 @@ export const AColonBetweenAReferencesPartsIsRefused: Story = {
 
 /**
  * A reference typed key by key is completed at every level, by the language server and the field's templates
- * (qorus#646, David: "as a user types a template or field reference character by character, they must get
- * completion at every step"): Tab takes the row the keyboard is on; a context, a state or a record taken is written
- * as text and what is in it listed next; a whole reference taken is its chip.
+ * (a template or field reference typed character by character gets a completion at every step): Tab takes the
+ * row the keyboard is on; a context, a state or a record taken is written as text and what is in it listed next;
+ * a whole reference taken is its chip.
  */
 export const TypingCompletesEachLevel: Story = {
   args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
@@ -2999,7 +2996,7 @@ export const TypingCompletesEachFieldLevel: Story = {
 
 /**
  * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
- * Enter takes it, or the editor is left (qorus#646, David's review).
+ * Enter takes it, or the editor is left.
  */
 export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -3041,9 +3038,9 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
 
 /**
  * The template picker offers every completion the field has, in every state - on load, after the text is cleared,
- * after it is typed again, opened from the template button - the same set typing offers (qorus#646, David: "if the
- * textarea is cleared, then fields are not shown in the template picker"; "users should be supported with all
- * available completions in the template picker"). The record's fields here are known only to the language server.
+ * after it is typed again, opened from the template button - the same set typing offers (once the text was cleared,
+ * the picker showed no fields; the picker offers every completion there is). The record's fields here are known
+ * only to the language server.
  */
 export const ThePickerOffersEveryCompletionAfterClearing: Story = {
   args: { ...WithTemplates.args, onChange: fn() },
@@ -3100,9 +3097,9 @@ export const ThePickerOffersEveryCompletionAfterClearing: Story = {
 };
 
 /**
- * A template context is a container, and one Qorus reads whole is used whole (qorus#646, David: "for all
- * 'container' values that can be used, the 'Use' control should be present"; `$data:*` - UserApi reads `*` as the
- * whole of it): Use on its row writes `$data:*`, in the list typing opens and in the picker.
+ * A template context is a container, and one Qorus reads whole is used whole (every container value that can be
+ * used has its Use; `$data:*` - UserApi reads `*` as the whole of it): Use on its row writes `$data:*`, in the list
+ * typing opens and in the picker.
  */
 export const AContextIsUsedWhole: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -3139,9 +3136,8 @@ export const AContextIsUsedWhole: Story = {
 };
 
 /**
- * A click after a chip lists what can follow it, as typing there does (qorus#646, David: "clicking the mouse on
- * the textarea after the chip shows no templates; is this intentional?" - it was not: the story server answered
- * nothing after a whole value).
+ * A click after a chip lists what can follow it, as typing there does (a click after the chip used to show no
+ * templates, because the story server answered nothing after a whole value).
  */
 export const AClickAfterAChipListsWhatCanFollow: Story = {
   args: { ...WithFsmContext.args, value: '$data:{receive_order.event_type}', onChange: fn() },
@@ -3171,8 +3167,7 @@ export const AClickAfterAChipListsWhatCanFollow: Story = {
 
 /**
  * A context of variables is offered only where some are defined, and lists them; used whole, `$transient:*`
- * (qorus#646, David: "if none are defined, don't offer $transient: at all"; "Qorus needs to know when transient
- * variables have been defined and provide a guided UX"). Here the Qog defines two.
+ * (with none defined, `$transient:` is not offered at all). Here the Qog defines two.
  */
 export const TransientVariablesDefinedAreListed: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -3212,7 +3207,7 @@ export const TransientVariablesDefinedAreListed: Story = {
 
 /**
  * A context of variables the Qog does not declare where the field is, or a loop's outside one, is not offered: it
- * would read nothing when the Qog runs (qorus#646, David: "if none are defined, don't offer $transient: at all").
+ * would read nothing when the Qog runs (with none defined, `$transient:` is not offered at all).
  */
 export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -3295,7 +3290,7 @@ export const ALoopsContextInsideTheLoop: Story = {
 
 /**
  * A variable a template uses that the Qog does not declare is a warning the server gives, and the host's action for
- * it is beside it (qorus#646: Qorus's `qog_variable_undeclared`, with where to declare it): "Declare it".
+ * it is beside it (Qorus's `qog_variable_undeclared`, with where to declare it): "Declare it".
  */
 export const AnUndeclaredVariableCanBeDeclared: Story = {
   args: {
@@ -3352,7 +3347,7 @@ const declareIt = (data: unknown) => {
 
 /**
  * A key typed right after a pair the editor closed goes where the caret is, though the page has not drawn the pair
- * yet (qorus#646: CI typed `"a" + 1` as `a" + 1""`). The editor closes the pair in its document and puts the caret
+ * yet (CI typed `"a" + 1` as `a" + 1""`). The editor closes the pair in its document and puts the caret
  * between the quotes; the page draws it a moment later. A key typed in that moment, after a click whose caret the
  * editor had not read yet, was put where the page's caret still was - before the quotes.
  */
@@ -3424,7 +3419,7 @@ export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
       description: {
         story:
           'Where the completion list would hold nothing but Browse all templates, the picker opens in its place, at ' +
-          'its top (Foxhoundn on qlip #425). A click in the empty field opens it; Escape puts it away, the keys ' +
+          'its top. A click in the empty field opens it; Escape puts it away, the keys ' +
           'staying in the text. `1 + 2` typed key by key: the picker. `+ $` lists the contexts, Browse all templates ' +
           'among them; `zq`, which goes on to nothing: the picker. Escape puts it away each time.',
       },
@@ -3516,7 +3511,7 @@ export const AnEmptiedFieldOpensThePicker: Story = {
     // the template button
     await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
     await expectThePickerAtItsTop();
-    // where the pick goes: the start of the emptied text, not the button at its far end (David on reqraft #162)
+    // where the pick goes: the start of the emptied text, not the button at its far end (reqraft #162)
     await expectPickerAtTheTextStart(editable);
   },
 };

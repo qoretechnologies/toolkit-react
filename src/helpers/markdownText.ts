@@ -76,7 +76,7 @@ const liftLiterals = (line: string): { text: string; literals: string[] } => {
  * and an underscore must not be intraword, or an option key loses its underscores.
  *
  * What markdown takes literally - a code span, a backslash-escaped mark - is lifted out first and put back last,
- * so no emphasis pass reads it (qorus#646): a sentence that quotes `__other__` as code said "other".
+ * so no emphasis pass reads it: a sentence that quotes `__other__` as code said "other".
  */
 const stripInline = (line: string): string => {
   const { text, literals } = liftLiterals(line);

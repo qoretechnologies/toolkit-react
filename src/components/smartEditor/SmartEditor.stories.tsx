@@ -2,7 +2,7 @@
 // (`BasicMock`) demonstrates the minimum-viable usage against a mocked LSP
 // server using `mock-socket`. The second (`LiveQonsole`) is a deliberate
 // spike — it skips the mock and hits the real `/lsp` endpoint configured
-// by Reqraft's storybook preview (`https://hq.qoretechnologies.com:8092`)
+// by Reqraft's storybook preview (its Qorus instance)
 // with `languageId: 'qonsole'`. Lets us validate the Qonsole LSP wire
 // shape end-to-end before promoting the spike into a `QonsoleSmartInput`
 // component proper.
@@ -447,7 +447,7 @@ export const LoadingOverlay: Story = {
 
 /**
  * **Live spike — hits the real Qorus `/lsp` endpoint** at
- * `wss://hq.qoretechnologies.com:8092/lsp`. No mock-socket. Used to
+ * the instance Reqraft's storybook preview is configured with. No mock-socket. Used to
  * validate the SmartEditor + ReqraftLspClient abstraction end-to-end against
  * the shipped Qonsole LSP before committing to a `QonsoleSmartInput`
  * wrapper API. Type a slash-command like `/list services ` and the

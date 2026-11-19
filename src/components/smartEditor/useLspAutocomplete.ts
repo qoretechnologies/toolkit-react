@@ -91,7 +91,7 @@ export interface IUseLspAutocompleteOptions {
   inserter: TCompletionInserter;
   /**
    * What the list says where it has nothing to offer at the caret (`plainText` up to `offset`), or undefined for no
-   * list there: "No record fields here" for an `@` where there is no record (qorus#646).
+   * list there: "No record fields here" for an `@` where there is no record.
    */
   emptyMessage?: (plainText: string, offset: number) => string | undefined;
   /**
@@ -101,15 +101,15 @@ export interface IUseLspAutocompleteOptions {
   commitTyped?: (editor: BaseEditor & ReactEditor & HistoryEditor) => boolean;
   /**
    * What the list says above its rows where none of them is what is written (only Browse all templates, or the
-   * whole of a context): a context of free keys, a reference naming nothing - what to write next (qorus#646).
+   * whole of a context): a context of free keys, a reference naming nothing - what to write next.
    */
   noteAt?: (plainText: string, offset: number) => string | undefined;
 }
 
 /**
  * Where a list is opened at, in the window: the left and bottom of the line, chip or control it is opened from, and
- * its top where the caller knows it. A list flipped above it clears the whole of it (Foxhoundn on qlip #475: "The
- * picker covers the input").
+ * its top where the caller knows it. A list flipped above it clears the whole of it, so the picker never covers
+ * the input.
  */
 export type TOpenedAt = { left: number; bottom: number; top?: number };
 
@@ -340,8 +340,7 @@ export const useCompletionKeys = ({
           break;
         case 'Tab':
           /* takes the row the keyboard is on, as Enter does (a code editor's key), and the text keeps the focus:
-             leaving the list instead left a half-typed reference standing as if it were one (qorus#646, David's
-             review) */
+             leaving the list instead left a half-typed reference standing as if it were one */
           take();
           handlers.current.onAccept();
           break;
@@ -384,7 +383,7 @@ export function useLspAutocomplete(
   /* The field the list belongs to - the editor's text - and how far in from its left the list starts (the caret, the
      chip, the point it was opened at): the list's popover is placed against the field, below it, and goes with it as
      the page scrolls (reqore's targetElement). Placed against a point drawn at the caret, it sat inside the field,
-     over what it holds below the caret's line, and stayed behind when the page scrolled (Foxhoundn on reqraft #162). */
+     over what it holds below the caret's line, and stayed behind when the page scrolled (reqraft #162). */
   const [field, setField] = useState<{ element: HTMLElement; offsetX: number } | null>(null);
   const setPosition = useCallback(
     (
@@ -453,7 +452,7 @@ export function useLspAutocomplete(
   /* Which request is the one the list is waiting for. A newer request, or the list put away (`close`),
      makes an answer still on its way stale, and a stale answer is dropped: it used to open the list after
      the author had dismissed it - typed, pressed Escape before the list came, and the list came anyway,
-     under the next tap, which then took one of its rows (qorus#646). */
+     under the next tap, which then took one of its rows. */
   const requestGenerationRef = useRef(0);
   /* A request typing has asked for and the list has not shown yet: the debounce running, or the server's
      answer on its way. An Escape then puts it away too, as it puts away an open list. */
@@ -501,10 +500,9 @@ export function useLspAutocomplete(
   const groups = useMemo(() => groupCompletionItems(filteredItems), [filteredItems]);
 
   /* A list of nothing but Browse all templates, with nothing said above it, is a step for nothing: the picker
-     opens in its place, at its top, as taking that row would open it (Foxhoundn on qlip #425: "automatically show
-     all the templates if it's the only available option"; David: the picker offers every completion in every
-     state). Where the list says something with it (no record fields here, what to write after a context), the
-     list stays, for what it says. */
+     opens in its place, at its top, as taking that row would open it: all the templates are shown when they are
+     the only option, and the picker offers every completion in every state. Where the list says something with it
+     (no record fields here, what to write after a context), the list stays, for what it says. */
   const onlyBrowseAll =
     isOpen &&
     !browse &&
@@ -559,8 +557,7 @@ export function useLspAutocomplete(
       // at {top: 0, left: 0}.
       //
       // Not for a chip's list: it is under the chip it was opened at (`openAtChip`), and the caret the click
-      // left after the chip moved it past the chip's end (Foxhoundn, qlip #392: "The opened list is not under
-      // the 2nd chip").
+      // left after the chip moved it past the chip's end, and the list opened from a second chip was not under it.
       const editor = editorRef.current;
       if (editor && editor.selection && !anchoredChipPathRef.current) {
         try {
@@ -645,7 +642,7 @@ export function useLspAutocomplete(
 
   /* One debounced request for the editor's life, sending with the latest `performCompletionRequest`: remade when
      that changed (a host's new catalogue or callback on a re-render), the request waiting to be sent was dropped,
-     and what had just been written asked nothing - a context picked listed nothing in it (qorus#646). */
+     and what had just been written asked nothing - a context picked listed nothing in it. */
   const performRef = useRef(performCompletionRequest);
   performRef.current = performCompletionRequest;
   const requestCompletions = useMemo(() => {
@@ -789,7 +786,7 @@ export function useLspAutocomplete(
       // a picker asked for and not yet listening has its keys heard above, Escape among them
       /* Enter or Tab where the list has nothing more to offer - a context of free keys and its key written,
          `$static:order.id` - takes what is written: a whole reference, drawn as its chip (`commitTyped`), as a row
-         taken is (qorus#646, David's review). */
+         taken is. */
       if ((event.key === 'Enter' || event.key === 'Tab') && showsMessage && editor && commitTypedRef.current) {
         try {
           if (!ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
@@ -910,7 +907,7 @@ export function useLspAutocomplete(
       }
       /* A context, a state or a record taken is written as the text of its reference, and what is in it is
          listed next, as the text is completed on (the edit asks again: it ends with a `:` or a `.`); only a
-         whole reference is a chip (qorus#646, David's review: a context picked was an unfinished template). */
+         whole reference is a chip: a context picked was an unfinished template. */
       (marks.continues ? templateTextInserter : inserter)(item.raw, editor, {
         plainText,
         cursorOffset,
@@ -967,7 +964,7 @@ export function useLspAutocomplete(
     onAccept: () => {
       /* where none of the rows is what is written (the note says so) and what is written is a whole reference -
          a context of free keys and its key, `$dynamic:order.id` - Enter or Tab takes what is written, its chip;
-         else the row the keyboard is on (qorus#646, David's review) */
+         else the row the keyboard is on */
       const editor = editorRef.current;
       if (noteRef.current && editor && commitTypedRef.current?.(editor)) {
         close();
@@ -1254,8 +1251,8 @@ export function useLspAutocomplete(
     [isReady, isOpen, close, converter, performCompletionRequest]
   );
 
-  /* A click, a tap or Tab into the editor asks what can be written at the caret it put there, as typing asks
-     (qorus#646, David: one list for what can be written, opened by a click as by typing). The caret is the
+  /* A click, a tap or Tab into the editor asks what can be written at the caret it put there, as typing asks:
+     one list for what can be written, opened by a click as by typing. The caret is the
      page's, given as a Slate point: Slate's own selection follows the page's later, so it is set to it here, for
      the pick to go where the caret is. What is being written at the caret, in the text it is in, filters the
      list as typing does; nothing opens where nothing can be written (`eager: false`). */
@@ -1304,7 +1301,7 @@ export function useLspAutocomplete(
      A click on another chip while the list is open opens the list at that chip, under a new key, and the popover
      it replaces says it closed only after that. Every close was ignored for 300 ms after a chip opened the list
      instead, so a tap on Details soon after the chip's left the list open behind the card, and a later one put it
-     away: the frame showed it or not from run to run (qorus#646, DpqlEditor · Details On A Chip On A Touch
+     away: the frame showed it or not from run to run (DpqlEditor · Details On A Chip On A Touch
      Screen); and a second click on the chip the list was at, later than that, closed it and opened it again. */
   // the list drawn closed is at no chip
   useEffect(() => {
@@ -1337,8 +1334,8 @@ export function useLspAutocomplete(
   }, [isReady, performCompletionRequest]);
 
   /* The window's width changes with the picker open (a phone turned, a window resized): what it was opened from moves
-     with the layout, and the fixed point it is drawn at would not (Foxhoundn on qlip #456: "Why is the popover rendered
-     so far to the right"). It goes with it. A resize never closes it: a phone's keyboard coming up is one. */
+     with the layout, and the fixed point it is drawn at would not, so the popover
+     was drawn far to the right of it. It goes with it. A resize never closes it: a phone's keyboard coming up is one. */
   useEffect(() => {
     if (!isOpen) return undefined;
     const follow = () => {

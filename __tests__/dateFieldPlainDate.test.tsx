@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * A plain date (queue item 33): a day held as `YYYY-MM-DD` reaches Reqore's picker as the day it is, with the
+ * A plain date: a day held as `YYYY-MM-DD` reaches Reqore's picker as the day it is, with the
  * picker's `plainDate`. Made a full date-time first, it was UTC midnight: the day before west of UTC.
  */
 

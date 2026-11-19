@@ -1,6 +1,6 @@
 /**
  * A reqraft component's own props stop at the component: what it hands on to the Reqore component it draws is
- * that component's props only (qorus#646).
+ * that component's props only.
  *
  * The menu item handed `activePaths` to a router link, which wrote it onto its `<a>`. A sweep for the same
  * read-then-spread pattern found four more: each read a prop of its own, then spread its props into a Reqore

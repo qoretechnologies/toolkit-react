@@ -12,7 +12,7 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qorus#646: a compact form row draws a color with ReqraftColorValue at its compact size - the look the row
+ * A compact form row draws a color with ReqraftColorValue at its compact size - the look the row
  * has always had - so a page and a row show a color the same way, and a value that is not a color says
  * what it is in the row too, instead of a hex code beside a swatch of nothing.
  */

@@ -7,7 +7,7 @@ import { getReadableShade, getThemeSurfaces, READABLE_TEXT } from '../helpers/re
 
 /**
  * The theme's `intent` in the shade of it that reads on what reqraft is drawn on in the theme (4.5:1 for text,
- * `READABLE_ICON` 3:1 for an icon; qorus#646): for a color reqraft hands reqore itself - an icon's `color`, an
+ * `READABLE_ICON` 3:1 for an icon): for a color reqraft hands reqore itself - an icon's `color`, an
  * effect's - which reqore draws as it is given. `alpha` is how faded reqore draws it (a panel's title icon at 70%).
  */
 export const useReadableIntentShade = (

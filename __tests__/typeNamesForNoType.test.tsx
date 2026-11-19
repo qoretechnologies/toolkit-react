@@ -16,7 +16,7 @@ import {
 import { emptyFetchContext, okResponse } from './support/fetchContext';
 
 /**
- * qorus#646: a place whose type is not known yet - no type, or an empty name - has no name to give. The names of a
+ * A place whose type is not known yet - no type, or an empty name - has no name to give. The names of a
  * type say nothing for it (`undefined`), and each sentence that would name the type is worded without one. They
  * said "a value of type undefined" and "a value of type " inside a sentence, and the display name was the type
  * itself only by chance.

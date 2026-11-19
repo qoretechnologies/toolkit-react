@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// An expression's type is the server's (qoretechnologies/qorus#713).
+// An expression's type is the server's.
 //
 // The builder used to work out a type from the catalogue's `ui_return_type`,
 // one level deep, which disagreed with the server: `1 + 2.5` was "any" here and

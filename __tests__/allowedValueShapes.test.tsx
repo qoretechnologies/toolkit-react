@@ -3,8 +3,8 @@
  * An `allowed_values` entry is written three ways - an envelope (`{value: {type, value}}`), a bare value
  * (`{value: 'x'}`) or a name (`{name: 'x'}`), as `findAllowedValueOption` reads them. A short list's check group
  * read the envelope only, so an entry written another way was a box with no name, which a click could not tick
- * (qorus#646, David on FormEngine · Compact Required Field Loaded Late Opens By Itself: "an invalid empty radio box
- * control with two empty choices").
+ * (FormEngine · Compact Required Field Loaded Late Opens By Itself drew an invalid, empty radio group with two
+ * empty choices).
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -126,8 +126,8 @@ describe('the choice a field holds', () => {
 });
 
 describe('suggestions beside an editor that holds the value', () => {
-  // qorus#646, David: "if this option takes a single value, then selecting another value should replace the
-  // one that's there" - the list said nothing of the one held, so a pick read as adding to it
+  // an option that takes a single value has its value replaced by another pick - the list said nothing of the
+  // one held, so a pick read as adding to it
   const renderSuggestions = (markedValue: unknown, onChange = vi.fn()) => {
     render(
       <ReqoreUIProvider>

@@ -79,7 +79,7 @@ export interface ITemplateFieldLabels {
 }
 
 /**
- * The words of the value tabs (qorus#646). A host that translates its interface passes its own; a label that
+ * The words of the value tabs. A host that translates its interface passes its own; a label that
  * holds a value is a function of it, so the host keeps its language's word order.
  */
 export interface IValueTabsLabels {
@@ -94,8 +94,8 @@ export interface IValueTabsLabels {
   cannotShowExpression: string;
   /**
    * The Expression tab's tooltip, in a field that is a condition (`isConditionOption`). The tab keeps its name:
-   * a condition is written as an expression, and the hover says so (qorus#646, David: "what is "Condition"? Is
-   * it meant to be an expression?").
+   * a condition is written as an expression, and the hover says so, because a reader who sees a tab named
+   * Condition asks whether it is meant to be an expression.
    */
   conditionTooltip: string;
   /** The Visual tab's tooltip, in a condition field. */
@@ -109,7 +109,7 @@ export interface IValueTabsLabels {
   conversion: (from: string, to: string) => string;
   /**
    * The name of a type inside `conversion`'s sentence. Unless a host gives its own, it is the type catalogue's
-   * sentence form ("a whole number"), in the language the server answered in (qorus#646).
+   * sentence form ("a whole number"), in the language the server answered in.
    */
   typeName?: (type: string) => string;
   undo: string;
@@ -117,7 +117,7 @@ export interface IValueTabsLabels {
   undoTooltip: (text: string) => string;
   /**
    * Said on the Value tab while the Expression tab holds text that does not parse: the field keeps the value
-   * shown here, and the text waits there with its error (qorus#646).
+   * shown here, and the text waits there with its error.
    */
   expressionDraftNotUsed?: string;
 }

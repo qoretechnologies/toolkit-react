@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A chip is hovered as the text it replaces (qorus#646, David: "there are no mouseover / hovers ... on the chips").
+// A chip is hovered as the text it replaces (a chip had no hover of its own).
 //
 // A chip has no caret position of its own, so a mouse resting on one was mapped to no text and showed nothing, and
 // "Details" with a tap on a chip asked for the character after it. The hover of a chip is what the server says at

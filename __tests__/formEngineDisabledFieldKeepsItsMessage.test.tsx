@@ -14,7 +14,7 @@ const MESSAGE = 'Not available while Until Step is set. Clear Until Step to use 
  * A field the form has not been given a value for sits in the Optional box, and opening its row opens its
  * editor with no value. The field's messages say why it cannot be used, so they belong in that editor.
  *
- * The Qorus IDE's event check (qorus#646): "Wait (ms)" cannot be set while "Until Step" is, so the IDE hands
+ * The Qorus IDE's event check: "Wait (ms)" cannot be set while "Until Step" is, so the IDE hands
  * it over disabled, with a message naming the field to clear. Opening the row showed the description and a
  * disabled input, and not the message. The message used to appear only because the number field reported ''
  * as it opened, which put the field in the form; since an untouched field reports nothing (b04b6707), the row

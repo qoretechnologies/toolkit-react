@@ -4,8 +4,8 @@ import { DEFAULT_REQRAFT_LABELS } from '../src/helpers/reqraftLabels';
 /*
  * The labels reqraft shows are read by the hosts' users — supply chain managers as often as engineers — so they are
  * plain language. Technical words (network detail, run-time jargon) belong in a host's "Show more info", not in a
- * label. Qlip review of #161 (Foxhoundn) on "known when it runs": "This is very confusing and ambiguous and needs to
- * be telegraphed more clearly to the users (especially because they are supply chain managers and not techies)".
+ * label. "known when it runs" (#161) read as confusing and ambiguous: what a label means has to be plain to a user
+ * who is a supply chain manager, not an engineer.
  */
 const TECHNICAL = [
   /\bhosts?\b/i,
@@ -56,7 +56,7 @@ describe('reqraft labels are plain language', () => {
 });
 
 /*
- * Copy says what the reader wants, never what the code does (Filip, 17 Nov 2026): no UI-mechanism words in a default
+ * Copy says what the reader wants, never what the code does: no UI-mechanism words in a default
  * label - no panel, drawer, row or component, no collapse or expand, no rendering, no language server or request, no
  * "the rest of the…". An open field's label said "Collapse Address", the editor's wait "Connecting to language
  * server…", the schema editor's hint "Click any row to edit it in a side panel".

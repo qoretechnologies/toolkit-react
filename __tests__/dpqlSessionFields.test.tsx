@@ -1,9 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 //
 // A record no data provider has - a sheet contract's columns and added fields - gives its fields to the
-// DPQL server itself, so the expression Text view offers every field the Visual view does (David's review
-// of qorus#646). The server takes them as `fields` on `dpql/setContext` (the provider optional) and as
-// `metadata.fields` at didOpen.
+// DPQL server itself, so the expression Text view offers every field the Visual view does. The server takes
+// them as `fields` on `dpql/setContext` (the provider optional) and as `metadata.fields` at didOpen.
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

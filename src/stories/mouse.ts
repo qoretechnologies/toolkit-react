@@ -43,8 +43,8 @@ const vitestBrowser = async (): Promise<IVitestMouse | undefined> => {
  * qlip resizes the frame once the play has ended (`CAPTURE_VIEWPORT`, or the story's `parameters.qlip.viewport`),
  * and the test runner scales the resized frame to fit its window, so a mouse that did not move is at another
  * point of the story when it is captured. Rested near the bottom of a chip, it was off the chip, whose card
- * closed as the mouse left it, and the capture showed no hover (qorus#646, Foxhoundn on DpqlEditor · A Chip
- * With Its Own Description Shows One Hover: "What is the snapshot for if the description is not seen?"). At the
+ * closed as the mouse left it, and the capture showed no hover (DpqlEditor · A Chip With Its Own Description
+ * Shows One Hover captured no description, which is what the snapshot is for). At the
  * capture's size from the start, the frame is not resized, and the hover the play checked is the one captured.
  *
  * Not put back: Storybook sizes each story's frame as the story starts. In Storybook's UI, where there is no

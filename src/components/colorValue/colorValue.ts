@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// What a stored color is: the one reader for every read-only view of a color (qorus#646).
+// What a stored color is: the one reader for every read-only view of a color.
 //
 // A color reaches a page in the shapes it is stored in - `{ r, g, b }` or `{ r, g, b, a }` as the color
 // field stores it - and in shapes a stored color is not, which are drawn so a value stored that way is seen:
@@ -54,7 +54,7 @@ export interface IReqraftRgba {
 }
 
 /**
- * What a hex code says: its red, green and blue, and its opacity - the one hex reader in reqraft (qorus#646), for
+ * What a hex code says: its red, green and blue, and its opacity - the one hex reader in reqraft, for
  * the color field, the readers here and a host that turns a hex code into a stored color. A hex code has 3, 4, 6 or 8
  * hex digits, with or without its `#`, in either case. 3 and 4 are short for 6 and 8, each digit doubled: `F808` is
  * `FF880088`. The last pair of 8 (the last digit of 4) is the opacity, `00` to `FF` read as 0 to 1; without one the
@@ -211,9 +211,9 @@ const isOpacity = (n: unknown): boolean =>
 const STORED_FIELDS = ['r', 'g', 'b', 'a'];
 
 /**
- * What is wrong with a value stored as an `rgbcolor`, in plain words; undefined when it is a stored color (qorus#646,
- * David): the hash `{ r, g, b, a? }`, `r`, `g` and `b` whole numbers from 0 to 255 and `a` its opacity, a number from
- * 0 to 1 (without one, the color is opaque), and no other field: the server refuses one (Qore's RgbColorDataType:
+ * What is wrong with a value stored as an `rgbcolor`, in plain words; undefined when it is a stored color: the hash
+ * `{ r, g, b, a? }`, `r`, `g` and `b` whole numbers from 0 to 255 and `a` its opacity, a number from 0 to 1
+ * (without one, the color is opaque), and no other field: the server refuses one (Qore's RgbColorDataType:
  * "unsupported fields in value").
  *
  * A hex code, bare or as `{ hex }`, and a color with other fields beside its own (react-color wrote a `hex`) are not

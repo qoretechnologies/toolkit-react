@@ -9,7 +9,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * What is typed into a read-first row and closed at once is what the row holds (qorus#646).
+ * What is typed into a read-first row and closed at once is what the row holds.
  *
  * A row's field keeps what is typed and reports it to the form after a short pause. Done closed the row - and
  * the field, and its pause - at once, so a value typed and Done pressed inside the pause never reached the

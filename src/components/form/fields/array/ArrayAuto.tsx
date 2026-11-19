@@ -134,7 +134,7 @@ export const ArrayAuto = ({
   useDebounce(
     () => {
       pending.release();
-      // only a change is reported: an untouched list, the one it was opened with, says nothing (qorus#646)
+      // only a change is reported: an untouched list, the one it was opened with, says nothing
       if (isEqual(localValue, emitted.settled(value))) {
         return;
       }

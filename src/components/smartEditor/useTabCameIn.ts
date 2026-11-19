@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from 'react';
  * Whether the Tab whose key has just come up moved the focus into the element `rootOf` gives - its key went down
  * elsewhere - rather than going down in it: a Tab that took a completion, or moved the focus on from it. An editor
  * opens its list when Tab brings the focus in; opened for a Tab that went down in it, the list it had just taken a
- * completion from opened again, and its request for what the completion goes on to was dropped (qorus#646).
+ * completion from opened again, and its request for what the completion goes on to was dropped.
  *
  * Heard on the window, before a completion list hears the key on the document and keeps it from the page.
  */

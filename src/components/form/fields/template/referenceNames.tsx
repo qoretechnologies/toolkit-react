@@ -11,8 +11,8 @@ import { describeTemplateReference } from '../../../../helpers/templates';
  *
  * A chip names a reference from the catalogue. One the catalogue does not list drew its raw spelling
  * (`$._case.attempt`) as if it were a name, in the same style as a named one, so nothing said it was not a value on
- * offer (qorus#646, David: "the chips / templates / etc were meant to abstract the technical format from our
- * users"). It now says so, and a host can name the ones it knows.
+ * offer (chips and templates are there to keep the technical format from the user). It now says so, and a host
+ * can name the ones it knows.
  */
 export interface ITemplateReferenceNames {
   /** A name for a reference the host knows but does not list (the IDE: a value every case has). */

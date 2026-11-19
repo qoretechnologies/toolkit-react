@@ -1,17 +1,18 @@
 /**
- * Story mocks name the instance the stories are configured with, never a host of their own (qorus#646).
+ * Story mocks name the instance the stories are configured with, never a host of their own.
  *
- * The storage mocks of the useStorage and Menu stories named hq's URL outright. Run against another instance
- * (or none), they matched nothing and the requests went to that instance; against hq, they hid that the
- * stories read the live server's user whenever a mock was missing. Mock URLs are built with storyApiUrl /
- * storySocketUrl (src/stories/storyNetwork.ts), the one place the default instance is written.
+ * The storage mocks of the useStorage and Menu stories named the default instance's URL outright. Run against
+ * another instance (or none), they matched nothing and the requests went to that instance; against the default
+ * one, they hid that the stories read the live server's user whenever a mock was missing. Mock URLs are built
+ * with storyApiUrl / storySocketUrl (src/stories/storyNetwork.ts), the one place the default instance is written.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { STORY_QORUS_INSTANCE } from '../src/stories/storyNetwork';
 
 const ROOT = resolve(__dirname, '..');
-const INSTANCE_HOST = 'hq.qoretechnologies.com:8092';
+const INSTANCE_HOST = new URL(STORY_QORUS_INSTANCE).host;
 
 const files = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {

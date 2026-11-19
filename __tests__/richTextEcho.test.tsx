@@ -84,7 +84,7 @@ describe("RichTextFormField valueFormat='text' and the echo of its own emit", ()
 
 /*
  * An edit back to what the parent had before, made while the parent's echo of the edit before it is still on its
- * way (qorus#646). The field compared the edit with the value it was given - still the old one - found them
+ * way. The field compared the edit with the value it was given - still the old one - found them
  * equal and sent nothing; then the echo arrived and was taken as the echo it was. The parent kept the edit that
  * had been undone while the field showed the text without it: " $" typed after a field's chip and deleted again
  * at once left the added field reading `concat(@pos, " $")`, flagged as text, over an editor showing `pos`.

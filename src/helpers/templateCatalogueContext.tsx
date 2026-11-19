@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The template catalogue of the fields inside it, and where they are (qorus#646): a host that knows where its fields
+ * The template catalogue of the fields inside it, and where they are: a host that knows where its fields
  * are - an interface's editor, a Qog state's options - asks Qorus for their catalogue (REST `getTemplateCatalogue`
  * with their field context) and gives both here. Every rich-text, template and DPQL field inside offers the
  * catalogue's contexts without each being handed it, and a DPQL field tells its language server where it is

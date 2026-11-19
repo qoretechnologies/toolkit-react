@@ -12,7 +12,7 @@ import {
 
 /* The A/B test card's quiet buttons on a light theme: a minimal reqore button is washed with its intent (20% of it
    over the card) and draws its icon at 70%. "Pause" in warning:darken:2 (#8a521b) was 4.1:1 on its wash, its icon
-   2.6:1 (qorus#646). */
+   2.6:1. */
 const LIGHT = buildTheme({ ...DEFAULT_THEME, main: '#e8e8e8' } as never);
 const washesOf = (color: string) => themeSurfaces(LIGHT).map((surface) => mix(0.2, color, surface));
 const least = (color: string, backgrounds: string[], alpha = 1) =>

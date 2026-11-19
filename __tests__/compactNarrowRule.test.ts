@@ -11,7 +11,7 @@ import {
 } from '../src/components/form/engine/compactRowStyles';
 
 /**
- * The narrow-row rule (qorus#646, David): a compact form stacks its rows where a value would have under 320px beside
+ * The narrow-row rule: a compact form stacks its rows where a value would have under 320px beside
  * the label column it is laid out with, not at one form width whatever its labels. The FormEngine stories (A Row
  * Stacks Where Its Value Would Be Narrow, and those after it) measure the layout; these hold the rule's edges.
  */

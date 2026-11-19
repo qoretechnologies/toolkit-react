@@ -90,7 +90,7 @@ describe("what a field publishes into its row's menu", () => {
 
 describe('a field that takes templates where none is on offer', () => {
   it('shows the way in, not to be taken, and says why', async () => {
-    // a context whose catalogue has none: "Use template" led to an empty, disabled list (qorus#646)
+    // a context whose catalogue has none: "Use template" led to an empty, disabled list
     fieldInARow({ value: 'already typed', templates: { items: [] } as never });
 
     await waitFor(() => expect(labels()).toContain('Use template'));

@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Leaving the Text view without an edit never changes the value (qorus#646).
+// Leaving the Text view without an edit never changes the value.
 //
 // Going to Visual read the Text view's text back into the value whether or not anything had been typed. The
 // text is the server's writing of the value, and a writer that cannot say all of it - Qore's DPQL serializer

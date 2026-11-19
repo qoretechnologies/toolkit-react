@@ -389,8 +389,8 @@ const expectToolbarGlassOverHost = () => {
     .querySelector('.options-readfirst-toolbar')!
     .closest<HTMLElement>('.reqore-panel-title')!;
   const glass = getComputedStyle(toolbar);
-  /* Reqore pins a header only while its panel is clearly taller than its scroller (decision 028,
-     reqore#715), and says so in `data-pins-header`; a form this short scrolls away with its toolbar.
+  /* Reqore pins a header only while its panel is clearly taller than its scroller
+     (reqore#715), and says so in `data-pins-header`; a form this short scrolls away with its toolbar.
      A Reqore that does not say pins every header. */
   if (toolbar.getAttribute('data-pins-header') !== 'false') {
     expect(glass.position).toBe('sticky');
@@ -632,7 +632,7 @@ export const CalmRowFocusRing: Story = {
     docs: {
       description: {
         story:
-          'The calm form with a filled row that has no problem reached by the keyboard: it draws the one focus ring every control draws, the text color at 0.7 (instruction-files decision 030), inside its edge. It drew it in the warning amber, which says a field needs a look, so a good row read as a fault (admin portal).',
+          'The calm form with a filled row that has no problem reached by the keyboard: it draws the one focus ring every control draws, the text color at 0.7, inside its edge. It drew it in the warning amber, which says a field needs a look, so a good row read as a fault (admin portal).',
       },
     },
   },
@@ -897,7 +897,7 @@ export const ANarrowFormOpensItsPickerInsideItsRow: Story = {
     docs: {
       description: {
         story:
-          "A form 190px wide, as a question in a phone's chat is, whose one field is a picker that opens with the form, and which its host focuses as soon as it is there: the picker's list of answers is open, and the field sits inside its row. The form is narrow from the first frame it has a row in. It used to decide only once a ResizeObserver had measured it, after the next layout, so its first frame laid the row out for a wide form - a 220px name column - and put the picker past the row's right edge, where the list it had just opened was closed as hidden (board f63).",
+          "A form 190px wide, as a question in a phone's chat is, whose one field is a picker that opens with the form, and which its host focuses as soon as it is there: the picker's list of answers is open, and the field sits inside its row. The form is narrow from the first frame it has a row in. It used to decide only once a ResizeObserver had measured it, after the next layout, so its first frame laid the row out for a wide form - a 220px name column - and put the picker past the row's right edge, where the list it had just opened was closed as hidden.",
       },
     },
   },

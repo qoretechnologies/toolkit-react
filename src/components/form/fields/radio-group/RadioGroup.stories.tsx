@@ -84,7 +84,7 @@ export const WithImages: Story = {
     await expect(canvasElement.querySelector(`img[src="${java}"]`)).toBeInTheDocument();
     await expect(canvasElement.querySelector(`img[src="${python}"]`)).toBeInTheDocument();
     // a radio each, its logo beside its name as far from the radio as from the name, the name centered on it,
-    // the others gray (qorus#646, David)
+    // the others gray
     expectPictureChoiceLayout(canvasElement, 'Qore');
   },
 };

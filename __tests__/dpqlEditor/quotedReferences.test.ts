@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A reference the DPQL editor draws as a chip is the one the server's DPQL tokenizer reads (qorus#646).
+// A reference the DPQL editor draws as a chip is the one the server's DPQL tokenizer reads.
 //
 // The server writes a record field whose name is not a bare name as a quoted field, `@"create.items[*].id"`: it is
 // how the expression `$record:{create.items[*].id}` comes back from dpql/serialize, so the editor drew a reference
@@ -105,7 +105,7 @@ describe('a quoted field is drawn as its chip', () => {
       children: [{ text: '' }],
     });
 
-    // one chip for one record field (qorus#646): the template chip, `record: <path>`, with the record's description
+    // one chip for one record field: the template chip, `record: <path>`, with the record's description
     expect(renderTag(tag('@"create.order-id"'))).toMatchObject({
       label: 'record: create.order-id',
       icon: 'ExchangeDollarLine',

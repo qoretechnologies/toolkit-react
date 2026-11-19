@@ -175,7 +175,7 @@ describe('the type-fit message', () => {
     await waitFor(() => expect(container.textContent).toContain('This does not fit'), {
       timeout: 5000,
     });
-    // the types inside the sentence by their sentence forms (qorus#646, the server's catalogue)
+    // the types inside the sentence by their sentence forms (the server's catalogue)
     expect(container.textContent).toContain(
       'The expression gives a whole number, and this field takes key-value pairs (a hash).'
     );
@@ -205,7 +205,7 @@ describe('the type-fit message', () => {
     }
   });
 
-  /* A condition (a field its host marks as one) is not a type to fit (qorus#646): the server reads it as
+  /* A condition (a field its host marks as one) is not a type to fit: the server reads it as
      true unless its value is zero or empty. The field asks how the server reads it (`condition: true`, no
      target type) and says what it answers, in the server's words when it gave them; a server that does
      not know the question answers with the inferred type alone, which is read the same way. */

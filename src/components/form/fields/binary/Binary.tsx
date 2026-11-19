@@ -38,7 +38,7 @@ export const ReqraftBinaryFormField = memo(
     const emitted = useEmittedValues<string | undefined>();
     /* What the parent holds, as the field shows it: no value is the empty text. Compared with `undefined`,
        the empty text of a field opened without a value was a change, and the field reported '' 100 ms
-       after it opened - the form counted itself edited, and an unset field got '' (qorus#646). */
+       after it opened - the form counted itself edited, and an unset field got ''. */
     const held = value ?? '';
 
     /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field

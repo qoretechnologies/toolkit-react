@@ -349,7 +349,7 @@ export const startDpqlMockLspServer = (
       ...DEFAULT_LSP_CAPABILITIES,
       textDocumentSync: { openClose: true, change: 2 },
       completionProvider: { triggerCharacters: ['@', '$', '.', ':'] },
-      // the real server answers hovers: functions, operators, fields, accessors, templates (qorus#646)
+      // the real server answers hovers: functions, operators, fields, accessors, templates
       hoverProvider: true,
     },
     // Unknown requests get an empty success so nothing hangs.

@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A yes / no that holds no value shows no answer (qorus#646, David): the switch was drawn on "No" while the form
+// A yes / no that holds no value shows no answer: the switch was drawn on "No" while the form
 // said it had no value and asked for one - display, value and validation disagreed. Unset is the switch's own
 // unset state; No is false, Yes is true.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';

@@ -120,7 +120,7 @@ export const useTemplates = (
 
   /* Kept on what the request answered, not on the request's state: useAsyncRetry hands back a new state object on
      every render, and the templates were a new object with it, and so was every form's row context built on them,
-     on every render of the form (board f70). */
+     on every render of the form. */
   const templates: IReqoreFormTemplates | undefined = useMemo(() => {
     if (!shouldFetch) {
       return allow ? localTemplates || {} : undefined;

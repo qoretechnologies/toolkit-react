@@ -2,9 +2,9 @@
 // A text box holding code or data asks for monospace; one holding prose does not.
 //
 // Reqore 0.79 draws a textarea in the page's font, as prose, and leaves monospace to the
-// fields that ask for it (Filip, 17 Nov: per use, not everywhere). Reqraft's own code
+// fields that ask for it (per use, not everywhere). Reqraft's own code
 // boxes were left in the page's font by that: the admin portal saw a YAML field in
-// proportional type (board f47). They now ask for Reqore's mono face: the YAML / JSON editor
+// proportional type. They now ask for Reqore's mono face: the YAML / JSON editor
 // of a hash or a list, a binary or `data` value, and a template's example value. Reqore's
 // mono stack is asserted, not "a monospace": under Reqore 0.78 a textarea still took the
 // browser's generic `monospace`, which a check for "mono" would pass without the fix.

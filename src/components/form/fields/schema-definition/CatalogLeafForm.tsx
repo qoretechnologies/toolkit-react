@@ -98,7 +98,7 @@ export const CatalogLeafForm = memo(
   ({ leaves, value, onChange, readOnly, name, nameField }: ICatalogLeafFormProps) => {
     /** Contextual suggestions for reference leaves (e.g. PK / FK columns). */
     const suggestionResolver = useSuggestionResolver();
-    // "No values set", softer: as soft as it still reads (qorus#646)
+    // "No values set", softer: as soft as it still reads
     const emptyOpacity = useReadableOpacity(0.55);
     const words = useReqraftLabels().schemaDefinition;
 

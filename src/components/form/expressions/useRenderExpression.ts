@@ -59,7 +59,7 @@ export interface IRenderedExpression {
 
 const renderViaServer = async (value: IExpressionValue): Promise<IRenderedExpression | null> => {
   /* A field path (`orders[*].id`) reads as the path, as the Visual tab draws it, not as the accessor operations
-     it is made of (qorus#646): one that is the whole expression is its reference, and one in it is rendered as
+     it is made of: one that is the whole expression is its reference, and one in it is rendered as
      the reference it reads as. */
   const path = fieldPathOf(value);
   if (path !== undefined) return { text: fieldPathTemplate(path), richtext: null };

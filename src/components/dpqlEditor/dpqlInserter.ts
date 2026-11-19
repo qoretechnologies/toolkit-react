@@ -17,8 +17,7 @@ const TYPED_WORD = /[@$]?[\w.:{}-]*$/;
 /**
  * What is typed before the caret in the text it is in: what a pick may take the place of. Never anything across a
  * chip: read from the whole text, the word before a caret just after a chip was the chip's own text
- * (`$record:{pos}`), and a pick deleted the chip - an operator picked after `pos` took its place (qorus#646,
- * David's review).
+ * (`$record:{pos}`), and a pick deleted the chip - an operator picked after `pos` took its place.
  */
 const typedBeforeCaret = (editor: BaseEditor & ReactEditor & HistoryEditor): string => {
   const at = editor.selection?.anchor;

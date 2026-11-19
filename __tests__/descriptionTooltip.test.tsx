@@ -126,7 +126,7 @@ describe('templateTooltip', () => {
     expect(drawn(tooltip).dataset.drawn).toBe(DESCRIPTION);
   });
 
-  /* qorus#646, David: "in such cases there should be a reason given why there is no description in the hover" */
+  /* where there is no description, the hover gives the reason why */
   it('says why there is no description for a template the catalogue does not describe', () => {
     const tooltip = templateTooltip(TEMPLATES, '$local:order', { render: hostRender });
     expect(tooltip).toMatchObject({ title: 'Order id' });
@@ -211,7 +211,7 @@ describe('templateTooltip', () => {
     expect(container.querySelectorAll('.allowed-values-help td code')).toHaveLength(2);
   });
 
-  /* qorus#646, David on Form Engine · Value Tab Pick Replaces A Referenced Field: the hover of a field should say
+  /* Form Engine · Value Tab Pick Replaces A Referenced Field: the hover of a field should say
      the field's type. The catalogue gives it (the entry's badge) and no hover said it. */
   it('says what kind of value a template is, in words, over its description', () => {
     const typed = {
@@ -249,7 +249,7 @@ describe('makeDpqlTagRenderer', () => {
       { name: { display_name: 'Name', type: { name: 'string' }, short_desc: DESCRIPTION } },
       { descriptions: { render: hostRender } }
     )({ type: 'tag', value: '@name', children: [{ text: '' }] } as never);
-    // its type was said raw, "Name (string)" (qorus#646)
+    // its type was said raw, "Name (string)"
     expect(props.tooltip).toMatchObject({ title: 'Name' });
     expect(drawn(props.tooltip).dataset.drawn).toBe(`Text.\n\n${DESCRIPTION}`);
   });
@@ -260,7 +260,7 @@ describe('makeDpqlTagRenderer', () => {
       { descriptions: { render: hostRender } }
     )({ type: 'tag', value: '@total', children: [{ text: '' }] } as never);
     expect(props.tooltip).toMatchObject({ title: 'Total' });
-    // and why nothing else: the record gives no description (qorus#646)
+    // and why nothing else: the record gives no description
     expect(drawn(props.tooltip).dataset.drawn).toBe(
       'An exact number.\n\nNo description was given for this field.'
     );

@@ -4,7 +4,7 @@
 // Qorus gives every field, option and argument the base data type of its values (`base_type`: `string` for an
 // email address, `int` for a timeout). A field of a type the auto field draws no editor of - a string format
 // type such as an email address, a user type, a type a newer server adds - showed "Unknown type!" in place of
-// its editor, so a form could not set it (qorus#646). It is now edited as its base type; only a type with no
+// its editor, so a form could not set it. It is now edited as its base type; only a type with no
 // base type it can edit is unknown.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen } from '@testing-library/react';

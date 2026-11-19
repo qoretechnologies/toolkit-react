@@ -18,7 +18,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * The reply is sent with the white primary, never the Qonsole purple: a ticket reply is not a
- * hand-off to Qonsole (instruction-files decision 002). Read from the drawn button, so a theme
+ * hand-off to Qonsole, and a purple button means only that. Read from the drawn button, so a theme
  * or a default that brings the purple back fails here.
  */
 const expectWhiteSend = async (canvasElement: HTMLElement) => {

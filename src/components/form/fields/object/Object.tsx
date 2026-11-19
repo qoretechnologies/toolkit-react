@@ -40,8 +40,8 @@ export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'on
   name?: string;
   /**
    * Offer the value as source text to type into (JSON or YAML), in a Text tab beside the editor. Off by default,
-   * and it stays off for a value a person fills in: nobody is asked to write JSON or YAML (Filip, 10 Nov: "there
-   * should NEVER be a free json text"). The one exception is a host editing a source it also offers a guided
+   * and it stays off for a value a person fills in: nobody is asked to write JSON or YAML, and there is
+   * never a free JSON text. The one exception is a host editing a source it also offers a guided
    * editor of the same thing for - the IDE's DB and API schema builders - which turns it on itself.
    */
   textEditing?: boolean;
@@ -58,7 +58,7 @@ const EDITOR_COLUMN: CSSProperties = { display: 'flex', flexFlow: 'column' };
 export type TObjectRow = Record<string, unknown>;
 
 /**
- * The fields of a row (decision 027: data is entered through a form, never as JSON or YAML): a name and a value
+ * The fields of a row (data is entered through a form, never as JSON or YAML): a name and a value
  * whose kind is picked first, as the IDE's "Other values" rows; a list's rows hold a value each. A value that is a
  * record or a list is rows of its own, through this same field.
  */
@@ -324,9 +324,10 @@ export const ReqraftObjectFormField = memo(
       }
     }, [value]);
 
-    /* The values as rows (decision 027): a name and a typed value each, or a value each for a list, nested where a
-       value is a record or a list. The rows are kept here: a row added and not named yet is no value yet, so the data
-       the field gives back leaves it out, and the rows must not be rebuilt from that data while it is being written. */
+    /* The values as rows (data is entered through a form, never as JSON or YAML): a name and a typed value each,
+       or a value each for a list, nested where a value is a record or a list. The rows are kept here: a row added
+       and not named yet is no value yet, so the data the field gives back leaves it out, and the rows must not be
+       rebuilt from that data while it is being written. */
     const rowsSchema = useMemo(() => objectRowsSchema(type, fieldWords), [type, fieldWords]);
     const [rows, setRows] = useState<unknown[]>(() => objectRowsFromData(treeData, type));
     const rowsRef = useRef(rows);

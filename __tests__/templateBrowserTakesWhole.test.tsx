@@ -33,7 +33,7 @@ const renderBrowser = (wholeRecords: boolean, templates: unknown = QOG_FIELD_TEM
 };
 
 /**
- * A Qog state's data taken whole (qorus#646, David's review) is a value of its type, as a host reads a pick's type:
+ * A Qog state's data taken whole is a value of its type, as a host reads a pick's type:
  * a hash, not the app the state is grouped by.
  */
 describe('a state taken whole from the template picker', () => {

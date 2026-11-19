@@ -111,7 +111,7 @@ describe('a host wait handed to the form', () => {
 });
 
 /**
- * A form whose host has no schema yet says nothing about the value (qorus#646).
+ * A form whose host has no schema yet says nothing about the value.
  *
  * The form read the value against the schema it had - none, while its host was still loading one - and every
  * field the schema did not name was dropped. It then emitted what was left, nothing, as the form's own

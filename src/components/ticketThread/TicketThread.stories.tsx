@@ -212,8 +212,8 @@ export const CustomerView: Story = {
     // the side, the avatar and the label say who spoke; no card is tinted for it
     await expectNeutralCards(['m1', 'm2']);
     // its times are read against the story's clock (STORY_NOW), not the day the build ran: the opening message,
-    // three hours before it, reads "3 hours ago" in every build, so the frame never changes by itself (Foxhoundn,
-    // qlip #400: "Are these timestamp changes always now going to show up?")
+    // three hours before it, reads "3 hours ago" in every build, so the frame never changes by itself and
+    // a Qlip build shows no timestamp change
     await expect(canvas.getByText('3 hours ago')).toBeInTheDocument();
 
     await userEvent.click(canvas.getAllByText('deploy-trace.log')[0]);
@@ -357,7 +357,7 @@ export const StaffView: Story = {
     await expect(canvas.getByText('Internal note')).toBeInTheDocument();
     await expect(canvas.getByText(/Support · nick/)).toBeInTheDocument();
     await expect(canvas.getAllByText(/Customer · Acme Corp/).length).toBeGreaterThan(0);
-    // every card is neutral, the internal note too: amber means "needs a look" (decision 001)
+    // every card is neutral, the internal note too: amber means "needs a look" (a color has a job, or it is gray)
     await expectNeutralCards(['m1', 'm2', 'm3']);
     // the reference chip renders with the built-in default icon (no resolver passed)
     await expect(canvas.getByText('nightly-deploy:1.2')).toBeInTheDocument();
@@ -399,7 +399,7 @@ export const StaffViewNamesTheCustomer: Story = {
         message_id: 'n3',
         author_type: 'staff',
         author_id: 'nick',
-        author_name: 'Nick',
+        author_name: 'Sam',
         body: 'Looking at it now: can you send the job’s last log?',
         created: ago(120),
       },
@@ -419,7 +419,7 @@ export const StaffViewNamesTheCustomer: Story = {
       Array.from(canvasElement.querySelectorAll<HTMLElement>('.reqore-bubble-label')).map(
         (label) => label.textContent?.trim() ?? ''
       );
-    await waitFor(() => expect(labels()).toContain('Support · Nick'));
+    await waitFor(() => expect(labels()).toContain('Support · Sam'));
     // no author is an id: neither the message's author_id nor a name that is one
     await expect(labels().filter((label) => UUID_SHAPED.test(label))).toEqual([]);
     await expect(canvasElement.textContent).not.toMatch(UUID_SHAPED);
@@ -985,8 +985,8 @@ export const Everything: Story = {
   },
 };
 
-// The delegated-access lifecycle as the control plane writes it into the thread
-// (qorus#693): a request from support, then the customer's answer and what followed.
+// The delegated-access lifecycle as the control plane writes it into the thread:
+// a request from support, then the customer's answer and what followed.
 const SUPPORT_ACCESS_THREAD: ITicketThreadMessage[] = [
   { message_id: 'o1', author_type: 'customer', author_id: 'acme', body: 'The nightly reconcile has been failing since Tuesday.', created: ago(400) },
   {
@@ -1034,7 +1034,7 @@ export const SupportAccessRequestCard: Story = {
     docs: {
       description: {
         story:
-          'Renders the delegated-access events in a customer thread in the notification look: the support request as a card (frosted surface, icon tile, the Grant action supplied by the consumer under the text), and the granted, opened, extended, revoked and expired events as compact pills centered in the thread (qorus#693). The end of a grant is worded from the viewer\'s side: the customer who ended it reads "ended by you", and an expiry reads "ran out".',
+          'Renders the delegated-access events in a customer thread in the notification look: the support request as a card (frosted surface, icon tile, the Grant action supplied by the consumer under the text), and the granted, opened, extended, revoked and expired events as compact pills centered in the thread. The end of a grant is worded from the viewer\'s side: the customer who ended it reads "ended by you", and an expiry reads "ran out".',
       },
     },
   },

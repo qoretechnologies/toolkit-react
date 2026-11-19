@@ -35,7 +35,7 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
   /* Whether the input's blur closes it without committing: Escape cancels. Enter and Escape let go of the focus
      while the input is still on the page, and the blur closes it - taken off the page with the focus, it lost
      the focus in the middle of React's work, and its blur committed then: Enter committed twice, and Escape
-     committed what was typed (qorus#646). */
+     committed what was typed. */
   const cancelRename = useRef(false);
 
   useEffect(() => {

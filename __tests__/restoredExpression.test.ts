@@ -5,7 +5,7 @@ import {
 } from '../src/components/form/expressions/argumentPresence';
 
 /**
- * An undone edit puts a field back as it was (qorus#646): Cancel, Escape and Revert. An expression cleared on the
+ * An undone edit puts a field back as it was: Cancel, Escape and Revert. An expression cleared on the
  * Expression tab, or replaced with a value, came back from them without what marks it as an expression: the
  * engine keeps the flag only while the field still holds an expression when the change says nothing of it, and
  * the field held nothing, or a value, at that moment. Its AST was then stored as a literal hash, and its row read

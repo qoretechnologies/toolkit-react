@@ -37,7 +37,7 @@ export interface IDefaultsNoteProps {
  *
  * A field the person never touched whose value is its default is not something they set, so it is not listed as
  * "Set": on a new workflow the only thing "Set" was "Language: Qore", which a person who does not write code never
- * chose (board r-ed-19, Filip's option B). "Change" opens the field, which is then an ordinary row.
+ * chose. "Change" opens the field, which is then an ordinary row.
  */
 export const DefaultsNote = memo(({ fields, color, onChange }: IDefaultsNoteProps) => {
   if (!fields.length) {

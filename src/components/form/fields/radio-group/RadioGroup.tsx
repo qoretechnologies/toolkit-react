@@ -34,7 +34,7 @@ export const RadioGroupFormField = ({
               textSize: 'small',
             },
         ...item,
-        // a picture beside the name, the radio kept: it says which is chosen without color (qorus#646)
+        // a picture beside the name, the radio kept: it says which is chosen without color
         ...pictureBesideTheName(
           (item as { image?: unknown }).image,
           rest.size || 'normal',

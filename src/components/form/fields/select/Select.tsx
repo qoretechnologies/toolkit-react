@@ -59,8 +59,8 @@ export interface ISelectFormFieldProps {
   /**
    * The value the list marks as held, for a list whose trigger does not draw it: the suggestions beside an editor
    * that holds the field's value ("Saved & suggested values"). The trigger keeps its own name, and the list ticks
-   * the suggestion the field holds, so a pick reads as replacing it (qorus#646, David: "if this option takes a
-   * single value, then selecting another value should replace the one that's there").
+   * the suggestion the field holds, so a pick reads as replacing it: where the option takes a
+   * single value, selecting another replaces the one that is there.
    */
   markedValue?: unknown;
   /**
@@ -127,7 +127,7 @@ export const SelectFormField = memo(
        says only "a filter is on" and the value itself says what is chosen (as `useSelectedChoiceIntent` does for a
        field's radios). The expression builder's operation is the case that was reported. */
     const chosenIntent: TReqoreIntent | undefined = useIsCalmForm() ? undefined : 'info';
-    // the name of an item that cannot be picked is dimmed, as far as it still reads (qorus#646)
+    // the name of an item that cannot be picked is dimmed, as far as it still reads
     const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
     const [collectionOpen, setCollectionOpen] = useState(false);

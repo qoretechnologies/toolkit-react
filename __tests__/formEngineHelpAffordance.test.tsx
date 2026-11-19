@@ -107,7 +107,7 @@ describe('an option keeps its help affordance when it is opened', () => {
   });
 
   it('offers a ? that says what the field takes, a long description or not', async () => {
-    // qorus#646, David's review: a field's type is said in its help, beside its description, not by default
+    // A field's type is said in its help, beside its description, not by default
     // beside its name - so a field with a type in words has a help to open, with that in it
     const { container } = renderForm(
       {
@@ -127,7 +127,7 @@ describe('an option keeps its help affordance when it is opened', () => {
   });
 
   it('offers a ? for a short description alone, so a touch screen reaches what the option is', async () => {
-    // qorus#646, David: a (?) on every option with a type in words or a description
+    // a (?) on every option with a type in words or a description
     const { container } = renderForm(
       {
         plain: {
@@ -158,7 +158,7 @@ describe('an option keeps its help affordance when it is opened', () => {
 });
 
 /*
- * The `?` is one of the row's controls, and is sized as they are (qorus#646, the IDE's Sheet Contract Review): it
+ * The `?` is one of the row's controls, and is sized as they are: it
  * was reqore's `tiny` (26px) on a desktop, beside the open editor's `small` (32px) clear, list and Done buttons.
  * That is a drawn height, and jsdom draws nothing: it lays nothing out (every box is 0px high) and does not resolve
  * the CSS variables reqore sizes its buttons with, so a height read here compares two unresolved strings. The

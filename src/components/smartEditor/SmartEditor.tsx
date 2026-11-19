@@ -271,7 +271,7 @@ const EDITOR_BOX_STYLE: React.CSSProperties = {
 };
 
 /**
- * The button beside the text that opens the template picker for a pick at the caret (qorus#646): where a value
+ * The button beside the text that opens the template picker for a pick at the caret: where a value
  * cannot be written after the text before the caret (`insertableAt`), it says why and cannot be pressed. Its press
  * keeps the focus, and the caret the pick goes at, in the text.
  */
@@ -393,8 +393,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     /* What the language server completes where a value can be written (the start of the text), for the template
        picker to offer beside the field's own templates: the record's fields, the template contexts, the functions
-       and the values (qorus#646, David: "users should be supported with all available completions in the template
-       picker"). Asked once the server is ready, again as the field's templates change, and when the picker opens. */
+       and the values, so the picker supports the author with every completion there is. Asked once the server is
+       ready, again as the field's templates change, and when the picker opens. */
     const [serverValues, setServerValues] = useState<ILspCompletionItem[]>();
     const askedValuesRef = useRef(0);
     const askServerValues = useCallback(async () => {
@@ -462,8 +462,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        caret, in the same pop-up a mouse gets by hovering. Only where the server says anything (`hoverProvider`). */
     const coarse = useCoarsePointer();
     /* The row the text and its Details button share, measured: in a row a phone's width or narrower, Details is its
-       icon alone - its word took the text's room (Foxhoundn on qlip #383: "The details button should be just an icon
-       on such small screen / container size"). The row, not the screen: an editor in a narrow card on a wide
+       icon alone - its word took the text's room. The row, not the screen: an editor in a narrow card on a wide
        screen is as short of room. */
     const [rowRef, { width: rowWidth }] = useMeasure<HTMLDivElement>();
     const detailsSaysItsWord = !rowWidth || rowWidth > DETAILS_WORD_MIN_ROW_WIDTH;
@@ -523,7 +522,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     /* The server's diagnostics as the editor says them: in the host's words for what it wrote itself
        (`presentDiagnostics`), and without the error of a reference half-typed at the caret while its list is open
-       or on its way - a `$` typed to ask for a template is not a mistake yet (qorus#646, David's decision). It
+       or on its way - a `$` typed to ask for a template is not a mistake yet. It
        is said once the list is put away. */
     const listActive = autocomplete.isActive;
     const shownDiagnostics = useMemo(() => {
@@ -718,7 +717,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     }, [converter, readOnly, onBlur, referenceNamesNothing]);
 
     /* A chip put in at the caret takes the place of the reference being written there, wherever it is picked
-       from (qorus#646, David's review). The completion list's inserter takes it away itself; the list the
+       from. The completion list's inserter takes it away itself; the list the
        editor's templates are browsed in is reqore's, which puts a chip in at the caret as it is: a `$` typed to
        ask for a template stayed in front of the one picked, and `pos + 1 + $pos` is refused by the server. A
        Slate plugin on the editor reqore made for this one (its `insertNodes`), so both are one step of one
@@ -832,8 +831,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           autocomplete.onSlateChange(editorRef.current as any, newNodes);
           /* A text emptied where the author is writing offers what an empty text offers: its templates and
              fields, the picker at its top, as a click in it opens it - not nothing, nor a list of one row that
-             only leads there (Foxhoundn on qlip #425; David: the picker offers every completion in every
-             state). */
+             only leads there: the picker offers every completion in every state. */
           if (emptied) emptiedRef.current();
         }
         aidsChangeRef.current();
@@ -851,15 +849,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (readOnly) return;
         /* An editor with a browse list (`tags`) answers a click on a chip with that list, as a click anywhere
            in its text, and as a value's text does: one list at a time. Opening the chip's replacements beside
-           it put two lists over the text, and what was typed then reached neither (qorus#646, David: "you
-           can't type"). */
+           it put two lists over the text, and what was typed then reached neither. */
         if (hasBrowseList) return;
         try {
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
           const rect = (domNode as HTMLElement).getBoundingClientRect();
           /* A chip the field's templates or fields list opens the picker where it is - its group, its row the
-             keyboard's - and the pick takes its place (qorus#646). A second click on it puts the picker away. */
+             keyboard's - and the pick takes its place. A second click on it puts the picker away. */
           const listed =
             templateRoots?.length && typeof tag.value === 'string' ?
               templateNodeFor(templateRoots, tag.value)
@@ -879,8 +876,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             return;
           }
           /* An editor that completes on a click lists what can stand in the chip's place - the fields and
-             templates the chip is one of - and the pick replaces it (qorus#646, David: a click on pos listed
-             nothing). */
+             templates the chip is one of - and the pick replaces it (a click on `pos` once listed nothing). */
           autocomplete.openAtChip(
             editor,
             tagPath,
@@ -940,12 +936,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           const box = page.getRangeAt(0).getBoundingClientRect();
           // a caret in an empty line has no box of its own: the text's
           const at = box.width || box.height ? box : caretBoxAt(editor, caret.anchor);
-          /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
-             empty field shows the templates, the record's fields among them). */
+          /* An empty text offers its templates and fields: the picker, at its top: a click in an
+             empty field shows the templates, the record's fields among them. */
           const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
           /* A reference being written at the caret is completed where it is - what is listed of it, what to write
              next and Browse all templates to put a working one in its place - not left for the picker at the top
-             (qorus#646, David's review: a click at the end of `$dynamic:` showed the picker's top silently). */
+             (a click at the end of `$dynamic:` once showed the picker's top silently). */
           // what is typed in the text the caret is in: a chip before it is a value, not a reference being written
           const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
           const writing = /[$@][\w.:{}*-]*$/.test((leaf.text ?? '').slice(0, caret.anchor.offset));
@@ -1019,7 +1015,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         {topActions}
         {aids.findBar}
         {/* The text and, on a touch screen, its Details button beside it, in one row: under the text the button
-            was far from it, and what it showed was drawn over the text (Foxhoundn, qlip #361). Always the row,
+            was far from it, and what it showed was drawn over the text. Always the row,
             so the text is not remounted when the button appears. */}
         <ReqoreControlGroup
           ref={rowRef}
@@ -1044,7 +1040,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             onClick={(event) => completeAtPageCaret(event.target)}
             /* Tab's key comes up in the editor it moved the focus into. One that went down in the editor - a Tab
                that took a completion, or moved the focus on - asks nothing: its key coming up here reopened the
-               list just taken from (qorus#646). */
+               list just taken from. */
             onKeyUp={(event) => {
               if (event.key === 'Tab' && tabCameIn()) completeAtPageCaret(event.target);
             }}
@@ -1157,8 +1153,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 noArrow
                 /* A mouse's hover is over the word it is of; what Details shows is under the button, beside the
                    text. Both are a popover's card, the surface a chip's hover is drawn on: drawn as glass, a hover
-                   over an empty page was its words with nothing under them (Foxhoundn, qlip #392: "It looks like
-                   the background is transparent? Is it not using a ReqorePopover / the tags tooltip?"). */
+                   over an empty page was its words with nothing under them, as if its background were
+                   transparent. */
                 placement={detailsShown ? 'bottom-end' : 'top'}
                 handler='hover'
                 closeOnOutsideClick
@@ -1190,7 +1186,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 }
                 /* It opens where its pick goes - the caret the text keeps while the button is pressed, else the
                    text's end - as a click there opens it; at the button it opened at the far right end of the text
-                   (David on reqraft #162). It goes with the text as the window resizes. */
+                   (reqraft #162). It goes with the text as the window resizes. */
                 let at;
                 try {
                   at = editor.selection?.anchor ?? Editor.end(editor as unknown as Editor, []);
@@ -1269,7 +1265,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   const action = diagnosticAction?.(diag);
                   // as wide as its words, under what is said and apart from it: a message lays its children out at
                   // its width. The size of the message's words with a pointer, a finger's on a touch screen
-                  // (Foxhoundn on qlip #425: "enormous compared to the text in the message")
+                  // (the button's own size was enormous beside the message's words)
                   return action ?
                       <ReqoreControlGroup
                         size={coarse ? 'small' : 'tiny'}

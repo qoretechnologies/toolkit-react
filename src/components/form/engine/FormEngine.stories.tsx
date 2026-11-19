@@ -537,7 +537,7 @@ export const WithTypesShown: Story = {
     docs: {
       description: {
         story:
-          "Renders the Basic FormEngine and clicks the show-types header action — every option says what kind of value it takes in words from the type catalog (Color, Text, Whole number), not its type's code (<rgbcolor>, <string>): David's decision, IDE rule 7.",
+          "Renders the Basic FormEngine and clicks the show-types header action — every option says what kind of value it takes in words from the type catalog (Color, Text, Whole number), not its type's code (<rgbcolor>, <string>).",
       },
     },
   },
@@ -617,7 +617,7 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with a required option that depends on Required Option 2 OR Required Option 5 — the field is not in the form until either holds a value (qorus#646, David: a field that cannot be used yet is left out, not shown waiting), then it appears.',
+          'Renders FormEngine with a required option that depends on Required Option 2 OR Required Option 5 — the field is not in the form until either holds a value (a field that cannot be used yet is left out, not shown waiting), then it appears.',
       },
     },
   },
@@ -732,7 +732,7 @@ export const OptionWithAnyType: Story = {
     docs: {
       description: {
         story:
-          "Renders four options typed as any that take templates and no expressions. An untyped value is written as text, which takes templates as chips, so none has tabs: no Template tab beside the Value it would repeat (David's decision). The number 1234 is written as typed; a click in an empty one lists the templates, and a rich-text template picked from the list makes the value rich text, in its own editor. The operator can set a value of a type from the field menu - True or false gives the yes / no control.",
+          "Renders four options typed as any that take templates and no expressions. An untyped value is written as text, which takes templates as chips, so none has tabs: no Template tab beside the Value it would repeat. The number 1234 is written as typed; a click in an empty one lists the templates, and a rich-text template picked from the list makes the value rich text, in its own editor. The operator can set a value of a type from the field menu - True or false gives the yes / no control.",
       },
     },
   },
@@ -939,7 +939,7 @@ export const OptionsWithOnChangeTriggerEvents: Story = {
 // renders a textarea AND a visible "syntax: <language>" tag so the
 // `inherit_props` story (below) can prove the inherited `language` prop
 // flows through to the renderer at render time.
-// qorus#347-followup: an option can declare `inherit_props` — a JSON map of
+// An option can declare `inherit_props` — a JSON map of
 // `<prop-name-on-renderer>` → `<sibling-field-name>` — and FormEngine
 // resolves each entry at render time, forwarding the sibling's current
 // value as a runtime prop on this field's renderer. Unlike `on_change:
@@ -1026,7 +1026,7 @@ export const OptionInheritsRenderPropFromSibling: Story = {
   },
 };
 
-// qorus#347-followup, compact variant of the FLAT case: same schema and
+// Compact variant of the FLAT case: same schema and
 // componentOverride as `OptionInheritsRenderPropFromSibling`, but the form
 // is rendered with `compact: true`. Compact and classic share the same
 // `renderOption` callback (FormEngine.tsx:1590) where `inherit_props` is
@@ -1168,7 +1168,7 @@ export const DoneStraightAfterTypingKeepsTheEdit: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with a required text field and a required number field. Each is opened, typed into and closed with Done at once, inside the pause after which a field reports what is typed. Each row reads what was typed, and the form counts both as set (qorus#646: Done used to close the field with the edit still waiting, and the edit was lost).',
+          'Renders a compact form with a required text field and a required number field. Each is opened, typed into and closed with Done at once, inside the pause after which a field reports what is typed. Each row reads what was typed, and the form counts both as set (Done used to close the field with the edit still waiting, and the edit was lost).',
       },
     },
   },
@@ -1229,7 +1229,7 @@ export const CompactRowStaysInItsBoxWhileOpen: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with two required fields left empty, in Needs attention. Each, opened and filled in, stays where it is while it is open (moving it would take the focus), and goes to Set when it is closed. Nothing says so: a note under the open field saying where it would move was one more line to read while writing a value (Foxhoundn, qlip #392: "Remove the whole `Moves to` please").',
+          'Renders a compact form with two required fields left empty, in Needs attention. Each, opened and filled in, stays where it is while it is open (moving it would take the focus), and goes to Set when it is closed. Nothing says so: a note under the open field saying where it would move was one more line to read while writing a value.',
       },
     },
   },
@@ -1390,7 +1390,7 @@ export const CompactRowReleasesItsOpeningFloor: Story = {
         short_desc: 'Cookie name for cookie authentication',
         // A message is what makes a read row tall enough for the stuck floor
         // to be visible rather than merely present. It is about the name it is shown for: one with a space
-        // (David's review: the warning was shown for a name it said nothing about, and stayed after the rename).
+        // (the warning was shown for a name it said nothing about, and stayed after the rename).
         messages: [
           {
             when: ['cookie_name=my cookie'],
@@ -1462,9 +1462,9 @@ const LANGUAGE_CHOICE_OPTIONS = {
 } as never;
 
 /**
- * The choices of a group drawn with pictures, and which one is chosen - said without color (qorus#646, David: "using
- * color on the icon on the choice makes it harder to see which one is chosen and impossible to see for people with
- * issues recognizing colors"): each is a radio whose own mark is not its picture, the picture beside its name; the
+ * The choices of a group drawn with pictures, and which one is chosen - said without color, because a colored icon
+ * makes it harder to see which one is chosen and impossible to see for a reader who does not tell colors apart:
+ * each is a radio whose own mark is not its picture, the picture beside its name; the
  * chosen one's radio is checked and its mark is another shape than the others'.
  */
 /** A computed `rgb()` / `rgba()` color as its channels and alpha. */
@@ -1542,7 +1542,7 @@ const expectChosenWithoutColor = async (root: HTMLElement, chosen: string) => {
     const others = marks.filter((_mark, index) => index !== at);
     expect(new Set(others).size).toBe(1);
     expect(marks[at]).not.toBe(others[0]);
-    // and laid out as David asked: even gaps, the ring clear of the picture, the name centered, the others gray
+    // and laid out: even gaps, the ring clear of the picture, the name centered, the others gray
     expectPictureChoiceLayout(root, chosen);
   });
 };
@@ -1570,7 +1570,7 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosen: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with Language open: three languages, each with its logo. Each is a radio with its logo beside its name, and Python, the one chosen, is a filled radio where the others are empty ones - which one is chosen is a shape, not only a color (David: "the radio buttons are missing"). A click on Qore moves the mark there (the row closes on a pick; opened again, Qore is the filled radio), and from the keyboard Tab lands on the chosen radio and draws its focus ring, which the capture shows.',
+          'Renders a compact form with Language open: three languages, each with its logo. Each is a radio with its logo beside its name, and Python, the one chosen, is a filled radio where the others are empty ones - which one is chosen is a shape, not only a color. A click on Qore moves the mark there (the row closes on a pick; opened again, Qore is the filled radio), and from the keyboard Tab lands on the chosen radio and draws its focus ring, which the capture shows.',
       },
     },
   },
@@ -1720,7 +1720,7 @@ export const AnOptionsHelpListsItsAllowedValues: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with Language (three allowed values) and Retries (no description at all). The help of Retries says what it takes and why nothing else: "No description was given for this option." (David: "there should be a reason given why there is no description"). The help of Language says what it takes, its description, and its allowed values under a bold "Allowed values": qore (Qore), python (Python) and java (Java), each exact value as data, with its description. The capture leaves that help open.',
+          'Renders a compact form with Language (three allowed values) and Retries (no description at all). The help of Retries says what it takes and why nothing else: "No description was given for this option." The help of Language says what it takes, its description, and its allowed values under a bold "Allowed values": qore (Qore), python (Python) and java (Java), each exact value as data, with its description. The capture leaves that help open.',
       },
     },
   },
@@ -1837,8 +1837,7 @@ export const CompactRowAbsorbsLanguage: Story = {
 
     // Collapsed, the host still reports the absorbed value — otherwise the
     // language would vanish from the form whenever the editor is closed. By its
-    // name and its logo, as its own control draws it (David: "the languages are
-    // missing the language icons").
+    // name and its logo, as its own control draws it.
     const sourceRow = canvasElement.querySelector('[data-field="source"]');
     const absorbedTag = sourceRow?.querySelector('.options-readfirst-absorbed-tag');
     expect(absorbedTag?.textContent).toBe('Qore');
@@ -2204,7 +2203,7 @@ export const CompactRowMarkdownPreview: Story = {
   },
 };
 
-// qorus#347-followup, scope forwarding: this story exercises the nested
+// Scope forwarding: this story exercises the nested
 // case of the OptionInheritsRenderPropFromSibling contract. The parent
 // form declares `methods: { ui_type: 'list', element_type: 'hash',
 // arg_schema: {...}, inherit_props: { language: 'language' } }`. FormEngine
@@ -2297,7 +2296,7 @@ export const NestedOptionInheritsRenderPropFromAncestor: Story = {
   },
 };
 
-// qorus#347-followup, scope forwarding + compact variant: same schema as
+// Scope forwarding + compact variant: same schema as
 // `NestedOptionInheritsRenderPropFromAncestor` but with `compact: true`.
 // Compact and classic share the `renderOption` callback (FormEngine.tsx:1590)
 // which is where the `inheritedFromParent` bag is threaded onto TemplateField,
@@ -2917,7 +2916,7 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
     docs: {
       description: {
         story:
-          'Renders a check whose Expected value, Minimum and Maximum are required but apply only once a kind is picked. Until then they are not in the form at all (qorus#646, David: a field that cannot be used yet is left out, not shown waiting): nothing needs attention, and the header reads Ready.',
+          'Renders a check whose Expected value, Minimum and Maximum are required but apply only once a kind is picked. Until then they are not in the form at all (a field that cannot be used yet is left out, not shown waiting): nothing needs attention, and the header reads Ready.',
       },
     },
   },
@@ -2981,8 +2980,8 @@ export const CompactUnlockedRequiredNeedsAttention: Story = {
 
 /**
  * A check whose Expected value is empty, and whose host says why it cannot be read: a reason longer than the room
- * beside the value's dash. (It was a field locked by its dependency; such a field is not in the form now - qorus#646 -
- * and a host's reason is the long reason a row still shows beside a dash.)
+ * beside the value's dash. (It was a field locked by its dependency; such a field is not in the form now, and a
+ * host's reason is the long reason a row still shows beside a dash.)
  */
 const checkWithAReasonBesideItsDashOptions = {
   expected: {
@@ -3647,7 +3646,7 @@ export const CompactEditingShowsDescription: Story = {
   },
 };
 
-/** An open row's (?) and its own controls, measured: one height (qorus#646). */
+/** An open row's (?) and its own controls, measured: one height. */
 const expectHelpAsTallAsTheControls = async () => {
   await _testsWaitForText('order-fulfilment');
   // At rest the read row's (?) is already the open editor's size: one control, drawn the same way in both.
@@ -4024,7 +4023,7 @@ export const CompactBasic: Story = {
     docs: {
       description: {
         story:
-          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colors as hex, hashes as field-count summaries), disabled rows stay non-interactive, and a field whose dependency does not hold is not in the form until it does (qorus#646, David). The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
+          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colors as hex, hashes as field-count summaries), disabled rows stay non-interactive, and a field whose dependency does not hold is not in the form until it does. The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
       },
     },
     chromatic: { disable: true },
@@ -4067,7 +4066,7 @@ export const CompactBasic: Story = {
       )
     ).toBeFalsy();
 
-    // A field whose dependency does not hold is not in the form (qorus#646, David): it depends on basicOption,
+    // A field whose dependency does not hold is not in the form: it depends on basicOption,
     // which is empty, so it has no row, in any box.
     await expect(compactRow('optionWithShortDescription')).toBeNull();
 
@@ -4106,7 +4105,7 @@ export const CompactBasic: Story = {
 
     // A scalar row (Number option = 42, ui_type number) edits inline. (The
     // '123' options are ui_type richtext — complex — and open the card.) 42 is its default and nobody set it,
-    // so it is said under the form ("Uses 42 for Number option") until it is changed (r-ed-19).
+    // so it is said under the form ("Uses 42 for Number option") until it is changed.
     await waitFor(() =>
       expect(
         document.querySelector('.form-default-note[data-field-default="numberOption"]')?.textContent
@@ -4398,7 +4397,7 @@ export const CompactReadOnlyValues: Story = {
     expect(row('handler').querySelector('.options-readfirst-code')?.textContent).toContain(
       'return {"status": 200, "body": customer};'
     );
-    // drawn by the host's code editor, read-only: highlighted, a line per line (David's decision)
+    // drawn by the host's code editor, read-only: highlighted, a line per line
     expect(
       row('handler').querySelector('.options-readfirst-code-editor .code-editor-standin')
     ).toBeTruthy();
@@ -4554,7 +4553,7 @@ export const CompactHashStructuredView: Story = {
   },
 };
 
-// batched commit mode (Nick's save-model decision, 2026-06-10)
+// batched commit mode
 // Edits stage as a draft: changed rows get a Draft chip, the sticky header
 // grows a Save/Discard bar, Save emits `onCommit` (gated on validity), and
 // every staged edit still emits `onChange` flagged `meta.draft`.
@@ -5891,7 +5890,7 @@ export const CompactRevertAndShowTypes: Story = {
     await _testsWaitForText('order-fulfilment');
     await _testsWaitForTextToNotExist('changed-name');
 
-    // "Show field types" (Fields menu) annotates each row with its type, in words (David's decision): not `<string>`
+    // "Show field types" (Fields menu) annotates each row with its type, in words: not `<string>`
     await clickFieldsMenuItem('Show field types');
     await waitFor(() =>
       expect(
@@ -5948,7 +5947,7 @@ export const CompactExpressions: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an expression-supporting option — the row opens the ExpressionField shell on its Text view, the first of the Text · Visual toggle (qorus#646, David); Visual shows the builder, and Text the expression again.',
+          'Renders a compact form with an expression-supporting option — the row opens the ExpressionField shell on its Text view, the first of the Text · Visual toggle; Visual shows the builder, and Text the expression again.',
       },
     },
     chromatic: { disable: true },
@@ -6174,7 +6173,7 @@ export const CompactEnumWithImages: Story = {
         expect(card?.textContent).toContain('Python');
         expect(card?.textContent).toContain('Java');
         expect(card?.querySelectorAll('.reqore-checkbox img').length).toBeGreaterThan(0);
-        // each logo beside its name, laid out as David asked, the others gray (qorus#646)
+        // each logo beside its name, evenly laid out, the others gray
         expectPictureChoiceLayout(card as HTMLElement, 'Qore');
       },
       { timeout: 10000 }
@@ -6234,7 +6233,7 @@ export const CompactEnumRichtextValue: Story = {
     } as unknown as IOptions,
   },
   play: async () => {
-    // Qore is the field's default and nobody set it: it is said under the form, by its label (r-ed-19).
+    // Qore is the field's default and nobody set it: it is said under the form, by its label.
     await waitFor(
       () =>
         expect(
@@ -6962,7 +6961,7 @@ const _compactExpandAllRows = async () => {
 
 /**
  * The colors of `CompactColorRows`: three stored as a color is, `{ r, g, b, a? }`, and two stored as hex codes,
- * which a stored color is not (qorus#646, David) but which are still drawn.
+ * which a stored color is not but which are still drawn.
  */
 const COMPACT_COLOUR_VALUES = {
   color: { r: 100, g: 149, b: 237, a: 1 },
@@ -7292,7 +7291,7 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an option that depends on A OR B: it is not in the form until either holds a value (qorus#646, David: a field that cannot be used yet is left out, not shown waiting). Filling B brings it in; taking B\'s value back leaves it out again.',
+          'Renders a compact form with an option that depends on A OR B: it is not in the form until either holds a value (a field that cannot be used yet is left out, not shown waiting). Filling B brings it in; taking B\'s value back leaves it out again.',
       },
     },
     chromatic: { disable: true },
@@ -7341,7 +7340,7 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
       ) as HTMLElement
     );
     await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
-    // each member's asterisk on its name's line, and its (?) at the column's right edge (Foxhoundn, qlip #392)
+    // each member's asterisk on its name's line, and its (?) at the column's right edge
     expectLabelChromeInPlace(canvasElement);
   },
 };
@@ -7353,7 +7352,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an option that depends on a required-group member: it is not in the form until the required-group option holds a value (qorus#646), and filling it brings the row in and satisfies the group. Reverted, the group someone has been to says what it needs on all four members, in amber, and the readiness line counts the four as needing attention; the other group, which nobody has been to, is still to fill in.',
+          'Renders a compact form with an option that depends on a required-group member: it is not in the form until the required-group option holds a value, and filling it brings the row in and satisfies the group. Reverted, the group someone has been to says what it needs on all four members, in amber, and the readiness line counts the four as needing attention; the other group, which nobody has been to, is still to fill in.',
       },
     },
     chromatic: { disable: true },
@@ -7380,7 +7379,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     await _testsWaitForText('One of');
     await expect(compactRow('RequiredOption6')).toBeNull();
     /* a member's help is on its name's line, in a narrow label column too: inline after the name, the button went
-       to a line of its own and made each row a line taller (qorus#646) */
+       to a line of its own and made each row a line taller */
     const member = compactRow('RequiredOption1') as HTMLElement;
     expect(
       onTheNamesLine(
@@ -7416,7 +7415,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
       ) as HTMLElement
     );
     await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
-    // each member's asterisk on its name's line, and its (?) at the column's right edge (Foxhoundn, qlip #392)
+    // each member's asterisk on its name's line, and its (?) at the column's right edge
     expectLabelChromeInPlace(canvasElement);
 
     /* The readiness line and the rows agree (Qlip build 482): a person has been to the group of options 1-4 (to
@@ -7449,7 +7448,7 @@ export const HiddenFieldKeepsItsValue: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form whose scheme is Permissive, with a Redirect URL saved while it was Cookie, and a Port that is not a number. Both apply to the Cookie scheme alone, so neither is in the form (qorus#646, David). Their values are kept, not dropped silently: the form says so in a note, and that the port is not valid; neither holds the form back, as neither applies.',
+          'Renders a compact form whose scheme is Permissive, with a Redirect URL saved while it was Cookie, and a Port that is not a number. Both apply to the Cookie scheme alone, so neither is in the form. Their values are kept, not dropped silently: the form says so in a note, and that the port is not valid; neither holds the form back, as neither applies.',
       },
     },
   },
@@ -7860,7 +7859,7 @@ export const CompactShowcase: Story = {
     await expect(document.querySelectorAll('.options-readfirst-info-panel').length).toBeGreaterThan(
       0
     );
-    // A field whose dependency does not hold is not in the form (qorus#646, David): no row, in any box.
+    // A field whose dependency does not hold is not in the form: no row, in any box.
     await expect(document.querySelector('[data-field="optionWithShortDescription"]')).toBeNull();
     // ONE info mechanism: no subtitle lines, no badge — just the panel + ⓘ.
     await expect(document.querySelectorAll('.options-readfirst-subtitle')).toHaveLength(0);
@@ -7898,7 +7897,7 @@ export const CompactShowcase: Story = {
 
     // Default-value notes and validation/dependency hints now render as a compact
     // INLINE reason (no ⓘ, no panel) — visible without any interaction.
-    // A field at its default nobody set is said under the form, its default's description with it (r-ed-19).
+    // A field at its default nobody set is said under the form, its default's description with it.
     await waitFor(() =>
       expect(
         [...document.querySelectorAll('.form-default-note')].some((note) =>
@@ -8314,8 +8313,8 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
     const descField = document.querySelector('[data-field="description"]');
     expect(descField?.contains(document.activeElement)).toBeFalsy();
 
-    // why it is refused, in words the author can act on (David: "what doesn't match the pattern - what is the
-    // pattern"): the form a value must have, by its example, and the pattern as a detail
+    // why it is refused, in words the author can act on (what does not match, and what the pattern is): the
+    // form a value must have, by its example, and the pattern as a detail
     await waitFor(() =>
       expect(document.querySelector('[data-field="endpoint"]')?.textContent).toContain(
         'Must match the expected form, for example https://api.example.com/orders. Pattern: ^https?://'
@@ -8455,7 +8454,7 @@ export const CompactAutoFocusPickOneFirstQuestion: Story = {
     );
     const active = document.activeElement as HTMLElement;
     // The control the row actually offers: a choice, not a text box.
-    // the first choice, a native radio: one choice of a few (qorus#646)
+    // the first choice, a native radio: one choice of a few
     expect(active.tagName).not.toBe('TEXTAREA');
     expect((active as HTMLInputElement).type).toBe('radio');
   },
@@ -8621,7 +8620,7 @@ const RichtextTemplateSchema: IOptionsSchema = {
     display_name: 'Message Body',
     required: true,
     // the alert's values, as the host lists them for a message body: a reference its catalogue does not list is
-    // drawn as a warning (qorus#646)
+    // drawn as a warning
     templates: {
       items: [
         {
@@ -9446,7 +9445,7 @@ export const CompactExpressionTemplateChips: Story = {
 
     // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
     await atTheCaptureSize(context.parameters);
-    // a function says what it is (David on this story): in the editor, the row opened...
+    // a function says what it is: in the editor, the row opened...
     await userEvent.click(canvasElement.querySelector<HTMLElement>('.readfirst-row')!);
     const editor = await waitFor(() => {
       const element = canvasElement.querySelector<HTMLElement>(
@@ -10445,7 +10444,7 @@ const hoverCardOf = async (element: HTMLElement) => {
 };
 
 /**
- * Allowed values as help shows them (qorus#646, David's policy): a bold "Allowed values" heading, then a table, a
+ * Allowed values as help shows them: a bold "Allowed values" heading, then a table, a
  * row a value - the exact value as data, its name, its description - in one font size, every cell inside the help.
  */
 const expectAllowedValuesHelp = async (root: HTMLElement, values: [string, string, string][]) => {
@@ -10458,7 +10457,7 @@ const expectAllowedValuesHelp = async (root: HTMLElement, values: [string, strin
   expect(heading.textContent).toBe('Allowed values');
   expect(Number(getComputedStyle(heading).fontWeight)).toBeGreaterThanOrEqual(600);
   const table = help.querySelector<HTMLTableElement>('table') as HTMLTableElement;
-  expect(table, 'a table, not a list (David: "try a table for this instead")').toBeTruthy();
+  expect(table, 'a table, not a list').toBeTruthy();
   expect(Array.from(table.querySelectorAll('th')).map((th) => th.textContent)).toEqual([
     'Value',
     'Name',
@@ -10540,7 +10539,7 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
     docs: {
       description: {
         story:
-          'A row whose value holds a reference inside the author’s own text — a skip-when predicate — draws the reference as the chip the picker names it by and leaves the comparison beside it exactly as written, instead of printing the raw token. Each option says what it is with its (?) help, as the Qorus IDE describes Skip when (David’s review: an option without its description has no help to open).',
+          'A row whose value holds a reference inside the author’s own text — a skip-when predicate — draws the reference as the chip the picker names it by and leaves the comparison beside it exactly as written, instead of printing the raw token. Each option says what it is with its (?) help, as the Qorus IDE describes Skip when (an option without its description has no help to open).',
       },
     },
   },
@@ -10560,8 +10559,8 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
       skip_when: {
         type: 'string',
         display_name: 'Skip when',
-        // help in the author's words: what the option does and how to fill it in, never its grammar (David's
-        // decision; the Qorus IDE's CaseDrawer gets the same words)
+        // help in the author's words: what the option does and how to fill it in, never its grammar (the
+        // Qorus IDE's CaseDrawer gets the same words)
         short_desc: 'Skip this case when the condition holds',
         desc: 'Choose a value this case captures and what it must be. When that holds, the whole case (its setup, checks and clean-up) is skipped instead of run. Leave it empty to always run the case.',
         supports_templates: true,
@@ -10682,7 +10681,7 @@ export const AnOptionsHelpIsAButton: Story = {
     docs: {
       description: {
         story:
-          "Renders the Skip when form. An option's (?) is a button (David's decision): Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is the size of the row's other controls (reqore's `small`, 32px), and the focus left on it shows its ring in the capture.",
+          "Renders the Skip when form. An option's (?) is a button: Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is the size of the row's other controls (reqore's `small`, 32px), and the focus left on it shows its ring in the capture.",
       },
     },
   },
@@ -10779,7 +10778,7 @@ export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
     docs: {
       description: {
         story:
-          'Opens the Skip when row whose field declares its own token grammar — the reference stays the chip the picker names it by inside the editor, with the author’s comparison beside it, instead of reverting to its raw spelling. The second reference, $._case.attempt, is one the case does not capture and its host does not know: its chip says so, in warning colors and with the hover "Not a value this case captures", on the row and in the editor (David\'s decision).',
+          'Opens the Skip when row whose field declares its own token grammar — the reference stays the chip the picker names it by inside the editor, with the author’s comparison beside it, instead of reverting to its raw spelling. The second reference, $._case.attempt, is one the case does not capture and its host does not know: its chip says so, in warning colors and with the hover "Not a value this case captures", on the row and in the editor.',
       },
     },
   },
@@ -10819,8 +10818,7 @@ export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
         )
       ).toEqual(['mode (this case)', '$._case.attempt'])
     );
-    // the one nothing names says so (David: "the chips / templates / etc were meant to abstract the technical
-    // format from our users")
+    // the one nothing names says so: a chip is there to keep the technical format from the reader
     await expectUnlisted(row, ['$._case.attempt']);
 
     // Open the row.
@@ -10865,7 +10863,7 @@ export const AReferenceItsHostKnowsWearsItsName: Story = {
     docs: {
       description: {
         story:
-          'The same Skip when value, from a host that knows $._case.attempt though the case does not list it: it names it "attempt (this case)" and says what it is, so the row reads mode (this case) != \'simulate\' && attempt (this case) == 1, with no reference in its raw spelling and none drawn as a warning. The hover of attempt says what it is (David: "why is the description missing for attempt?"); the hover of mode says what it is and lists its allowed values under a bold "Allowed values": live (Live) and simulate (Simulated), each value as data, with its description. The capture leaves that hover open.',
+          'The same Skip when value, from a host that knows $._case.attempt though the case does not list it: it names it "attempt (this case)" and says what it is, so the row reads mode (this case) != \'simulate\' && attempt (this case) == 1, with no reference in its raw spelling and none drawn as a warning. The hover of attempt says what it is; the hover of mode says what it is and lists its allowed values under a bold "Allowed values": live (Live) and simulate (Simulated), each value as data, with its description. The capture leaves that hover open.',
       },
     },
   },
@@ -11982,7 +11980,7 @@ export const WholeNumberLiteralAndExpressionStayValid: Story = {
   },
 };
 
-/** An option of `type`, which takes `sentence` (the type's sentence form, qorus#646), holding text around a template. */
+/** An option of `type`, which takes `sentence` (the type's sentence form), holding text around a template. */
 const textAroundOf = (type: string, sentence: string, message: string): Story => ({
   parameters: {
     docs: {
@@ -12115,7 +12113,7 @@ export const YesNoHoldingATemplateRead: Story = {
   },
 };
 
-// --- Value · Expression · Visual (qorus#646, David) -----------------------------------------------------------
+// --- Value · Expression · Visual ------------------------------------------------------------------------------
 // A form option's value is entered on tabs - one value, three views - or on Value · Template where the option
 // takes templates only. Text, numbers and whole numbers are written as text on Value (templates as chips,
 // expressions detected); a yes / no, a date and fixed choices keep their own control.
@@ -12323,7 +12321,7 @@ export const ConditionOptionTabsSayExpression: Story = {
   play: async () => {
     const rule = await editOption('rule');
     await waitFor(() => expect(optionTabs(rule)).toEqual(['value', 'expression', 'visual']));
-    // one name for the tab in every field (David: "what is "Condition"? Is it meant to be an expression?")
+    // one name for the tab in every field (a tab named Condition left the reader asking if it was an expression)
     expect(tabLabel(rule, 'expression')).toBe('Expression');
     expect(await tabHoverText(rule, 'expression')).toContain(
       'Write the condition as an expression'
@@ -12366,7 +12364,7 @@ export const ValueToExpressionAndVisual: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form's templates offered beside it ($); the form still holds 12. A click in the text lists what can be written at the caret, in the one completion list: after 12 only an operator can, so no template is listed, and the templates beside the text cannot be used, saying why. With ` + ` typed, a click offers Browse all templates, which opens the picker with the row's fields (David's decision: no `12 pos`). Visual shows the expression built from it - 12 its first operand.",
+          "Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form's templates offered beside it ($); the form still holds 12. A click in the text lists what can be written at the caret, in the one completion list: after 12 only an operator can, so no template is listed, and the templates beside the text cannot be used, saying why. With ` + ` typed, a click offers Browse all templates, which opens the picker with the row's fields (no `12 pos`). Visual shows the expression built from it - 12 its first operand.",
       },
     },
   },
@@ -12397,8 +12395,8 @@ export const ValueToExpressionAndVisual: Story = {
     };
     expect(center(editor)).toBe(center(picker as HTMLElement));
     expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
-    /* A click in the text lists what can be written at the caret (David's decision: one completion list, opened
-       by a click as by typing). After 12 a value cannot be written - `12 pos` is refused - so no template is
+    /* A click in the text lists what can be written at the caret (one completion list, opened by a click as by
+       typing). After 12 a value cannot be written - `12 pos` is refused - so no template is
        listed there, and the picker beside the text, which puts one at the end, says why it cannot be used. */
     const listed = () =>
       Array.from(
@@ -12419,7 +12417,7 @@ export const ValueToExpressionAndVisual: Story = {
         document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
       ).find((item) => item.textContent?.includes('Browse all templates')) as HTMLElement
     );
-    // the row's fields under their group, beside what the language server completes (qorus#646)
+    // the row's fields under their group, beside what the language server completes
     await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(['Fields of the row'])));
     await userEvent.click(await pickerRow('Fields of the row'));
     await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(['pos', 'bezeichnung'])));
@@ -12463,7 +12461,7 @@ export const ListsLookAndBehaveAlike: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Note: a click in its text opens the list its templates are browsed in, and `$` typed in Computed's Text view the completion list. The two are one family (David's review): the same color and row font, the focus left in the text, the arrow keys moving through the rows, and Escape putting the list away and nothing else.",
+          "Renders the form and opens Note: a click in its text opens the list its templates are browsed in, and `$` typed in Computed's Text view the completion list. The two are one family: the same color and row font, the focus left in the text, the arrow keys moving through the rows, and Escape putting the list away and nothing else.",
       },
     },
   },
@@ -12533,7 +12531,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Computed (pos + 1) on its Text view. ` + $` typed there does not parse, and the editor says what the server says of it: an incomplete template reference. Escape puts the completion list away; a click after the `$` lists what can follow a `$` - templates, not the row's field pos, which is written with an `@`. pos picked from the templates offered beside the text takes the `$`'s place: the text is pos + 1 + pos, which the server reads, and the form holds it (David's review: the `$` stayed in front of the chip, pos + 1 + $pos, and nothing said it was wrong). ` + @` lists the row's fields, and Tab takes pos: pos + 1 + pos + pos.",
+          "Renders the form and opens Computed (pos + 1) on its Text view. ` + $` typed there does not parse, and the editor says what the server says of it: an incomplete template reference. Escape puts the completion list away; a click after the `$` lists what can follow a `$` - templates, not the row's field pos, which is written with an `@`. pos picked from the templates offered beside the text takes the `$`'s place: the text is pos + 1 + pos, which the server reads, and the form holds it (the `$` used to stay in front of the chip, pos + 1 + $pos, and nothing said it was wrong). ` + @` lists the row's fields, and Tab takes pos: pos + 1 + pos + pos.",
       },
     },
   },
@@ -12574,7 +12572,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(1);
 
     /* After a `$` only a template can follow: the row's field is not listed there - it is written with an `@`
-       (qorus#646, David's review). Picked from the templates offered beside the text, it takes the `$`'s place. */
+       Picked from the templates offered beside the text, it takes the `$`'s place. */
     await userEvent.click(text);
     await waitFor(() => expect(openList().menu?.classList.contains('completion-menu')).toBe(true));
     expect(rows().some((item) => item.textContent?.startsWith('pos'))).toBe(false);
@@ -12715,7 +12713,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     docs: {
       description: {
         story:
-          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text opens the template picker with the row's fields (David's decision: a click in an empty field shows its templates) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (David's review: an operator took pos's place). A click offers Browse all templates, and bezeichnung picked in the picker it opens makes pos == bezeichnung. A click on pos opens the picker at its group with pos chosen, and bezeichnung picked takes its place (David's review: a click on pos listed nothing). Once the field holds bezeichnung == bezeichnung it says the expression gives true or false, and draws no Preview, which would only repeat the text - never an earlier expression's; the capture leaves the picker a click on a chip opens open.",
+          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text opens the template picker with the row's fields (a click in an empty field shows its templates) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (an operator used to take pos's place). A click offers Browse all templates, and bezeichnung picked in the picker it opens makes pos == bezeichnung. A click on pos opens the picker at its group with pos chosen, and bezeichnung picked takes its place (a click on pos used to list nothing). Once the field holds bezeichnung == bezeichnung it says the expression gives true or false, and draws no Preview, which would only repeat the text - never an earlier expression's; the capture leaves the picker a click on a chip opens open.",
       },
     },
   },
@@ -12735,10 +12733,10 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
         '.smart-editor-template-button'
       ) as HTMLElement;
 
-    /* a click in the empty text opens the template picker with the row's fields (David's decision: a click in an
-       empty field shows its templates), the focus left in the text */
+    /* a click in the empty text opens the template picker with the row's fields (a click in an empty field shows
+       its templates), the focus left in the text */
     await userEvent.click(text);
-    // the row's fields under their group, beside what the language server completes (qorus#646)
+    // the row's fields under their group, beside what the language server completes
     await pickerRow('Fields of the row');
     expect(text.contains(document.activeElement), 'the focus stays in the text').toBe(true);
     expect(pickerLabels().filter((label) => label?.startsWith('$'))).toEqual([]);
@@ -12791,8 +12789,8 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     await userEvent.click(await pickerRow('bezeichnung'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('bezeichnung == bezeichnung'));
     /* the field holds it and has its rendering: the Preview, which would only repeat the text, is not drawn, and
-       what is said of its fit is said of it - never of an earlier expression (qorus#646: r15's capture drew the
-       Preview of pos, "record: pos", under this text) */
+       what is said of its fit is said of it - never of an earlier expression (an earlier capture
+       drew the Preview of pos, "record: pos", under this text) */
     await waitFor(
       () =>
         expect(
@@ -12822,7 +12820,7 @@ export const TemplatePickedAfterAnAtSign: Story = {
     docs: {
       description: {
         story:
-          "Renders a whole number with nothing in it, on its Value tab. `@` typed in its text opens the list of the row's fields and templates, and Enter picks the first, pos: the chip takes the `@`'s place, and the form holds the template alone. On the Expression tab the chip is drawn as the Value tab draws it, blue (David's review: the `@` stayed in front of the chip, and the Expression tab drew it gray).",
+          "Renders a whole number with nothing in it, on its Value tab. `@` typed in its text opens the list of the row's fields and templates, and Enter picks the first, pos: the chip takes the `@`'s place, and the form holds the template alone. On the Expression tab the chip is drawn as the Value tab draws it, blue (the `@` used to stay in front of the chip, and the Expression tab drew it gray).",
       },
     },
   },
@@ -12967,7 +12965,7 @@ export const SavedExpressionOpensOnExpression: Story = {
     await atTheCaptureSize(parameters);
     const row = await editOption('computed');
     expect(optionActiveTab(row)).toBe('expression');
-    // the open option's name stays whole, on a phone too: beside its type it broke in two ("Compute d", qorus#646)
+    // the open option's name stays whole, on a phone too: beside its type it broke in two ("Compute d")
     expect(onOneLine(row, 'Computed'), 'the name on one line').toBe(true);
     await waitFor(() => expect(row.querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('+'));
     await chooseTab(row, 'value');
@@ -13016,7 +13014,7 @@ export const TemplateOnlyOptionIsItsValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens "Template only", a whole number that takes templates and no expressions, holding pos. Its value is written as text, which takes templates as chips, so it has no tabs: no Template tab beside the Value it would repeat (David\'s decision), and no Expression or Visual. The text shows pos as its chip, and a click in it lists the row\'s fields, pos and bezeichnung, to pick from.',
+          'Renders the form and opens "Template only", a whole number that takes templates and no expressions, holding pos. Its value is written as text, which takes templates as chips, so it has no tabs: no Template tab beside the Value it would repeat, and no Expression or Visual. The text shows pos as its chip, and a click in it lists the row\'s fields, pos and bezeichnung, to pick from.',
       },
     },
   },
@@ -13043,7 +13041,7 @@ export const TemplateOnlyOptionIsItsValue: Story = {
     );
     await animationsSettled();
     /* The picker leaves the field it was opened in to be read: it is below it or above it, never inside it over what it
-       holds (Foxhoundn on qlip #475, on a phone: "The picker covers the input"; on #478: "inset inside of the field"). */
+       holds (on a phone it used to cover the input, inset inside the field). */
     await waitFor(() => {
       const text = editor.getBoundingClientRect();
       const picker = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
@@ -13060,7 +13058,7 @@ export const ExpressionTypedOnValueIsOfferedWithUndo: Story = {
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: it is not a whole number, and the field says so, and offers it as an expression to the right of the text - "Use as expression", or the cross to keep it as text. It is offered, not switched to (David\'s review: an expression typed became one without asking). Used as one, it moves to Expression, with an Undo that puts the text back on Value; put back, it is offered again (qorus#646).',
+          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: it is not a whole number, and the field says so, and offers it as an expression to the right of the text - "Use as expression", or the cross to keep it as text. It is offered, not switched to (an expression typed used to become one without asking). Used as one, it moves to Expression, with an Undo that puts the text back on Value; put back, it is offered again.',
       },
     },
   },
@@ -13098,7 +13096,7 @@ export const ExpressionTypedOnValueIsOfferedWithUndo: Story = {
     });
     await expect(optionRow('quantity')).toHaveTextContent('Value must be a whole number');
     await expect(offer).toHaveTextContent('Use as expression');
-    /* Less to read before the value (Foxhoundn, qlip #392): the offer is to the right of the text it is of, on its
+    /* Less to read before the value: the offer is to the right of the text it is of, on its
        line, and nothing says where the row moves when it is closed */
     const text = optionRow('quantity').querySelector<HTMLElement>('.value-tab-text') as HTMLElement;
     const field = text.getBoundingClientRect();
@@ -13147,7 +13145,7 @@ export const ExpressionTypedOnAnUntypedValueIsOfferedToo: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped option (any) holding 12 and writes 12 + 2 on its Value tab: as on every option that takes an expression, it is offered as one, and used as one it moves to Expression, with an Undo. It used to be kept as the text "12 + 2", and offered as nothing: detection did not run where an untyped option takes its value (qorus#646).',
+          'Renders an untyped option (any) holding 12 and writes 12 + 2 on its Value tab: as on every option that takes an expression, it is offered as one, and used as one it moves to Expression, with an Undo. It used to be kept as the text "12 + 2", and offered as nothing: detection did not run where an untyped option takes its value.',
       },
     },
   },
@@ -13188,7 +13186,7 @@ export const ExpressionTypedOnValueAfterTheExpressionTabShowsWhatWasTyped: Story
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity (12) on the Expression tab and goes back to Value, then writes " + 2" there and uses it as an expression, as offered: it moves to Expression, and the Text view shows 12 + 2, the expression the option now holds. The Text view showed 12, what it had shown on the first visit, and leaving the tab saved that: what was typed was lost (qorus#646).',
+          'Renders the form, opens Quantity (12) on the Expression tab and goes back to Value, then writes " + 2" there and uses it as an expression, as offered: it moves to Expression, and the Text view shows 12 + 2, the expression the option now holds. The Text view showed 12, what it had shown on the first visit, and leaving the tab saved that: what was typed was lost.',
       },
     },
   },
@@ -13255,7 +13253,7 @@ export const UnparsedExpressionKeptAcrossTabs: Story = {
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity (12) on the Expression tab and writes "12 +", which does not parse. The field keeps 12: the Value tab shows it, and says the Expression tab holds text that does not parse. When the Expression tab is opened again, directly or after the Visual tab, the text is "12 +" as written, not the 12 the field holds (qorus#646).',
+          'Renders the form, opens Quantity (12) on the Expression tab and writes "12 +", which does not parse. The field keeps 12: the Value tab shows it, and says the Expression tab holds text that does not parse. When the Expression tab is opened again, directly or after the Visual tab, the text is "12 +" as written, not the 12 the field holds.',
       },
     },
   },
@@ -13305,7 +13303,7 @@ export const ExpressionTabTextInTheMonoStackAtTheFieldsSize: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Quantity (12) on the Value tab, then on the Expression tab. The expression is written in reqore's mono stack (ui-monospace, SFMono-Regular, …), not the browser's default fixed-width font, and at the size and line height the Value tab's text is written in: nothing in the editor is drawn larger (qorus#646, David: \"202\" was larger on the Expression tab).",
+          "Renders the form and opens Quantity (12) on the Value tab, then on the Expression tab. The expression is written in reqore's mono stack (ui-monospace, SFMono-Regular, …), not the browser's default fixed-width font, and at the size and line height the Value tab's text is written in: nothing in the editor is drawn larger (\"202\" used to be larger on the Expression tab).",
       },
     },
   },
@@ -13352,7 +13350,7 @@ export const ExpressionClearedEmptiesTheValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Quantity (12) on the Expression tab, then clears the text with its ×. Quantity holds nothing, as clearing it on the Value tab leaves it: the Value tab is empty, and so is the Expression tab when it is opened again (qorus#646).',
+          'Renders the form and opens Quantity (12) on the Expression tab, then clears the text with its ×. Quantity holds nothing, as clearing it on the Value tab leaves it: the Value tab is empty, and so is the Expression tab when it is opened again.',
       },
     },
   },
@@ -13434,7 +13432,7 @@ export const ARecordFieldIsTheSameChipOnEveryTab: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Computed (the expression pos + 1) on its Expression tab, where the server writes the field as @pos, then on its Visual tab, where it is the operand $record:{pos}. The field pos is the same chip on both: the same label, color and icon (qorus#646, David: one chip for one record field). Before, the Expression tab drew it light blue with black text.',
+          'Renders the form and opens Computed (the expression pos + 1) on its Expression tab, where the server writes the field as @pos, then on its Visual tab, where it is the operand $record:{pos}. The field pos is the same chip on both: the same label, color and icon (one chip for one record field). Before, the Expression tab drew it light blue with black text.',
       },
     },
   },
@@ -13526,7 +13524,7 @@ export const CancelingAClearedExpressionPutsItBack: Story = {
     docs: {
       description: {
         story:
-          'Renders the form, opens Computed (the expression pos + 1), clears it on the Expression tab and cancels the edit: Computed holds pos + 1 again, as an expression, and its row says it. Before, the expression came back without what marks it as one: the row said "2 fields", exp and args, and it was stored as that hash (qorus#646).',
+          'Renders the form, opens Computed (the expression pos + 1), clears it on the Expression tab and cancels the edit: Computed holds pos + 1 again, as an expression, and its row says it. Before, the expression came back without what marks it as one: the row said "2 fields", exp and args, and it was stored as that hash.',
       },
     },
   },
@@ -13639,7 +13637,7 @@ export const CancelingAnEditThatMadeAnExpressionPutsBackTheValue: Story = {
       })
     );
     await userEvent.keyboard(' + 2');
-    // offered, and used as an expression (it is never switched to without asking: David's review)
+    // offered, and used as an expression (it is never switched to without asking)
     await userEvent.click(
       await waitFor(
         () => {
@@ -13663,7 +13661,7 @@ export const CancelingAnEditThatMadeAnExpressionPutsBackTheValue: Story = {
     await waitFor(() =>
       expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 })
     );
-    // every row's (?) at the label column's right edge, not a step after each name (Foxhoundn, qlip #392)
+    // every row's (?) at the label column's right edge, not a step after each name
     expectLabelChromeInPlace(canvasElement);
   },
 };
@@ -13773,7 +13771,7 @@ export const AnOptionSaysWhatItTakesInItsHoverAndHelp: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Quantity, a whole number: what it takes is in its name\'s hover - "Takes a whole number." - and in its help, opened from its (?), above its description; not beside its name (David\'s review: type information on hover, in the (?) help, or with "Show all field information"). With all field information shown, it is beside the name: Whole number. The capture leaves that on.',
+          'Renders the form and opens Quantity, a whole number: what it takes is in its name\'s hover - "Takes a whole number." - and in its help, opened from its (?), above its description; not beside its name (type information goes on hover, in the (?) help, or with "Show all field information"). With all field information shown, it is beside the name: Whole number. The capture leaves that on.',
       },
     },
   },
@@ -14075,7 +14073,7 @@ export const ALoneFieldReadsAsTheFieldInEveryView: Story = {
     docs: {
       description: {
         story:
-          'Renders the form whose By template holds template($record:{pos}) - how the server parses a field written alone - and opens it: the read row says pos, the Text view pos, and the Visual view the value pos. Nowhere template(...), nor "Qorus has no operation template.": the server\'s wrapper of a lone reference is the lone value it is (David\'s review).',
+          'Renders the form whose By template holds template($record:{pos}) - how the server parses a field written alone - and opens it: the read row says pos, the Text view pos, and the Visual view the value pos. Nowhere template(...), nor "Qorus has no operation template.": the server\'s wrapper of a lone reference is the lone value it is.',
       },
     },
   },
@@ -14103,7 +14101,7 @@ export const ValueTabDrawsAReferencedFieldAsItsChip: Story = {
     docs: {
       description: {
         story:
-          'Renders a form whose options each hold a field of the row as an expression that is that one field - value($record:{bezeichnung}) and template($record:{pos}), as a host may hold a reference. Each opens on Expression; on Value it is that field\'s chip, not "can\'t be shown as a value" (qorus#646). Looking at it keeps value(...) as it is; template(...) is stored as the bare template once the Expression tab is left, as the Expression tab stores a lone template.',
+          'Renders a form whose options each hold a field of the row as an expression that is that one field - value($record:{bezeichnung}) and template($record:{pos}), as a host may hold a reference. Each opens on Expression; on Value it is that field\'s chip, not "can\'t be shown as a value". Looking at it keeps value(...) as it is; template(...) is stored as the bare template once the Expression tab is left, as the Expression tab stores a lone template.',
       },
     },
   },
@@ -14135,7 +14133,7 @@ export const ValueTabPickReplacesAReferencedField: Story = {
     docs: {
       description: {
         story:
-          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. The option's name says, on hover, what it takes: text (David's review: in the hover and the help, not by default beside the name). The mouse resting on the chip shows what the field is: pos, a whole number (David's review: the hover should say the field's type); the capture leaves it open.",
+          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. The option's name says, on hover, what it takes: text (in the hover and the help, not by default beside the name). The mouse resting on the chip shows what the field is: pos, a whole number (the hover says the field's type); the capture leaves it open.",
       },
     },
   },
@@ -14202,7 +14200,7 @@ export const AnExpressionTypedAsTextIsOffered: Story = {
     docs: {
       description: {
         story:
-          'Renders the form holding value($record:{bezeichnung}) in By value, a text, opens it on Value, empties the text and writes @pos + @bezeichnung: it reads as an expression, and is offered as one - "Use as expression", or the cross to keep it as text - under the text, which the field keeps (David\'s review: it became an expression without asking).',
+          'Renders the form holding value($record:{bezeichnung}) in By value, a text, opens it on Value, empties the text and writes @pos + @bezeichnung: it reads as an expression, and is offered as one - "Use as expression", or the cross to keep it as text - under the text, which the field keeps (it used to become an expression without asking).',
       },
     },
   },
@@ -14258,7 +14256,7 @@ export const ReadSummaryFromItsHost: Story = {
     docs: {
       description: {
         story:
-          'Renders a form whose host draws the collapsed summary of one ui_type: Field Mappings says what its editor reports - "Field mappings incomplete" - where it read "2 items" (qorus#646). The form is still ready, as the summary changes nothing.',
+          'Renders a form whose host draws the collapsed summary of one ui_type: Field Mappings says what its editor reports - "Field mappings incomplete" - where it read "2 items". The form is still ready, as the summary changes nothing.',
       },
     },
   },
@@ -14404,7 +14402,7 @@ export const AHostEditorOpensAsTheCard: Story = {
     docs: {
       description: {
         story:
-          "Renders a form whose host edits a sheet contract with an editor of its own and names it among the editors that open in the card (`cardEditorTypes`). Clicked, the row opens its editor in the card below it, the full width of the form, not in the row's value column (qorus#646: the Qorus IDE's sheet contract opened in the row, about 240px wide).",
+          "Renders a form whose host edits a sheet contract with an editor of its own and names it among the editors that open in the card (`cardEditorTypes`). Clicked, the row opens its editor in the card below it, the full width of the form, not in the row's value column (the Qorus IDE's sheet contract opened in the row, about 240px wide).",
       },
     },
   },
@@ -14425,7 +14423,7 @@ export const NoPreviewUnderAHostSummary: Story = {
     docs: {
       description: {
         story:
-          'Renders a form whose host draws the closed summary of a sheet contract, "4 columns · 1 rule". The row draws no preview of its own under it - before, it added "columns · List · 4 items" and a Show more, the same value again in other words (qorus#646). The card is where the contract is read in full.',
+          'Renders a form whose host draws the closed summary of a sheet contract, "4 columns · 1 rule". The row draws no preview of its own under it - before, it added "columns · List · 4 items" and a Show more, the same value again in other words. The card is where the contract is read in full.',
       },
     },
   },
@@ -14496,7 +14494,7 @@ export const AReadOnlyFormOpensAHostEditorToRead: Story = {
     docs: {
       description: {
         story:
-          'Renders the sheet contract in a read-only form. Its row says "4 columns · 1 rule" and draws no preview, so it opens to be read: clicked, it opens its card with the host editor read-only (every column disabled, Close instead of Done), and the card\'s ⋯ menu offers View fullscreen, which shows the editor full size, read-only too. Before, a read-only row opened nothing, and the contract could not be read at all once the preview went (qorus#646).',
+          'Renders the sheet contract in a read-only form. Its row says "4 columns · 1 rule" and draws no preview, so it opens to be read: clicked, it opens its card with the host editor read-only (every column disabled, Close instead of Done), and the card\'s ⋯ menu offers View fullscreen, which shows the editor full size, read-only too. Before, a read-only row opened nothing, and the contract could not be read at all once the preview went.',
       },
     },
   },
@@ -14582,7 +14580,7 @@ export const TemplateOfAnotherTypeWarns: Story = {
   },
 };
 
-// --- Saved values and a template's badge (qorus#646): host seams of the template field ----------------------
+// --- Saved values and a template's badge: host seams of the template field ----------------------------------
 
 const SAVED_VALUES_OPTIONS = {
   quantity: { type: 'int', display_name: 'Quantity', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
@@ -14688,7 +14686,7 @@ export const TemplateBadgeFromTheHost: Story = {
   render: () => <SavedValuesForm />,
   play: async () => {
     const row = await editOption('source');
-    // what a server's text option takes (David: "why the lack of expression support?")
+    // what a server's text option takes, expressions included
     await waitFor(() => expect(optionTabs(row)).toEqual(['value', 'expression', 'visual']));
     const editor = await waitFor(() => {
       const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
@@ -14739,7 +14737,7 @@ export const PickFromSetAllowedValuesRow: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form whose Field, a field that may be left empty, is set to "status", one of its allowed values, and picks "paid (bool)" from them, then "Other field...", which the Path field depends on. The Qorus IDE got a pick back as an expression, which it reads as no value, so the row fell back to "Please select" and Path never appeared (qorus#646). The row shows each pick, the form is given it as a plain value, and Path appears for "Other field...".',
+          'Renders a compact form whose Field, a field that may be left empty, is set to "status", one of its allowed values, and picks "paid (bool)" from them, then "Other field...", which the Path field depends on. The Qorus IDE got a pick back as an expression, which it reads as no value, so the row fell back to "Please select" and Path never appeared. The row shows each pick, the form is given it as a plain value, and Path appears for "Other field...".',
       },
     },
   },
@@ -14944,7 +14942,7 @@ export const PickingARichTextChoiceShowsItsName: Story = {
     await pickSuggestion('general');
     await expectChannelChip(canvasElement);
 
-    // one channel: the list ticks the one held, and a pick of another replaces it (David's review)
+    // one channel: the list ticks the one held, and a pick of another replaces it
     await expectSuggestionTicked('general');
     await pickSuggestion('random', { listOpen: true });
     await waitFor(
@@ -15071,8 +15069,8 @@ export const ClickingARichTextChoiceEditsItsValue: Story = {
   },
 };
 
-/* The narrow-row rule (qorus#646, David: "on a narrow screen... put the wide output on a line below the header,
-   slightly indented... this applies to other stories as well"). A row stacks where its value would have under 320px
+/* The narrow-row rule, in every story: on a narrow screen the wide value goes on a line below its label, slightly
+   indented. A row stacks where its value would have under 320px
    beside the label column, which is measured from the form's labels: long labels stack a form under about 600px,
    short ones under about 500px. Stacked, the value is indented 12px under its label. It was one cut for every form,
    480px, whatever its labels: a form of long labels 500-600px wide squeezed its values into 200-300px. */
@@ -15159,7 +15157,7 @@ const expectNarrowRule = async (name: string, stacked: boolean) => {
     await expect(value.top).toBeGreaterThanOrEqual(label.bottom - 1);
     await expect(Math.round(valueContent.left - label.left)).toBe(12);
     // each name's (?) follows the name: a stacked label has no column for it to line up in, and at the row's
-    // right edge it floated alone (Foxhoundn, qlip #400: "On mobile the question mark should stay with the label")
+    // right edge it floated alone, away from its label on a phone
     for (const help of form.querySelectorAll<HTMLElement>('.readfirst-row .options-readfirst-help')) {
       const text = help.parentElement!.querySelector('.options-readfirst-label-text')!;
       const range = document.createRange();
@@ -15178,9 +15176,9 @@ const expectNarrowRule = async (name: string, stacked: boolean) => {
 
 /**
  * The form `name`'s address is a link to it, whole, that opens a new tab, and a click on it or Enter on it follows
- * it and leaves its row closed; its note wraps to three lines and stops there (qorus#646, Foxhoundn on qlip #383:
- * "Please render links as links and wrap texts"). `press` is how the link is pressed: a mouse's click, or a
- * finger's tap. The page is kept where it is: the click's own following of the link is cancelled here.
+ * it and leaves its row closed; its note wraps to three lines and stops there. `press` is how the link is pressed:
+ * a mouse's click, or a finger's tap. The page is kept where it is: the click's own following of the link is
+ * cancelled here.
  */
 const expectLinkAndWrappedText = async (
   name: string,
@@ -15245,7 +15243,7 @@ export const ARowStacksWhereItsValueWouldBeNarrow: Story = {
     docs: {
       description: {
         story:
-          'Renders the same two fields in compact forms of three widths and two kinds of label. A form whose value column would be under 320px beside its labels stacks its rows, each value on the line below its label, 12px in: long labels at 560px. A form with room enough keeps the value beside its label: short labels at 560px, long labels at 700px. Before, every form stacked under 480px and no other, so long labels at 560px squeezed the value into about 270px, and a stacked value was flush under its label (qorus#646).',
+          'Renders the same two fields in compact forms of three widths and two kinds of label. A form whose value column would be under 320px beside its labels stacks its rows, each value on the line below its label, 12px in: long labels at 560px. A form with room enough keeps the value beside its label: short labels at 560px, long labels at 700px. Before, every form stacked under 480px and no other, so long labels at 560px squeezed the value into about 270px, and a stacked value was flush under its label.',
       },
     },
   },
@@ -15269,7 +15267,7 @@ export const ARowStacksOnANarrowFormEvenWithShortLabels: Story = {
     docs: {
       description: {
         story:
-          'Renders the short-labelled form at 440px, where even beside its narrowest label column the value would have under 320px: it stacks, each value 12px in under its label (qorus#646). The note is opened: its editor shows all of it, wrapped onto as many lines as it takes, and offers no resize grip (it is a one-line field, and its height is the height of its text).',
+          'Renders the short-labelled form at 440px, where even beside its narrowest label column the value would have under 320px: it stacks, each value 12px in under its label. The note is opened: its editor shows all of it, wrapped onto as many lines as it takes, and offers no resize grip (it is a one-line field, and its height is the height of its text).',
       },
     },
   },
@@ -15299,7 +15297,7 @@ export const ARowStacksOnAPhone: Story = {
     docs: {
       description: {
         story:
-          'The long-labelled form on a phone (390px, touch): each value is on the line below its label, 12px in, inside the screen. The address is a link, drawn whole on two lines, that opens in a new tab; a tap on it follows it and does not open its row. The note wraps to three lines, and the rest is in its editor (qorus#646).',
+          'The long-labelled form on a phone (390px, touch): each value is on the line below its label, 12px in, inside the screen. The address is a link, drawn whole on two lines, that opens in a new tab; a tap on it follows it and does not open its row. The note wraps to three lines, and the rest is in its editor.',
       },
     },
   },
@@ -15322,7 +15320,7 @@ export const ARowStacksOnAPhone: Story = {
   },
 };
 
-/* A click on a row while the form is opening it (qorus#646: the Qorus IDE's Schema "Draft Is Saved"). A read-first
+/* A click on a row while the form is opening it (the Qorus IDE's Schema "Draft Is Saved"). A read-first
    form with `autoFocusFirstRequired` opens its first row that needs an answer with an update of its own. A click on
    that row, still drawn closed, landed on top of the update: a toggle read its direction from the latest state, and
    closed the row the user had just opened. On a busy page (the IDE's suite, a slow machine) a user's click lands
@@ -15357,7 +15355,7 @@ export const AClickOnARowAsTheFormOpensItKeepsItOpen: Story = {
     docs: {
       description: {
         story:
-          'Renders a read-first form opened from a button, whose first row, Display name, needs an answer (`autoFocusFirstRequired`). Coming into the form from the keyboard opens that row, with an update of the form\'s own; in the same moment, before the form is drawn again, Display name - still drawn closed - is clicked, as a user on a busy page clicks it. The row opens, and stays open with the caret in it. Before, the click closed the row the form had just opened: a click was a toggle that read its direction from the latest state, not from the row it was made on (qorus#646, the Qorus IDE\'s Schema "Draft Is Saved").',
+          'Renders a read-first form opened from a button, whose first row, Display name, needs an answer (`autoFocusFirstRequired`). Coming into the form from the keyboard opens that row, with an update of the form\'s own; in the same moment, before the form is drawn again, Display name - still drawn closed - is clicked, as a user on a busy page clicks it. The row opens, and stays open with the caret in it. Before, the click closed the row the form had just opened: a click was a toggle that read its direction from the latest state, not from the row it was made on (the Qorus IDE\'s Schema "Draft Is Saved").',
       },
     },
   },
@@ -15439,7 +15437,7 @@ export const AFieldThatIsAlwaysOpen: Story = {
     docs: {
       description: {
         story:
-          'A compact form whose Cases list (a host editor drawn in the card) and Note are named in `alwaysExpandedOptions`, and an Owner row that is not. Cases and Note are open from the start and draw no Done (✓), no Clear value (bin) and no Cancel: the editor is the field\'s content. Opening Owner (one row at a time, the default) leaves both open; a click on Note\'s label and Escape in it leave it open with what was typed. Owner keeps its Done. The IDE\'s test Cases field drew the engine\'s bin and ✓ on a list that is the page (t-87).',
+          'A compact form whose Cases list (a host editor drawn in the card) and Note are named in `alwaysExpandedOptions`, and an Owner row that is not. Cases and Note are open from the start and draw no Done (✓), no Clear value (bin) and no Cancel: the editor is the field\'s content. Opening Owner (one row at a time, the default) leaves both open; a click on Note\'s label and Escape in it leave it open with what was typed. Owner keeps its Done. The IDE\'s test Cases field drew the engine\'s bin and ✓ on a list that is the page.',
       },
     },
   },

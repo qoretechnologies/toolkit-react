@@ -304,7 +304,7 @@ export const ExperimentCard = ({
   }, []);
 
   /* Minimal buttons tint their text from the intent, too pale on a light theme: a deeper shade there, as deep as it
-     takes to read on the button's own wash of the intent (qorus#646: "Pause" in warning:darken:2 was 4.1:1) - its
+     takes to read on the button's own wash of the intent ("Pause" in warning:darken:2 was 4.1:1) - its
      icon too, which reqore draws at 70%. */
   const quiet = (intent?: 'success' | 'warning' | 'danger' | 'info') => {
     const color = intent && light ? theme.intents?.[intent] : undefined;

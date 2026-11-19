@@ -4,7 +4,7 @@
 // The request is debounced, and it read the caret when it went. A tap that put the caret in a call's arguments
 // soon after the editor had loaded was read by the request the load had started, and the signature showed; a tap
 // later than the debounce showed none. DpqlEditor · Details On A Chip On A Touch Screen had the signature pill
-// behind the Details card or not from run to run (qorus#646). The signature follows what is typed; a caret moved
+// behind the Details card or not from run to run. The signature follows what is typed; a caret moved
 // alone asks for nothing.
 import { act, renderHook } from '@testing-library/react';
 import { createEditor } from 'slate';

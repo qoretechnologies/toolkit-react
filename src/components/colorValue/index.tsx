@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A color, read: a swatch beside the color written out - the one read-only rendering of a stored color,
-// drawn by a compact form row and by any page that shows one (qorus#646).
+// drawn by a compact form row and by any page that shows one.
 
 import { useReqoreTheme } from '@qoretechnologies/reqore';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';

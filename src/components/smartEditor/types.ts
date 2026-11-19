@@ -181,7 +181,7 @@ export interface ISmartEditorProps {
   /**
    * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
    * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
-   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   * so a reference is the same chip in either. The editor's own when not given.
    */
   size?: TSizes;
 
@@ -255,7 +255,7 @@ export interface ISmartEditorProps {
   /**
    * A click, a tap or Tab into the text asks what can be written at the caret, and the completion list opens
    * there if anything can - in place of a browse list (`tags`): one list for what can be written, opened by a
-   * click as by typing (qorus#646, David's decision).
+   * click as by typing.
    */
   completeOnClick?: boolean;
 
@@ -277,20 +277,20 @@ export interface ISmartEditorProps {
 
   /**
    * What can be done about a diagnostic, where the host can do it: a button beside what the editor says of it
-   * (qorus#646: "Declare it" for a variable a Qog does not declare, the server's `qog_variable_undeclared`).
+   * ("Declare it" for a variable a Qog does not declare, the server's `qog_variable_undeclared`).
    */
   diagnosticAction?: (diagnostic: ILspDiagnostic) => ISmartEditorDiagnosticAction | undefined;
 
   /**
    * Whether a reference typed in the text names nothing the field is given: it stays the text it was typed as,
-   * not drawn as a chip, which would read as a reference that stands for something (qorus#646).
+   * not drawn as a chip, which would read as a reference that stands for something.
    */
   referenceNamesNothing?: (reference: string) => boolean;
 
   /**
-   * The field's templates and fields (`templateTree`): what the template picker browses (qorus#646, David's
-   * decisions) - a click in the empty text, the template button and a click on a chip open it, and a row of the
-   * completion list that is a group opens it at its members.
+   * The field's templates and fields (`templateTree`): what the template picker browses - a click in the empty
+   * text, the template button and a click on a chip open it, and a row of the completion list that is a group
+   * opens it at its members.
    */
   templateRoots?: ITemplateNode[];
 

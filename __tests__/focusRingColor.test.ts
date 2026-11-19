@@ -13,7 +13,7 @@ const over = (ring: string, surface: string) => {
 };
 
 /**
- * Reqraft's focus rings are Reqore's one ring (instruction-files decision 030): the text color at
+ * Reqraft's focus rings are Reqore's one ring: the text color at
  * 0.7, never an intent. A form row drew the warning amber, so a good row read as a fault.
  */
 describe('the focus ring', () => {

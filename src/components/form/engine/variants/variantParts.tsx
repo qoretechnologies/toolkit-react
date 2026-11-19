@@ -34,7 +34,7 @@ export function useVariantColors() {
   const theme = useReqoreTheme();
   return React.useMemo(() => {
     const intents = (theme.intents || {}) as Record<string, string>;
-    /* The words are drawn in colors that read on the theme's surfaces (qorus#646): the softer tiers fade the
+    /* The words are drawn in colors that read on the theme's surfaces: the softer tiers fade the
        text only as far as it still reads, the intents are a shade of themselves that reads. */
     const surfaces = getThemeSurfaces(theme);
     const text = (theme.text?.color as string) || getReadableColor(theme);

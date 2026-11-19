@@ -1,6 +1,6 @@
 /**
  * An expression item's own props (`isChild`, `isAndOr`, `index`, `readOnly`) style it and decide its actions,
- * and stop there (qorus#646).
+ * and stop there.
  *
  * ExpressionItem read them, then spread every prop into its styled element, which the builder renders
  * `as={ReqorePanel}`. A styled element rendered as a component forwards everything, so the panel received

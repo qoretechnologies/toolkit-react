@@ -21,11 +21,11 @@ export type TTicketAuditAction =
   | 'status_changed'
   | 'assigned'
   | 'updated'
-  // staff reads (qorus#693 Layer 0): a ticket, its thread or its attachment list was opened,
+  // staff reads: a ticket, its thread or its attachment list was opened,
   // or a file was downloaded — coalesced server-side per staff member and window
   | 'viewed'
   | 'attachment_downloaded'
-  // delegated workspace access (qorus#693 Layers 1–3): the customer's grant lifecycle, a
+  // delegated workspace access: the customer's grant lifecycle, a
   // staff read of the workspace under it, and a read-only IDE session launched from it
   | 'workspace_viewed'
   | 'access_requested'
@@ -36,7 +36,7 @@ export type TTicketAuditAction =
   | 'session_launched';
 
 /**
- * The `system_event` a system message in a ticket thread may carry (qorus#693): the
+ * The `system_event` a system message in a ticket thread may carry: the
  * delegated-access lifecycle, written by the control plane as a thread message so the
  * customer and the staff member see the same record in the conversation. A thread
  * renders a known event with its own mark; an unknown one falls back to a plain line.
@@ -69,7 +69,7 @@ export interface ITicketEnumMeta {
 
 /**
  * A value said by its word and its icon, with no color: a category is not a verdict and an audit action is a record,
- * so neither takes one (decision 001: color has a job or it is grey). They carried a tint nothing drew.
+ * so neither takes one (a color has a job, or it is gray). They carried a tint nothing drew.
  */
 export type ITicketMark = Omit<ITicketEnumMeta, 'intent'>;
 
@@ -153,7 +153,7 @@ export const TICKET_AUDIT_ACTION_META: Record<TTicketAuditAction, ITicketMark> =
 /** The mark for an audit action the server writes but this vocabulary has not caught up
  *  with: a muted, generic row that still names the action. It exists because the staff
  *  audit tab used to index `TICKET_AUDIT_ACTION_META` directly, and one unknown action
- *  took the whole tab down (qorus#693). */
+ *  took the whole tab down. */
 export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketMark = marked((words) => words.activity, 'HistoryLine');
 
 /** A wire value humanised for reading: `attachment_downloaded` → "Attachment downloaded". */

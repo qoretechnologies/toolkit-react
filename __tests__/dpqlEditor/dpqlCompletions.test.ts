@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A DPQL editor's one completion list (qorus#646, David's decision): the server's completion at the caret, with
+ * A DPQL editor's one completion list: the server's completion at the caret, with
  * the field's templates where a value can be written, so that a pick is always a value where one can stand; and
  * the server's diagnostics in the words the editor owes the author. The server's answers below are what
  * professor's `/lsp` answered at the same carets (capture-dpql-completions.qr, checkout 35096ca2d), cut down.
@@ -59,7 +59,7 @@ const complete = (text: string, serverItems?: ILspCompletionItem[]) => {
 };
 
 describe('what the one completion list offers', () => {
-  /* qorus#646, David's review: the list offered every template under whatever was typed, and read as if all of
+  /* The list used to offer every template under whatever was typed, and read as if all of
      them fitted. Where nothing is typed, the templates are one row that opens the picker. */
   it("offers the server's answer and a row that opens the picker where a value can go and nothing is typed", () => {
     expect(listed(complete('$record:{pos} + |', AFTER_AN_OPERATOR))).toEqual([
@@ -71,7 +71,7 @@ describe('what the one completion list offers', () => {
     ]);
   });
 
-  /* qorus#646, David's review of the picker: typing `$dat` offered no language-server completion. A template's
+  /* Typing `$dat` in the picker used to offer no language-server completion. A template's
      context is offered as the server offers it: written as text, the list goes on from it (its `:` asks again). */
   it("offers the server's template contexts with the field's templates, which a pick goes on from", () => {
     const contexts: ILspCompletionItem[] = [
@@ -83,8 +83,8 @@ describe('what the one completion list offers', () => {
         detail: "needs a value after ':'",
       },
     ];
-    // no record field after a `$`: a field is written with an `@` (qorus#646, David's review)
-    // the contexts of the field's templates and the server's, each once: `$` lists contexts (David: "`$` → contexts")
+    // no record field after a `$`: a field is written with an `@`
+    // the contexts of the field's templates and the server's, each once: `$` lists contexts
     expect(listed(complete('1 + $|', contexts))).toEqual([
       '$config:',
       '$data:',
@@ -163,7 +163,7 @@ describe('what the one completion list offers', () => {
       serverItems: AFTER_AN_OPERATOR,
     });
     expect(listed(offered)).toEqual(listed(AFTER_AN_OPERATOR));
-    // a template context is a container: gone on into, its row's Use taking it whole (qorus#646 round 4)
+    // a template context is a container: gone on into, its row's Use taking it whole
     const context = offered.find((item) => item.label === '$config:');
     expect(context?.data).toMatchObject({ continues: true, takesWhole: true });
     expect((context?.data as { wholeValue?: string }).wholeValue).toMatch(/^\$[\w-]+:\*$/);
@@ -298,7 +298,7 @@ describe('a template being typed', () => {
     expect(listed(completeQog('$local:'))).toEqual(['$local:*', '$local:id', BROWSE_ALL_TEMPLATES]);
   });
 
-  /* qorus#646, David's review (round 3): typing goes on level by level - `$d` and `$data` the context, `$data:` its
+  /* Typing goes on level by level - `$d` and `$data` the context, `$data:` its
      states, each taken writes its reference as text and lists what is in it; a chip is a whole reference */
   it('offers the context for `$d` and `$data`, and its states for `$data:`, each gone on into', () => {
     for (const typed of ['$d', '$data']) {
@@ -319,7 +319,7 @@ describe('a template being typed', () => {
     expect(listed(completeQog('$'))).toEqual(['$data:', '$local:', BROWSE_ALL_TEMPLATES]);
   });
 
-  /* qorus#646, David's review: each state's data said "Receive order" under its name, as if that were what it is */
+  /* each state's data used to say "Receive order" under its name, as if that were what it is */
   it('says where a template is apart from what it is, and calls state data state data, not a Variable', () => {
     const [orderId] = completeQog('$data:receive_order.o');
     expect(orderId).toMatchObject({
@@ -331,7 +331,7 @@ describe('a template being typed', () => {
 });
 
 describe('after a whole reference', () => {
-  /* qorus#646: a chip's text is in the plain text before the caret; it is a value already, and the server offers
+  /* A chip's text is in the plain text before the caret; it is a value already, and the server offers
      operators after it - no template is offered there (`pos pos` is refused) */
   it('offers what the server offers after a value, and no template', () => {
     const roots = templateTree(TEMPLATES);

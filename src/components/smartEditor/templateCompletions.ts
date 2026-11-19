@@ -40,7 +40,7 @@ type TTemplateItem = {
 /**
  * The catalogue with each template marked with where it comes from, as the host says (the IDE: the app action
  * that captures it): the template picker showed it beside the template held, and every list of templates shows it
- * in the template's row (qorus#646). `sourceOf` answers for a template, not a group; nothing is changed where it
+ * in the template's row. `sourceOf` answers for a template, not a group; nothing is changed where it
  * says nothing.
  */
 export const withTemplateSources = <T extends { items?: unknown[] } | undefined>(
@@ -62,7 +62,7 @@ export const withTemplateSources = <T extends { items?: unknown[] } | undefined>
 };
 
 /**
- * A field's templates as completion items, for `$` typed in a value's text (qorus#646): every template that can
+ * A field's templates as completion items, for `$` typed in a value's text: every template that can
  * be written, wherever it sits in the catalogue - found by what is typed after the `$`, in the one completion
  * list typing opens (`CompletionMenu`). Browsing the catalogue as a tree is the browse list's
  * (`TemplateBrowser`). A record's field (`$record:{name}`) is a Field, anything else a Variable; the groups it
@@ -81,7 +81,7 @@ export const templateCompletionItems = (
       if (typeof item.value === 'string' && item.value && !seen.has(item.value)) {
         seen.add(item.value);
         const where = trail.join(' › ');
-        // the template's type, named: never its code (qorus#646)
+        // the template's type, named: never its code
         const templateTypeName = templateType(item);
         const type =
           templateTypeName ? typeLabel(templateTypeName, templateBaseType(item)) : undefined;
@@ -148,11 +148,11 @@ export const templateTextInserter: TCompletionInserter = (item, editor, ctx) => 
 /**
  * Inserts a template chosen from the completion list or the picker as the chip it is, in place of what was typed
  * for it: the `$` or `@` that opened the list and the word after it (`REFERENCE_BEING_TYPED`). The `@` stayed in
- * front of the chip (qorus#646, David's review): only a `$` was taken away.
+ * front of the chip: only a `$` was taken away.
  *
  * Nothing else is deleted. A pick from the picker opened by a click in the text is asked for by no word, and it
  * took the word before the caret all the same: "SUP-" typed, the text clicked and a field picked read as the chip
- * alone (qorus#646, the IDE's Sheet Contract Review).
+ * alone (the IDE's Sheet Contract Review).
  */
 export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => {
   const value = item.insertText ?? item.label;
@@ -217,7 +217,7 @@ export const typedInTheText = (editor: BaseEditor): string => {
 };
 
 /**
- * The chip a pick goes on from, where what is typed after it continues its reference (qorus#646, David's review):
+ * The chip a pick goes on from, where what is typed after it continues its reference:
  * a state's chip (`$data:receive_order`) and `.` typed after it, then Event type picked, is the one reference
  * `$data:{receive_order.event_type}` - the pick takes the chip's place as well as the `.`. It was put in after the
  * chip, and the text read `$data:receive_order$data:{receive_order.event_type}`. Undefined where nothing but a
@@ -283,7 +283,7 @@ export const BROWSE_ALL_TEMPLATES = DEFAULT_REQRAFT_LABELS.editor.browseAllTempl
  * The rows typing a reference offers (`$`, `$data:`, `$data:receive_order.`, `@na`): the nodes of the field's
  * templates and fields it reaches (`searchTemplateReferences`) - a group is a row that opens the picker at its
  * members - each saying where it is ("in Receive order"), not what group it is in as if that were what it is.
- * Nothing that does not go on from what is typed is listed (qorus#646, David's review).
+ * Nothing that does not go on from what is typed is listed.
  */
 export const templateSearchItems = (
   roots: ITemplateNode[],
@@ -293,7 +293,7 @@ export const templateSearchItems = (
   wholeRecords?: boolean
 ): ILspCompletionItem[] => {
   /* A `$` and a context's name being written: the contexts it starts, each written and gone on from - then, from
-     two letters on, the templates named so (qorus#646, David: "`$` → contexts", each level filtered by what is
+     two letters on, the templates named so (`$` → contexts, each level filtered by what is
      typed of it). */
   const context = /^\$([\w-]*)$/.exec(typed);
   if (context) {
@@ -323,7 +323,7 @@ export const templateSearchItems = (
   }
   /* A context of free keys (`$dynamic:*`) is completed by writing its key: no row stands for its keys once its
      context is written - the list says to write the key (`unlistedContextMessage`). A context Qorus reads whole
-     is offered whole first, `$data:*`, where the value takes a record (qorus#646, David's review). */
+     is offered whole first, `$data:*`, where the value takes a record. */
   const inContext = /^(\$[\w-]+:)(\*?)$/.exec(typed);
   const known =
     roots.length > 0 &&
@@ -391,8 +391,8 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
   const isContext =
     node.id.startsWith('context:') || (!!node.catalogue && /^\$[\w-]+:$/.test(node.reference ?? ''));
   /* A group that a reference names - a context, a state, a record - is gone on into as it is typed: taken, its
-     reference is written and what is in it is listed (qorus#646, David: "accepting an intermediate level continues
-     to the next level"). A group no reference names (Context Data) opens the picker at its members. */
+     reference is written and what is in it is listed: taking an intermediate level goes on
+     to the next level. A group no reference names (Context Data) opens the picker at its members. */
   /* Written on from, as typing goes on: the picker's `$dynamic:*`, a context with no key to choose, is `$dynamic:` here,
      its key typed after it (a list has no dead end: it says to write the key), and taken whole with Use. */
   const wholeHere = isContext && !!node.value;
@@ -420,8 +420,7 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
     kindIntent: templateNodeIntent(node),
     typeLabel: type,
   };
-  /* Under its name: where it is, what it is and where it comes from - in the row, never a hover over its edge
-     (qorus#646, David's review). */
+  /* Under its name: where it is, what it is and where it comes from - in the row, never a hover over its edge. */
   const said = [
     where,
     node.description,
@@ -452,7 +451,7 @@ export const browseAllTemplatesItem = (): ILspCompletionItem => ({
 });
 
 /**
- * What the list says where a template context is written and nothing is listed in it (qorus#646, David's review:
+ * What the list says where a template context is written and nothing is listed in it (once,
  * a context picked was left as an unfinished template, the list gone): what to write next, the list held open.
  */
 export const unlistedContextMessage = (before: string): string | undefined => {

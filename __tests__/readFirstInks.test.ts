@@ -12,7 +12,7 @@ const drawn = (color: string, background: string): string => {
 };
 
 /* A read-first row's own words and marks read on every surface a row is drawn on: the page, the attention and set
-   boxes' tints, the optional box, each hovered (qorus#646: a danger reason was 2.7:1 on the attention box, a size
+   boxes' tints, the optional box, each hovered (a danger reason was 2.7:1 on the attention box, a size
    note 4.1:1, the help mark 2.7:1). */
 describe('the read-first rows', () => {
   for (const main of ['#333333', '#0f0f0f', '#f4f4f4', '#1b2f45']) {

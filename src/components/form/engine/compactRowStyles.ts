@@ -19,8 +19,8 @@ export const COMPACT_VALUE_LEFT = COMPACT_ROW_PAD_X + COMPACT_LABEL_COL + COMPAC
 // The surface starts a touch left of the value text, for inner left padding.
 export const COMPACT_PANEL_LEFT = COMPACT_VALUE_LEFT - 10;
 /**
- * The least room a row's value has beside its label (qorus#646, David: "on a narrow screen... put the wide output
- * on a line below the header, slightly indented"). A form where the value column would be narrower stacks its rows:
+ * The least room a row's value has beside its label: on a narrow screen a wide value goes on a line below the
+ * label, slightly indented. A form where the value column would be narrower stacks its rows:
  * the label and the row's actions on the first line, the value under them, indented by
  * `COMPACT_STACKED_VALUE_INDENT`.
  */
@@ -84,7 +84,7 @@ export const LABEL_ASTERISK_SIZE = 10;
 export const LABEL_ASTERISK_WIDTH = LABEL_ASTERISK_SIZE + 2;
 /**
  * The help button beside a name: reqore's `tiny` button (26px), or `small` (32px) for a finger. It is a button in the
- * tab order (qorus#646), so the room it takes is its own width, not the 12px of the icon it once was.
+ * tab order, so the room it takes is its own width, not the 12px of the icon it once was.
  */
 export const LABEL_HELP_WIDTH = SIZE_TO_PX.tiny;
 export const LABEL_HELP_WIDTH_TOUCH = SIZE_TO_PX.small;
@@ -96,8 +96,7 @@ export const LABEL_HELP_WIDTH_TOUCH = SIZE_TO_PX.small;
  * with the asterisk on its last line, after its last word, and the help at the column's right edge.
  *
  * It counted the help as the 12px icon it was before it became a button (26px): every name within 14px of the
- * column's width put its asterisk on a line of its own under it (Foxhoundn, qlip #392: "The required asterisk on a
- * new line is not good, keep it on the same line as the field name").
+ * column's width put its asterisk on a line of its own under it. The required asterisk stays on the name's line.
  *
  * The 4px of slack is not padding for its own sake: the measurement rounds (an off-DOM `offsetWidth` is an integer)
  * while the rendered text width is fractional, so a column sized to the exact sum still wraps. Measured on an auth
@@ -526,7 +525,7 @@ export const StyledLabelBlock = styled.div`
   min-width: 0;
 `;
 
-/* An option's help is a button in the tab order (qorus#646), beside the name on its line: a button is a block,
+/* An option's help is a button in the tab order, beside the name on its line: a button is a block,
    which put it on a line of its own under a name in a narrow label column. Its target is reqore's `small` (32px),
    the size of the row's other controls, for a mouse and a finger alike, taller than the name's line: it reaches
    into the row's padding rather than making every row with help taller. It reaches 6px to its left too, into the
@@ -555,7 +554,7 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   overflow-wrap: anywhere;
   cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
   /* what the option takes goes under the name where both do not fit on a line (a phone): beside it, it took the
-     name's room, which broke a word in two ("Compute d", qorus#646) */
+     name's room, which broke a word in two ("Compute d") */
   flex-wrap: wrap;
   row-gap: 2px;
   ${HELP_BUTTON_BESIDE_THE_NAME}
@@ -566,7 +565,7 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
  *
  * In a row's label column (`$fill`) it is the column's width: the name on the left, wrapping, and the help at the
  * column's right edge, so every row's (?) is on one line down the form rather than a step after each name
- * (Foxhoundn, qlip #392: "please right align the question mark to get rid of the stair-case look"). The help is on
+ * (no staircase of question marks). The help is on
  * the name's first line.
  */
 export const StyledLabelName = styled.span<{ $fill?: boolean }>`
@@ -583,8 +582,7 @@ export const StyledLabelName = styled.span<{ $fill?: boolean }>`
           justify-self: end;
         }
         /* A stacked row's label is the row's whole width, with no column for the help to line up in: at its
-           right edge the help floated alone, away from the name it explains (Foxhoundn, qlip #400: "On mobile
-           the question mark should stay with the label"). It follows the name. */
+           right edge the help floated alone, away from the name it explains. It follows the name. */
         .readfirst-narrow & {
           grid-template-columns: minmax(0, max-content) auto;
           justify-content: start;
@@ -679,7 +677,7 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     border-radius: 2px;
   }
   .options-readfirst-link:focus-visible {
-    /* The one ring color (decision 030) the rows' body says; the link's own color elsewhere. */
+    /* The one ring color, the text color at 0.7, that the rows' body says; the link's own color elsewhere. */
     outline: 2px solid var(--readfirst-focus, currentColor);
     outline-offset: 2px;
   }
@@ -697,7 +695,7 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
   /* The reason that follows the value shares its line and wraps within its own box. As a flex item
      sized to its text it could only share the line whole: a reason longer than the room beside the
      value went to the line below as a block, and an empty value's dash was left alone on its line,
-     the reason under it like the text of a list item under its bullet (qorus#646). It goes below
+     the reason under it like the text of a list item under its bullet. It goes below
      only when the value leaves it less than 16em. */
   .options-readfirst-valuetext + .options-readfirst-reason {
     flex: 1 1 16em;
@@ -1178,7 +1176,7 @@ export const StyledGroupBody = styled.div<{
     align-items: start;
   }
   /* Narrow stacks label-over-value: the value sits on the line below the label,
-     slightly indented under it (David, qorus#646), so it reads as the label's. */
+     slightly indented under it, so it reads as the label's. */
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
     padding-left: ${COMPACT_STACKED_VALUE_INDENT}px;
   }

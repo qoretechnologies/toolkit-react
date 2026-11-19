@@ -11,7 +11,7 @@ import {
 } from '../src/helpers/readableColors';
 import { mix } from 'polished';
 
-/* The read-first form's own colors stand out from what they are drawn on (qorus#646: the warning and success
+/* The read-first form's own colors stand out from what they are drawn on (the warning and success
    intents read 4.0-4.1:1 as text on the dark page, a danger reason 2.7:1 on the attention box). */
 describe('readable colors', () => {
   test('a shade of the color that reads: the color itself where it does', () => {

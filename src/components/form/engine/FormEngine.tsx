@@ -752,8 +752,8 @@ const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefin
  * - the form took it for the host's own change and went back to it, losing what had been typed since, and
  *   the two chased each other's reports on every echo;
  * - an edit back to a value reported before (A, then B, then A again), made as the echo of B arrived, was
- *   held back as made before the host's change, and the field went back to B (qorus#646: a template
- *   field's text, deleted back to its reference, kept the text in the IDE).
+ *   held back as made before the host's change, and the field went back to B (a template field's text,
+ *   deleted back to its reference, kept the text in the IDE).
  *
  * For recognising a value only. Whether a rebuild adds anything is still read with the empty fields in
  * (`isMirrorOfValue`): a new schema's empty required field is a row the form has to add.
@@ -843,7 +843,7 @@ const isTypedField = (field: unknown): field is IQorusFormField =>
  * `reportedValues`, `mergeOwnEdits`), so a change the host made to a field's type alone said nothing: the form
  * kept its own type. The Qorus IDE makes an added field's whole number true or false, holding the same field
  * `pos`; the form kept the `int` and drew `pos` as text on the Value tab, where a true or false field shows it on
- * its Expression tab (qorus#646).
+ * its Expression tab.
  *
  * Every key but `value` is compared, not a list of the ones known today: whatever a host writes into a field
  * beside its value, a change of it is the host's. A key the host writes as it always has is not a change, so a
@@ -905,7 +905,7 @@ export const takeHostsAttributes = (
  * A field the form changed and the host did not keeps the form's value; every other field takes the host's,
  * a field both changed included. The host and the form can change the value in the same commit - a host
  * renaming something as the user's edit reaches the form - and taking either side whole lost the other's
- * change; sending the form's copy over the host's change made the two trade places forever (qorus#646).
+ * change; sending the form's copy over the host's change made the two trade places forever.
  *
  * Returns `theirs` itself when the form has nothing of its own to keep.
  */
@@ -1103,7 +1103,7 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   /**
    * SEAM (reqraft): what the host knows of the references its values mention beyond the catalogue: a name for
    * one it knows but does not list, and what a chip of one nothing names says on hover (the IDE: "Not a value this
-   * case captures"). Such a chip is drawn as a warning (qorus#646).
+   * case captures"). Such a chip is drawn as a warning.
    */
   templateReferences?: ITemplateReferenceNames;
   /**
@@ -1286,7 +1286,7 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * its long body is read. Default `true`.
    *
    * It pins only while the card is more than one and a half times the height of its scroll area, the rule of every
-   * pinned heading in the Qore apps (decision 028), so a card that fits never pins. It pins under the form's own
+   * pinned heading in the Qore apps, so a card that fits never pins. It pins under the form's own
    * pinned toolbar and box header, never over them. Off by construction in a nested (`arg_schema`) sub-form: its
    * card sits in the parent's card, whose heading pins instead.
    *
@@ -1721,7 +1721,7 @@ const FormEngineImpl = ({
      Until then the value is neither pruned against the schema nor emitted. A host loading the schema hands an
      empty or an earlier one meanwhile; read against that, every stored field was "not on this instance" and
      was removed, so a Qog state opened before its options had loaded showed them empty and, once emitted,
-     lost them (qorus#646). */
+     lost them. */
   const hostSchemaPending =
     !optionsLoader &&
     !url &&
@@ -1872,7 +1872,7 @@ const FormEngineImpl = ({
      then the width was 0 and a narrow form drew its first frames as a wide one: on a 190px form
      a 220px name column, and the editor of an open row in a 0px column past the row's right edge.
      Anything opened in those frames was laid out there - a picker focused as the form appeared
-     had its list closed as hidden (board f63). The observer's figure takes over once it has one. */
+     had its list closed as hidden. The observer's figure takes over once it has one. */
   const [mountedWrapWidth, setMountedWrapWidth] = useState(0);
   useLayoutEffect(() => {
     if (!compactWrapNode) {
@@ -1931,7 +1931,7 @@ const FormEngineImpl = ({
            the element rather than from the props that produced it, so every
            route to that decision is accounted for. */
         /* A Reqore that pins a header only while its panel is clearly taller than its scroller
-           (decision 028, reqore#715) says whether it pins in `data-pins-header`, and decides it
+           (reqore#715) says whether it pins in `data-pins-header`, and decides it
            after it has measured, so the toolbar was not sticky yet when this first read it. */
         const says = header.getAttribute('data-pins-header');
         const pinned = says !== null ? says === 'true' : getComputedStyle(header).position === 'sticky';
@@ -2038,7 +2038,7 @@ const FormEngineImpl = ({
   /* The rows flashing, and which time this is. A flash is a CSS animation that plays once when its class is set
      and ends on the row's own background, so nothing takes the class off again: a timer did, 1.4s later, and that
      update came from no event at all, so React reported it (and the context it changed, once for every row reading
-     it) as an update a test had not waited for - a thousand times a story in the IDE's API schema forms (board t-96).
+     it) as an update a test had not waited for - a thousand times a story in the IDE's API schema forms.
      `generation` says which time it is, so a row that flashes again starts its animation again (`CompactRow`). */
   const [flash, setFlash] = useState<{ names: string[]; generation: number }>({
     names: [],
@@ -2173,14 +2173,14 @@ const FormEngineImpl = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
-  // an option's type in words, while the form shows field types (qorus#646: it said the type's code, `<string>`)
+  // an option's type in words, while the form shows field types (it said the type's code, `<string>`)
   const typeName = useTypeName();
   const templates = useTemplates(allowTemplates, stringTemplates, interfaceContext);
 
   useEffect(() => {
     /* Nothing is emitted until the schema is in force (`schemaInForce`): read against the empty or earlier
        schema a host hands down while it loads its own, the value is no answer, and emitted it wiped a Qog
-       state's stored options the moment the state was opened (qorus#646).
+       state's stored options the moment the state was opened.
 
        When it comes into force this check runs (it is a dependency). A host also shows the skeleton for other
        waits: qorus-ide shows it while the templates load, with the schema already there. The form completes the
@@ -2193,7 +2193,7 @@ const FormEngineImpl = ({
     /* The host changed the value in this same commit (effects run in order, and this one runs before the
        sync-down that takes the change in). The form's copy was made before that change: sent, it overwrote
        the host's change, the sync-down then took the host's value in, and the next commit sent that back -
-       the form and the host traded places on every commit, forever (qorus#646: the Qorus IDE's OPC UA node
+       the form and the host traded places on every commit, forever (the Qorus IDE's OPC UA node
        editor, its namespace flipping between the old and the renamed one). The sync-down below merges the
        change with the form's own edits, and the next commit reports the result. */
     if (isHostsOwnChange()) {
@@ -2795,7 +2795,7 @@ const FormEngineImpl = ({
     schemaInForce,
   ]);
   /* The schema and the values, as one value while neither changes: every row reads it through a selector
-     (`OptionFieldMessages`), and a new object on each render of the form asked every row again (board f70). */
+     (`OptionFieldMessages`), and a new object on each render of the form asked every row again. */
   const optionsContextValue = useMemo(
     () => ({ schema: options, value: availableOptions }),
     [options, availableOptions]
@@ -2955,7 +2955,7 @@ const FormEngineImpl = ({
       // the same "not set" the row's status reads: an empty list is no value
       const isEmpty = isOptionValueEmpty(optionValue);
       // A field whose `depends_on` does not hold does not apply: it is hidden, and nothing in it can make the
-      // form invalid - a value it holds is kept, and said in the form's note, valid or not (qorus#646).
+      // form invalid - a value it holds is kept, and said in the form's note, valid or not.
       if (dependencyLockedNames.includes(optionName)) {
         return true;
       }
@@ -3029,7 +3029,7 @@ const FormEngineImpl = ({
             (isEmpty && !isRequired && !hasRequiredGroups)
           ) {
             /* A field whose `depends_on` does not hold is hidden and does not apply: nothing in it makes the
-               form invalid, empty or holding a value (kept, and said in the form's note - qorus#646). */
+               form invalid, empty or holding a value (kept, and said in the form's note). */
             validation = { isValid: true, reasons: [] };
           } else {
             validation = validateFieldWithResult(getType(type), optionValue, {
@@ -3079,7 +3079,7 @@ const FormEngineImpl = ({
     onValidityChange?.(optionsAreValid, validityData);
   }, [JSON.stringify(validityData)]);
 
-  /* A field whose `depends_on` does not hold is not shown (qorus#646, David): it is not of use until it applies,
+  /* A field whose `depends_on` does not hold is not shown: it is not of use until it applies,
      so it is left out of the form - not shown waiting, locked - and appears once its dependency holds (and
      flashes - see `dependencyLockedNames`). Its value is kept; one it holds meanwhile is said in the form's
      note (`hiddenFieldsWithValues`). */
@@ -3347,11 +3347,11 @@ const FormEngineImpl = ({
   /* A row is opened or closed by what the user did to the row as it was drawn, never by flipping whatever the
      state is by the time React applies the update. A toggle read the direction from the latest state: the
      first-required scan opens its row with an update of its own, and a click on that row, drawn closed, landed on
-     top of it and closed the row the user had just opened (qorus#646: the Qorus IDE's Schema "Draft Is Saved").
+     top of it and closed the row the user had just opened (the Qorus IDE's Schema "Draft Is Saved").
      Each of these does nothing to a row already in its state.
 
      A row the user opens or closes is where they have chosen to work: the first-required scan, if it is still
-     waiting for the focus to be free, does not run after either (qorus#646). */
+     waiting for the focus to be free, does not run after either. */
   const expandOption = useCallback(
     (optionName: string) => {
       hasAutoFocusedRef.current = true;
@@ -3536,8 +3536,8 @@ const FormEngineImpl = ({
     }
     /* Read on the form the schema makes: a required field the schema brings is added to the form's value by the
        sync-down, an effect, so the render after the schema arrives. Read before that, the form had no row for it:
-       the scan found nothing to open and was spent, and the field's row stayed closed (qorus#646: the Qorus IDE's
-       pipeline processor, whose required field mappings arrive with its schema). */
+       the scan found nothing to open and was spent, and the field's row stayed closed (the Qorus IDE's pipeline
+       processor, whose required field mappings arrive with its schema). */
     const formTheSchemaMakes = fixOptions(fixedValue, options, undefined, isRendererOnly);
     if (Object.keys(formTheSchemaMakes || {}).some((name) => !(name in fixedValue))) {
       return;
@@ -3687,7 +3687,7 @@ const FormEngineImpl = ({
   );
 
   /* The hidden fields (their `depends_on` does not hold) that hold a value: kept, not dropped silently, so the form
-     says so in a note - and whether the value is valid, as no field shows it (qorus#646, David). */
+     says so in a note - and whether the value is valid, as no field shows it. */
   const hiddenFieldsWithValues = useMemo(
     (): IHiddenFieldWithValue[] =>
       dependencyLockedNames
@@ -3980,7 +3980,7 @@ const FormEngineImpl = ({
           <TemplateField
             fluid
             {...(options?.[optionName] as any)}
-            // qorus#347-followup: resolve the field's `inherit_props` against
+            // resolve the field's `inherit_props` against
             // the CURRENT sibling values (with a fallback to
             // `inheritedFromParent` — the bag threaded in from an outer
             // FormEngine when this scope is an `arg_schema` sub-form),
@@ -3998,7 +3998,7 @@ const FormEngineImpl = ({
               availableOptions,
               inheritedFromParent
             )}
-            // qorus#347-followup (scope forwarding): merge accumulated
+            // scope forwarding: merge accumulated
             // inheritance (`inheritedFromParent`) with THIS field's freshly
             // resolved inherit_props, and pass down as a single bag so any
             // nested `arg_schema` sub-form (mounted by AutoFormField for
@@ -4032,7 +4032,7 @@ const FormEngineImpl = ({
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
             // a form's options enter their value on tabs: Value · Expression · Visual, or Value · Template
-            // where only templates are taken (qorus#646); opt out per-form via `templateFieldProps`
+            // where only templates are taken; opt out per-form via `templateFieldProps`
             valueTabs
             // A fixed allowed-value field still needs its selector even when
             // arbitrary custom values are forbidden. TemplateField uses this
@@ -4672,7 +4672,7 @@ const FormEngineImpl = ({
       return fresh === 'optional' ? undefined : 'set';
     };
     /* A field the person never touched whose value is its default is not something they set: it is said under the
-       form ("Uses Qore · Change", `DefaultsNote`), not listed as "Set" (board r-ed-19, Filip's option B). Not a field
+       form ("Uses Qore · Change", `DefaultsNote`), not listed as "Set". Not a field
        they have been to, opened, or chose to change; not one nobody can change, one whose value is an expression,
        or a structured value (a hash or a list, which its row summarises). */
     const defaultEntries: TRowEntry[] = [];
@@ -5001,7 +5001,7 @@ const FormEngineImpl = ({
       $hairline: cHairline,
       $divider: cDivider,
       $hover: cHover,
-      // The keyboard's ring in the one ring color (decision 030); amber said a good row was at fault
+      // The keyboard's ring in the one ring color every control shares; amber said a good row was at fault
       $focus: getFocusRingColor(theme),
       // Calm: the text color's wash, as a hovered row has; amber would say the group is wrong (a satisfied one
       // stayed amber under the pointer)
@@ -5184,7 +5184,7 @@ const FormEngineImpl = ({
                     ...compactPanelProps?.contentStyle,
                   }}
                 >
-                  {/* the hidden fields that hold a value: kept, and said (qorus#646) */}
+                  {/* the hidden fields that hold a value: kept, and said */}
                   <HiddenFieldsNote fields={hiddenFieldsWithValues} />
                   {size(groupKeys) === 0 || (readOnly && !bucketCount('set')) ?
                     <ReqoreMessage flat opaque={false} size='small'>
@@ -5479,7 +5479,7 @@ const FormEngineImpl = ({
                       );
                     })
                   }
-                  {/* the defaults nobody set, under the boxes (r-ed-19) */}
+                  {/* the defaults nobody set, under the boxes */}
                   <DefaultsNote
                     fields={sortBy(defaultEntries, ({ name }) =>
                       Object.keys(options || {}).indexOf(name)
@@ -5674,7 +5674,7 @@ const FormEngineImpl = ({
                   <ReqoreVerticalSpacer height={10} />
                 </>
               : null}
-              {/* the hidden fields that hold a value: kept, and said (qorus#646) */}
+              {/* the hidden fields that hold a value: kept, and said */}
               <HiddenFieldsNote fields={hiddenFieldsWithValues} />
               {children}
               {size(filteredOptions) >= 1 && !readOnly ?
@@ -5906,7 +5906,7 @@ export const FormEngine = (props: IFormEngineProps) => {
   // halfway down its parent.
   const inherited = useFormAppearance();
   const appearance = props.appearance ?? inherited;
-  // what the host knows of references beyond the catalogue, for every chip the form draws (qorus#646)
+  // what the host knows of references beyond the catalogue, for every chip the form draws
   const referenceNames = useMemo(
     () => props.templateReferences ?? NO_REFERENCE_NAMES,
     [props.templateReferences]
@@ -5915,7 +5915,7 @@ export const FormEngine = (props: IFormEngineProps) => {
   return (
     <MarkdownRendererContext.Provider value={props.markdownRenderer}>
       <FormAppearanceProvider value={appearance}>
-        {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
+        {/* and the server's words for each type, which a reference's hover says */}
         <TypeSentenceFormProvider>
           <TemplateReferenceNamesProvider value={referenceNames}>
             <FormEngineImpl {...props} />

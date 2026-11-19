@@ -6,7 +6,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { UNAVAILABLE_ITEM_CLASS } from '../src/components/form/fields/select/SelectCollection';
 
-/* A refused value's name is dimmed, as far as it still reads in the theme (qorus#646): 0.55 was 4.1:1. Only the
+/* A refused value's name is dimmed, as far as it still reads in the theme: 0.55 was 4.1:1. Only the
    name: the reason under it stays as reqore draws a row's description (dimming the whole row took it to 3.1:1). */
 const DIMMED = getUnavailableLabelOpacity(buildTheme(DEFAULT_THEME as never));
 

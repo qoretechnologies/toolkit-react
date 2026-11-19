@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The one model of what a field can refer to (qorus#646): a Qog field's templates as Qorus serves them
+ * The one model of what a field can refer to: a Qog field's templates as Qorus serves them
  * (`getContextData`, `getStateData`) and a DPQL field's record fields, as a tree; what typing a reference reaches;
  * what a search box finds; how a chip names a long path.
  */
@@ -328,7 +328,7 @@ describe('allTemplateNodes', () => {
   });
 });
 
-describe('taking a record whole (qorus#646, David: "if a user wants to choose the entire Receive order")', () => {
+describe('taking a record whole (a user can choose the entire Receive order)', () => {
   const stateOf = (roots: ReturnType<typeof templateTree>) =>
     roots.find((node) => node.label === 'Receive order')!;
 
@@ -370,8 +370,8 @@ describe('taking a record whole (qorus#646, David: "if a user wants to choose th
   });
 });
 
-/* qorus#646, David's review: a reference that names none of the field's templates is said to, where the catalogue
-   lists every template of its context. */
+/* A reference that names none of the field's templates is said to, where the catalogue lists every template of
+   its context. */
 describe('referenceNamesNothing', () => {
   const roots = templateTree(QOG_TEMPLATES, { wholeRecords: true });
 

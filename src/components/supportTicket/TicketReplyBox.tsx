@@ -12,7 +12,7 @@ import { IAttachmentUpload } from './meta';
 
 /**
  * A ticket reply is not a hand-off to Qonsole, so it does not wear Qonsole's look: no purple
- * bar, no purple send (instruction-files decision 002 — a purple button means "this hands the
+ * bar, no purple send (a purple button means "this hands the
  * work to Qonsole / AI" and nothing else). The bar keeps the composer's shape with the theme's
  * own neutral edge (its `main`, a step lighter — how Reqore draws its dividers), and sending
  * the reply is the surface's one primary action: white.
@@ -123,7 +123,7 @@ export const TicketReplyBox = ({
   // Staff surface splits the send button; customer surface is a single "Send reply".
   // Both send the reply as the white primary (`REPLY_SEND_STYLE`). The internal note is
   // the quiet choice beside it, told apart by its words ("Add internal note") and its
-  // sticky-note icon, never amber: amber means "needs a look" (decision 001).
+  // sticky-note icon, never amber: amber means "needs a look".
   const sendActions: IComposerSendAction[] | undefined = allowInternalNote
     ? [
         {

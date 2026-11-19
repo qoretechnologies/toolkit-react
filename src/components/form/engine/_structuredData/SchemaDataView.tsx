@@ -521,7 +521,7 @@ const SchemaRecord = ({
   // deep, and the renderer is a property of the form, not of any one level.
   const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
   const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
-  // a field's name, softer than its value: as soft as it still reads (qorus#646)
+  // a field's name, softer than its value: as soft as it still reads
   const labelOpacity = useReadableOpacity(0.55);
 
   return (

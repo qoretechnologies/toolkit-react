@@ -51,7 +51,7 @@ import {
 import { markdownToProse } from '../../../../helpers/markdownText';
 
 /*
- * The one picker a field's templates are chosen in (qorus#646, David's decisions): a rich-text field's, a DPQL
+ * The one picker a field's templates are chosen in: a rich-text field's, a DPQL
  * field's and a template control's alike, at the caret or from a button. A catalogue is browsed level by level -
  * a Qog state, a record in it - with the way back above the rows ("Templates › Receive order › Customer"); a
  * search finds a template at any depth by its name, or by its reference as it is typed (`$data:receive_order.`),
@@ -104,7 +104,7 @@ export interface ITemplatePickerProps {
   onKeysHeard?: () => void;
   /**
    * Fills the surface it is drawn in (a dropdown's popover, as wide as its field within the popover's bounds)
-   * instead of keeping its own width, which left the popover's far side empty (qorus#646, David's review).
+   * instead of keeping its own width, which left the popover's far side empty.
    */
   fill?: boolean;
   /** The listbox's id, for the control that drives it (`aria-controls`). */
@@ -138,8 +138,8 @@ const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
 
 /**
  * A row's badges: what it is (State data, Context, Field...); a group's app, as its catalogue badges it (the app it
- * comes from, never a type: qorus#646, 8909de2f). Never its type: that is said in words under its name
- * (`RowDescription`; board r-ed-30, decision 026), and stays the value's to be matched by (`node.type`).
+ * comes from, never a type). Never its type: that is said in words under its name
+ * (`RowDescription`), and stays the value's to be matched by (`node.type`).
  */
 const rowBadges = (node: ITemplateNode, calm: boolean): TReqoreBadge[] => {
   const kind = templateNodeKindLabel(node.kind);
@@ -163,9 +163,9 @@ const rowBadges = (node: ITemplateNode, calm: boolean): TReqoreBadge[] => {
 /**
  * What a row says under its name: where it is, when it is found by a search ("in Receive order › Customer"), and
  * what it is, in its own words, ending with what kind of value it is ("… · Whole number", never "int", and never a
- * chip: board r-ed-30) as the other lists end with it; where it comes from, as its host says, after that. A row
+ * chip) as the other lists end with it; where it comes from, as its host says, after that. A row
  * that says nothing else says its kind of value on a line of its own. Where it is and what it is are
- * drawn apart, so that a group's name is never read as a description of the row (qorus#646, David's review: each
+ * drawn apart, so that a group's name is never read as a description of the row (each
  * state's data said "Receive order" as if it were what it is).
  */
 const RowDescription = ({
@@ -222,7 +222,7 @@ const RowDescription = ({
 };
 
 /**
- * "Use" beside a group's ">" (qorus#646, David's review): set apart from the ">" that opens the group by a divider,
+ * "Use" beside a group's ">": set apart from the ">" that opens the group by a divider,
  * and saying on hover that it takes the group whole.
  */
 export const USE_WHOLE_STYLE: React.CSSProperties = {
@@ -336,7 +336,7 @@ export const TemplatePicker = memo(
     /* Opened at another group (a chip of another state replaced): that group. The same picker given more of the
        field's templates as they come (its catalogue, its language server's completions) stays where it is browsed
        to, the row it is on still the row it is on: put back at the top, the keys pressed while they came went to
-       other rows than the ones the user saw (qorus#646). */
+       other rows than the ones the user saw. */
     const levelIdRef = useRef(levelId);
     useEffect(() => {
       setLevels((current) => {
@@ -543,7 +543,7 @@ export const TemplatePicker = memo(
             return true;
           case 'Tab': {
             /* From the text it was opened in, Tab takes the row the keyboard is on, as Enter does (a code editor's
-               key): the text keeps the focus (qorus#646, David's review: Tab left the half-typed reference as it
+               key): the text keeps the focus (Tab used to leave the half-typed reference as it
                was). From its own search box the focus moves on, and nothing is chosen. */
             if (fromText && !keyFor) {
               const node = visible[focused];
@@ -633,7 +633,7 @@ export const TemplatePicker = memo(
         ref={rootRef}
         className='template-picker'
         // the list's own color under all of it - its way back and search box too: the popover it opens in is
-        // transparent, so without it the page shows through around the rows (Foxhoundn on qlip #425)
+        // transparent, so without it the page shows through around the rows
         style={{
           width: fill ? '100%' : TEMPLATE_PICKER_WIDTH,
           maxWidth: '100%',

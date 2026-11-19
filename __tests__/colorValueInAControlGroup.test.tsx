@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ReqraftColorValue } from '../src/components/colorValue';
 
 /**
- * qorus#646 (found by the IDE's React-warning guard): a control group hands its layout props (fluid,
+ * Found by the IDE's React-warning guard: a control group hands its layout props (fluid,
  * spaceBetween, size, ...) to each component in it, and ReqraftColorValue spread what it did not take onto its
  * span - React warned "Received `true` for a non-boolean attribute `fluid`" and "React does not recognize the
  * `spaceBetween` prop". It passes a DOM element only what a DOM element takes. A group's own size (small, big)

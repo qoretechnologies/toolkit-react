@@ -57,7 +57,7 @@ export const Object: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field in JSON object mode with no value: the button that adds a row. Adding one opens its Name, and a name typed there is the object\'s first value. Rows are the only route: no Text tab and no text box to type JSON or YAML into (Filip, 10 Nov: "there should NEVER be a free json text").',
+          'Renders the Object field in JSON object mode with no value: the button that adds a row. Adding one opens its Name, and a name typed there is the object\'s first value. Rows are the only route, as there is never free JSON text: no Text tab and no text box to type JSON or YAML into.',
       },
     },
   },
@@ -444,7 +444,7 @@ export const ItsSourceIsInMonospace: Story = {
     docs: {
       description: {
         story:
-          "With `textEditing` on, the Text tab shows the value's YAML source in Reqore's monospace face. Reqore 0.79 draws a textarea in the page's font, as prose, and leaves monospace to the fields that ask for it; YAML is code, so this one asks (board f47).",
+          "With `textEditing` on, the Text tab shows the value's YAML source in Reqore's monospace face. Reqore 0.79 draws a textarea in the page's font, as prose, and leaves monospace to the fields that ask for it; YAML is code, so this one asks.",
       },
     },
   },
@@ -501,7 +501,7 @@ export const ValuesAreRows: Story = {
     docs: {
       description: {
         story:
-          'Renders an object\'s values as rows, a name and a typed value each, with no tree and no text to type JSON or YAML into (decision 027): region, retries, and limits, whose record is rows of its own (daily).',
+          'Renders an object\'s values as rows, a name and a typed value each, with no tree and no text to type JSON or YAML into (data is entered through a form, never as JSON): region, retries, and limits, whose record is rows of its own (daily).',
       },
     },
   },

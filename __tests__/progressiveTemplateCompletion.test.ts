@@ -31,8 +31,8 @@ const offered = (typed: string, from = roots) =>
   ]);
 
 /**
- * A reference is completed level by level as it is typed (qorus#646, David: "`$` → contexts, `$data:` → states,
- * `$data:receive_order.` → that state's members ... `@` → record fields, `@customer.` → nested fields"): each level
+ * A reference is completed level by level as it is typed (`$` → contexts, `$data:` → states,
+ * `$data:receive_order.` → that state's members ... `@` → record fields, `@customer.` → nested fields): each level
  * filtered by what is typed of it; a context, a state or a record taken writes its reference as text and goes on;
  * only a whole reference is a chip.
  */
@@ -108,7 +108,7 @@ describe('a template reference typed level by level', () => {
   });
 });
 
-/* qorus#646 round 4 (David: every container that can be used has Use; `$data:*`, as UserApi reads `*`) */
+/* every container that can be used has Use; `$data:*`, as UserApi reads `*` */
 describe('a template context, a container', () => {
   it('is used whole where the value takes a record, and not where it takes none', () => {
     const [row] = templateSearchItems(roots, '$d', undefined, true);

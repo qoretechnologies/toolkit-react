@@ -124,7 +124,7 @@ describe('compact status boxes pin their headers', () => {
 
   it('offsets box headers by the toolbar once the toolbar says it pins, and not before', async () => {
     /* A Reqore that pins a header only while its panel is clearly taller than its scroller
-       (decision 028, reqore#715) decides after it has measured, and says so in `data-pins-header`:
+       (reqore#715) decides after it has measured, and says so in `data-pins-header`:
        the toolbar was not sticky yet when the form first read it, its size never changed after,
        and the box headers pinned at 0, over the toolbar. */
     const TOOLBAR = '.options-readfirst-scroll > .reqore-panel > .reqore-panel-title';

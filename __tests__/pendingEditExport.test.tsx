@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A host's own debounced field keeps its unreported edit for the row that closes it, as reqraft's own fields do
-// (qorus#646): `usePendingEdit` is public. Imported from the package root, as a host imports it.
+// A host's own debounced field keeps its unreported edit for the row that closes it, as reqraft's own fields do:
+// `usePendingEdit` is public. Imported from the package root, as a host imports it.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { useState } from 'react';

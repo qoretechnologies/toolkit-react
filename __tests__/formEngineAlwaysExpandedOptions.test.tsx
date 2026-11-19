@@ -10,7 +10,7 @@ const fetchContext = emptyFetchContext();
 
 /**
  * A row named in `alwaysExpandedOptions` is open from the start and nothing closes it: its editor is the field's
- * content (the IDE's test cases, t-87). It draws no Done, no Clear value and no Cancel.
+ * content (the IDE's test cases). It draws no Done, no Clear value and no Cancel.
  */
 const SCHEMA = {
   note: { type: 'string', ui_type: 'string', display_name: 'Note', preselected: true },

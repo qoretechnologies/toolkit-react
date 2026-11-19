@@ -28,8 +28,8 @@ const SCROLLER = 'sticky-story-scroller';
  */
 /**
  * Rows in the Set box, and in the Optional box unless a story asks for more. Enough that each box is
- * well over 1.5 times the scroller's 70vh: Reqore pins a box's header only while its box is that tall
- * (instruction-files decision 028, reqore#715), and these stories are about boxes long enough to read
+ * well over 1.5 times the scroller's 70vh: Reqore pins a box's header only while its box is that tall, clearly
+ * taller than the screen (reqore#715), and these stories are about boxes long enough to read
  * with their header pinned. 12 rows (~430px) pinned only on a Reqore that pinned every header; at a 1080px screen a box needs about
  * 1,090px (1.5 x a 756px scroller less its padding).
  */
@@ -458,7 +458,7 @@ export const ALongCardKeepsItsHeadingWhileItsBodyIsRead: Story = {
 
 /**
  * A card that fits on the screen never pins its heading: pinned for the few pixels it overhung, it would draw a band
- * with nothing under it to label (decision 028).
+ * with nothing under it to label.
  */
 export const AShortCardNeverPinsItsHeading: Story = {
   args: casesArgs(6),
@@ -545,7 +545,7 @@ const BandedListStandin = ({ value }: { value?: string[] }) => (
  * With every pin of the form's off (its toolbar, its box headers, its card headings), a host editor's own band still
  * pins at the top of the page: nothing between it and the page clips. A box whose header did not pin was clipped by
  * Reqore, and a clipping box is where a sticky element inside it pins, so the IDE's case band scrolled away with
- * the page when it turned the form's box headers off (qorus-ide-c2, t-87).
+ * the page when it turned the form's box headers off.
  */
 export const AHostEditorsOwnBandPinsWithTheFormsPinsOff: Story = {
   args: {

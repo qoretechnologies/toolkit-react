@@ -423,7 +423,7 @@ const tokenize = (text: string): TToken[] => {
   return tokens;
 };
 
-// A template reference is given as its template, as the server gives it (qorus#646): a record field is
+// A template reference is given as its template, as the server gives it: a record field is
 // `$record:{name}`, any other template the template itself.
 const templateArg = (raw: string): IDpqlMockNode => ({ type: 'auto', value: raw });
 
@@ -761,7 +761,7 @@ const conditionParts = (root: IDpqlMockNode, fields: TDpqlMockFields) => {
 };
 
 /**
- * How the server reads an expression as a condition (`condition: true`, qorus#646), shaped as its answer:
+ * How the server reads an expression as a condition (`condition: true`), shaped as its answer:
  * true or false is a condition, text, a date or a time is not one, a type it cannot tell is unknown, and any
  * other is read by its value - true unless it is zero or empty. Each part of `&&`, `||` and `!` is read the
  * same way and answered in `parts`; the reading answered is the worst of the expression's and its parts', and
@@ -839,7 +839,7 @@ const describeOperand = (node: IDpqlMockNode, fields: TDpqlMockFields): { kind?:
 };
 
 /**
- * What the server reports of a `+` whose operands it cannot combine (Qore DpqlParser, DPQL-E050, qorus#646):
+ * What the server reports of a `+` whose operands it cannot combine (Qore DpqlParser, DPQL-E050):
  * the one the stories write, a hash and a number, in the server's words. Anything else combines.
  */
 export const mockOperandCombinationErrors = (
@@ -891,7 +891,7 @@ export const mockPublishedDiagnostics = (text: string, fields: TDpqlMockFields =
   } catch (err) {
     /* Text it cannot read is published as the server publishes it, where it is (Qorus `publishDiagnostics` runs
        `dpql-parse` and sends what it says): the stand-in published nothing, so a story's editor said nothing of
-       `pos + 1 + $pos`, which the server refuses (qorus#646, David's review). */
+       `pos + 1 + $pos`, which the server refuses. */
     const lead = text.length - text.trimStart().length;
     return syntaxErrorsOf(err).map((error) => ({
       range: {
@@ -990,7 +990,7 @@ const printLiteral = (value: unknown, readable = true): string => {
   }
   if (typeof value === 'string') {
     // A value that is one template is the template, as the UI form evaluates it and as the server serializes
-    // it (qorus#646); any other string is a string.
+    // it; any other string is a string.
     return TEMPLATE_TOKEN.test(value) ? value : JSON.stringify(value);
   }
   return value === null || value === undefined ? 'null' : String(value);

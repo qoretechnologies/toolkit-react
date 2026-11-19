@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
- * The Text view of an expression built in the Visual view (David's review of qorus#646).
+ * The Text view of an expression built in the Visual view.
  *
  * Two operand shapes are not DPQL: an operand switched to "Use expression" whose operation is not
  * chosen yet, and a custom Text value (a rich-text document). Handed to `dpql/serialize` as they were,

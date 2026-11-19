@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What Qorus serves a Qog field for its templates, in the shapes it serves them (qorus#646: a story's stand-in
+ * What Qorus serves a Qog field for its templates, in the shapes it serves them (a story's stand-in
  * must answer as the server does, or the story shows something the product never does):
  *
  * - `PUT system?action=getContextData` (`SystemRestClassV8::doGetContextData`): one group, Context Data, of the

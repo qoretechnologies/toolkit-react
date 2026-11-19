@@ -543,7 +543,7 @@ const capSummary = (text: string): string => {
 /**
  * Markdown without its fenced code blocks. A fence opens on a line of its own (up to three spaces in) and closes
  * on the next such line, or runs to the end when nothing closes it, as markdown reads it. Three backticks inside
- * a line open no block: they are a code span, and what it holds is summarised as written (qorus#646) - taking
+ * a line open no block: they are a code span, and what it holds is summarised as written - taking
 
 
  * every ``` to ``` out dropped the span's text.
@@ -648,7 +648,7 @@ export const formatOptionValue = (
   }
 
   /* A template is the field it names, whatever the field's type, so it is summarised before any type
-     summarises a value of its own: a color or a file called it "Set", a yes/no "Yes" (qorus#646). */
+     summarises a value of its own: a color or a file called it "Set", a yes/no "Yes". */
   if (typeof value === 'string' && isValueTemplate(value)) {
     return value;
   }

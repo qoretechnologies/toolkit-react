@@ -5,7 +5,7 @@ import {
 } from '../src/components/form/fields/template/writtenAsText';
 
 /**
- * The Value tab shows an expression that is nothing but one template as that template's chip (qorus#646): a host
+ * The Value tab shows an expression that is nothing but one template as that template's chip: a host
  * may hold a reference to a field as `value($record:{…})` - the Qorus IDE reads a test's reference back that way,
  * so that it opens on the Expression tab - and the Value tab said "This expression can't be shown as a value." for
  * every one of them. The FormEngine stories (Value Tab Draws A Referenced Field As Its Chip, Value Tab Pick

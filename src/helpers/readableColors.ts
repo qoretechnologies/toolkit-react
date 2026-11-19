@@ -8,7 +8,7 @@ import {
 import { getLuminance, mix, rgba } from 'polished';
 
 /**
- * Colors that stand out from what they are drawn on (WCAG 2.1 AA, qorus#646): 4.5:1 for text, 3:1 for icons and
+ * Colors that stand out from what they are drawn on (WCAG 2.1 AA): 4.5:1 for text, 3:1 for icons and
  * large text. Reqore has these from qoretechnologies/reqore#708 on (`getReadableAccentColorOn`, `getReadableAlpha`);
  * until reqraft builds on that release, the read-first form picks its own colors with these.
  */

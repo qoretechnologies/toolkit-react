@@ -6,7 +6,7 @@
  * with a new object each render, and so did its default for no local templates) and the fields built on them, and
  * whatever a host wrote as a literal in its render (`cardEditorTypes={[...]}`, `readSummaries={{ ... }}`). One late
  * render of the Qorus IDE's API schema page asked every row of its form again, each ask an update React reported as
- * not wrapped in act: thousands a story, and the IDE fails a story on any React warning (board t-96, f70).
+ * not wrapped in act: thousands a story, and the IDE fails a story on any React warning.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { act, render, renderHook, waitFor } from '@testing-library/react';

@@ -4,7 +4,7 @@
  * The flash's class was taken off by a timer 1.4s later. That update came from no event, so React reported it as one a
  * test had not waited for ("An update to FormEngineImpl inside a test was not wrapped in act(...)"), and once more
  * for every row reading the form's context: a thousand times a story in the Qorus IDE's API schema forms, whose
- * stories fail on any React warning (board t-96). The class now stays on once its animation has played.
+ * stories fail on any React warning. The class now stays on once its animation has played.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';

@@ -190,7 +190,7 @@ const WITH_TEMPLATE_CONTEXTS: Pick<Story, 'args' | 'decorators'> = {
 
 /**
  * A number's input takes a template from its list: `$dynamic:*`, a context of free keys, is taken whole by its row, and
- * one of its keys is written with its Key action (David's decision), which a finger reaches as a mouse does.
+ * one of its keys is written with its Key action, which a finger reaches as a mouse does.
  */
 export const TemplateContextsWithAKeyAction: Story = {
   ...WITH_TEMPLATE_CONTEXTS,

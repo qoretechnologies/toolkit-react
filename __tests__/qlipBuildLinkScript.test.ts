@@ -1,5 +1,5 @@
 /**
- * The Discord message's "Qlip visual tests" link goes to the build the run uploaded (qorus#646).
+ * The Discord message's "Qlip visual tests" link goes to the build the run uploaded.
  *
  * The build id was read from qlip's upload line up to the first space. qlip now writes
  * `[qlip] uploaded build 20261010-104435: 635 entries …`, so the id kept its colon and every link went to

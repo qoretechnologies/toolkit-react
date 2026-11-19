@@ -921,7 +921,7 @@ export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
     docs: {
       description: {
         story:
-          'Renders a field drawn by a host editor (`componentOverrides`) that, as the Qorus IDE\'s rich text does, keeps what is typed, reports it after a pause and takes any other value it is handed for a change from outside. The field is emptied - it reports "" - and the form, as a form engine does once it has stored it, hands the empty value back again as undefined, after a 1 is typed and before it is reported. The 1 stays and is then reported: the field hands a host editor its own report back as it reported it, so an empty value stored a second way is no change. It was taken for one, and the 1 was wiped (the IDE\'s test-case Value, under load, qorus#646).',
+          'Renders a field drawn by a host editor (`componentOverrides`) that, as the Qorus IDE\'s rich text does, keeps what is typed, reports it after a pause and takes any other value it is handed for a change from outside. The field is emptied - it reports "" - and the form, as a form engine does once it has stored it, hands the empty value back again as undefined, after a 1 is typed and before it is reported. The 1 stays and is then reported: the field hands a host editor its own report back as it reported it, so an empty value stored a second way is no change. It was taken for one, and the 1 was wiped (the IDE\'s test-case Value, under load).',
       },
     },
   },
@@ -949,7 +949,7 @@ export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
 /**
  * A DPQL field is given its templates as every other field of the form is (its context data): a click in its empty
  * text opens the template picker with them, and the template button beside the text opens it too. They were left
- * out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review).
+ * out, so a DPQL field offered no template until a `$` was typed.
  */
 export const DpqlFieldOffersItsTemplates: Story = {
   args: {
@@ -980,7 +980,7 @@ export const DpqlFieldOffersItsTemplates: Story = {
     );
     expect(canvasElement.querySelector('.smart-editor-template-button'), 'the template button').toBeTruthy();
     await userEvent.click(editable);
-    // its templates under their group, beside what the language server completes (qorus#646)
+    // its templates under their group, beside what the language server completes
     await waitFor(
       () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Context Data', 'Template contexts'])),
       { timeout: 30000 }

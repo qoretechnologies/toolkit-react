@@ -1,9 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A reference its catalogue does not list says so, and one its host knows wears the host's name (qorus#646, David
- * on FormEngine · A Host Grammar Survives The Editor The Row Opens: "has a chip with a display name and one with
- * the technical form ("$._case.attempt"); the chips / templates / etc were meant to abstract the technical format
- * from our users").
+ * A reference its catalogue does not list says so, and one its host knows wears the host's name (on FormEngine · A Host
+ * Grammar Survives The Editor The Row Opens, one chip had a display name and one the technical form
+ * ("$._case.attempt"); chips and templates are there to keep the technical format away from users).
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';

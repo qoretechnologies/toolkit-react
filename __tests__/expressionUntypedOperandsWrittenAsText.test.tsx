@@ -47,7 +47,7 @@ const renderCondition = (type?: string) =>
   );
 
 /**
- * qorus#646: a row rule's condition (the builder's type `bool`) with ">" chosen showed its first value as
+ * A row rule's condition (the builder's type `bool`) with ">" chosen showed its first value as
  * "Unknown type!" and only its second as the text field an untyped value is written in. The first
  * operand's type came from the builder's own type - what the whole condition gives - not from what the
  * catalogue declares the operand to be.

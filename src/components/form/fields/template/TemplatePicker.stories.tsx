@@ -92,7 +92,7 @@ export const QogTemplates: Story = {
     expect((await pickerRow('Receive order')).textContent).toContain('State data');
     await userEvent.click(await pickerRow('Receive order'));
     await pickerRow('Customer');
-    // every row fits the picker: its name whole, its badges and description inside it (qorus#646, David's review)
+    // every row fits the picker: its name whole, its badges and description inside it
     expectRowsFit(
       Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row'))
     );
@@ -166,8 +166,8 @@ export const KindChipsCarryNoColor: Story = {
 };
 
 /**
- * A value's type is said in words under its name, never as its badge: "Epoch Seconds" read "int" in a chip beside it
- * (board r-ed-30, decision 026). The type stays the value's, what a field matches it by.
+ * A value's type is said in words under its name, never as its badge: "Epoch Seconds" read "int" in a chip beside
+ * it. The type stays the value's, what a field matches it by.
  */
 export const AValuesTypeIsSaidInWords: Story = {
   parameters: {
@@ -176,7 +176,7 @@ export const AValuesTypeIsSaidInWords: Story = {
         story:
           'Opens Context Data. "Epoch Seconds" ends what it says under its name with "Whole number", and no chip on any row names a ' +
           'type: the chips say what a row is ("Context"), never "int" or "Whole number". A type tag was a machine ' +
-          'word in front of a reader choosing "the order\'s date" (board r-ed-30, decision 026).',
+          'word in front of a reader choosing "the order\'s date".',
       },
     },
   },

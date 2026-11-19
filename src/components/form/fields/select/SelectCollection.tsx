@@ -486,7 +486,7 @@ export const SelectFieldCollection = ({
     () => getSelectCollectionGroups(groups, searching),
     [groups, searching]
   );
-  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  // an item that cannot be picked is dimmed, as far as its name still reads
   const unavailableOpacity = useReadableOpacity(0.55);
 
   const filteredItems = useMemo(() => {
@@ -628,8 +628,8 @@ export const SelectFieldCollection = ({
             selected: isTheChosenOne(item.value),
             intent: isTheChosenOne(item.value) ? 'info' : item.intent,
             /* Which one is chosen is a tick and a word, not only the color of its card: an item with an icon or a
-               picture of its own had no other mark (qorus#646, David: "impossible to see for people with issues
-               recognizing colors"). */
+               picture of its own had no other mark, which a reader who does not tell colors apart could not
+               see. */
             badge:
               isTheChosenOne(item.value) ?
                 [...(item.badge === undefined ? [] : [item.badge].flat()), CHOSEN_BADGE]

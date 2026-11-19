@@ -63,7 +63,7 @@ export const ExpressionBuilderArgumentLabel = ({
   type,
   readOnly,
 }: IExpressionBuilderArgumentLabelProps) => {
-  // the type and the hint after a name, light and softer: as soft as they still read (qorus#646)
+  // the type and the hint after a name, light and softer: as soft as they still read
   const hintOpacity = useReadableOpacity(0.5);
   // the marks beside a name - invalid, required, the wrong type, a type that fits - in shades that stand out
   const dangerMark = useReadableIntentShade('danger', READABLE_ICON);
@@ -109,7 +109,7 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getExactMatches(schema.ui_type),
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
-  /** The types this argument takes, named inside a sentence: "a whole number or a number" (qorus#646). */
+  /** The types this argument takes, named inside a sentence: "a whole number or a number". */
   const acceptedTypeNames =
     typesInASentence(acceptedTypes, (t) => types.getTypeSentenceForm(t)) ?? '';
   /* `arg` is optional — an operand the author has not filled in yet has no

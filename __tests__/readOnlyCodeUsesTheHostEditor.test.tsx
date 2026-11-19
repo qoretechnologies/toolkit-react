@@ -1,8 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * Code is shown as the host shows code (qorus#646, David on FormEngine · Compact Read Only Values: "when we show
- * code, we should show it with syntax highlighting and lsp / hover / intellisense - even in read-only views"; his
- * decision: the host's code editor, read-only, and a plain block only where there is none).
+ * Code is shown as the host shows code (FormEngine · Compact Read Only Values: code is shown with syntax
+ * highlighting and LSP hover and completion, even in a read-only view - the host's code editor, read-only, and a
+ * plain block only where there is none).
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';

@@ -7,7 +7,7 @@ import {
 } from '../src/components/form/engine/readFirst';
 
 /**
- * qorus#646: a compact row summarises a color with the reader `ReqraftColorValue` uses, so the two agree.
+ * A compact row summarises a color with the reader `ReqraftColorValue` uses, so the two agree.
  * That reader takes a hex code without its `#`, as the color field does, and a value that only looks like
  * one is not a color: `#zzz` was summarised as "#ZZZ" beside a swatch the browser could not paint, and a
  * channel that is not a finite number as "#NANNANNAN".

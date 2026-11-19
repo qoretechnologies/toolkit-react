@@ -21,7 +21,7 @@ const isStructured = (value: unknown): boolean => value !== null && typeof value
  * An `allowed_values` entry's own value, in any of the three ways an entry is written (see
  * `findAllowedValueOption`): its envelope's value (`{value: {type, value}}`), its bare value (`{value: 'x'}`) or its
  * name (`{name: 'x'}`). A picker read the envelope only, so an entry written another way was a choice with no value
- * and no name: two empty boxes, neither of which a click could tick (qorus#646, David's review).
+ * and no name: two empty boxes, neither of which a click could tick.
  */
 export const allowedValueOf = (item: { value?: unknown; name?: unknown } | undefined): unknown => {
   const value = item?.value;

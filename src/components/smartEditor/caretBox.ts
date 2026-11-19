@@ -6,7 +6,7 @@ import type { TOpenedAt } from './useLspAutocomplete';
 /**
  * Where a list opened at a point of an editor's text is drawn from, in the window: the caret's left and its line's
  * top and bottom. A list of templates goes where its pick goes, so it is drawn from there however it was opened - a
- * click in the text, Tab, the template button, a text emptied (David on reqraft #162: from the template button the
+ * click in the text, Tab, the template button, a text emptied (reqraft #162: from the template button the
  * picker opened at the far right end of an empty text, where the button is, and a click in the text then opened it at
  * the start).
  *

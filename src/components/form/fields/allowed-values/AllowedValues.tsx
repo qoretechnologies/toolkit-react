@@ -123,11 +123,11 @@ export const FieldAllowedValuesCheckGroup = memo(
     const selectedChoiceIntent = useSelectedChoiceIntent();
     const fieldWords = useReqraftLabels().fields;
 
-    // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+    // an item that cannot be picked is dimmed, as far as its name still reads
     const unavailableOpacity = useReadableOpacity(0.55);
     // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
-    // one choice of several is a radio, in a group of its own (qorus#646)
+    // one choice of several is a radio, in a group of its own
     const choiceGroup = useId();
     /** Whether a choice is held: one of several, or the one. */
     const isChosen = (itemValue: unknown) =>
@@ -154,8 +154,8 @@ export const FieldAllowedValuesCheckGroup = memo(
               margin='right'
               label={choiceName}
               /* One choice is a radio, several are checkboxes; a choice with a picture (a language's logo) has it
-                 beside its name, and keeps its radio or box, which says it is chosen without color (qorus#646,
-                 David). A refused one keeps its lock. */
+                 beside its name, and keeps its radio or box, which says it is chosen without color.
+                 A refused one keeps its lock. */
               type={multiSelect ? 'checkbox' : 'radio'}
               name={multiSelect ? undefined : choiceGroup}
               {...pictureBesideTheName(
@@ -350,7 +350,7 @@ export const FieldAllowedValues = memo(
     }
 
     // The suggestions beside the field's own editor: a pick replaces what it holds, and the list ticks the
-    // suggestion it holds, if it holds one (qorus#646).
+    // suggestion it holds, if it holds one.
     return (
       <Select
         items={fullItems}

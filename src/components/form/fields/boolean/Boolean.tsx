@@ -14,7 +14,7 @@ export interface IBooleanFormFieldProps extends Omit<IReqoreCheckboxProps, 'onCh
 
 /**
  * What a yes / no shows for the value it holds: No for false, Yes for true, and no answer for no value - the
- * switch's unset state, not No (qorus#646, David: an empty yes / no read No while the form asked for a value).
+ * switch's unset state, not No (an empty yes / no read No while the form asked for a value).
  */
 export const yesNoShown = (value: unknown): boolean | undefined =>
   value === undefined || value === null ? undefined : !!value;

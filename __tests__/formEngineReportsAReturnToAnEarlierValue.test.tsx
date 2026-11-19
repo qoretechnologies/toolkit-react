@@ -10,7 +10,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A value edited back to one the form reported before is reported again (qorus#646).
+ * A value edited back to one the form reported before is reported again.
  *
  * A, then B, then A again: the Qorus IDE's template field, given a reference ("$record:{pos}"), then text
  * after it (" Stk."), then that text deleted. The IDE's host stores a field under its own type (what an

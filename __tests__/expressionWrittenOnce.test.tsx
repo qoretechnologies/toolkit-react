@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// An expression is written as text (`dpql/serialize`) once, for both views (qorus#646).
+// An expression is written as text (`dpql/serialize`) once, for both views.
 //
 // The Visual view has the server write what it builds, to check it; the Text view opens on the expression written as
 // text. Entering the Text view while the Visual view's check was on its way, or after it, asked the server to write the

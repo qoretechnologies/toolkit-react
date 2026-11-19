@@ -105,7 +105,7 @@ const localTemplates = {
       items: [{ label: 'Richtext Template', badge: 'richtext', value: '$local:some-richtext' }],
     },
     // the values the stories' expressions use, listed as a host lists them: a reference its catalogue does not
-    // list is drawn as a warning (qorus#646)
+    // list is drawn as a warning
     {
       label: 'Local values',
       items: [
@@ -219,7 +219,7 @@ export const DefaultBoolean: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it lacks and what its place takes, the type named inside the sentence as the server names it (its sentence form): "Choose what this expression does: this field takes true or false." It said "This expression gives nothing", a type it never claimed (qorus#646, David\'s review), and it is said once.',
+          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it lacks and what its place takes, the type named inside the sentence as the server names it (its sentence form): "Choose what this expression does: this field takes true or false." It said "This expression gives nothing", a type it never claimed, and it is said once.',
       },
     },
   },
@@ -485,7 +485,7 @@ export const WithArgWithAllowedValues: Story = {
     await waitForText('Regex options');
     await waitForText('Select one or more:');
 
-    // calm (Filip, 10 Nov: "the expression builder could be made calm")
+    // the expression builder is calm
     const names = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-label'));
     await expect(names.length).toBeGreaterThan(0);
     for (const name of names) {
@@ -1932,7 +1932,7 @@ export const FunctionArgsArePassedToNewFunctionAndNeedConfirmation: Story = {
     await selectOperation('Format Date', 'Matches Regular Expression');
 
     await waitForText('Confirm type selection for mismatched arguments');
-    // the dialog is as wide as what it says (Foxhoundn, qlip #400: "Please make the dialog narrower"), never
+    // the dialog is as wide as what it says, never
     // 80% of the screen, and everything in it fits: the title and the three buttons on its last line
     const title = await screen.findByText('Confirm type selection for mismatched arguments');
     const dialog = title.closest<HTMLElement>('.reqore-modal, [role="dialog"]')!;
@@ -2043,7 +2043,7 @@ export const DiscardAllIncompatibleFunctionArgs: Story = {
   },
 };
 
-/* A condition (qorus#646): the server reads one as true unless its value is zero or empty. What it gives
+/* A condition: the server reads one as true unless its value is zero or empty. What it gives
    is said under it as every condition editor says it: nothing for true or false, a warning for a number
    or a list, an error for text, a date or a time. */
 
@@ -2166,7 +2166,7 @@ export const ConditionThatGivesANumberOnAPhone: Story = {
 };
 
 
-// --- field paths written with accessors (qorus#646) ---------------------------------------------------------
+// --- field paths written with accessors ---------------------------------------------------------
 
 const WILDCARD_CATALOG = [...mockExpressions, ...WILDCARD_EXPRESSIONS] as IExpressionSchema[];
 
@@ -2185,7 +2185,7 @@ export const WildcardPathsAreDrawnAsPaths: Story = {
     docs: {
       description: {
         story:
-          'Renders size(@orders[*].id) + size(@prices{*}) as the server parses it: each wildcard is an accessor operation over record fields. Each is drawn as the path it is - the chip "record: orders[*].id", the chip "record: prices{*}" - as a record field operand is, not as a "list wildcard" or "hash wildcard" operation whose operands read "record: id" and "record: value" (David, qorus#646).',
+          'Renders size(@orders[*].id) + size(@prices{*}) as the server parses it: each wildcard is an accessor operation over record fields. Each is drawn as the path it is - the chip "record: orders[*].id", the chip "record: prices{*}" - as a record field operand is, not as a "list wildcard" or "hash wildcard" operation whose operands read "record: id" and "record: value".',
       },
     },
   },
@@ -2250,7 +2250,7 @@ export const WildcardItemIsNeverOffered: Story = {
     docs: {
       description: {
         story:
-          'Renders size(@orders) with a catalog in which "wildcard item" - the item of a [*] wildcard, which DPQL does not write - carries the server\'s flag for an operation never offered for picking. Neither the operation list nor the Wrap list offers it; "list wildcard ([*])" and "hash wildcard ({*})" are offered (qorus#646).',
+          'Renders size(@orders) with a catalog in which "wildcard item" - the item of a [*] wildcard, which DPQL does not write - carries the server\'s flag for an operation never offered for picking. Neither the operation list nor the Wrap list offers it; "list wildcard ([*])" and "hash wildcard ({*})" are offered.',
       },
     },
   },

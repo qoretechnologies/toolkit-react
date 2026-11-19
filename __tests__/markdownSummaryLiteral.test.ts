@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { formatOptionValue, summariseMarkdown } from '../src/components/form/engine/readFirst';
 
 /**
- * qorus#646: a compact row's one-line summary of a markdown value reads it with markdownToProse, so a value it
+ * A compact row's one-line summary of a markdown value reads it with markdownToProse, so a value it
  * quotes in a code span, or writes with escaped marks, is summarised as written.
  */
 describe("a markdown value's one-line summary", () => {

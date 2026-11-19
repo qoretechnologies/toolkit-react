@@ -146,7 +146,7 @@ export function useFetch<T>({
     }
 
     /* A FRESH cached answer is already the one rendered, and `query` would hand the
-       same entry back without a request - so it is not asked for (board f61). Asking
+       same entry back without a request - so it is not asked for. Asking
        went through the `FetchContext`, and with no reqraft provider above the hook
        (`useQorusTypes` in a host's unit tests) the default context throws. A stale
        entry is still revalidated, silently, so it never flashes a skeleton. */

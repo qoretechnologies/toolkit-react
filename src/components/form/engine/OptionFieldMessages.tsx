@@ -129,7 +129,7 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
 
   const label = `"${dependencySchema.display_name || name}"`;
   /* The value is named as the reader sees it in that field: an allowed value by its display name
-     ("Other"), not by the value it stands for (`__other__`, qorus#646). A value with no display name is
+     ("Other"), not by the value it stands for (`__other__`). A value with no display name is
      quoted as it is. */
   const allowed = (dependencySchema.allowed_values as IQorusAllowedValue[] | undefined)?.find(
     (entry) => String(allowedValueOf(entry)) === value
@@ -437,12 +437,12 @@ export const getOptionFieldMessages = ({
 
   /* The host's own words for what is wrong with this field (`invalid_reason`) are said in place of the
      field's own reason and its "A value is required": a host that has a sentence of its own, in the
-     user's language, showed it beside the field's generic one, two messages for one problem (qorus#646).
+     user's language, showed it beside the field's generic one, two messages for one problem.
      Required groups and dependencies still say what they say. */
   const hostReason = (optionSchema as { invalid_reason?: string } | undefined)?.invalid_reason;
   /* An empty list is not a value: the form counts it as not set (an optional one is not saved, a required one
      needs attention), so a required one is said to be required. Counted as a value, being truthy, it was
-     validated as one and passed, and nothing said why its row needed attention (qorus#646). */
+     validated as one and passed, and nothing said why its row needed attention. */
   const hasValue =
     (option.value || option.value === false || option.value === 0 || option.value === null) &&
     !(isArray(option.value) && option.value.length === 0);

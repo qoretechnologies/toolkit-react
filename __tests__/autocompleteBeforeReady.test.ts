@@ -127,8 +127,8 @@ describe('the template picker opened before the session is ready', () => {
 
 /**
  * The picker is drawn at a fixed point of the window, measured when it opens. When the window's width changed, the
- * button it was opened from moved with the layout and the picker did not (Foxhoundn on qlip #456: "Why is the popover
- * rendered so far to the right"). It follows what it was opened from.
+ * button it was opened from moved with the layout and the picker did not, and was drawn far off to the right. It
+ * follows what it was opened from.
  */
 describe('the template picker when the window is resized', () => {
   const boxAt = (left: number, bottom: number) => ({ left, bottom, top: bottom - 10, right: left + 10 });

@@ -270,7 +270,7 @@ export const MixedLinkability: Story = {
     docs: {
       description: {
         story:
-          'Renders four chips of which two can be opened: the refused ones keep their place and look but carry an unlink glyph and no click, with the reason in their tooltip (qorus#693).',
+          'Renders four chips of which two can be opened: the refused ones keep their place and look but carry an unlink glyph and no click, with the reason in their tooltip.',
       },
     },
   },

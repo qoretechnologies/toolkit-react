@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A host that has its own words for what is wrong with a field says them in the field, once.
 //
-// qorus#646 (David): the sheet-contract review says what is wrong with a value in its own words, in the
+// The sheet-contract review says what is wrong with a value in its own words, in the
 // user's language ("Enter a value or an expression", "A whole number can't have text around a field"), and
 // the field said its generic reason as well ("A value is required", "…around a template"): two
 // messages for one problem, one of them in English. A field's `invalid_reason` is now said in place of the

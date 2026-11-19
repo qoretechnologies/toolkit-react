@@ -668,7 +668,7 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     await waitFor(() => expect(editor.textContent?.replace(/\uFEFF/g, '').trim()).toBe(''));
     expect(editor.isConnected).toBe(true);
     expect(document.querySelector('.reqore-checkbox')).toBeNull();
-    // the emptied text offers its templates: the picker, at its top (Foxhoundn on qlip #425)
+    // the emptied text offers its templates: the picker, at its top
     await waitFor(() => expect(document.querySelector('.template-picker')).toBeInTheDocument());
     // the checkbox, from the menu: one click on it, the picker open or not
     await userEvent.click(canvasElement.querySelector<HTMLElement>('button.template-more')!);
@@ -1342,7 +1342,7 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
   },
 };
 
-// --- written as text (qorus#646) ----------------------------------------------
+// --- written as text -----------------------------------------------------------
 // A field that takes templates and custom values is ONE text field: a template chosen into it is a chip,
 // text is written around it, and what the field holds is read from the text.
 
@@ -1637,7 +1637,7 @@ export const ExpressionOpensOnText: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a yes/no field written as an expression, with no value tabs (a row rule\'s condition is one): it opens on its Text view, the first of Text · Visual, ready to be written in. It opened on Visual, on an empty "Select operation", unless the expression had just been typed as text (qorus#646, David).',
+          'Renders a yes/no field written as an expression, with no value tabs (a row rule\'s condition is one): it opens on its Text view, the first of Text · Visual, ready to be written in. It opened on Visual, on an empty "Select operation", unless the expression had just been typed as text.',
       },
     },
   },
@@ -1699,7 +1699,7 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
   async play({ canvasElement, parameters }) {
     await openTemplateContexts(canvasElement);
     /* Where the pick goes: the start of the empty text, inside its padding. The picker opens there, from the button as
-       from a click in the text, the first time as every time (David on #162: the picker opened at the far right end of
+       from a click in the text, the first time as every time (#162: the picker opened at the far right end of
        the empty text, by its button, and a click in the text then opened it at the start). */
     const textStart = () => {
       const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!;
@@ -1716,7 +1716,7 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
         );
       });
     await atTheTextStart();
-    /* The window's width changes with the picker open: it stays where it was opened (Foxhoundn on qlip #456). The
+    /* The window's width changes with the picker open: it stays where it was opened. The
        picture is taken at this size. */
     await atTheCaptureSize(parameters);
     await atTheTextStart();
@@ -1964,7 +1964,7 @@ export const WrittenAsTextNumberPicksATemplate: StoryObj<typeof meta> = {
 /**
  * A type the server's type catalogue lists and reqraft's built-in copy does not: an order reference, which takes
  * text. A field of it was offered no templates: the template list was filtered by the built-in copy, never by the
- * server's answer (qorus#646).
+ * server's answer.
  */
 const ORDER_REFERENCE_TYPE: IQorusTypeObject = {
   name: 'order-ref',
@@ -2387,7 +2387,7 @@ const TwoRecordFields = (args: React.ComponentProps<typeof TemplateField>) => {
 
 /**
  * A field that takes a record (a hash) is given a Qog state's data whole as well as opened; a text field, though
- * text takes any value, is not (qorus#646, David's review: "Any or hash yes, scalar no").
+ * text takes any value, is not: a field of any type or a hash yes, a scalar no.
  */
 export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
   args: { templates: QOG_FIELD_TEMPLATES as never, allowCustomValues: false, name: 'order' },
