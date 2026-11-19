@@ -24,12 +24,14 @@ import { onReqraftLabelsChange, reqraftLabels } from './reqraftLabels';
 import type { IValidationLabels } from './validationLabels';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
-const CRON_FIELDS: [string, string][] = [
+// each part of a schedule under each name a caller may give it; a Qorus job's `job-schedule` hash names the weekday
+// `dayofweek`
+const CRON_FIELDS: string[][] = [
   ['minutes', 'minute'],
   ['hours', 'hour'],
   ['days', 'day'],
   ['months', 'month'],
-  ['dow', 'weekday'],
+  ['dow', 'weekday', 'dayofweek'],
 ];
 
 /**
@@ -55,15 +57,15 @@ export const cronExpressionFromValue = (value: unknown): string | undefined => {
   }
 
   const hash = value as Record<string, unknown>;
-  const parts = CRON_FIELDS.map(([plural, singular]) => {
-    const field = hash[plural] ?? hash[singular];
+  const parts = CRON_FIELDS.map((names) => {
+    const field = names.map((name) => hash[name]).find((value) => value !== undefined && value !== null);
     return field === undefined || field === null || field === '' ? '*' : String(field);
   });
 
   // An object with none of the five keys is not a schedule — every part
   // defaulting to `*` would otherwise turn any object at all into "* * * * *"
   return parts.every((part) => part === '*') &&
-    !CRON_FIELDS.some(([plural, singular]) => plural in hash || singular in hash)
+    !CRON_FIELDS.some((names) => names.some((name) => name in hash))
     ? undefined
     : parts.join(' ');
 };
