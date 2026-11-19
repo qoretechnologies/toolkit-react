@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildTemplates,
   DEFAULT_REQRAFT_TEMPLATE_GROUPS,
+  getTemplateStateAlias,
   ITemplatesPayload,
   setReqraftTemplateGroups,
 } from '../src/helpers/templates';
@@ -144,6 +145,36 @@ describe("a list of templates grouped by the server's codes", () => {
       a: { display_name: 'Alpha', items: [{ display_name: 'One', value: '$x:1' }] },
     });
     expect(labels(groups(plain))).toEqual(['Alpha', 'Beta']);
+  });
+
+  it("gives a step's values their reference under the step's own id, its fields too", () => {
+    const built = buildTemplates(
+      {
+        '2': {
+          display_name: 'Reply',
+          items: [
+            {
+              display_name: 'Answer',
+              value: '$data:{2.answer}',
+              group: 'step',
+              items: [{ display_name: 'Text', value: '$data:{2.answer.text}' }],
+            },
+          ],
+        },
+      },
+      undefined,
+      { stateIdOf: (dataId) => (dataId === '2' ? 'dc_ai_reply' : undefined) }
+    );
+    const [step] = group('Earlier steps', built).items as TReqoreDropdownItem[];
+    const [answer] = step.items as TReqoreDropdownItem[];
+    expect((answer.metadata as { aliasValues?: string[] }).aliasValues).toEqual([
+      '$data:{dc_ai_reply.answer}',
+    ]);
+    expect(
+      ((answer.items as TReqoreDropdownItem[])[0].metadata as { aliasValues?: string[] }).aliasValues
+    ).toEqual(['$data:{dc_ai_reply.answer.text}']);
+    expect(getTemplateStateAlias('$data:{2}', '2', 'dc_ai_reply')).toBe('$data:{dc_ai_reply}');
+    expect(getTemplateStateAlias('$local:x', '2', 'dc_ai_reply')).toBeUndefined();
   });
 
   it("starts from the server's registry", () => {

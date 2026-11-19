@@ -11,6 +11,7 @@ export * from './helpers/templateListLabels';
 export {
   buildTemplates,
   DEFAULT_REQRAFT_TEMPLATE_GROUPS,
+  getTemplateStateAlias,
   reqraftTemplateGroups,
   setReqraftTemplateGroups,
 } from './helpers/templates';

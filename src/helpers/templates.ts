@@ -761,6 +761,27 @@ export const setReqraftTemplateGroups = (groups: Partial<IReqraftTemplateGroups>
 /** The order and the hidden groups now (`setReqraftTemplateGroups`). */
 export const reqraftTemplateGroups = (): IReqraftTemplateGroups => templateGroups;
 
+/**
+ * The spelling a reference to a step's data has under the step's own id, where the catalogue spells it with the
+ * step's key: a Qog built from a template keys its steps by number ('1', '2') over their own ids ('dc_ai_reply'),
+ * and its saved references use the id. A whole-step reference (`$data:{key}`) and a field of it (`$data:{key.…}`)
+ * have one; anything else, or a step whose id is its key, has none.
+ */
+export const getTemplateStateAlias = (
+  value: string | undefined,
+  stateKey: string,
+  stateId: string
+): string | undefined => {
+  if (!value || stateKey === stateId) {
+    return undefined;
+  }
+  if (value === `$data:{${stateKey}}`) {
+    return `$data:{${stateId}}`;
+  }
+  const prefix = `$data:{${stateKey}.`;
+  return value.startsWith(prefix) ? `$data:{${stateId}.${value.slice(prefix.length)}` : undefined;
+};
+
 /** What a host tells `buildTemplates` about its own data. */
 export interface IBuildTemplatesOptions {
   /**
@@ -768,6 +789,12 @@ export interface IBuildTemplatesOptions {
    * danger, as its data cannot be read until it is fixed. Unset, every step is valid.
    */
   isStepValid?: (dataId: string) => boolean;
+  /**
+   * The step's own id where it differs from its key in the payload (the payload's key): each value under the step,
+   * its fields included, then carries its reference under that id too (`metadata.aliasValues`,
+   * `getTemplateStateAlias`), so a saved reference that uses the id is found and named.
+   */
+  stateIdOf?: (dataId: string) => string | undefined;
 }
 
 interface ITemplateItemPayload {
@@ -839,7 +866,9 @@ export const buildTemplates = (
     isEventTrigger?: boolean,
     dataRole?: string,
     // by the label a reader sees (`byLabel`); a group the server orders keeps the server's order
-    sorted = true
+    sorted = true,
+    // the step's key and its own id, where they differ (`stateIdOf`)
+    stateIdentity?: [string, string]
   ): TReqoreDropdownItems => {
     const mapped = items.map(
       ({
@@ -883,6 +912,11 @@ export const buildTemplates = (
             app,
             action,
             dataRole: itemDataRole || dataRole,
+            ...(() => {
+              const alias =
+                stateIdentity && getTemplateStateAlias(value, stateIdentity[0], stateIdentity[1]);
+              return alias ? { aliasValues: [alias] } : {};
+            })(),
             // what it is, as Qorus says it: a list says it of the template, its example aside ("no description" is none)
             ...(itemShortDesc && itemShortDesc !== 'no description' ? { description: itemShortDesc } : {}),
             // the template's type, a typed member: the badge is a list's to name (`templateType`)
@@ -928,7 +962,9 @@ export const buildTemplates = (
             display_name,
             builtIn,
             isEventTrigger,
-            dataRole
+            dataRole,
+            true,
+            stateIdentity
           );
           item.stackWithActions = false;
           item.leftAction = {
@@ -965,8 +1001,14 @@ export const buildTemplates = (
       },
     } as Partial<TReqoreDropdownItem>;
   };
-  const entryItems = (entry: TEntry, items: ITemplateItemPayload[] | undefined, sorted: boolean) =>
-    mapTemplates(
+  const entryItems = (
+    entry: TEntry,
+    dataId: string,
+    items: ITemplateItemPayload[] | undefined,
+    sorted: boolean
+  ) => {
+    const stateId = options.stateIdOf?.(dataId);
+    return mapTemplates(
       items,
       entry.app,
       entry.action,
@@ -975,8 +1017,10 @@ export const buildTemplates = (
       entry.builtin,
       entry.is_event_trigger,
       entry.data_role,
-      sorted
+      sorted,
+      stateId && stateId !== dataId ? [dataId, stateId] : undefined
     );
+  };
 
   const grouped = Object.values(templates).some(({ items }) => items?.some(({ group }) => group));
   if (!grouped) {
@@ -988,7 +1032,7 @@ export const buildTemplates = (
             label: entry.display_name,
             description: entry.short_desc,
             ...entryLook(entry, dataId),
-            items: entryItems(entry, entry.items, true),
+            items: entryItems(entry, dataId, entry.items, true),
           })
         )
         .sort(byLabel),
@@ -1012,12 +1056,12 @@ export const buildTemplates = (
           label: entry.display_name,
           description: entry.short_desc,
           ...entryLook(entry, dataId),
-          items: entryItems(entry, items, false),
+          items: entryItems(entry, dataId, items, false),
         } as TReqoreDropdownItem);
         return;
       }
       const bucket = buckets.get(code) ?? { look: entryLook(entry, dataId), items: [] };
-      bucket.items.push(...entryItems(entry, items, false));
+      bucket.items.push(...entryItems(entry, dataId, items, false));
       buckets.set(code, bucket);
     });
   }
