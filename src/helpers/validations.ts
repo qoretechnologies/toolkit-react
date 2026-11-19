@@ -343,7 +343,7 @@ const NOT_TEXT_WITH_A_TEMPLATE = new Set([
 
 /**
  * What is said of a value of a type that is not text, written with text around a template: what makes it
- * text, and what to do about it (qlip build 20261008-083118: "How does the user fix this? Why has this
+ * text, and what to do about it ("How does the user fix this? Why has this
  * happened?"). `undefined` where the type is text, or the value is not text around a template.
  */
 const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
@@ -1755,7 +1755,7 @@ export const _validateField = (
            ("undefined") is invalid" and named a field that does not exist. */
         const argLabel = argLabels[index];
         /* Which operand, where its name alone does not say: every operand of a call taking any number of
-           them is "Value" (qlip build 20261008-083118: "which "value" is the message mentioning"). Said by
+           them is "Value" ("which "value" is the message mentioning"). Said by
            its position too, as the editor shows them, left to right - and so is a lone operand of a call that
            can take more, as the operands that join it will be. The words say the position
            their own way ("the 2nd"); it is given only where it is said. */

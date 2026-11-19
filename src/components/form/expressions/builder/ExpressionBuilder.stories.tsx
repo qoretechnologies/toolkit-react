@@ -419,7 +419,7 @@ export const Readonly: Story = {
   play: async (args) => {
     await WithComplexValue.play!(args);
     expect(document.querySelector('.expression-and')).toBeNull();
-    // what an empty operand lacks, said as a fact: a reader cannot add a value (Qlip build 482)
+    // what an empty operand lacks, said as a fact: a reader cannot add a value
     const said = await waitFor(() => {
       const words = Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-required')).map(
         (word) => word.textContent?.trim()
@@ -493,7 +493,7 @@ export const WithArgWithAllowedValues: Story = {
       await expect(getComputedStyle(name).textTransform).not.toBe('uppercase');
       await expect(name.textContent).not.toContain('[');
     }
-    // the catalog's Title Case names said in sentence case (Qlip build 482)
+    // the catalog's Title Case names said in sentence case
     await expect(
       Array.from(document.querySelectorAll<HTMLElement>('.expression-arg-name')).map(
         (name) => name.textContent

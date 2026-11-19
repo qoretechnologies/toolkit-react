@@ -1222,7 +1222,7 @@ export const DoneStraightAfterTypingKeepsTheEdit: Story = {
 export const CompactRowStaysInItsBoxWhileOpen: Story = {
   parameters: {
     /* Nothing to SEE in the end frame: what this story asserts happens while a field is open, and the play
-       closes it, so the capture is an ordinary filled row. Rejected on qlip build 20261008-083118 ("if it says
+       closes it, so the capture is an ordinary filled row. Rejected in a Qlip review ("if it says
        that during the play test, then remove the snapshot"); the story stays because the behaviour it pins is
        the point. */
     qlip: { skip: true },
@@ -1289,8 +1289,8 @@ export const CompactRowReadOnlyIsAWayIn: Story = {
   parameters: {
     /* Nothing to SEE here: what this story asserts is a role, a focus stop, a
        cursor and an accessible name — none of which a pixel capture records,
-       so the frame is an ordinary read-only row either way. Rejected on qlip
-       build #212 as "visually empty / not worth snapshotting"; the story stays
+       so the frame is an ordinary read-only row either way. Rejected in a
+       Qlip review as "visually empty / not worth snapshotting"; the story stays
        because the behaviour it pins is the point. */
     qlip: { skip: true },
     docs: {
@@ -1339,8 +1339,8 @@ export const CompactRowReadOnlyStaysInertWithoutAWayIn: Story = {
   parameters: {
     /* Nothing to SEE here: what this story asserts is a role, a focus stop, a
        cursor and an accessible name — none of which a pixel capture records,
-       so the frame is an ordinary read-only row either way. Rejected on qlip
-       build #212 as "visually empty / not worth snapshotting"; the story stays
+       so the frame is an ordinary read-only row either way. Rejected in a
+       Qlip review as "visually empty / not worth snapshotting"; the story stays
        because the behaviour it pins is the point. */
     qlip: { skip: true },
     docs: {
@@ -1506,7 +1506,7 @@ const textContrast = (element: HTMLElement): number => {
 
 /**
  * A row's destructive control (its bin, Clear value) reads as one in the theme it is drawn in: its icon red, at 3:1
- * on what is behind it. It was a pale pink icon on a pale pink square in a light theme (Qlip build 482).
+ * on what is behind it. It was a pale pink icon on a pale pink square in a light theme.
  */
 const expectDestructiveReads = async (row: HTMLElement) => {
   const icon = await waitFor(() => {
@@ -1659,7 +1659,7 @@ export const AChoiceDrawnByItsPictureSaysWhichIsChosenInALightTheme: Story = {
     });
     await expectChosenWithoutColor(row, 'Python');
     // the field's name and the readiness line read on the light panel: they took a light theme's missing text
-    // color as near-white, and all but vanished (Qlip build 480)
+    // color as near-white, and all but vanished
     const name = row.querySelector<HTMLElement>('.options-readfirst-card-label')!;
     const status = canvasElement.querySelector<HTMLElement>('.options-readfirst-status')!;
     await expect(textContrast(name)).toBeGreaterThanOrEqual(4.5);
@@ -2181,7 +2181,7 @@ export const CompactRowMarkdownPreview: Story = {
     // (b) The value column holds the VALUE and nothing else. With a renderer
     //     present the document is drawn in full below, so the stripped-prose copy
     //     that used to sit above it is gone — two renderings of one value, stacked,
-    //     was the confusion this removes (Qlip review, build #97).
+    //     was the confusion this removes (a Qlip review).
     const descRow = canvasElement.querySelector('[data-field="desc"]');
     expect(descRow?.querySelector('.options-readfirst-valuetext')).toBeNull();
 
@@ -6047,7 +6047,7 @@ export const CompactExpressions: Story = {
       { timeout: 10000 }
     );
     expect(document.querySelector(`${card} [data-testid="expression-preview"]`)).toBeNull();
-    // `$local:name` is the local context's, whose keys are written freely: it is not said to name nothing (qlip #418)
+    // `$local:name` is the local context's, whose keys are written freely: it is not said to name nothing
     expect(document.querySelector(card)?.textContent ?? '').not.toContain('No template here is called');
   },
 };
@@ -7231,7 +7231,7 @@ export const CompactRequiredGroups: Story = {
     await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(1);
 
     // A satisfied group under the pointer lights its members in the text color's wash, as a hovered row is lit:
-    // not amber, which says the group still needs something (Qlip build 480)
+    // not amber, which says the group still needs something
     await userEvent.hover(document.querySelector<HTMLElement>('.readfirst-row[data-field="byHost"]')!);
     const lit = await waitFor(() => {
       const rows = Array.from(
@@ -7418,7 +7418,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     // each member's asterisk on its name's line, and its (?) at the column's right edge
     expectLabelChromeInPlace(canvasElement);
 
-    /* The readiness line and the rows agree (Qlip build 482): a person has been to the group of options 1-4 (to
+    /* The readiness line and the rows agree: a person has been to the group of options 1-4 (to
        Option 2), so all four say what it needs in amber and are counted as needing attention; Option 5's other
        group nobody has been to is still to fill in, quietly. */
     const said = (field: string) =>
@@ -8060,7 +8060,7 @@ export const CompactFieldSortWithinGroups: Story = {
       expect(order()).toEqual(['email', 'slack', 'webhook', 'sms', 'apiKey', 'oauthToken'])
     );
     // Nobody has been to the unmet group yet: its members say nothing under their dashes - the group's own line
-    // says it once, quietly - where each said "A value is required here, or in …" in amber (Qlip build 480)
+    // says it once, quietly - where each said "A value is required here, or in …" in amber
     for (const field of ['email', 'slack', 'webhook', 'sms']) {
       await expect(
         document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-reason`)
@@ -9141,7 +9141,7 @@ export const CompactAddedListRowOpensItsRequiredField: Story = {
     // Exactly one open required field: the one belonging to the row just added.
     await waitFor(() => expect([...typeRows()].filter(isOpen)).toHaveLength(1));
 
-    /* The row and the counts agree, by one rule (Qlip build 489: the list sat in Set under "0/1 set · 1 need
+    /* The row and the counts agree, by one rule (the list sat in Set under "0/1 set · 1 need
        attention"). Its new item is empty, so the list needs attention: it moves to that box as the line counts it -
        the same row, not drawn anew, so the item just added stays open. */
     await waitFor(() => expect(boxOf()).toMatch(/^Needs attention\s*1/));
@@ -9241,7 +9241,7 @@ export const CompactRowMovesBoxWhileTyped: Story = {
     docs: {
       description: {
         story:
-          'Types "Order sync" into an open, empty, required Title. The first character makes it set: it moves to the Set box as the readiness line counts it, and it is the same field there - the same text box, the caret in it, every character kept (Qlip build 489: the boxes kept an open row where it was opened while the line counted it elsewhere).',
+          'Types "Order sync" into an open, empty, required Title. The first character makes it set: it moves to the Set box as the readiness line counts it, and it is the same field there - the same text box, the caret in it, every character kept (the boxes kept an open row where it was opened while the line counted it elsewhere).',
       },
     },
   },
@@ -11017,7 +11017,7 @@ export const CompactRowOpensItsPicker: Story = {
        the anchored list, and `forceDropdown` defaults to true — so asking for
        the choices used to open a dialog ON TOP of the list, both offering the
        same five items. Asserting the items alone did not catch it: they were
-       present twice. Reported on qlip build #212. */
+       present twice. Reported in a Qlip review. */
     await _testsWaitForTextToNotExist('Select from items');
   },
 };

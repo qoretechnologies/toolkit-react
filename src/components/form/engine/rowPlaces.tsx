@@ -10,7 +10,7 @@ import { ReactNode, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
  * box was a new row - React mounts what is drawn under a new parent anew - so the field being typed in lost its
  * editor, its caret and anything it held only in itself (a list item just added and opened). The boxes kept a row
  * being edited in the box it was opened in instead, and the counts said otherwise: a list given an empty item sat in
- * Set under "0/1 set · 1 need attention" (Qlip build 489).
+ * Set under "0/1 set · 1 need attention".
  *
  * Each row is rendered into a node of its own (`hostFor`), through a portal from one place in the form that never
  * changes, so it is the same row for as long as it is in the form. Its box draws only a place for it (`RowPlace`),

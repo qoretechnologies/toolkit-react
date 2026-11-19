@@ -199,7 +199,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
     if (arg?.is_expression) {
       return (
         // The provider wraps the whole argument, never a child of a control group: a group lays out its direct
-        // children one by one, and one more wrapper among them moved every operand's field and button (qlip #473).
+        // children one by one, and one more wrapper among them moved every operand's field and button.
         <RuntimeNoteBelowContext.Provider value={reportNoteBelow}>
           {/* the value comes first; a note on it (that it depends on the incoming data) is under it */}
           <ReqoreControlGroup

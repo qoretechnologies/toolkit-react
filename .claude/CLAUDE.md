@@ -350,7 +350,8 @@ yarn build:test         # Type-check without emit
 - Reqraft is open source: its sources, stories, tests, docs, these agent rules (`.claude/`), PR descriptions and
   commit messages are read by anyone. Qorus and its products (the Qorus IDE, Qonsole, Qogs, Qlip) may be named
   where they explain a component. What is truly internal may not: people and personas, private issues and PRs,
-  review, board, queue and decision ids, chats and internal hosts. Keep the reason (what a component does and
+  visual review build numbers (the dashboard is private), review, board, queue and decision ids, chats and
+  internal hosts. Keep the reason (what a component does and
   why), drop where it came from: a decision id becomes the rule it stood for, and a person's name and date go.
 - `__tests__/publicText.test.ts` fails on a denylist of those names (`scripts/publicTextGate.mjs`; run
   `node scripts/publicTextGate.mjs <files>` to see what a file still names). Made-up people in `src/mock/` are not

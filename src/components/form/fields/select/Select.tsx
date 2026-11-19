@@ -255,7 +255,7 @@ export const SelectFormField = memo(
        which makes the list the usual trigger. Opening the collection for every
        row that asked for its choices therefore put a dialog on top of a
        dropdown, both listing the same items, for a single click. Reported on
-       qlip build #212: "Should this really open both the dropdown and the
+       a Qlip review: "Should this really open both the dropdown and the
        modal dialog?" */
     const picksFromTheCollection = !asMenu && hasItemsWithDesc(items) && !forceDropdown;
 

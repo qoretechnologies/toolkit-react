@@ -609,7 +609,7 @@ export const InjectedOptionActionsInlineEditing: Story = {
     // The injected action must match the size of the row's own actions. The
     // fixture deliberately asks for `size: 'tiny'` — the row overrides it,
     // because a consumer-sized button rendered visibly smaller than the revert
-    // and More buttons beside it (qlip build #57 rejection).
+    // and More buttons beside it (a Qlip review rejection).
     const neighbour = document.querySelector(
       '.readfirst-row-editing .options-readfirst-more'
     ) as HTMLElement;

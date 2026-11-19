@@ -223,7 +223,7 @@ describe('the template picker when the window is resized', () => {
   });
 
   /* A click in the text opens the picker at the caret, with nothing it was opened from: it was left at the point of the
-     window it opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+     window it opened at while the window's width moved the text away. */
   it('opened at the caret, stays where it was opened in the text as the text moves', () => {
     const { hook } = setup(true);
     const text = document.createElement('div');

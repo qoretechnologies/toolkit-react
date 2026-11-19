@@ -225,7 +225,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
        a single-option form, or no toolbar at all) is a thin strip, and at
        \`big\` its padding stacked onto the panel content's own 8px into a 26px
        dead band between the completion meter and the first status box —
-       rejected on build #140 as "unnecessarily big". \`normal\` lands it at
+       rejected in a Qlip review as "unnecessarily big". \`normal\` lands it at
        the boxes' own 10px rhythm, and scoping the change here keeps every
        search-bearing form pixel-identical. */
     padding-bottom: ${({ $tightHeader }) =>

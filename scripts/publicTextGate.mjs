@@ -2,8 +2,8 @@
 /**
  * Reqraft is an open-source library for Qorus: what it says in its sources, stories, tests and docs is read by
  * anyone. Qorus and its products (the Qorus IDE, Qonsole, Qogs, Qlip) may be named where they explain a component;
- * what is truly internal may not: people and personas, private issues and PRs, review, board, queue and decision ids,
- * chats and internal hosts. A reason stays (what a component does and why); where it came from does not. The gate is
+ * what is truly internal may not: people and personas, private issues and PRs, visual review builds, review, board,
+ * queue and decision ids, chats and internal hosts. A reason stays (what a component does and why); where it came from does not. The gate is
  * `__tests__/publicText.test.ts`; `node scripts/publicTextGate.mjs <files>` lists what a file still names.
  */
 import { execSync } from 'node:child_process';
@@ -15,7 +15,9 @@ import { pathToFileURL } from 'node:url';
  * alike, so a quoted or code-marked one is read as a color.
  */
 export const DENIED = [
-  ['a private issue or PR', /\bqorus(?:-ide)?#\d+|qoretechnologies\/qorus(?:-ide)?(?![\w.-])/gi],
+  ['a private issue or PR', /\bqorus(?:-ide)? ?#\d+|qoretechnologies\/qorus(?:-ide)?(?![\w.-])/gi],
+  // a build on the private visual-review dashboard, which nobody outside can open: the reason stays, the number goes
+  ['a visual review build', /\bqlip(?: review of)?(?: build)? #?\d{2,}(?:-\d+)?\b|\bbuild #\d+\b/gi],
   ['a person or a persona', /\b(?:Filip|David|Nick|Dana|Foxhoundn)\b/g],
   ['a review, board or queue id', /\br-(?:qs|ed)-\d+\b|\bt-\d{2,3}\b|\bboard (?:[a-z]?\d+|t-\d+)\b|(?<![#'"`\w])f[1-9]\d\b(?![\w-])|\bqueue items?\b/gi],
   ['an internal decision id', /\bdecisions? \d{2,3}\b/gi],

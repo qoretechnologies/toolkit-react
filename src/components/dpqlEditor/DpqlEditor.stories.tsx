@@ -617,7 +617,7 @@ export const WithQuotedFieldReferences: Story = {
     await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain('!= "@name"');
     // drawn, not rewritten
     await expect(args.onChange).not.toHaveBeenCalled();
-    // read as the server reads it: no error under it (qlip #421: the stand-in server refused the escaped braces)
+    // read as the server reads it: no error under it (the stand-in server refused the escaped braces)
     await waitFor(() => expect(saidOfTheText(canvasElement)).toEqual([]));
   },
 };
@@ -1991,7 +1991,7 @@ export const WithSemanticTokens: Story = {
       { timeout: 30000 }
     );
     // the regular expression is one value: its `@example` is the pattern's, no chip, and nothing is refused
-    // (qlip #418: the chip record: example, and errors the server never gives)
+    // (the chip record: example, and errors the server never gives)
     expect(chipsOf(editable)).toEqual([
       'record: status',
       'record: age',

@@ -4643,7 +4643,7 @@ const FormEngineImpl = ({
     /* A row's box is what it holds now - the one rule the box headers, the readiness line, the meter and the
        host's numbers count by (`getOptionBucket`). A row being edited moves with it: it is the same row in its new
        box, its editor and caret kept (`rowPlaces`), where it was kept in the box it was opened in, and counted
-       elsewhere (Qlip build 489). Into a closed box it does not move until it is closed: an optional value cleared
+       elsewhere. Into a closed box it does not move until it is closed: an optional value cleared
        as it is edited stays under the caret, not in a collapsed Optional box. `settledBucket` is the box a row is
        shown in, which is what follows a field across the boxes (the flash below). */
     const stableBucketOf = (entry: TRowEntry): TFormEngineBoxKey => {
@@ -5464,8 +5464,8 @@ const FormEngineImpl = ({
                             {/* The control lives INSIDE the group body, as the last
                               row, so it inherits the rows' grid, padding and
                               hover and lines up with them. Outside it was a bare
-                              line of text in the box's corner, which is what the
-                              build #154 review rejected. */}
+                              line of text in the box's corner, which is what a
+                              Qlip review rejected. */}
                             {deferredCount ? renderMoreRow(box.key, deferredCount, moreOpen) : null}
                             {/* A search forces the fold open for the same reason
                               the boxes open: an unmounted row cannot be found. */}

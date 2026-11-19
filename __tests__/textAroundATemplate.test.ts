@@ -23,7 +23,7 @@ describe('text around a template', () => {
     expect(hasTextAroundATemplate(12)).toBe(false);
   });
 
-  /* qlip build 20261008-083118: the author is told how to fix it and why it happened - the
+  /* a Qlip review: the author is told how to fix it and why it happened - the
      message names the text that makes the value text, says it is not of the field's type because of it,
      and says what to do. */
   const cases: [string, string][] = [

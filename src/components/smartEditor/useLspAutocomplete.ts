@@ -1362,7 +1362,7 @@ export function useLspAutocomplete(
       editorRef.current = editor;
       /* It goes with what it was opened from; opened at the caret or the text, with the text it was opened in, as
          far from it as when it opened: a picker opened by a click in the text was left at the point of the window it
-         opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+         opened at while the window's width moved the text away. */
       let from: Element | null = anchor ?? null;
       if (!from) {
         try {

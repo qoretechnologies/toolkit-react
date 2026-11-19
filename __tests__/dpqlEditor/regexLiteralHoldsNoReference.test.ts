@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
  * A regular expression literal after `=~` or `!~` is one value: an `@` or a `$` in it is the pattern's, never a
- * reference drawn as a chip (qlip #418: DpqlEditor · With Semantic Tokens drew `@example` of
+ * reference drawn as a chip (DpqlEditor · With Semantic Tokens drew `@example` of
  * `/^[a-z]+@example\.com$/i` as the chip record: example).
  */
 import { describe, expect, it } from 'vitest';

@@ -33,7 +33,7 @@ describe('a compact form stacks its rows', () => {
     expect(isCompactNarrow(560, narrowestColumn)).toBe(false);
     expect(isCompactNarrow(440, narrowestColumn)).toBe(true);
     expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeGreaterThan(580);
-    // the widest column holds the help button at its real width, 26px (qlip #392), which moved the edge from 606
+    // the widest column holds the help button at its real width, 26px, which moved the edge from 606
     expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(630);
     expect(besideTheLabel(narrowestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeGreaterThan(480);
     expect(besideTheLabel(narrowestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(520);

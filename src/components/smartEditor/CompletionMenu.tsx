@@ -504,7 +504,7 @@ export const CompletionMenu = memo(
           minWidth={undefined}
           /* At the caret, below it, and only slid along as far as the window needs (reqore's preventOverflow).
              Allowed to flip, a caret near the window's right edge (at the end of a field's text in a drawer)
-             turned it to the caret's left and it grew out of the drawer, over the page (qorus-ide #301). */
+             turned it to the caret's left and it grew out of the drawer, over the page. */
           keepPlacement
           onToggleChange={(open: boolean) =>
             autocomplete.handleExternalClose(open, autocomplete.popoverKey)

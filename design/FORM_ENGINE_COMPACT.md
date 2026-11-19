@@ -271,7 +271,7 @@ These are rules: every surface that shows help, a hover or a choice follows them
   (?) is at the column's right edge, the same x in every row of the column (no staircase of
   question marks), on the name's first line. The required asterisk follows
   the name's last character, held to it by a word joiner, so it is on the name's last line and never on a line of
-  its own (qlip #392). The column is the widest name plus what trails it, summed from the parts: the asterisk, the
+  its own. The column is the widest name plus what trails it, summed from the parts: the asterisk, the
   help button at its real width (26px, 32px for a finger, `labelAffordanceWidth`) and the gaps, and never
   narrower than 152px (`LABEL_COLUMN_MIN`). Stories check it (`src/stories/labelLayout.ts`):
   `CompactOptionDependsOnOptionInRequiredGroup`, `CancelingAnEditThatMadeAnExpressionPutsBackTheValue`.
@@ -286,7 +286,7 @@ These are rules: every surface that shows help, a hover or a choice follows them
   line, and under it only where the row has no room for both. Story: `ExpressionTypedOnValueIsOfferedWithUndo`;
   test: `__tests__/heldFieldSaysNothingOfItsMove.test.tsx`.
 - **A hover is a card.** What an editor's hover or Details says is drawn on a popover's card, the surface a
-  chip's hover is drawn on, never as glass over the page (qlip #392). Stories: `DpqlEditor · HoverSaysWhatAFunctionIs`,
+  chip's hover is drawn on, never as glass over the page. Stories: `DpqlEditor · HoverSaysWhatAFunctionIs`,
   `HoverOverAChipSaysWhatItsPathIs`.
 
 ## Where the logic lives

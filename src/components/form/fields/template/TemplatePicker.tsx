@@ -199,7 +199,7 @@ const RowDescription = ({
             renderMarkdown({ value: node.description, compact: true })
           : markdownToProse(node.description)}
           {/* its type, at the end of what it says, as the other lists say it: a line of its own made every row a
-              line taller, and a picker showed a row fewer (Qlip build 511) */}
+              line taller, and a picker showed a row fewer */}
           {typeWords ?
             <span className='template-picker-row-type' style={ROW_TYPE_STYLE}>
               {` · ${typeWords}`}
@@ -618,7 +618,7 @@ export const TemplatePicker = memo(
       loadFailure && (level?.id === loadFailure.node.id || isReference) ? loadFailure : null;
     const optionId = (index: number) => `${id}-option-${index}`;
 
-    /* The list's height ends at a row's end, never through a row (qorus-ide #301: the last row was drawn cut
+    /* The list's height ends at a row's end, never through a row (the last row was drawn cut
        through its description). Measured after every draw, as a row's height follows what it says. */
     const [listHeight, setListHeight] = useState(TEMPLATE_PICKER_LIST_CAP);
     useLayoutEffect(() => {

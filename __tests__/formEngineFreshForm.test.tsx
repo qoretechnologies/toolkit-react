@@ -183,7 +183,7 @@ describe('a new form', () => {
      host do, and it is the same field there: its editor, its caret and what is typed are
      kept (`rowPlaces`). The box read "To fill in 1" while its last field already had a
      value and the host's submit read ready; later it kept the field in "To fill in" and
-     counted it in Set (Qlip build 489). */
+     counted it in Set. */
   it('moves a field to the box its value takes it to while it is typed in, the same field', async () => {
     const user = userEvent.setup();
     const onAttentionChange = vi.fn();

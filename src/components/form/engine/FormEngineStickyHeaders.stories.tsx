@@ -271,7 +271,7 @@ export const BoxHeaderClearsTheToolbar: Story = {
     /* And the toolbar is itself still pinned, not scrolled away. */
     expect(bar.top).toBeGreaterThanOrEqual(scroller().getBoundingClientRect().top - 1);
     /* What scrolls under it does not read through it: it paints an opaque surface. At 88% the rows showed through
-       crisply wherever the blur behind it did not apply (Qlip build 480). */
+       crisply wherever the blur behind it did not apply. */
     const [, , , alpha = 1] = (getComputedStyle(toolbar()).backgroundColor.match(/[\d.]+/g) || []).map(
       Number
     );

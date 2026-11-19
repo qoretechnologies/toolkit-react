@@ -110,7 +110,7 @@ describe('a calm row of an empty required field', () => {
 /*
  * A one-of group (`required_groups`) in a calm form says what it needs once, on its own line, until the person has
  * been to it; then each member says it where its value would be, as a required field does. Its members never say
- * "A value is required here, or in …" under a dash (Qlip build 480).
+ * "A value is required here, or in …" under a dash.
  */
 describe('a calm one-of group', () => {
   const GROUP = {

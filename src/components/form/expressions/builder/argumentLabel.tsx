@@ -28,7 +28,7 @@ export const useArgumentKnownWhenItRuns = (arg?: IExpression): boolean => {
 
 /**
  * Said under an argument's value when that value depends on the incoming data: plain words, on the value they are
- * about, rather than a type name in the argument's header (qlip review of #161: the users are supply chain managers).
+ * about, rather than a type name in the argument's header (its readers are supply chain managers).
  */
 export const ExpressionBuilderArgumentRuntimeNote = () => {
   const hintOpacity = useReadableOpacity(0.5);

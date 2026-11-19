@@ -135,7 +135,7 @@ const colorfulness = (color: string): number => {
 /**
  * In the calm look a row's kind chip (Context, State data, Field) carries no color of its own: its word says what the
  * row is, blue is for a filter that is on, and purple only for an AI or Qonsole action. Context Data's rows were
- * tagged "Context" in purple inside the neutral list (Qlip build 489).
+ * tagged "Context" in purple inside the neutral list.
  */
 export const KindChipsCarryNoColor: Story = {
   parameters: {

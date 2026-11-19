@@ -20,7 +20,7 @@ export interface IDestructiveButtonProps {
  * danger that reads on the surfaces it sits on, in a light theme and a dark one.
  *
  * Reqore draws a minimal intent's icon as a pale tint of the intent on a wash of it, which on a light theme is a
- * pale pink on a pale pink square, barely seen (Qlip build 482). The classic look keeps that drawing where it reads
+ * pale pink on a pale pink square, barely seen. The classic look keeps that drawing where it reads
  * (a dark theme) and moves the tint until it does where it does not. The calm look draws no wash - a destructive
  * control says so in red, not with a block of color - and the danger itself, made to read.
  */

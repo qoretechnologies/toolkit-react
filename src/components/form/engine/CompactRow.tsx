@@ -2808,7 +2808,7 @@ export const CompactRow = memo(
           {/* A markdown value with a host renderer draws in full in the inset
               below, so the row prints no value line at all: the stripped-prose
               copy that used to sit above the document was a second rendering of
-              the same text with the markers taken out (Qlip review, build #97).
+              the same text with the markers taken out (a Qlip review).
               Without a renderer there is no inset, and the prose IS the value —
               so the line stays, and `renderReadFirstValue` still produces it.
 

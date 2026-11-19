@@ -61,7 +61,7 @@ export const Empty: Story = {
     await expect(canvas.getByText('Migrations')).toBeInTheDocument();
     // The form rows fade in after the chrome — wait for the Schema tab's own
     // catalogue rows, or the capture shows empty shells where the form goes
-    // (rejected on build #123 for exactly that).
+    // (rejected in a Qlip review for exactly that).
     await expect(await canvas.findByText('Schema Name')).toBeInTheDocument();
     await expect(await canvas.findByText('Version')).toBeInTheDocument();
   },

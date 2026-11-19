@@ -854,7 +854,7 @@ const titleCase = (value: string): string =>
 /**
  * Raw group key for an option: the server's `group`, else "general" for
  * required/preselected (never buried — `group` is still rolling out
- * server-side, qorus #259) and "optional" for the rest.
+ * server-side) and "optional" for the rest.
  */
 export const getOptionGroup = (schema?: TQorusFormFieldSchema): string => {
   const group = (schema as { group?: string } | undefined)?.group;

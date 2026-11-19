@@ -2441,7 +2441,7 @@ export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
 
 /**
  * A field in a drawer at the window's right edge, written as text, as a Qog state's options are: its template picker
- * is opened by a click at the end of its text (qorus-ide #301).
+ * is opened by a click at the end of its text.
  */
 const InADrawerAtTheRight = (args: any) => {
   const [value, setValue] = useState(args.value);
