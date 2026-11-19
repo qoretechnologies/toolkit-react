@@ -43,6 +43,7 @@ import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 import { resolveInheritProps } from './inheritProps';
 import { calmNoteIntent, useIsCalmForm } from './formAppearance';
 import { getRevealClearance, isCaretLineInView, revealRow } from './revealRow';
+import { FieldMessageDetails } from './FieldMessageDetails';
 import {
   CARD_GAP,
   MONO_FONT_STACK,
@@ -1470,6 +1471,8 @@ export const CompactRow = memo(
       intent?: string;
       title?: string;
       content: string;
+      /** What the message keeps out of its sentence, behind a reveal (`IOptionFieldMessage.details`). */
+      details?: string;
       attention?: boolean;
       /** It says the field is required and empty (`IOptionFieldMessage.requirement`). */
       requirement?: boolean;
@@ -1483,6 +1486,7 @@ export const CompactRow = memo(
             intent: m.intent,
             title: m.title,
             content: m.content,
+            details: (m as { details?: string }).details,
             attention: (m as { attention?: boolean }).attention,
           })
         ) as TInfoMsg[])
@@ -1651,6 +1655,7 @@ export const CompactRow = memo(
         {markdownRenderer && typeof m.content === 'string' ?
           markdownRenderer({ value: m.content, compact: true })
         : plainTextNode(m.content)}
+        {m.details ? <FieldMessageDetails details={m.details} /> : null}
       </ReqoreMessage>
     );
     // in the intent's shade that reads on the row (the intents themselves did not: a danger reason was 2.7:1)

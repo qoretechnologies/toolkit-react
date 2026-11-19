@@ -15608,3 +15608,60 @@ export const AQuestionKeepsItsLineInACrampedForm: Story = {
     expect(roomy.actions.top).toBeLessThan(roomy.editor.top);
   },
 };
+
+/** A field whose message says what is wrong in words and keeps the code that goes with it behind a reveal. */
+const MessageWithDetailsSchema = {
+  address: {
+    type: 'string',
+    display_name: 'Database address',
+    required: true,
+    preselected: true,
+    messages: [
+      {
+        intent: 'danger',
+        title: 'The database did not answer',
+        content: 'Check the address and that the database is running, then try again.',
+        details: 'ECONNREFUSED 10.0.0.5:5432 (connect timed out after 3000 ms)',
+      },
+    ],
+  },
+} as unknown as IOptionsSchema;
+
+export const AMessageKeepsItsCodeBehindAReveal: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an open field whose message says in words that the database did not answer and what to do; its code is behind "Technical details". Opening it shows the code in the code font, and "Hide technical details" puts it back.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    options: MessageWithDetailsSchema,
+    value: { address: { type: 'string', value: 'db.example.com:5432' } },
+    initialExpandedOptions: ['address'],
+  },
+  play: async () => {
+    const toggle = await waitFor(
+      () => {
+        const found = document.querySelector<HTMLElement>('.options-message-details-toggle');
+        expect(found).toBeTruthy();
+        return found as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+    // the sentence is there, the code is not
+    await _testsWaitForText('Check the address and that the database is running, then try again.');
+    expect(document.querySelector('.options-message-details-text')).toBeNull();
+
+    await userEvent.click(toggle);
+    const code = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>('.options-message-details-text');
+      expect(found?.textContent).toContain('ECONNREFUSED 10.0.0.5:5432');
+      return found as HTMLElement;
+    });
+    expect(getComputedStyle(code).fontFamily.toLowerCase()).toMatch(/mono/);
+    expect(toggle.textContent).toContain('Hide technical details');
+  },
+};

@@ -97,6 +97,7 @@ import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { SelectFormField } from '../fields/select/Select';
+import { FieldMessageDetails } from './FieldMessageDetails';
 import type { TSelectFieldCollectionGroups } from '../fields/select/SelectCollection';
 import {
   ITemplateFieldProps,
@@ -220,7 +221,13 @@ export type TOperatorValue = TQorusFormOperatorValue;
  * either, the message is static and always shown, which is what every existing
  * consumer gets.
  */
-export type IOptionFieldMessage = IQorusFormFieldMessage;
+export type IOptionFieldMessage = IQorusFormFieldMessage & {
+  /**
+   * What the message keeps out of its sentence: a code, an error's raw text. Drawn behind a reveal under the message
+   * ("Technical details"), so the message says what is wrong and what to do in words, and the detail is a click away.
+   */
+  details?: string;
+};
 /** `T` without `K`, member by member — `Omit` on a union collapses the union. */
 type TDistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 /**
@@ -3889,9 +3896,10 @@ const FormEngineImpl = ({
               intent?: string;
               title?: string;
               content?: string;
+              details?: string;
             }[];
             if (!schemaMsgs.length) return null;
-            const items = schemaMsgs.map(({ intent, title, content }, index) => (
+            const items = schemaMsgs.map(({ intent, title, content, details }, index) => (
               <ReqoreMessage
                 intent={calmNoteIntent(intent, calm) as never}
                 title={title}
@@ -3904,6 +3912,7 @@ const FormEngineImpl = ({
                 margin={compact ? undefined : 'bottom'}
               >
                 {content}
+                {details ? <FieldMessageDetails details={details} /> : null}
               </ReqoreMessage>
             ));
             // Compact: stack them in a 4px-gap panel so a field's messages look

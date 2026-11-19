@@ -210,6 +210,9 @@ export interface IEditorLabels {
 /** The words of a form: its rows, toolbar, boxes, messages and what a value reads as in its row. */
 export interface IFormEngineLabels {
   opensInNewTab: (address: string) => string;
+  /** The reveal of a field message's `details` (a code, the raw text), and its way back. */
+  messageDetails: string;
+  hideMessageDetails: string;
   valueIsExpression: string;
   oneOf: string;
   coveredBy: (label: string) => string;
@@ -640,6 +643,8 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
   },
   formEngine: {
     opensInNewTab: (address) => `${address} (opens in a new tab)`,
+    messageDetails: 'Technical details',
+    hideMessageDetails: 'Hide technical details',
     valueIsExpression: 'This value is an expression',
     oneOf: 'One of',
     coveredBy: (label) => `Covered by “${label}”`,
