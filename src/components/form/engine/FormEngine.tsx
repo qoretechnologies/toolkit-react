@@ -224,9 +224,15 @@ export type TOperatorValue = TQorusFormOperatorValue;
 export type IOptionFieldMessage = IQorusFormFieldMessage & {
   /**
    * What the message keeps out of its sentence: a code, an error's raw text. Drawn behind a reveal under the message
-   * ("Technical details"), so the message says what is wrong and what to do in words, and the detail is a click away.
+   * ("Show the error details"), so the message says what is wrong and what to do in words, and the detail is a click
+   * away.
    */
   details?: string;
+  /**
+   * What `details` are, which names the reveal: "the event record" reads "Show the event record" and "Hide the event
+   * record". Unset, they are the error details.
+   */
+  detailsName?: string;
 };
 /** `T` without `K`, member by member — `Omit` on a union collapses the union. */
 type TDistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -3897,9 +3903,10 @@ const FormEngineImpl = ({
               title?: string;
               content?: string;
               details?: string;
+              detailsName?: string;
             }[];
             if (!schemaMsgs.length) return null;
-            const items = schemaMsgs.map(({ intent, title, content, details }, index) => (
+            const items = schemaMsgs.map(({ intent, title, content, details, detailsName }, index) => (
               <ReqoreMessage
                 intent={calmNoteIntent(intent, calm) as never}
                 title={title}
@@ -3912,7 +3919,7 @@ const FormEngineImpl = ({
                 margin={compact ? undefined : 'bottom'}
               >
                 {content}
-                {details ? <FieldMessageDetails details={details} /> : null}
+                {details ? <FieldMessageDetails details={details} name={detailsName} /> : null}
               </ReqoreMessage>
             ));
             // Compact: stack them in a 4px-gap panel so a field's messages look

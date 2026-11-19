@@ -6,17 +6,23 @@ import { withCodeFont } from '../fields/codeFont';
 export interface IFieldMessageDetailsProps {
   /** What the message keeps out of its sentence: a code, an error's raw text. */
   details: string;
+  /**
+   * What the detail is, which names the reveal: "the event record" reads "Show the event record" and "Hide the event
+   * record". Unset, it is the error details (`formEngine.errorDetails`).
+   */
+  name?: string;
 }
 
 /**
  * A field message's technical detail behind a reveal: the message says what is wrong and what to do in words, and the
- * code or the raw text that goes with it is a click away ("Technical details"), in the code font, never in the
- * sentence a reader has to read first.
+ * code or the raw text that goes with it is a click away, in the code font, never in the sentence a reader has to
+ * read first. The reveal says what it shows ("Show the error details"), never "Technical details".
  */
-export const FieldMessageDetails = memo(({ details }: IFieldMessageDetailsProps) => {
+export const FieldMessageDetails = memo(({ details, name }: IFieldMessageDetailsProps) => {
   const words = useReqraftLabels().formEngine;
   const [open, setOpen] = useState(false);
   const toggle = useCallback(() => setOpen((current) => !current), []);
+  const what = name || words.errorDetails;
 
   return (
     <ReqoreControlGroup vertical className='options-message-details'>
@@ -30,7 +36,7 @@ export const FieldMessageDetails = memo(({ details }: IFieldMessageDetailsProps)
         className='options-message-details-toggle'
         onClick={toggle}
       >
-        {open ? words.hideMessageDetails : words.messageDetails}
+        {open ? words.hideMessageDetails(what) : words.showMessageDetails(what)}
       </ReqoreButton>
       {open ?
         <ReqoreP

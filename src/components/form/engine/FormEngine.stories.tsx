@@ -15630,7 +15630,7 @@ export const AMessageKeepsItsCodeBehindAReveal: Story = {
     docs: {
       description: {
         story:
-          'Renders an open field whose message says in words that the database did not answer and what to do; its code is behind "Technical details". Opening it shows the code in the code font, and "Hide technical details" puts it back.',
+          'Renders an open field whose message says in words that the database did not answer and what to do; its code is behind "Show the error details". Opening it shows the code in the code font, and "Hide the error details" puts it back.',
       },
     },
   },
@@ -15652,6 +15652,7 @@ export const AMessageKeepsItsCodeBehindAReveal: Story = {
     // the sentence is there, the code is not
     await _testsWaitForText('Check the address and that the database is running, then try again.');
     expect(document.querySelector('.options-message-details-text')).toBeNull();
+    expect(toggle.textContent).toContain('Show the error details');
 
     await userEvent.click(toggle);
     const code = await waitFor(() => {
@@ -15660,6 +15661,6 @@ export const AMessageKeepsItsCodeBehindAReveal: Story = {
       return found as HTMLElement;
     });
     expect(getComputedStyle(code).fontFamily.toLowerCase()).toMatch(/mono/);
-    expect(toggle.textContent).toContain('Hide technical details');
+    expect(toggle.textContent).toContain('Hide the error details');
   },
 };

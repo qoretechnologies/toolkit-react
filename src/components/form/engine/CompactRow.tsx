@@ -1473,6 +1473,8 @@ export const CompactRow = memo(
       content: string;
       /** What the message keeps out of its sentence, behind a reveal (`IOptionFieldMessage.details`). */
       details?: string;
+      /** What those details are, which names the reveal (`IOptionFieldMessage.detailsName`). */
+      detailsName?: string;
       attention?: boolean;
       /** It says the field is required and empty (`IOptionFieldMessage.requirement`). */
       requirement?: boolean;
@@ -1487,6 +1489,7 @@ export const CompactRow = memo(
             title: m.title,
             content: m.content,
             details: (m as { details?: string }).details,
+            detailsName: (m as { detailsName?: string }).detailsName,
             attention: (m as { attention?: boolean }).attention,
           })
         ) as TInfoMsg[])
@@ -1654,7 +1657,7 @@ export const CompactRow = memo(
         {markdownRenderer && typeof m.content === 'string' ?
           markdownRenderer({ value: m.content, compact: true })
         : plainTextNode(m.content)}
-        {m.details ? <FieldMessageDetails details={m.details} /> : null}
+        {m.details ? <FieldMessageDetails details={m.details} name={m.detailsName} /> : null}
       </ReqoreMessage>
     );
     // in the intent's shade that reads on the row (the intents themselves did not: a danger reason was 2.7:1)

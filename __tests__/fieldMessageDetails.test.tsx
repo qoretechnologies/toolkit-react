@@ -8,7 +8,7 @@ import { emptyFetchContext } from './support/fetchContext';
 
 /**
  * A field message says what is wrong and what to do in words; a code or an error's raw text that goes with it is
- * its `details`, behind a reveal ("Technical details").
+ * its `details`, behind a reveal that says what it shows ("Show the error details", or what the message names them).
  */
 const CODE = 'ECONNREFUSED 10.0.0.5:5432';
 /** The reveal's button (a button draws its words twice, for its marquee). */
@@ -23,12 +23,24 @@ describe('a message detail', () => {
     );
 
     expect(screen.queryByText(CODE)).toBeNull();
-    expect(toggle().textContent).toContain('Technical details');
+    expect(toggle().textContent).toContain('Show the error details');
     fireEvent.click(toggle());
     expect(screen.getByText(CODE)).toBeTruthy();
-    expect(toggle().textContent).toContain('Hide technical details');
+    expect(toggle().textContent).toContain('Hide the error details');
     fireEvent.click(toggle());
     expect(screen.queryByText(CODE)).toBeNull();
+  });
+
+  it('is named after what it holds, where the message says', () => {
+    render(
+      <ReqoreUIProvider>
+        <FieldMessageDetails details='{"event": "job.failed"}' name='the event record' />
+      </ReqoreUIProvider>
+    );
+
+    expect(toggle().textContent).toContain('Show the event record');
+    fireEvent.click(toggle());
+    expect(toggle().textContent).toContain('Hide the event record');
   });
 
   it("is drawn under a field's message in a form", async () => {
@@ -50,6 +62,7 @@ describe('a message detail', () => {
                       intent: 'danger',
                       content: 'Check the address, then try again.',
                       details: CODE,
+                      detailsName: 'what the database reported',
                     },
                   ],
                 },
@@ -62,6 +75,7 @@ describe('a message detail', () => {
 
     await waitFor(() => expect(screen.getByText('Check the address, then try again.')).toBeTruthy());
     expect(screen.queryByText(CODE)).toBeNull();
+    expect(toggle().textContent).toContain('Show what the database reported');
     fireEvent.click(toggle());
     expect(screen.getByText(CODE)).toBeTruthy();
   });
