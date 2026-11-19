@@ -15607,6 +15607,68 @@ export const AQuestionKeepsItsLineInACrampedForm: Story = {
   },
 };
 
+export const AnOpenQuestionsListStaysOpenUnderAFingerInACrampedForm: Story = {
+  tags: ['touch'],
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders a question asked as a field name in a 278px form on a phone (touch), its field open and its picker focused, so its list is open. A tap on the picker\'s text box keeps the list open and the caret in the box: nothing of the cramped row lies over the box, and the tap does not close what it lands on.',
+      },
+    },
+  },
+  render: (args) => (
+    <div className='question-cramped-touch' style={{ width: 278 }}>
+      <FormEngine
+        {...args}
+        name='question-cramped-touch'
+        compact
+        compactFlush
+        compactToolbar={false}
+        expandMode='multi'
+        options={QuestionAsAFieldSchema}
+        value={{ answer: { type: 'string', value: 'option-2' } }}
+        initialExpandedOptions={['answer']}
+      />
+    </div>
+  ),
+  play: async () => {
+    const box = () => document.querySelector<HTMLElement>('.question-cramped-touch')!;
+    const listOpen = () =>
+      screen
+        .queryAllByText('Keep the review hold; drop the same-day release rule')
+        .some((element) => !element.closest('.question-cramped-touch'));
+    await withTouchScreen(async (touch) => {
+      const input = await waitFor(
+        () => {
+          expect(box().querySelector('.readfirst-cramped')).toBeTruthy();
+          const found = box().querySelector<HTMLInputElement>('.readfirst-row-editing input');
+          expect(found).toBeTruthy();
+          return found!;
+        },
+        { timeout: 10000 }
+      );
+      input.focus();
+      await waitFor(() => expect(listOpen()).toBe(true), { timeout: 10000 });
+      await sleep(250);
+
+      // nothing lies over the box where a finger lands on it
+      const at = input.getBoundingClientRect();
+      const top = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
+      expect(top === input || input.contains(top) || !!top?.closest('.readfirst-row-editing > :nth-child(2)'),
+        `the center of the text box is under ${top?.tagName}.${String(top?.className).slice(0, 80)}`
+      ).toBe(true);
+
+      await touch.tap(input);
+      await sleep(500);
+      expect(listOpen(), 'the list is still open after the tap').toBe(true);
+      expect(document.activeElement, 'the caret is still in the box').toBe(input);
+    });
+  },
+};
+
 /** A field whose message says what is wrong in words and keeps the code that goes with it behind a reveal. */
 const MessageWithDetailsSchema = {
   address: {
