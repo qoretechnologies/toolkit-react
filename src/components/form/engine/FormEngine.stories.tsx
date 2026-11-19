@@ -408,7 +408,7 @@ export const DescriptionIsShown: Story = {
     await Basic.play!({ canvasElement, ...rest });
     await _testsWaitForText('Option with description');
     await fireEvent.click(canvas.queryAllByText('Option with description')[0]);
-    await _testsWaitForText('Help For "Option with description"');
+    await _testsWaitForText('Help for "Option with description"');
   },
 };
 

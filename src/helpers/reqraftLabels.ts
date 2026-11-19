@@ -668,7 +668,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     noDescription: 'No description was given for this option.',
     helpOn: (label) => `Help: ${label}`,
     help: 'Help',
-    helpFor: (name) => `Help For "${name}"`,
+    helpFor: (name) => `Help for "${name}"`,
     moreActions: 'More actions',
     actionNumber: (index) => `Action ${index}`,
     viewFullscreen: 'View fullscreen',
