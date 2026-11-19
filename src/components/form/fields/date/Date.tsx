@@ -6,6 +6,12 @@ export interface IDateFormFieldProps extends Omit<IDatePickerProps<TDateValue>, 
   onChange?: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /**
+   * A plain date: a day with no time and no zone, held as `YYYY-MM-DD` (Reqore's `plainDate`, 0.79+). The value
+   * reaches the picker as the day it is: made a full date-time it would be UTC midnight, the day before for anyone
+   * west of UTC. On an older Reqore the picker ignores it.
+   */
+  plainDate?: boolean;
 }
 
 const toFullIso = (value?: string | Date): string | Date | null => {
@@ -32,7 +38,14 @@ const pageLocale = (): string | undefined => {
   return typeof navigator !== 'undefined' ? navigator.language : undefined;
 };
 
-export const DateFormField = ({ value, onChange, disabled, locale, ...rest }: IDateFormFieldProps) => {
+export const DateFormField = ({
+  value,
+  onChange,
+  disabled,
+  locale,
+  plainDate,
+  ...rest
+}: IDateFormFieldProps) => {
   const theme = useReqoreTheme();
 
   const handleChange = (date: TDateValue): void => {
@@ -44,7 +57,10 @@ export const DateFormField = ({ value, onChange, disabled, locale, ...rest }: ID
       {...rest}
       locale={locale ?? pageLocale()}
       style={{ width: '100%' }}
-      value={toFullIso(value) as TDateValue}
+      // a plain date is the day it is (see `plainDate`), never UTC midnight
+      value={(plainDate ? (value ?? null) : toFullIso(value)) as TDateValue}
+      // spread: the prop is Reqore 0.79's, and the Reqore this builds on may not declare it
+      {...(plainDate ? { plainDate } : {})}
       onChange={handleChange}
       customTheme={theme}
       isDisabled={disabled}
