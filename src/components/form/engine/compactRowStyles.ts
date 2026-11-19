@@ -34,6 +34,14 @@ export const COMPACT_STACKED_VALUE_INDENT = 12;
  */
 export const isCompactNarrow = (width: number, labelColumn: number): boolean =>
   width - (labelColumn + COMPACT_ROW_GAP + 2 * COMPACT_ROW_PAD_X) < COMPACT_MIN_VALUE_WIDTH;
+/**
+ * Below this width a stacked form is cramped: an open row's label and its actions (Done, Clear, its menu: about
+ * 110px) no longer share a line, or a long label beside them is left a word's width (a 190px form gave a question 42px,
+ * a word a line). Its label then takes the whole first line, and its actions a line of their own after the editor.
+ */
+export const COMPACT_CRAMPED_WIDTH = 300;
+/** Whether a form `width` wide is cramped (`COMPACT_CRAMPED_WIDTH`). */
+export const isCompactCramped = (width: number): boolean => width < COMPACT_CRAMPED_WIDTH;
 // Left offset for the group sub-labels / cluster header, kept equal to the row's
 // own horizontal padding so the labels line up flush with the field labels below
 // them (no extra gutter — the spine/rail that used a fluid indent are gone).
@@ -1105,6 +1113,16 @@ export const StyledGroupBody = styled.div<{
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+  /* A cramped form (isCompactCramped): an open row's label takes the whole first line, and its actions a line of their
+     own after the editor, at its end, so a long label is not left a word's width beside them. */
+  &.readfirst-narrow.readfirst-cramped .readfirst-row-editing > :nth-child(1) {
+    grid-column: 1 / -1;
+  }
+  &.readfirst-narrow.readfirst-cramped .readfirst-row-editing > :nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
   }
   /* Read (non-editing) rows: float the trailing actions (status dot + the
      hover-revealed delete/revert) out of the grid flow so a delete button can't

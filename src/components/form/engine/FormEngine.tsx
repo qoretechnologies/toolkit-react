@@ -111,6 +111,7 @@ import {
   COMPACT_ROW_PAD_X,
   COMPACT_LABEL_COL,
   GROUP_INDENT,
+  isCompactCramped,
   isCompactNarrow,
   LABEL_COL_MAX,
   LABEL_COLUMN_MIN,
@@ -1882,6 +1883,10 @@ const FormEngineImpl = ({
   const compactLaidOutWidth = compactWrapWidth || mountedWrapWidth;
   const compactNarrow =
     !!compactLaidOutWidth && isCompactNarrow(compactLaidOutWidth, compactLabelColumn);
+  // a stacked form too narrow for an open row's label beside its actions (`isCompactCramped`)
+  const compactNarrowClass = compactNarrow ?
+      `readfirst-narrow${isCompactCramped(compactLaidOutWidth) ? ' readfirst-cramped' : ''}`
+    : '';
 
   /* How much pinned chrome sits above a status-box header.
   
@@ -5042,7 +5047,7 @@ const FormEngineImpl = ({
       return (
         <StyledGroupBody
           {...groupBodyProps}
-          className={`readfirst-nested-list${compactNarrow ? ' readfirst-narrow' : ''}`}
+          className={`readfirst-nested-list ${compactNarrowClass}`.trim()}
         >
           {listedGroups.map((key) => renderNestedGroup(key, listedByGroup[key], 'listed'))}
           {folds && addableCount ? renderMoreRow('optional', addableCount, addableOpen) : null}
@@ -5192,7 +5197,7 @@ const FormEngineImpl = ({
                       >
                         <StyledGroupBody
                           {...groupBodyProps}
-                          className={`readfirst-read-list${compactNarrow ? ' readfirst-narrow' : ''}`}
+                          className={`readfirst-read-list ${compactNarrowClass}`.trim()}
                         >
                           {bucketGroups.set.map((groupName) => renderBoxGroup('set', groupName))}
                         </StyledGroupBody>
@@ -5442,7 +5447,7 @@ const FormEngineImpl = ({
                           <StyledGroupBody
                             {...groupBodyProps}
                             $boxCorners
-                            className={compactNarrow ? 'readfirst-narrow' : undefined}
+                            className={compactNarrowClass || undefined}
                           >
                             {shownGroups.map((groupName) =>
                               renderBoxGroup(box.key, groupName, shownRowSet)

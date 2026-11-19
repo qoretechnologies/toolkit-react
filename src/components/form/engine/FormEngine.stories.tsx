@@ -1,5 +1,6 @@
 import {
   ReqoreButton,
+  ReqoreControlGroup,
   ReqoreFonts,
   ReqoreInput,
   ReqoreUIProvider,
@@ -15527,5 +15528,83 @@ export const AFieldThatIsAlwaysOpen: Story = {
       ).toBe('Checks the order flow and its holds');
       expect(closingControls('note')).toEqual([]);
     });
+  },
+};
+
+/** A question asked as a field's name, as a chat asks it, with two answers to choose from or one of your own. */
+const QuestionAsAFieldSchema = {
+  answer: {
+    type: 'string',
+    display_name:
+      "These requirements cannot all be satisfied at the same time. Which should the design follow? A payment over its payer's limit cannot be both held for review and released the day it arrives.",
+    required: true,
+    preselected: true,
+    allowed_values_creatable: true,
+    allowed_values: [
+      {
+        display_name: 'Keep the review hold; drop the same-day release rule',
+        value: { type: 'string', value: 'option-1' },
+      },
+      {
+        display_name: 'Release within the limit the same day; hold the rest',
+        value: { type: 'string', value: 'option-2' },
+      },
+    ],
+  },
+} as unknown as IOptionsSchema;
+
+/** The open row of the form in the box `width` wide: its label, its editor and its actions. */
+const openRowParts = (width: number) => {
+  const row = document.querySelector<HTMLElement>(`.question-form-${width} .readfirst-row-editing`)!;
+  const [label, editor, actions] = [...row.children].map((child) => child.getBoundingClientRect());
+
+  return { row: row.getBoundingClientRect(), label, editor, actions };
+};
+
+export const AQuestionKeepsItsLineInACrampedForm: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a question asked as a field name, its long answer chosen and the field open, in a 190px form and a 330px one. At 190px the question takes the whole first line and the field\'s Done and Clear go to a line of their own after the editor; at 330px they stay beside the question.',
+      },
+    },
+  },
+  render: (args) => (
+    <ReqoreControlGroup vertical>
+      {[190, 330].map((width) => (
+        <div key={width} className={`question-form-${width}`} style={{ width }}>
+          <FormEngine
+            {...args}
+            name={`question-${width}`}
+            compact
+            options={QuestionAsAFieldSchema}
+            value={{ answer: { type: 'string', value: 'option-1' } }}
+            initialExpandedOptions={['answer']}
+          />
+        </div>
+      ))}
+    </ReqoreControlGroup>
+  ),
+  play: async () => {
+    await waitFor(
+      () => {
+        expect(document.querySelector('.question-form-190 .readfirst-cramped')).toBeTruthy();
+        expect(document.querySelector('.question-form-190 .readfirst-row-editing')).toBeTruthy();
+        expect(document.querySelector('.question-form-330 .readfirst-row-editing')).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+
+    const cramped = openRowParts(190);
+    // the question has the row's width, not a word's: its actions are on a line after the editor
+    expect(cramped.label.width).toBeGreaterThan(cramped.row.width * 0.75);
+    expect(cramped.actions.top).toBeGreaterThanOrEqual(cramped.editor.bottom - 1);
+    expect(cramped.actions.right).toBeLessThanOrEqual(cramped.row.right + 1);
+
+    // a form with room keeps them beside the question
+    expect(document.querySelector('.question-form-330 .readfirst-cramped')).toBeNull();
+    const roomy = openRowParts(330);
+    expect(roomy.actions.top).toBeLessThan(roomy.editor.top);
   },
 };
