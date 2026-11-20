@@ -1911,6 +1911,42 @@ export const ALongCodeValueSaysItsSizeInWords: Story = {
   },
 };
 
+export const AHashsKeysAreQuietLabels: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A hash value with no description of its fields, previewed in its row in the calm look: its keys ("Selected option", "attempts") are quiet gray labels, not blue chips, since blue is a filter that is on and a key is a name. With Reqore 0.79 (`plain`) the values are their text, unboxed, too.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      retryPolicy: {
+        type: 'hash',
+        value: { 'Selected option': 'Retry', attempts: 3 },
+      },
+    },
+    options: {
+      retryPolicy: { type: 'hash', display_name: 'Retry policy' },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const key = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>('.reqore-data-view-key');
+      expect(element, "the hash's keys are drawn").toBeTruthy();
+      return element!;
+    });
+    const [r, g, b] = (getComputedStyle(key).borderTopColor.match(/[\d.]+/g) ?? [])
+      .slice(0, 3)
+      .map(Number);
+    // a gray: no channel leads, as the blue of a filter's does
+    expect(Math.max(r, g, b) - Math.min(r, g, b), 'a key is a quiet gray label, not blue').toBeLessThan(30);
+  },
+};
+
 /** A test case form: the subject is optional, folded away under Optional, and an example asks for it. */
 const SUBJECT_OPTIONS = {
   name: { type: 'string', display_name: 'Name', required: true },

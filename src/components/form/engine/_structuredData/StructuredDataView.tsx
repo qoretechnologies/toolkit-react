@@ -7,6 +7,7 @@
 import { reqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ReqoreDataView, type IReqoreDataViewEnvelope } from '@qoretechnologies/reqore';
 import { memo } from 'react';
+import { useIsCalmForm } from '../formAppearance';
 import {
   formatIdeTimestamp,
   parseSerializedStructuredText,
@@ -42,6 +43,17 @@ const QORUS_ENVELOPE: IReqoreDataViewEnvelope = {
  *  Qorus parser doesn't recognise falls through to reqore's default. */
 const parseQorusDate = (value: string): string | undefined => qorusDateStringToIso(value);
 
+/**
+ * The calm look's data: a fact sheet, a key a quiet gray label and a value its text, not a wall of outlined chips.
+ * Keys are not blue (blue is a filter that is on) and values are not colored by their type. `keyIntent: null` holds
+ * on every Reqore; `plain` and `colorValuesByType` are Reqore 0.79's, and an older Reqore leaves them unread.
+ */
+const CALM_DATA_VIEW_PROPS = {
+  keyIntent: null,
+  plain: true,
+  colorValuesByType: false,
+} as Record<string, unknown>;
+
 export const StructuredDataView = memo(
   ({
     value,
@@ -51,26 +63,30 @@ export const StructuredDataView = memo(
     showTypes,
     defaultExpandDepth,
     onItemClick,
-  }: IStructuredDataViewProps) => (
-    <ReqoreDataView
-      data={value}
-      emptyText={emptyText ?? reqraftLabels().formEngine.noStructuredData}
-      collapsibleRoot={collapsibleRoot}
-      envelope={QORUS_ENVELOPE}
-      parseEmbedded={parseSerializedStructuredText}
-      parseDate={parseQorusDate}
-      formatDate={formatIdeTimestamp}
-      showTypes={showTypes}
-      defaultExpandDepth={defaultExpandDepth}
-      onItemClick={onItemClick}
-      transparent
-      minimal
-      flat
-      size='small'
-      rounded
-      fluid={!fitContent}
-    />
-  )
+  }: IStructuredDataViewProps) => {
+    const calm = useIsCalmForm();
+    return (
+      <ReqoreDataView
+        data={value}
+        emptyText={emptyText ?? reqraftLabels().formEngine.noStructuredData}
+        collapsibleRoot={collapsibleRoot}
+        envelope={QORUS_ENVELOPE}
+        parseEmbedded={parseSerializedStructuredText}
+        parseDate={parseQorusDate}
+        formatDate={formatIdeTimestamp}
+        showTypes={showTypes}
+        defaultExpandDepth={defaultExpandDepth}
+        onItemClick={onItemClick}
+        transparent
+        minimal
+        flat
+        size='small'
+        rounded
+        fluid={!fitContent}
+        {...(calm ? CALM_DATA_VIEW_PROPS : {})}
+      />
+    );
+  }
 );
 
 StructuredDataView.displayName = 'StructuredDataView';
