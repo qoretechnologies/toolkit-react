@@ -1,11 +1,55 @@
 import { CancelledError, QueryClient, isCancelledError } from '@tanstack/react-query';
 import { ReqraftQueryClient } from '../providers/ReqraftProvider';
 
+/**
+ * What the server said with a 401, for `unauthorizedRedirect` to decide where to go.
+ *
+ * Not every 401 is an expired sign-in. Qorus names why in the body's `err`: an
+ * interactive support session that has ended answers `SUPPORT-SESSION-ENDED`
+ * (qorus#770), and the first request after a reload can be the one that says so,
+ * before the app knows from anything else that it ran in such a session.
+ */
+export interface IReqraftUnauthorizedInfo {
+  /** the response's JSON body (`{ err, desc }` from Qorus); absent when it was not JSON */
+  errorBody?: Record<string, any>;
+}
+
+/** A request reqraft is about to send, as `requestGuard` sees it. */
+export interface IReqraftRequest {
+  /** the HTTP method */
+  method: string;
+  /** the path below `api/latest/`, without a leading slash; the whole url when `noApiPrefix` */
+  url: string;
+  /** the caller owns the whole url: another service, not this instance's API */
+  noApiPrefix: boolean;
+  /** the instance the request goes to */
+  instance: string;
+}
+
+/** The answer a `requestGuard` gives in place of the server's; the request is not sent. */
+export interface IReqraftRequestRefusal {
+  /** an HTTP error status, as the server would answer (403, …) */
+  status: number;
+  /** the JSON body, as the server would send it (`{ err, desc, … }` from Qorus) */
+  body: Record<string, any>;
+}
+
 export interface IReqraftFetchConfig {
   instance: string;
   instanceToken?: string;
   instanceRbacDisabled?: boolean;
-  unauthorizedRedirect?: (location: Window['location']) => string;
+  unauthorizedRedirect?: (
+    location: Window['location'],
+    unauthorized?: IReqraftUnauthorizedInfo
+  ) => string;
+  /**
+   * Asked before every request reqraft sends (`query`, `queryRaw`, `useFetch`). A refusal
+   * answers the request locally, as the server would, and nothing is sent: for a request
+   * the app knows the server refuses — an interactive support session asks for nothing its
+   * read surface refuses (qorus#770) — so the server is not asked only to say no, and the
+   * caller meets the same answer either way.
+   */
+  requestGuard?: (request: IReqraftRequest) => IReqraftRequestRefusal | undefined;
 }
 
 export interface IReqraftFetchResponse<T> {
@@ -48,6 +92,7 @@ export const setupFetch = ({
   instanceToken,
   instanceRbacDisabled,
   unauthorizedRedirect,
+  requestGuard,
 }: IReqraftFetchConfig) => {
   fetchConfig.instance = instance;
   fetchConfig.instanceToken = instanceToken;
@@ -55,6 +100,9 @@ export const setupFetch = ({
 
   if (unauthorizedRedirect) {
     fetchConfig.unauthorizedRedirect = unauthorizedRedirect;
+  }
+  if (requestGuard) {
+    fetchConfig.requestGuard = requestGuard;
   }
 };
 
@@ -140,6 +188,21 @@ async function doFetchData(
   token?: string,
   signal?: AbortSignal
 ): Promise<Response> {
+  // A request the app's guard refuses is answered here, as the server would answer it,
+  // and never sent: every request reqraft makes passes this point.
+  const refusal = fetchConfig.requestGuard?.({
+    method,
+    url: reqraftApiPath(url, noApiPrefix),
+    noApiPrefix,
+    instance,
+  });
+  if (refusal) {
+    return new Response(JSON.stringify(refusal.body), {
+      status: refusal.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   // We do not check for token because Qorus now handles auth automatically via cookies
   // token is only supplied in a dev environment
   const finalHeaders: Record<string, string> = {
@@ -237,6 +300,17 @@ const readBody = async (response: Response): Promise<{ data: any; rawText?: stri
     return { data: JSON.parse(rawText) };
   } catch (_error) {
     return { data: {}, rawText };
+  }
+};
+
+/**
+ * Leaves the page for `fetchConfig.unauthorizedRedirect`, telling it what the 401
+ * said. `replace`, not an assignment: the page being left is dead, and a history
+ * entry for it means Back lands on a view that can only 401 again.
+ */
+const redirectUnauthorized = (errorBody: Record<string, any> | undefined): void => {
+  if (fetchConfig.unauthorizedRedirect) {
+    window.location.replace(fetchConfig.unauthorizedRedirect(window.location, { errorBody }));
   }
 };
 
@@ -381,14 +455,11 @@ export async function query<T>({
         signal
       );
 
-      if (response.status === 401 && redirectOnUnauthorized && fetchConfig.unauthorizedRedirect) {
-        // `replace`, not an assignment: the page being left is dead, and a
-        // history entry for it means Back lands on a view that can only 401
-        // again.
-        window.location.replace(fetchConfig.unauthorizedRedirect(window.location));
-      }
-
       const { data, rawText } = await readBody(response);
+
+      if (response.status === 401 && redirectOnUnauthorized) {
+        redirectUnauthorized(rawText === undefined ? data : undefined);
+      }
 
       return {
         data,
@@ -485,8 +556,9 @@ export async function queryRaw({
       signal
     );
 
-    if (response.status === 401 && redirectOnUnauthorized && fetchConfig.unauthorizedRedirect) {
-      window.location.replace(fetchConfig.unauthorizedRedirect(window.location));
+    if (response.status === 401 && redirectOnUnauthorized) {
+      const { data, rawText } = await readBody(response);
+      redirectUnauthorized(rawText === undefined ? data : undefined);
     }
 
     if (!response.ok) {
