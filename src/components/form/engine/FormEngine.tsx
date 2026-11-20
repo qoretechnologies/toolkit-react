@@ -1807,7 +1807,7 @@ const FormEngineImpl = ({
   // fault only then (or after a submit attempt, `revealRequired`): a form nobody has
   // touched is not already wrong.
   const [visitedOptions, setVisitedOptions] = useState<string[]>([]);
-  /* The fields the person chose to change from their default ("Uses Qore · Change"): ordinary rows from then on
+  /* The fields the person chose to change from their default ("Uses Qore for Language · Change"): ordinary rows from then on
      (`DefaultsNote`). */
   const [changedDefaults, setChangedDefaults] = useState<string[]>([]);
   const lastExpandedOptions = useRef<string[]>([]);
@@ -4702,7 +4702,7 @@ const FormEngineImpl = ({
       return fresh === 'optional' ? undefined : 'set';
     };
     /* A field the person never touched whose value is its default is not something they set: it is said under the
-       form ("Uses Qore · Change", `DefaultsNote`), not listed as "Set". Not a field
+       form ("Uses Qore for Language · Change", `DefaultsNote`), not listed as "Set". Not a field
        they have been to, opened, or chose to change; not one nobody can change, one whose value is an expression,
        or a structured value (a hash or a list, which its row summarises). */
     const defaultEntries: TRowEntry[] = [];

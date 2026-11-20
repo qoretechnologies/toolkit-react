@@ -11,15 +11,18 @@ export interface IDefaultField {
   label: string;
   /** Its value, as its row would say it ("Qore"). */
   value: string;
-  /** Whether the field is a choice, whose value names itself ("Uses Qore"). */
+  /** Whether the field is a choice: its value is the choice's own name ("Qore"), and the field is still named. */
   choice: boolean;
   /** What the schema says of its default (`default_value_desc`): "Falls back to 30 seconds when unset." */
   description?: string;
 }
 
-/** What is said of a field that holds its default: "Uses Qore", or "Uses 30 for Timeout — Falls back to …". */
-export const defaultNoteText = ({ label, value, choice, description }: IDefaultField): string => {
-  const uses = reqraftLabels().formEngine.usesDefault(value, choice ? undefined : label);
+/**
+ * What is said of a field that holds its default: "Uses Qore for Language", or "Uses 30 for Timeout — Falls back to
+ * …". The field is always named, a choice's too: "Uses Session (fresh each time)" never said which field it was about.
+ */
+export const defaultNoteText = ({ label, value, description }: IDefaultField): string => {
+  const uses = reqraftLabels().formEngine.usesDefault(value, label);
 
   return description ? `${uses} — ${description}` : uses;
 };
@@ -33,7 +36,7 @@ export interface IDefaultsNoteProps {
 }
 
 /**
- * The defaults a form uses, under its boxes: one quiet line each, "Uses Qore · Change", nothing when there are none.
+ * The defaults a form uses, under its boxes: one quiet line each, "Uses Qore for Language · Change", nothing when there are none.
  *
  * A field the person never touched whose value is its default is not something they set, so it is not listed as
  * "Set": on a new workflow the only thing "Set" was "Language: Qore", which a person who does not write code never

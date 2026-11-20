@@ -125,7 +125,7 @@ describe('a field that absorbs a sibling', () => {
   });
 
   it("changes an absorbed default in the row that holds it", async () => {
-    // The language holds its default, so it is said under the form ("Uses Qore · Change"); it has no row of its
+    // The language holds its default, so it is said under the form ("Uses Qore for Language · Change"); it has no row of its
     // own, so Change opens the code field's row, where its control is.
     const withDefault: IOptionsSchema = {
       ...OPTIONS,

@@ -41,7 +41,7 @@ const note = (name: string) =>
 test('a default nobody set is said under the form, not drawn as a row', async () => {
   renderForm({ timeout: { type: 'int', value: 30 } });
 
-  await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore'));
+  await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore for Language'));
   expect(note('timeout')?.textContent).toContain('Uses 30 for Timeout');
   expect(document.querySelector('.readfirst-row[data-field="lang"]')).toBeNull();
   // the defaults are said in the schema's order
@@ -71,6 +71,6 @@ test('"Change" opens the field as a row', async () => {
 test('a form that is only read says the default, with nothing to change it by', async () => {
   renderForm({ lang: { type: 'string', value: 'qore' } }, true);
 
-  await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore'));
+  await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore for Language'));
   expect(note('lang')!.querySelector('.form-default-change')).toBeNull();
 });

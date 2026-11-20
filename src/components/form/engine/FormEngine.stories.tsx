@@ -1916,7 +1916,7 @@ export const AnAbsorbedDefaultIsChangedInTheRowThatHoldsIt: Story = {
     docs: {
       description: {
         story:
-          'A code field that absorbs its Language, on a new form where the language holds its default: the line under the form says "Uses Qore" with a Change. Language has no row of its own (it is chosen in the Source Code row), so Change opens the Source Code row, where the language control is. It used to open nothing.',
+          'A code field that absorbs its Language, on a new form where the language holds its default: the line under the form says "Uses Qore for Language" with a Change. Language has no row of its own (it is chosen in the Source Code row), so Change opens the Source Code row, where the language control is. It used to open nothing.',
       },
     },
   },
@@ -1954,7 +1954,7 @@ export const AnAbsorbedDefaultIsChangedInTheRowThatHoldsIt: Story = {
       expect(element, 'the default line names the language').toBeTruthy();
       return element!;
     });
-    expect(note.textContent).toContain('Uses Qore');
+    expect(note.textContent).toContain('Uses Qore for Language');
 
     fireEvent.click(note.querySelector('.form-default-change') as HTMLElement);
 

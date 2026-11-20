@@ -3,7 +3,7 @@
  * A default nobody set reads as a default, not as "Set".
  *
  * On a new workflow the only thing "Set" was "Language: Qore", which a person who does not write code never chose.
- * A field the person has not touched whose value is its default is said under the form, "Uses Qore · Change"; it
+ * A field the person has not touched whose value is its default is said under the form, "Uses Qore for Language · Change"; it
  * is still the form's value, and counted as filled in.
  */
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
@@ -66,12 +66,12 @@ export const ADefaultNobodySetReadsAsADefault: Story = {
     docs: {
       description: {
         story:
-          'A new workflow: Name still to fill in, Language holding its default (Qore) and Timeout its default (30), neither touched. Nothing is listed as "Set": under the form it says "Uses Qore · Change" and "Uses 30 for Timeout · Change".',
+          'A new workflow: Name still to fill in, Language holding its default (Qore) and Timeout its default (30), neither touched. Nothing is listed as "Set": under the form it says "Uses Qore for Language · Change" and "Uses 30 for Timeout · Change": the line for a choice names its field too.',
       },
     },
   },
   play: async () => {
-    await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore'));
+    await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore for Language'));
     expect(note('timeout')?.textContent).toContain('Uses 30 for Timeout');
     // not a row, and no "Set" box for them
     expect(document.querySelector('.readfirst-row[data-field="lang"]')).toBeNull();
@@ -113,12 +113,12 @@ export const ADefaultIsSaidOnAFormThatIsOnlyRead: Story = {
     docs: {
       description: {
         story:
-          'The same form, only read: "Uses Qore", with nothing to change it by.',
+          'The same form, only read: "Uses Qore for Language", with nothing to change it by.',
       },
     },
   },
   play: async () => {
-    await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore'));
+    await waitFor(() => expect(note('lang')?.textContent).toContain('Uses Qore for Language'));
     expect(note('lang')!.querySelector('.form-default-change')).toBeNull();
   },
 };
