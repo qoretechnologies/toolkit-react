@@ -144,6 +144,34 @@ export const CustomerAwaitingLabel: Story = {
   },
 };
 
+/** A resolved ticket waits on the customer: it has an outcome to read. Staff see it done. */
+export const AResolvedTicketWaitsOnTheCustomer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same resolved ticket from both sides. To the customer it has an outcome to read, and to reopen if it is wrong, so it waits on them: its dot is amber, as a ticket awaiting their reply is. To support staff it is done: green, as before.',
+      },
+    },
+  },
+  render: () => (
+    <ReqoreControlGroup vertical>
+      <div className='customer-view'>
+        <TicketMetaTags viewerRole='customer' ticket={ticket('resolved', 'normal', 'bug')} />
+      </div>
+      <div className='staff-view'>
+        <TicketMetaTags viewerRole='staff' ticket={ticket('resolved', 'normal', 'bug')} />
+      </div>
+    </ReqoreControlGroup>
+  ),
+  async play({ canvasElement }) {
+    const status = (view: string) =>
+      canvasElement.querySelector<HTMLElement>(`.${view} .ticket-meta-status`)?.dataset.attention;
+    await expect(status('customer-view'), 'a resolved ticket waits on the customer').toBe('warn');
+    await expect(status('staff-view'), 'and is done for staff').toBe('good');
+  },
+};
+
 /** `hideCategory` drops the category — for dense list rows. */
 export const HideCategory: Story = {
   parameters: {

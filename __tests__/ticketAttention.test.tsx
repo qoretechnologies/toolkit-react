@@ -21,10 +21,10 @@ import { describeWorkspaceAccess } from '../src/components/supportTicket/Workspa
 const STATUSES: TTicketStatus[] = ['new', 'open', 'awaiting_customer', 'resolved', 'closed'];
 
 describe("a ticket status's attention", () => {
-  it('asks the customer only for the reply the ticket waits on', () => {
+  it('asks the customer for the reply the ticket waits on, and to read the outcome of a resolved one', () => {
     expect(STATUSES.map((status) => ticketStatusAttention(status, 'customer'))).toEqual<
       TTicketAttention[]
-    >(['quiet', 'quiet', 'warn', 'quiet', 'idle']);
+    >(['quiet', 'quiet', 'warn', 'warn', 'idle']);
   });
 
   it('asks staff to triage a new ticket; an open one is being worked, a resolved one is done', () => {

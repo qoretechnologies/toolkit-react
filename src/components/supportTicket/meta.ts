@@ -236,9 +236,10 @@ export const ticketStatusLabel = (
 export type TTicketAttention = 'bad' | 'warn' | 'good' | 'live' | 'quiet' | 'idle';
 
 /**
- * A status's attention for whoever is looking. The customer is needed only when the ticket waits on their reply;
- * staff are needed by a new ticket, which waits for triage, and an open one is being worked. A closed ticket does
- * nothing any more. With no viewer (a neutral surface) only a closed ticket differs.
+ * A status's attention for whoever is looking. The customer is needed when the ticket waits on their reply, and when
+ * it is resolved: it has an outcome to read, and to reopen if it is wrong, so it waits on them too. Staff are needed
+ * by a new ticket, which waits for triage, an open one is being worked, and a resolved one is done. A closed ticket
+ * does nothing any more. With no viewer (a neutral surface) only a closed ticket differs.
  */
 export const ticketStatusAttention = (
   status: TTicketStatus,
@@ -248,7 +249,7 @@ export const ticketStatusAttention = (
     return 'idle';
   }
   if (viewerRole === 'customer') {
-    return status === 'awaiting_customer' ? 'warn' : 'quiet';
+    return status === 'awaiting_customer' || status === 'resolved' ? 'warn' : 'quiet';
   }
   if (viewerRole === 'staff') {
     return (
