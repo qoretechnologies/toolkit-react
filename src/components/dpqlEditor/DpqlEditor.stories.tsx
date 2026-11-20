@@ -1485,7 +1485,7 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
     docs: {
       description: {
         story:
-          'Clicks in the empty DPQL field: the template picker opens at the top - Context Data, Look up customer, ' +
+          'Clicks in the empty DPQL field: the template picker opens at the top - Context data, Look up customer, ' +
           'Receive order and Record fields. Record fields opens into name, status and age, each described by its ' +
           'display name; status picked is written as its chip, @status.',
       },
@@ -1498,7 +1498,7 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
     await waitFor(
       () =>
         expect(pickerLabels()).toEqual([
-          'Context Data',
+          'Context data',
           'Look up customer',
           'Receive order',
           'Record fields',
@@ -1603,7 +1603,7 @@ export const TheKeyboardBrowsesThePicker: Story = {
     await userEvent.keyboard('{ArrowLeft}');
     await waitFor(() => expect(pickerLabels()).toContain('Receive order'));
     await waitFor(() =>
-      expect(pickerFocused()).toBe('Context Data')
+      expect(pickerFocused()).toBe('Context data')
     );
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}{ArrowDown}{Enter}');
     await waitFor(() =>

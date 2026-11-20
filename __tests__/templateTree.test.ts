@@ -35,7 +35,8 @@ const labels = (nodes: { label: string }[]) => nodes.map((node) => node.label);
 describe('templateTree', () => {
   it('lists the groups as the catalogue has them, with the record fields as a group of their own', () => {
     expect(labels(tree())).toEqual([
-      'Context Data',
+      // the server's own context, in sentence case; a state's name is kept as written
+      'Context data',
       'Look up customer',
       'Receive order',
       RECORD_FIELDS_LABEL,
@@ -50,7 +51,7 @@ describe('templateTree', () => {
   });
 
   it('gives a group of unrelated templates no reference', () => {
-    const context = tree().find((node) => node.label === 'Context Data');
+    const context = tree().find((node) => node.label === 'Context data');
     expect(context?.reference).toBeUndefined();
     expect(context?.kind).toBe('group');
   });

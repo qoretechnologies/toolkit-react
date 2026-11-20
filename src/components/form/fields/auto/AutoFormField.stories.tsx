@@ -982,10 +982,10 @@ export const DpqlFieldOffersItsTemplates: Story = {
     await userEvent.click(editable);
     // its templates under their group, beside what the language server completes
     await waitFor(
-      () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Context Data', 'Template contexts'])),
+      () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Context data', 'Template contexts'])),
       { timeout: 30000 }
     );
-    await userEvent.click(await pickerRow('Context Data'));
+    await userEvent.click(await pickerRow('Context data'));
     await waitFor(() => expect(pickerLabels()).toContain('Interface Name'));
     expect(pickerLabels()).toContain('Current Timestamp');
   },

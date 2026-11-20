@@ -126,8 +126,15 @@ export const useTemplates = (
       return allow ? localTemplates || {} : undefined;
     }
 
-    // If the local templates already include the global ones, use them as-is.
-    if (localTemplates?.items?.some(({ label }) => label === 'Context Data')) {
+    /* If the local templates already include the global ones, use them as-is: the server's own context, marked as
+       it is built (`serverContext`), or named so by a host that builds its own list (in either case). */
+    if (
+      localTemplates?.items?.some(
+        (item) =>
+          (item.metadata as { serverContext?: boolean } | undefined)?.serverContext ||
+          /^context data$/i.test(String(item.label ?? ''))
+      )
+    ) {
       return localTemplates;
     }
 

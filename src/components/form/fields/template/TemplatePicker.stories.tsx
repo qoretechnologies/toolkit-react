@@ -76,7 +76,7 @@ export const QogTemplates: Story = {
     docs: {
       description: {
         story:
-          "The picker at the top of a Qog field's templates: Context Data, Look up customer, Receive order and " +
+          "The picker at the top of a Qog field's templates: Context data, Look up customer, Receive order and " +
           'Record fields, each a group that opens into its members; a state says it is State data.',
       },
     },
@@ -84,7 +84,7 @@ export const QogTemplates: Story = {
   play: async () => {
     await waitFor(() =>
       expect(pickerLabels()).toEqual([
-        'Context Data',
+        'Context data',
         'Look up customer',
         'Receive order',
         'Record fields',
@@ -123,7 +123,7 @@ export const DrillDownAndBack: Story = {
       (crumb) => crumb.textContent === 'Templates'
     )!;
     await userEvent.click(top);
-    await waitFor(() => expect(pickerLabels()).toContain('Context Data'));
+    await waitFor(() => expect(pickerLabels()).toContain('Context data'));
   },
 };
 
@@ -135,7 +135,7 @@ const colorfulness = (color: string): number => {
 
 /**
  * In the calm look a row's kind chip (Context, State data, Field) carries no color of its own: its word says what the
- * row is, blue is for a filter that is on, and purple only for an AI or Qonsole action. Context Data's rows were
+ * row is, blue is for a filter that is on, and purple only for an AI or Qonsole action. Context data's rows were
  * tagged "Context" in purple inside the neutral list.
  */
 export const KindChipsCarryNoColor: Story = {
@@ -145,7 +145,7 @@ export const KindChipsCarryNoColor: Story = {
     docs: {
       description: {
         story:
-          'Opens Context Data and Receive order: each row\'s kind chip ("Context", "State data") is drawn neutral, ' +
+          'Opens Context data and Receive order: each row\'s kind chip ("Context", "State data") is drawn neutral, ' +
           'with no purple or blue of its own, as the rest of the calm list is.',
       },
     },
@@ -153,7 +153,7 @@ export const KindChipsCarryNoColor: Story = {
   play: async () => {
     const kindChips = () =>
       Array.from(document.querySelectorAll<HTMLElement>('.template-picker-row .reqore-tag'));
-    for (const group of ['Context Data', 'Receive order']) {
+    for (const group of ['Context data', 'Receive order']) {
       await userEvent.click(await pickerRow(group));
       await waitFor(() => expect(kindChips().length).toBeGreaterThan(0));
       for (const chip of kindChips()) {
@@ -175,14 +175,14 @@ export const AValuesTypeIsSaidInWords: Story = {
     docs: {
       description: {
         story:
-          'Opens Context Data. "Epoch Seconds" ends what it says under its name with "Whole number", and no chip on any row names a ' +
+          'Opens Context data. "Epoch Seconds" ends what it says under its name with "Whole number", and no chip on any row names a ' +
           'type: the chips say what a row is ("Context"), never "int" or "Whole number". A type tag was a machine ' +
           'word in front of a reader choosing "the order\'s date".',
       },
     },
   },
   play: async () => {
-    await userEvent.click(await pickerRow('Context Data'));
+    await userEvent.click(await pickerRow('Context data'));
     const epoch = await pickerRow('Epoch Seconds');
     // at the end of what the row says, on its line
     await waitFor(() =>
@@ -274,7 +274,7 @@ export const KeyboardOnly: Story = {
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowRight}');
     await waitFor(() => expect(pickerCrumbs()).toContain('Receive order'));
     await userEvent.keyboard('{ArrowLeft}');
-    await waitFor(() => expect(pickerFocused()).toBe('Context Data'));
+    await waitFor(() => expect(pickerFocused()).toBe('Context data'));
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowRight}{ArrowDown}{Enter}');
     await waitFor(() =>
       expect(args.onPick).toHaveBeenLastCalledWith('$data:{receive_order.event_type}')

@@ -94,7 +94,7 @@ describe("the stories' Qog state data", () => {
 
   it('is what the stories hand a field, built as a host builds it', () => {
     expect(QOG_FIELD_TEMPLATES?.items?.map((group) => group.label)).toEqual([
-      'Context Data',
+      'Context data',
       'Look up customer',
       'Receive order',
     ]);

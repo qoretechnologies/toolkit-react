@@ -30,7 +30,7 @@ describe('describeTemplateReference', () => {
   it('names context data by its name, the group that only gathers it in its hover', () => {
     expect(describeTemplateReference(QOG_FIELD_TEMPLATES, '$timestamp:now')).toMatchObject({
       label: 'Current Timestamp',
-      path: 'Context Data › Current Timestamp',
+      path: 'Context data › Current Timestamp',
     });
   });
 

@@ -430,7 +430,7 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
     docs: {
       description: {
         story:
-          'Clicks in the empty field: the template picker opens at the top - Context Data, Look up customer, ' +
+          'Clicks in the empty field: the template picker opens at the top - Context data, Look up customer, ' +
           'Receive order and the template contexts. Receive order, then Customer, then Address open level by level, the way back above the ' +
           'rows reading Templates › Receive order › Customer › Address; City picked there is written as one chip, ' +
           'Receive order › … › Address › City, and the value is $data:{receive_order.customer.address.city}.',
@@ -442,7 +442,7 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
     await userEvent.click(editable);
     // the template contexts too, each taken whole or gone into (every container has Use)
     await waitFor(() =>
-      expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order', 'Template contexts'])
+      expect(pickerLabels()).toEqual(['Context data', 'Look up customer', 'Receive order', 'Template contexts'])
     );
     await userEvent.click(await pickerRow('Receive order'));
     await userEvent.click(await pickerRow('Customer'));
@@ -1008,7 +1008,7 @@ export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
         story:
           'Types `$dynamic:` and puts the list away; a click at its end lists $dynamic:* and Browse all templates ' +
           'under "Write what $dynamic: refers to after the \':\', or pick from the list" - in full, not cut off. ' +
-          'Browse all templates, then Context Data and Interface Name: the chip Interface Name takes the place of ' +
+          'Browse all templates, then Context data and Interface Name: the chip Interface Name takes the place of ' +
           '$dynamic:.',
       },
     },
@@ -1033,7 +1033,7 @@ export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
     const label = note.querySelector<HTMLElement>('.reqore-button-text-content') ?? note;
     expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
     await userEvent.click(await completionRow('Browse all templates'));
-    await userEvent.click(await pickerRow('Context Data'));
+    await userEvent.click(await pickerRow('Context data'));
     await userEvent.click(await pickerRow('Interface Name'));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$local:name'));
     await waitFor(() => expect(chipsOf(editable)).toEqual(['Interface Name']));
@@ -1057,7 +1057,7 @@ export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
   },
   play: async ({ canvasElement }) => {
     const editable = within(canvasElement).getByRole('textbox');
-    const top = ['Context Data', 'Look up customer', 'Receive order', 'Template contexts'];
+    const top = ['Context data', 'Look up customer', 'Receive order', 'Template contexts'];
     const expectTop = async () => {
       await waitFor(() => expect(pickerLabels()).toEqual(top), { timeout: 30000 });
       expect(completionLabels()).toEqual([]);

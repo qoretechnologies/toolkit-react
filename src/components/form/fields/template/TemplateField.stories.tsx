@@ -610,7 +610,7 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
     await _testsOpenTemplates();
     // a group is badged with the app it comes from, not named as a type
     const list = document.querySelector('.reqore-popover-content');
-    await waitFor(() => expect(list?.textContent).toContain('Context Data'));
+    await waitFor(() => expect(list?.textContent).toContain('Context data'));
     expect(list?.textContent).toContain('Qorus');
     expect(list?.textContent).not.toContain('Unknown type');
   },
@@ -1038,7 +1038,8 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
     // The picker shows TRUNCATED previews — the long value's tail sentinel
     // must not be in the popover…
     const popover = document.querySelector('.reqore-popover-content');
-    await expect(popover.textContent).toContain('Example value: "JVBERi0x');
+    // text as it is written, not in JSON's quotes
+    await expect(popover.textContent).toContain('Example value: JVBERi0x');
     await expect(popover.textContent).not.toContain('THE_VERY_END');
 
     // …and the affordances land exactly by shape: "?" on the long leaf AND
@@ -1075,7 +1076,7 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
 
     // The modal holds the WHOLE value, down to the sentinel.
     const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
-    await expect(textarea.value.endsWith('THE_VERY_END"')).toBe(true);
+    await expect(textarea.value.endsWith('THE_VERY_END')).toBe(true);
 
     // Close it; opening/previewing must never have selected the item.
     fireEvent.click(modal.querySelector('.reqore-drawer-close-button'));
@@ -1147,8 +1148,8 @@ export const TemplateListInAnotherLanguage: StoryObj<typeof meta> = {
     await _testsWaitForText('Attachment Body');
 
     const popover = document.querySelector('.reqore-popover-content');
-    await expect(popover.textContent).toContain('[Ëxämplé välüé → "invoice.pdf"]');
-    await expect(popover.textContent).toContain('[Ëxämplé välüé → "JVBERi0x');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → invoice.pdf]');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → JVBERi0x');
     await expect(popover.textContent).not.toContain('Example value');
 
     // the "?" action's tooltip, then the "+" action's
@@ -2510,7 +2511,7 @@ export const APickerOpenedInTheTextStaysAtTheCaretInItsDrawer: StoryObj<typeof m
       target: editor,
       coords: { clientX: field.right - 4, clientY: field.top + field.height / 2 },
     });
-    await pickerRow('Context Data');
+    await pickerRow('Context data');
     await waitFor(() => {
       const drawer = canvasElement.querySelector('.story-drawer')!.getBoundingClientRect();
       const caret = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
@@ -2588,7 +2589,7 @@ export const APickerIsBelowItsFieldOfSeveralLinesAndGoesWithIt: StoryObj<typeof 
       target: editor,
       coords: { clientX: field.left + 60, clientY: field.top + 10 },
     });
-    await pickerRow('Context Data');
+    await pickerRow('Context data');
     const isBelowTheField = () =>
       waitFor(() => {
         const box = editor.getBoundingClientRect();

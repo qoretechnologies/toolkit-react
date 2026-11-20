@@ -17,7 +17,8 @@ import {
   descriptionTooltip,
   IDescriptionTooltipOptions,
 } from './descriptionTooltip';
-import { noValueDescription } from './noDescription';
+import { givenDescription, noValueDescription } from './noDescription';
+import { toSentenceCase } from './sentenceCase';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
@@ -881,9 +882,16 @@ export const buildTemplates = (
         data_role: itemDataRole,
         allowed_values,
         short_desc: itemShortDesc,
+        desc: itemDesc,
       }): TReqoreDropdownItem => {
+        /* The example as a person writes it: text as it is, anything else as data. Text went through JSON too, so
+           a list read `For example: "Prague"`, in quotes nobody types. */
         const serializedExample =
-          example_value !== undefined ? JSON.stringify(example_value) : undefined;
+          example_value === undefined ? undefined
+          : typeof example_value === 'string' ? example_value
+          : JSON.stringify(example_value);
+        // what it is, as Qorus says it in full, else in a line; its stand-in for none is none
+        const itemDescription = givenDescription(itemDesc) ?? givenDescription(itemShortDesc);
         const exampleIsLong =
           serializedExample !== undefined &&
           serializedExample.length > TEMPLATE_EXAMPLE_PREVIEW_LENGTH;
@@ -917,8 +925,8 @@ export const buildTemplates = (
                 stateIdentity && getTemplateStateAlias(value, stateIdentity[0], stateIdentity[1]);
               return alias ? { aliasValues: [alias] } : {};
             })(),
-            // what it is, as Qorus says it: a list says it of the template, its example aside ("no description" is none)
-            ...(itemShortDesc && itemShortDesc !== 'no description' ? { description: itemShortDesc } : {}),
+            // what it is, as Qorus says it: a list says it of the template, its example aside
+            ...(itemDescription ? { description: itemDescription } : {}),
             // the template's type, a typed member: the badge is a list's to name (`templateType`)
             ...(type ? { type } : {}),
             ...(base_type ? { baseType: base_type } : {}),
@@ -984,6 +992,10 @@ export const buildTemplates = (
   };
 
   type TEntry = ITemplatesPayload[string];
+  /* An entry's name: a state's is its author's, kept as written; the server's own context ("Context Data") is the
+     server's, said in sentence case as the list's other words are. */
+  const entryName = (entry: TEntry, dataId: string): string | undefined =>
+    dataId === '_context' ? toSentenceCase(entry.display_name) : entry.display_name;
   /** An entry's own look: its logo and app, its role, and whether its step can be read. */
   const entryLook = (entry: TEntry, dataId: string): Partial<TReqoreDropdownItem> => {
     const valid = entry.internal || !options.isStepValid || options.isStepValid(dataId);
@@ -1013,7 +1025,7 @@ export const buildTemplates = (
       entry.app,
       entry.action,
       entry.logo,
-      entry.display_name,
+      entryName(entry, dataId),
       entry.builtin,
       entry.is_event_trigger,
       entry.data_role,
@@ -1029,8 +1041,8 @@ export const buildTemplates = (
       items: Object.entries(templates)
         .map(
           ([dataId, entry]): TReqoreDropdownItem => ({
-            label: entry.display_name,
-            description: entry.short_desc,
+            label: entryName(entry, dataId),
+            description: givenDescription(entry.short_desc),
             ...entryLook(entry, dataId),
             items: entryItems(entry, dataId, entry.items, true),
           })
@@ -1053,8 +1065,8 @@ export const buildTemplates = (
     byCode.forEach((items, code) => {
       if (code === 'step') {
         steps.push({
-          label: entry.display_name,
-          description: entry.short_desc,
+          label: entryName(entry, dataId),
+          description: givenDescription(entry.short_desc),
           ...entryLook(entry, dataId),
           items: entryItems(entry, dataId, items, false),
         } as TReqoreDropdownItem);

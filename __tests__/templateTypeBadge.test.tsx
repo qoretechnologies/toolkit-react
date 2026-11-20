@@ -172,7 +172,7 @@ describe("a template's type", () => {
     const [emptied] = styleTemplateItems(
       filterTemplatesByType(groups, 'bool', false, defaultQorusTypes).items as never
     ) as TRow[];
-    expect(emptied.label).toBe('Context Data');
+    expect(emptied.label).toBe('Context data');
     expect(emptied.badge).toBe('Qorus');
   });
 
