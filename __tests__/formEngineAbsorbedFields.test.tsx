@@ -123,4 +123,31 @@ describe('a field that absorbs a sibling', () => {
     await waitFor(() => expect(rowFor(container, 'source')).toBeTruthy());
     expect(rowFor(container, 'language')).toBeTruthy();
   });
+
+  it("changes an absorbed default in the row that holds it", async () => {
+    // The language holds its default, so it is said under the form ("Uses Qore · Change"); it has no row of its
+    // own, so Change opens the code field's row, where its control is.
+    const withDefault: IOptionsSchema = {
+      ...OPTIONS,
+      language: { ...OPTIONS.language, default_value: 'qore' } as IOptionsSchema[string],
+    };
+    const { container } = renderForm(withDefault, {
+      ...(VALUE as Record<string, unknown>),
+      language: { type: 'string', value: 'qore' },
+    } as never);
+
+    const note = await waitFor(() => {
+      const element = container.querySelector('[data-field-default="language"]');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    fireEvent.click(note.querySelector('.form-default-change')!);
+
+    await waitFor(() =>
+      expect(container.querySelector('.options-readfirst-absorbed')?.textContent).toContain('Language')
+    );
+    expect(
+      container.querySelector('[data-field="source"].readfirst-row-editing, [data-field="source"].options-readfirst-card')
+    ).toBeTruthy();
+  });
 });

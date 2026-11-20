@@ -312,6 +312,24 @@ export interface IFormOutsideAttention {
 }
 
 /** One shared "nothing came down from above" bag. See `inheritedScopeFor`. */
+/**
+ * Which field holds each absorbed one: `{ language: 'source' }` where `source` declares `absorb_fields:
+ * ['language']`. Only a sibling that exists and is not spoken for already; a schema naming a missing field must not make
+ * a field disappear. The rows and the default line's "Change" read the same map, so a field with no row of its own is
+ * changed in the row that holds it.
+ */
+const getAbsorbingHosts = (options: IOptionsSchema | undefined): Record<string, string> => {
+  const absorbedBy: Record<string, string> = {};
+  forEach(options, (option, optionName) => {
+    (option as { absorb_fields?: string[] } | undefined)?.absorb_fields?.forEach((absorbedName) => {
+      if (options?.[absorbedName] && !absorbedBy[absorbedName]) {
+        absorbedBy[absorbedName] = optionName;
+      }
+    });
+  });
+  return absorbedBy;
+};
+
 const NO_INHERITED_SCOPE: Record<string, unknown> = Object.freeze({});
 
 /**
@@ -3382,15 +3400,19 @@ const FormEngineImpl = ({
     },
     [expandMode]
   );
-  /* "Change" on a default (`DefaultsNote`): the field becomes an ordinary row, opened to be changed. */
+  /* Which field holds each absorbed one (`absorb_fields`): a code field's language has no row of its own. */
+  const absorbingHosts = useMemo(() => getAbsorbingHosts(options), [options]);
+  /* "Change" on a default (`DefaultsNote`): the field becomes an ordinary row, opened to be changed. A field another
+     absorbs has no row to open (a code field's language is chosen in the code field's row), so the row that holds it
+     is opened, where its control is. Opening its own name opened nothing, and the line went away. */
   const changeDefault = useCallback(
     (optionName: string) => {
       setChangedDefaults((current) =>
         current.includes(optionName) ? current : [...current, optionName]
       );
-      expandOption(optionName);
+      expandOption(absorbingHosts[optionName] ?? optionName);
     },
-    [expandOption]
+    [expandOption, absorbingHosts]
   );
   const collapseOption = useCallback((optionName: string) => {
     if (alwaysExpandedRef.current.includes(optionName)) {
@@ -4532,22 +4554,11 @@ const FormEngineImpl = ({
     // skipped. Dropping them from the buckets instead would leave the meter
     // ("13/18 set", computed from `availableOptions`) disagreeing with the box
     // badge beside it, which counts row entries.
-    const absorbedBy: Record<string, string> = {};
-    forEach(options, (option, optionName) => {
-      const absorb = (option as { absorb_fields?: string[] } | undefined)?.absorb_fields;
-      // A read-only form absorbs nothing. A host row shows an absorbed
-      // sibling only inside its EDITOR, and a read view never opens one — so
-      // the language a code field had absorbed would be nowhere on the page.
-      // Every set field gets a row of its own instead.
-      if (!absorb?.length || readOnly) return;
-      absorb.forEach((absorbedName) => {
-        // Only absorb a sibling that exists and is not already spoken for; a
-        // schema naming a missing field must not make the field disappear.
-        if (options?.[absorbedName] && !absorbedBy[absorbedName]) {
-          absorbedBy[absorbedName] = optionName;
-        }
-      });
-    });
+    // A read-only form absorbs nothing. A host row shows an absorbed
+    // sibling only inside its EDITOR, and a read view never opens one — so
+    // the language a code field had absorbed would be nowhere on the page.
+    // Every set field gets a row of its own instead.
+    const absorbedBy: Record<string, string> = readOnly ? {} : absorbingHosts;
 
     // Group the options by their raw `group` key, remembering the order groups
     // first appear in the schema. Each row carries a `hidden` flag.

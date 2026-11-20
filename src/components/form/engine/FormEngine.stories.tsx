@@ -1874,6 +1874,71 @@ export const CompactRowAbsorbsLanguage: Story = {
   },
 };
 
+export const AnAbsorbedDefaultIsChangedInTheRowThatHoldsIt: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A code field that absorbs its Language, on a new form where the language holds its default: the line under the form says "Uses Qore" with a Change. Language has no row of its own (it is chosen in the Source Code row), so Change opens the Source Code row, where the language control is. It used to open nothing.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      source: { type: 'string', value: 'class Example {}\n' },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        default_value: 'qore',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+        ],
+      },
+      source: {
+        type: 'string',
+        ui_type: 'code-editor',
+        display_name: 'Source Code',
+        inherit_props: { language: 'language' },
+        absorb_fields: ['language'],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const note = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>('[data-field-default="language"]');
+      expect(element, 'the default line names the language').toBeTruthy();
+      return element!;
+    });
+    expect(note.textContent).toContain('Uses Qore');
+
+    fireEvent.click(note.querySelector('.form-default-change') as HTMLElement);
+
+    // Change opened the row that holds the language, with the language control in it
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector(
+          '[data-field="source"].readfirst-row-editing, [data-field="source"].options-readfirst-card'
+        ),
+        'the Source Code row is open'
+      ).toBeTruthy()
+    );
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('.options-readfirst-absorbed')?.textContent ?? '',
+        'the language control is in it'
+      ).toContain('Language')
+    );
+  },
+};
+
 export const CompactRowCancelEditAffordance: Story = {
   ...CompactRowCancelEdit,
   parameters: {
