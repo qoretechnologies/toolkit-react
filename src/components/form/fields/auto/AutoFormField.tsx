@@ -499,6 +499,9 @@ function AutoField<T = any>({
         // resolved and then had nowhere to send them, so every consumer
         // downstream saw `undefined` and silently did nothing.
         inheritedFromParent={inheritedFromParent}
+        // Destructured too, and so lost the same way: a host editor of a field whose management is locked (a
+        // connection picker locked to one connection) went on offering to edit the value and to create a new one.
+        disableManagement={disableManagement}
         name={name}
         value={hostEditor.value}
         onChange={handleHostEditorChange}
