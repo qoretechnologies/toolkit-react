@@ -249,8 +249,13 @@ export interface IFormEngineLabels {
   removeField: string;
   collapse: (label: string) => string;
   focusedView: string;
-  lineCount: (count: number) => string;
-  charCount: (count: number) => string;
+  /**
+   * How many lines, and how many characters, a value holds: "701 lines", "23,111 characters". `shown` is the count as
+   * the reader's locale writes it (`formatCount`); a host that words it in its own language takes the count to choose
+   * the plural and `shown` for the number.
+   */
+  lineCount: (count: number, shown?: string) => string;
+  charCount: (count: number, shown?: string) => string;
   fieldDisabled: string;
   setByServer: string;
   dependenciesNotFulfilled: string;
@@ -458,6 +463,18 @@ export type TReqraftLabelOverrides = {
 
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
+
+/**
+ * A count as the reader's locale writes it: "23,111" in English, "23 111" in Czech. Intl's own default locale, which
+ * is always one it can use; a host with a locale of its own words its counts through the labels.
+ */
+export const formatCount = (count: number): string => {
+  try {
+    return new Intl.NumberFormat().format(count);
+  } catch {
+    return String(count);
+  }
+};
 
 /** The English words: what a host gets for any word it does not give. */
 export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
@@ -692,8 +709,9 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     removeField: 'Remove field',
     collapse: (label) => `Close ${label}`,
     focusedView: 'Focused view',
-    lineCount: (count) => plural(count, 'line'),
-    charCount: (count) => plural(count, 'char'),
+    lineCount: (count, shown = formatCount(count)) => `${shown} ${count === 1 ? 'line' : 'lines'}`,
+    charCount: (count, shown = formatCount(count)) =>
+      `${shown} ${count === 1 ? 'character' : 'characters'}`,
     fieldDisabled: 'This field is disabled',
     setByServer: 'Set by Qorus — not editable',
     dependenciesNotFulfilled: 'Disabled — dependencies are not fulfilled',

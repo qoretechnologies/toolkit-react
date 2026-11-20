@@ -27,7 +27,7 @@ export const InAPanelHeader: Story = {
     docs: {
       description: {
         story:
-          'Renders the size of a source as a panel badge beside its language, where read-only source views put it: quiet words ("82 chars · 8 lines") in the soft shade of the text, not a colored chip, because how much code there is is metadata.',
+          'Renders the size of a source as a panel badge beside its language, where read-only source views put it: quiet words ("82 characters · 8 lines") in the soft shade of the text, not a colored chip, because how much code there is is metadata.',
       },
     },
   },
@@ -44,7 +44,7 @@ export const InAPanelHeader: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('8 lines')).toBeInTheDocument();
-    await expect(canvas.getByText('82 chars')).toBeInTheDocument();
+    await expect(canvas.getByText('82 characters')).toBeInTheDocument();
   },
 };
 

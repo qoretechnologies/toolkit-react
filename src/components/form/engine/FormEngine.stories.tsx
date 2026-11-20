@@ -1085,7 +1085,7 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
 };
 
 // Compact-row code-editor preview: a `code-editor` field with a multi-line
-// string value renders (a) a "N lines · N chars" tag in the value cell instead
+// string value renders (a) a "N characters · N lines" tag in the value cell instead
 // of the truncated raw string, and (b) a monospace `<pre>` block under the row
 // capped by a `ReqoreCollapsibleContent` — the "Show more" affordance the value
 // cell couldn't provide on its own. Locks the compact preview so a future
@@ -1871,6 +1871,43 @@ export const CompactRowAbsorbsLanguage: Story = {
     expect(
       canvasElement.querySelectorAll('[data-field="source"] .code-editor-standin-code').length
     ).toBeGreaterThan(0);
+  },
+};
+
+/** A source of 701 lines, as long as a real service's. */
+const LONG_SOURCE = Array.from(
+  { length: 701 },
+  (_, index) => `    # step ${index + 1}: hand the order on to the next stage of fulfillment`
+).join('\n');
+
+export const ALongCodeValueSaysItsSizeInWords: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A code field holding 701 lines of source: its row says how much is there as "N characters · 701 lines", the counts written as the reader\'s locale writes them (a thousand grouped, "46,858" in English) and the words in the host\'s labels (`charCount`, `lineCount`), not "46858 chars 701 lines".',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
+    value: { source: { type: 'string', value: LONG_SOURCE } },
+    options: {
+      source: { type: 'string', ui_type: 'code-editor', display_name: 'Source Code' },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const size = await waitFor(() => {
+      const element = canvasElement.querySelector('.options-readfirst-label-code-size');
+      expect(element, 'the row says the size').toBeTruthy();
+      return element!;
+    });
+    const count = (value: number) => new Intl.NumberFormat().format(value);
+    expect(size.textContent).toBe(`${count(LONG_SOURCE.length)} characters · ${count(701)} lines`);
+    // a thousand is grouped as the locale groups it, never run together
+    expect(size.textContent).not.toContain(String(LONG_SOURCE.length));
   },
 };
 

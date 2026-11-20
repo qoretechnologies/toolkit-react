@@ -67,7 +67,7 @@ describe('read-first code preview', () => {
     const row = container.querySelector('[data-field="source"]');
 
     expect(row?.textContent).toContain('5 lines');
-    expect(row?.textContent).toContain(`${SOURCE.length} chars`);
+    expect(row?.textContent).toContain(`${SOURCE.length.toLocaleString()} characters`);
   });
 
   it('keeps the hover on values the row had to truncate', async () => {
@@ -137,7 +137,7 @@ describe('code size chip when the field is open', () => {
 
     expect(chip).toBeTruthy();
     expect(chip?.textContent).toContain('5 lines');
-    expect(chip?.textContent).toContain(`${SOURCE.length} chars`);
+    expect(chip?.textContent).toContain(`${SOURCE.length.toLocaleString()} characters`);
   });
 
   it('puts it under the field name, not in the value cell', async () => {

@@ -1,4 +1,4 @@
-import { useReqraftLabels } from '../../../helpers/reqraftLabels';
+import { formatCount, useReqraftLabels } from '../../../helpers/reqraftLabels';
 import { useDestructiveButtonProps } from '../../../hooks/useDestructiveButtonProps';
 import {
   ReqoreButton,
@@ -32,7 +32,7 @@ import { hasTemplateText, templateTextSegments } from '../../../helpers/template
 import { PendingEditsContext, usePendingEdits } from '../fields/pendingEdit';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { TemplateText } from '../fields/template/TemplateText';
-import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
+import { formatCodeSize } from '../../codeSize';
 import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
@@ -1798,19 +1798,15 @@ export const CompactRow = memo(
         typeof optionField?.value === 'string' &&
         optionField.value !== ''
       ) ?
-        (() => {
-          const { lines, chars } = describeCodeSize(optionField.value as string);
-          return (
-            <ReqoreP
-              className='options-readfirst-label-code-size'
-              size='tiny'
-              effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
-              style={{ fontFamily: MONO_FONT_STACK }}
-            >
-              {`${formatCodeChars(chars)} ${formatCodeLines(lines)}`}
-            </ReqoreP>
-          );
-        })()
+        // "23,111 characters · 701 lines": the counts in the reader's locale, in the host's words
+        <ReqoreP
+            className='options-readfirst-label-code-size'
+            size='tiny'
+            effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
+            style={{ fontFamily: MONO_FONT_STACK }}
+          >
+            {formatCodeSize(optionField.value as string)}
+          </ReqoreP>
       : null;
 
     if (isExpanded && (!readOnly || readOnlyOpens)) {
@@ -2448,7 +2444,10 @@ export const CompactRow = memo(
         typeof optionField?.value === 'string' &&
         isMultilineMarkdown(optionField.value)
       ) ?
-        feWords.lineCount(optionField.value.trim().split('\n').length)
+        (() => {
+          const lines = optionField.value.trim().split('\n').length;
+          return feWords.lineCount(lines, formatCount(lines));
+        })()
       : undefined;
     // the option's type beside its name, while the form shows field types: in words, as an open option says it
     const typeLabel = typeShown ? typeWords : undefined;

@@ -8,7 +8,7 @@
 // there is one renderer rather than one per caller, each drifting in
 // pluralisation, icon and intent.
 
-import { reqraftLabels } from '../../helpers/reqraftLabels';
+import { formatCount, reqraftLabels } from '../../helpers/reqraftLabels';
 import { ReqoreTag } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { memo } from 'react';
@@ -32,14 +32,20 @@ export function describeCodeSize(code: string): IReqraftCodeSize {
   return { lines: code.split('\n').length, chars: code.length };
 }
 
-/** `4 lines` / `1 line` — the label half of the chip. */
+/** `4 lines` / `1 line` — the label half of the chip, the count in the reader's locale. */
 export function formatCodeLines(lines: number): string {
-  return reqraftLabels().formEngine.lineCount(lines);
+  return reqraftLabels().formEngine.lineCount(lines, formatCount(lines));
 }
 
-/** `92 chars` / `1 char` — the key half of the chip. */
+/** `23,111 characters` / `1 character` — the key half of the chip, the count in the reader's locale. */
 export function formatCodeChars(chars: number): string {
-  return reqraftLabels().formEngine.charCount(chars);
+  return reqraftLabels().formEngine.charCount(chars, formatCount(chars));
+}
+
+/** The size in one line: `23,111 characters · 701 lines`. */
+export function formatCodeSize(code: string): string {
+  const { lines, chars } = describeCodeSize(code);
+  return `${formatCodeChars(chars)} · ${formatCodeLines(lines)}`;
 }
 
 /** How strongly the size reads: the soft shade of the text, as metadata does beside a title. */
@@ -78,7 +84,7 @@ export interface IReqraftCodeSizeTagProps
 }
 
 /**
- * `N chars | N lines` chip summarising a block of source. Every prop of
+ * `N characters | N lines` chip summarising a block of source. Every prop of
  * `ReqoreTag` passes through except the two labels, which are the point.
  */
 export const ReqraftCodeSizeTag = memo(

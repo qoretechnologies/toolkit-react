@@ -9,6 +9,7 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { setReqraftLabels } from '../src/helpers/reqraftLabels';
 import {
   ReqraftCodeSizeTag,
   codeSizeTagProps,
@@ -16,6 +17,7 @@ import {
   formatCodeChars,
   formatCodeLines,
   IReqraftCodeSizeTagProps,
+  formatCodeSize,
 } from '../src/components/codeSize';
 
 describe('describeCodeSize', () => {
@@ -41,14 +43,14 @@ describe('describeCodeSize', () => {
 describe('code size phrasing', () => {
   it('singularises exactly one', () => {
     expect(formatCodeLines(1)).toBe('1 line');
-    expect(formatCodeChars(1)).toBe('1 char');
+    expect(formatCodeChars(1)).toBe('1 character');
   });
 
   it('pluralises everything else, zero included', () => {
     expect(formatCodeLines(0)).toBe('0 lines');
     expect(formatCodeLines(2)).toBe('2 lines');
-    expect(formatCodeChars(0)).toBe('0 chars');
-    expect(formatCodeChars(92)).toBe('92 chars');
+    expect(formatCodeChars(0)).toBe('0 characters');
+    expect(formatCodeChars(92)).toBe('92 characters');
   });
 });
 
@@ -64,7 +66,7 @@ describe('ReqraftCodeSizeTag', () => {
     const { container } = renderTag({ code: 'a\nbb\nccc' });
 
     expect(container.textContent).toContain('3 lines');
-    expect(container.textContent).toContain('8 chars');
+    expect(container.textContent).toContain('8 characters');
   });
 
   it('lets a caller restyle the chip without touching the labels', () => {
@@ -88,7 +90,7 @@ describe('codeSizeTagProps', () => {
     // hosts that take tag *props* rather than an element — a panel badge, a
     // button badge — must not have to rebuild the chip by hand
     expect(codeSizeTagProps('a\nbb')).toEqual(
-      expect.objectContaining({ label: '2 lines', labelKey: '4 chars', icon: 'CodeLine' })
+      expect.objectContaining({ label: '2 lines', labelKey: '4 characters', icon: 'CodeLine' })
     );
   });
 
@@ -98,5 +100,32 @@ describe('codeSizeTagProps', () => {
     expect(props).toEqual(expect.objectContaining({ appearance: 'text' }));
     expect(props.intent).toBeUndefined();
     expect(props.labelEffect).toEqual(expect.objectContaining({ weight: 'normal' }));
+  });
+});
+
+describe('code size in one line', () => {
+  const LONG = Array.from({ length: 701 }, (_, index) => `${'x'.repeat(32)}${index}`).join('\n');
+
+  it('says the characters, then the lines, the counts as the reader’s locale writes them', () => {
+    const { chars, lines } = describeCodeSize(LONG);
+    expect(formatCodeSize(LONG)).toBe(
+      `${new Intl.NumberFormat().format(chars)} characters · ${new Intl.NumberFormat().format(lines)} lines`
+    );
+    // in English a thousand is grouped, not run together
+    expect(new Intl.NumberFormat('en-US').format(chars)).toContain(',');
+  });
+
+  it('is in the host’s words, given the count and the number as the locale writes it', () => {
+    setReqraftLabels({
+      formEngine: {
+        charCount: (count: number, shown?: string) => `${shown} ${count === 1 ? 'znak' : 'znaků'}`,
+        lineCount: (count: number, shown?: string) => `${shown} ${count === 1 ? 'řádek' : 'řádků'}`,
+      },
+    } as never);
+    try {
+      expect(formatCodeSize('ab\ncd')).toBe('5 znaků · 2 řádků');
+    } finally {
+      setReqraftLabels();
+    }
   });
 });
