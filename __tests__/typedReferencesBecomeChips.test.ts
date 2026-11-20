@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A reference typed out in full is drawn as its chip once it has been typed, as one picked from the completion list
-// is (qorus#646): the Qorus IDE's test case typed `@create + 1` as its expected value, and `@create` stayed text.
+// is: the Qorus IDE's test case typed `@create + 1` as its expected value, and `@create` stayed text.
 import { describe, expect, it } from 'vitest';
 import { dpqlSlateConverter } from '../src/components/dpqlEditor/dpqlHelpers';
 import { rechipTypedReferences } from '../src/components/smartEditor/typedReferences';
@@ -60,7 +60,7 @@ describe('a reference typed out in full', () => {
   });
 });
 
-/* qorus#646, David's review: a half-typed reference, `$data:receive_order.ev`, was drawn as a chip when the editor
+/* A half-typed reference, `$data:receive_order.ev`, was drawn as a chip when the editor
    was left, and read as a reference that stood for something. One that names nothing stays the text it was. */
 describe('a reference typed out that names nothing', () => {
   const namesNothing = (reference: string) => reference === '$data:receive_order.ev';
@@ -90,7 +90,7 @@ describe('a reference typed out that names nothing', () => {
   });
 });
 
-/* qorus#646, David's review: a context of free keys and its key, typed out, is a whole reference - drawn as its
+/* A context of free keys and its key, typed out, is a whole reference - drawn as its
    chip when Enter takes it, the caret after it; one naming nothing stays text. */
 describe('references typed out, taken at once', () => {
   it('draws the caret paragraph\'s, keeps the one naming nothing as text, and puts the caret at its end', async () => {

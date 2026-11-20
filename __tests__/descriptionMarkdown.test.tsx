@@ -6,6 +6,8 @@ import { MarkdownRendererContext } from '../src/components/Description/markdownR
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { summariseMarkdown } from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { FormAppearanceProvider } from '../src/components/form/engine/formAppearance';
+import { markdownSummaryLine } from '../src/helpers/markdownText';
 import { emptyFetchContext } from './support/fetchContext';
 
 const fetchContext = emptyFetchContext();
@@ -202,5 +204,80 @@ describe('summariseMarkdown', () => {
   it('survives a value that is not a string', () => {
     expect(summariseMarkdown(undefined)).toBe('');
     expect(summariseMarkdown({ a: 1 })).toBe('');
+  });
+});
+
+// A base class's whole description is markdown, with no short one: the picker printed "## Summary Base AWS …"
+// with its backticks, in italics, on every card, and hid "…more" because nothing was shorter than the long text.
+const BASE_CLASS_DESC =
+  '## Summary\n\nBase AWS [Simple Notification Service](https://aws.amazon.com/sns/) class for `services` that publish to a topic. It reads its options from the connection and sends one message per call.\n\n## Options\n\n- `topic_arn`: the topic';
+
+describe('markdownSummaryLine', () => {
+  it('skips an opening heading and keeps the words of the first paragraph', () => {
+    expect(markdownSummaryLine('## Summary\n\nPublishes **one** message to `topic`.')).toBe(
+      'Publishes one message to topic.'
+    );
+  });
+
+  it('skips a heading that sits on the paragraph\'s first line, and a code block before it', () => {
+    expect(markdownSummaryLine('```\ncode\n```\n\n# Title\nThe words.')).toBe('The words.');
+  });
+
+  it('gives a long paragraph\'s first sentence', () => {
+    expect(markdownSummaryLine(BASE_CLASS_DESC, 80)).toBe(
+      'Base AWS Simple Notification Service class for services that publish to a topic.'
+    );
+  });
+
+  it('cuts at a word with an ellipsis when no sentence ends in time', () => {
+    const line = markdownSummaryLine('word '.repeat(60), 40);
+    expect(line.endsWith('…')).toBe(true);
+    expect(line.length).toBeLessThanOrEqual(41);
+    expect(line).not.toContain('wor…');
+  });
+
+  it('survives a value that is not a string', () => {
+    expect(markdownSummaryLine(undefined)).toBe('');
+  });
+});
+
+describe('a folded description with only a markdown body', () => {
+  it('shows its first plain sentence, without the marks, and offers the rest', () => {
+    const { container } = renderDescription(<Description longDescription={BASE_CLASS_DESC} />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Base AWS Simple Notification Service class for services that publish to a topic.');
+    expect(text).not.toContain('##');
+    expect(text).not.toContain('`');
+    expect(text).not.toContain('topic_arn');
+    expect(container.querySelector('.description-more')?.textContent).toBe('...more');
+  });
+
+  it('renders the markdown once opened', () => {
+    const { container } = renderDescription(<Description longDescription={BASE_CLASS_DESC} />);
+    fireEvent.click(container.querySelector('.description-more')!);
+    expect(container.querySelector('h2')?.textContent).toBe('Summary');
+    expect(container.textContent).toContain('topic_arn');
+  });
+
+  it('offers nothing more when the line already is the whole description', () => {
+    const { container } = renderDescription(<Description longDescription='Plain words, nothing else.' />);
+    expect(container.textContent).toContain('Plain words, nothing else.');
+    expect(container.querySelector('.description-more')).toBeNull();
+  });
+
+  it('sets the line upright in the calm look and in italics in the classic one', () => {
+    const italicOf = (appearance: 'calm' | 'classic') => {
+      const { container, unmount } = renderDescription(
+        <FormAppearanceProvider value={appearance}>
+          <Description longDescription='Plain words.' />
+        </FormAppearanceProvider>
+      );
+      const span = [...container.querySelectorAll<HTMLElement>('span')].find((el) => el.textContent?.startsWith('Plain words.'));
+      const style = getComputedStyle(span!).fontStyle;
+      unmount();
+      return style;
+    };
+    expect(italicOf('calm')).not.toBe('italic');
+    expect(italicOf('classic')).toBe('italic');
   });
 });

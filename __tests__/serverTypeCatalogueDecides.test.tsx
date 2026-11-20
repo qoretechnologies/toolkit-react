@@ -4,7 +4,7 @@
 // `getQorusTypes()` gave reqraft's built-in copy always, and the checks built on it never saw the server's answer
 // (GET /system/qorus-type-info): a type or a conversion only the server knows - the string format types, a type a
 // newer server adds - made the expression builder refuse what fits and TemplateField drop the templates a field
-// takes (qorus#646). The checks now decide with the catalogue they are given, a component gives them the hook's,
+// takes. The checks now decide with the catalogue they are given, a component gives them the hook's,
 // and `getQorusTypes()` gives the server's answer once a `useQorusTypes` has it.
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';

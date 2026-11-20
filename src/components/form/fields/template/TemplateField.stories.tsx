@@ -326,7 +326,7 @@ export const AutoComponent: StoryObj<typeof meta> = {
       timeout: 5000,
     });
     expect(canvasElement.textContent).not.toContain('Please select data type');
-    expect(canvasElement.textContent).not.toContain('Select Template');
+    expect(canvasElement.textContent).not.toContain('Select template');
   },
 };
 
@@ -601,7 +601,7 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a yes/no value, switches it from its Yes/No buttons to a template and opens the list of templates of its type: the list offers only templates whose type can give a yes/no. Why a text field: in template mode every field, whatever its type, is written in the same text field, a template as a chip in it, so a yes/no takes a template the way every other field does; the Yes/No buttons cannot hold one. Typing is not blocked, and the form checks what is written: one template alone is a yes/no; anything else is flagged with what to change - text ("Value must be true or false"), text around a template (“"x" makes this text, not true or false. Delete it to keep the template alone.”) or two templates side by side ("Templates side by side make this text, not true or false. Keep one of them alone.") - and the form cannot be saved until it is fixed. Deleting the template leaves the text field; the Yes/No buttons come back through "Use Custom Value" in the ⋮ menu.',
+          'Renders TemplateField for a yes/no value, switches it from its Yes/No buttons to a template and opens the list of templates of its type: the list offers only templates whose type can give a yes/no. Why a text field: in template mode every field, whatever its type, is written in the same text field, a template as a chip in it, so a yes/no takes a template the way every other field does; the Yes/No buttons cannot hold one. Typing is not blocked, and the form checks what is written: one template alone is a yes/no; anything else is flagged with what to change - text ("Value must be true or false"), text around a template (“"x" makes this text, not true or false. Delete it to keep the template alone.”) or two templates side by side ("Templates side by side make this text, not true or false. Keep one of them alone.") - and the form cannot be saved until it is fixed. Deleting the template leaves the text field; the Yes/No buttons come back through "Use custom value" in the ⋮ menu.',
       },
     },
   },
@@ -610,7 +610,7 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
     await _testsOpenTemplates();
     // a group is badged with the app it comes from, not named as a type
     const list = document.querySelector('.reqore-popover-content');
-    await waitFor(() => expect(list?.textContent).toContain('Context Data'));
+    await waitFor(() => expect(list?.textContent).toContain('Context data'));
     expect(list?.textContent).toContain('Qorus');
     expect(list?.textContent).not.toContain('Unknown type');
   },
@@ -645,7 +645,7 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next, with the picker of its templates open; the yes/no checkbox is one menu item away: "Use Custom Value" in the ⋮ menu.',
+          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next, with the picker of its templates open; the yes/no checkbox is one menu item away: "Use custom value" in the ⋮ menu.',
       },
     },
   },
@@ -668,11 +668,11 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     await waitFor(() => expect(editor.textContent?.replace(/\uFEFF/g, '').trim()).toBe(''));
     expect(editor.isConnected).toBe(true);
     expect(document.querySelector('.reqore-checkbox')).toBeNull();
-    // the emptied text offers its templates: the picker, at its top (Foxhoundn on qlip #425)
+    // the emptied text offers its templates: the picker, at its top
     await waitFor(() => expect(document.querySelector('.template-picker')).toBeInTheDocument());
     // the checkbox, from the menu: one click on it, the picker open or not
     await userEvent.click(canvasElement.querySelector<HTMLElement>('button.template-more')!);
-    await userEvent.click(await screen.findByText('Use Custom Value'));
+    await userEvent.click(await screen.findByText('Use custom value'));
     await waitFor(() => expect(document.querySelector('.reqore-checkbox')).toBeInTheDocument());
   },
 };
@@ -691,13 +691,13 @@ export const TemplateWithFunctions: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField with allowFunctions enabled — the template menu now exposes a "Use Expression" entry alongside the plain templates.',
+          'Renders TemplateField with allowFunctions enabled — the template menu now exposes a "Use expression" entry alongside the plain templates.',
       },
     },
   },
   play: async () => {
     await _testsOpenTemplateMenu();
-    await _testsWaitForText('Use Expression');
+    await _testsWaitForText('Use expression');
   },
 };
 
@@ -1038,7 +1038,8 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
     // The picker shows TRUNCATED previews — the long value's tail sentinel
     // must not be in the popover…
     const popover = document.querySelector('.reqore-popover-content');
-    await expect(popover.textContent).toContain('Example value: "JVBERi0x');
+    // text as it is written, not in JSON's quotes
+    await expect(popover.textContent).toContain('Example value: JVBERi0x');
     await expect(popover.textContent).not.toContain('THE_VERY_END');
 
     // …and the affordances land exactly by shape: "?" on the long leaf AND
@@ -1075,7 +1076,7 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
 
     // The modal holds the WHOLE value, down to the sentinel.
     const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
-    await expect(textarea.value.endsWith('THE_VERY_END"')).toBe(true);
+    await expect(textarea.value.endsWith('THE_VERY_END')).toBe(true);
 
     // Close it; opening/previewing must never have selected the item.
     fireEvent.click(modal.querySelector('.reqore-drawer-close-button'));
@@ -1147,8 +1148,8 @@ export const TemplateListInAnotherLanguage: StoryObj<typeof meta> = {
     await _testsWaitForText('Attachment Body');
 
     const popover = document.querySelector('.reqore-popover-content');
-    await expect(popover.textContent).toContain('[Ëxämplé välüé → "invoice.pdf"]');
-    await expect(popover.textContent).toContain('[Ëxämplé välüé → "JVBERi0x');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → invoice.pdf]');
+    await expect(popover.textContent).toContain('[Ëxämplé välüé → JVBERi0x');
     await expect(popover.textContent).not.toContain('Example value');
 
     // the "?" action's tooltip, then the "+" action's
@@ -1208,7 +1209,7 @@ export const TemplateListInAnotherLanguage: StoryObj<typeof meta> = {
  * question they cannot answer, because the value they want is a reference to
  * something else whose type is not theirs to pick.
  *
- * The literal is still one menu item away: "Set Custom Value" in the ⋮ menu.
+ * The literal is still one menu item away: "Set custom value" in the ⋮ menu.
  * That is the right way round — picking a template is choosing from a list,
  * picking a literal is a decision.
  */
@@ -1239,7 +1240,7 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
       timeout: 5000,
     });
     expect(canvasElement.textContent).not.toContain('Please select data type');
-    expect(canvasElement.textContent).not.toContain('Select Template');
+    expect(canvasElement.textContent).not.toContain('Select template');
   },
 };
 
@@ -1342,7 +1343,7 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
   },
 };
 
-// --- written as text (qorus#646) ----------------------------------------------
+// --- written as text -----------------------------------------------------------
 // A field that takes templates and custom values is ONE text field: a template chosen into it is a chip,
 // text is written around it, and what the field holds is read from the text.
 
@@ -1637,7 +1638,7 @@ export const ExpressionOpensOnText: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a yes/no field written as an expression, with no value tabs (a row rule\'s condition is one): it opens on its Text view, the first of Text · Visual, ready to be written in. It opened on Visual, on an empty "Select operation", unless the expression had just been typed as text (qorus#646, David).',
+          'Renders a yes/no field written as an expression, with no value tabs (a row rule\'s condition is one): it opens on its Text view, the first of Text · Visual, ready to be written in. It opened on Visual, on an empty "Select operation", unless the expression had just been typed as text.',
       },
     },
   },
@@ -1699,7 +1700,7 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
   async play({ canvasElement, parameters }) {
     await openTemplateContexts(canvasElement);
     /* Where the pick goes: the start of the empty text, inside its padding. The picker opens there, from the button as
-       from a click in the text, the first time as every time (David on #162: the picker opened at the far right end of
+       from a click in the text, the first time as every time (#162: the picker opened at the far right end of
        the empty text, by its button, and a click in the text then opened it at the start). */
     const textStart = () => {
       const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!;
@@ -1716,7 +1717,7 @@ export const TemplateContextsOfferWhatCanBeTaken: StoryObj<typeof meta> = {
         );
       });
     await atTheTextStart();
-    /* The window's width changes with the picker open: it stays where it was opened (Foxhoundn on qlip #456). The
+    /* The window's width changes with the picker open: it stays where it was opened. The
        picture is taken at this size. */
     await atTheCaptureSize(parameters);
     await atTheTextStart();
@@ -1964,7 +1965,7 @@ export const WrittenAsTextNumberPicksATemplate: StoryObj<typeof meta> = {
 /**
  * A type the server's type catalogue lists and reqraft's built-in copy does not: an order reference, which takes
  * text. A field of it was offered no templates: the template list was filtered by the built-in copy, never by the
- * server's answer (qorus#646).
+ * server's answer.
  */
 const ORDER_REFERENCE_TYPE: IQorusTypeObject = {
   name: 'order-ref',
@@ -2387,7 +2388,7 @@ const TwoRecordFields = (args: React.ComponentProps<typeof TemplateField>) => {
 
 /**
  * A field that takes a record (a hash) is given a Qog state's data whole as well as opened; a text field, though
- * text takes any value, is not (qorus#646, David's review: "Any or hash yes, scalar no").
+ * text takes any value, is not: a field of any type or a hash yes, a scalar no.
  */
 export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
   args: { templates: QOG_FIELD_TEMPLATES as never, allowCustomValues: false, name: 'order' },
@@ -2441,7 +2442,7 @@ export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
 
 /**
  * A field in a drawer at the window's right edge, written as text, as a Qog state's options are: its template picker
- * is opened by a click at the end of its text (qorus-ide #301).
+ * is opened by a click at the end of its text.
  */
 const InADrawerAtTheRight = (args: any) => {
   const [value, setValue] = useState(args.value);
@@ -2510,7 +2511,7 @@ export const APickerOpenedInTheTextStaysAtTheCaretInItsDrawer: StoryObj<typeof m
       target: editor,
       coords: { clientX: field.right - 4, clientY: field.top + field.height / 2 },
     });
-    await pickerRow('Context Data');
+    await pickerRow('Context data');
     await waitFor(() => {
       const drawer = canvasElement.querySelector('.story-drawer')!.getBoundingClientRect();
       const caret = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
@@ -2588,7 +2589,7 @@ export const APickerIsBelowItsFieldOfSeveralLinesAndGoesWithIt: StoryObj<typeof 
       target: editor,
       coords: { clientX: field.left + 60, clientY: field.top + 10 },
     });
-    await pickerRow('Context Data');
+    await pickerRow('Context data');
     const isBelowTheField = () =>
       waitFor(() => {
         const box = editor.getBoundingClientRect();
@@ -2605,5 +2606,97 @@ export const APickerIsBelowItsFieldOfSeveralLinesAndGoesWithIt: StoryObj<typeof 
     await waitFor(() => expect(editor.getBoundingClientRect().top).toBeLessThan(before));
     await isBelowTheField();
     expectNoRowCut();
+  },
+};
+
+/** The words a test's value field says its way into its templates in (a field's `template_label` in a form). */
+const PICK_A_CAPTURED_VALUE = {
+  templateLabel: 'Pick a captured value',
+  templateTooltip: 'Use a value an earlier step of the run captured',
+};
+
+/** Its Template tab, read once it says the field's own words. */
+const theTemplateTab = () => document.querySelector<HTMLElement>('.value-tab[data-tab="template"]');
+
+const playItsTemplateTab = async () => {
+  await waitFor(
+    () => expect(theTemplateTab()?.textContent).toContain(PICK_A_CAPTURED_VALUE.templateLabel),
+    { timeout: 10000 }
+  );
+  expect(theTemplateTab()?.textContent).not.toContain('Template');
+  await userEvent.click(theTemplateTab()!);
+  await waitFor(() => expect(theTemplateTab()?.getAttribute('aria-pressed')).toBe('true'));
+  // the picker it opens says the same
+  await waitFor(() =>
+    expect(document.querySelector('.template-selector')?.textContent).toContain(
+      PICK_A_CAPTURED_VALUE.templateLabel
+    )
+  );
+};
+
+export const ItsTemplateTabSaysWhatItPicks: StoryObj<typeof meta> = {
+  args: {
+    component: auto,
+    type: 'date',
+    value: '2026-06-30T12:00:00Z',
+    valueTabs: true,
+    ...PICK_A_CAPTURED_VALUE,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a date field whose way into its templates is in its own words: its tabs are Value and "Pick a captured value" (not the page-wide Template), and choosing that tab opens a picker that says "Pick a captured value" too.',
+      },
+    },
+  },
+  play: playItsTemplateTab,
+};
+
+export const ItsTemplateTabSaysWhatItPicksOnAPhone: StoryObj<typeof meta> = {
+  ...ItsTemplateTabSaysWhatItPicks,
+  ...onAPhone,
+  parameters: {
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          'The same field on a phone (390 px): Value and "Pick a captured value" side by side, inside the screen.',
+      },
+    },
+  },
+  play: async () => {
+    await playItsTemplateTab();
+    expect(theTemplateTab()!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      PHONE_VIEWPORT.width
+    );
+  },
+};
+
+export const ItsUseTemplateSaysWhatItPicks: StoryObj<typeof meta> = {
+  args: {
+    component: Number,
+    type: 'int',
+    value: 5,
+    ...PICK_A_CAPTURED_VALUE,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a number field with no value tabs whose "Use template" is in its own words: its menu offers "Pick a captured value", with its own hover.',
+      },
+    },
+  },
+  async play() {
+    await _testsOpenTemplateMenu();
+    await waitFor(
+      () =>
+        expect(document.querySelector('.template-toggle')?.textContent).toContain(
+          PICK_A_CAPTURED_VALUE.templateLabel
+        ),
+      { timeout: 10000 }
+    );
+    expect(document.querySelector('.template-toggle')?.textContent).not.toContain('Use template');
   },
 };

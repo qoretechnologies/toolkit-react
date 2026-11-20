@@ -112,7 +112,7 @@ describe('a declared numeric bound', () => {
 describe('the number input', () => {
   it('is typed freely, on a numeric keyboard, and leaves the bounds to the validator', () => {
     // A number input dropped every character that is not part of a number, so a template or an expression
-    // could not be typed into a numeric field (David's review of qorus#646). The field is a text input now,
+    // could not be typed into a numeric field. The field is a text input now,
     // with a numeric keyboard; it has no spinner, so the bounds are the validator's alone (above).
     render(<NumberFormField value={5} min_value={1} max_value={10} onChange={vi.fn()} />);
 

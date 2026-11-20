@@ -4,7 +4,7 @@
 // The Qorus IDE's rich text keeps what is typed, reports it after a pause and takes any other value it is
 // handed for a change from outside. An emptied test-case Value reported "" and came back as "" and then, once
 // the form had stored it, as undefined - after a 1 was typed and before it was reported - and the 1 was
-// wiped, Slate's caret left past the end of the emptied text (qorus#646).
+// wiped, Slate's caret left past the end of the emptied text.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';

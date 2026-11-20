@@ -24,7 +24,7 @@ export interface IDescriptionInfoButtonProps {
  * the control itself does what the control does, and only that.
  *
  * It is the size of the control it sits beside: no size of its own, so it takes the group's, as the control does.
- * A fixed big one (48px) beside a small checkbox read as the main thing in the row (Foxhoundn, qlip #361).
+ * A fixed big one (48px) beside a small checkbox read as the main thing in the row.
  */
 export const DescriptionInfoButton = memo(
   ({ description, name, descriptions, size }: IDescriptionInfoButtonProps) => (

@@ -47,7 +47,7 @@ const fieldMetaOf = (field: any): IDpqlFieldMeta => {
 };
 
 export interface IUseDpqlSessionOptions {
-  /** Where the field is (`field_context`), sent with each context binding (qorus#646). */
+  /** Where the field is (`field_context`), sent with each context binding. */
   fieldContext?: ITemplateFieldContext;
   /** Provider spec — `@<app>/<action>`, `datasource:name`, `connection:name`, or factory string. */
   provider?: string;
@@ -111,7 +111,7 @@ export function useDpqlSession(
     fsmContext,
     fieldContext,
   } = opts;
-  /* Where the field is, sent with each binding (qorus#646): the server offers the templates valid there. A binding is
+  /* Where the field is, sent with each binding: the server offers the templates valid there. A binding is
      redone when it changes, by its contents, not by an object recreated with each render. */
   const fieldContextKey = fieldContext ? JSON.stringify(fieldContext) : undefined;
   const withFieldContext = useMemo(
@@ -423,7 +423,7 @@ export function useDpqlSession(
       } catch (error) {
         /* The server refused to write this value (DPQL-SERIALIZE-ERROR: a two-argument operator stored with
            more arguments). Said, not answered with no text: an empty answer opened an empty Text view for the
-           author to type over, and what was typed replaced the value (qorus#646). */
+           author to type over, and what was typed replaced the value. */
         throw new Error(String((error as { message?: unknown })?.message ?? error));
       }
     },

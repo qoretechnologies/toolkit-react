@@ -124,7 +124,7 @@ describe('dpqlEditor helpers', () => {
     // Slate requires an inline void to sit between text nodes. A document
     // loaded without them is never normalised: a chip that starts or ends the
     // line leaves the caret nowhere to go but into the chip, and Slate drops
-    // what is typed there (qorus#646, "can't type" in the Text view).
+    // what is typed there ("can't type" in the Text view).
     const isText = (node: unknown) => typeof (node as { text?: unknown }).text === 'string';
     const wellFormed = (children: unknown[]) =>
       isText(children[0]) &&
@@ -172,7 +172,7 @@ describe('dpqlEditor helpers', () => {
   });
 
   describe('field names in any script', () => {
-    // DPQL reads a field name bare in any script (qorus#646: a sheet contract's columns are named in the
+    // DPQL reads a field name bare in any script (a sheet contract's columns are named in the
     // user's language): a letter of any script or `_`, then letters, combining marks, digits and `_`
     it.each(['@menge_bestätigt', '@größe', '@名前', '@Çeşit.adı', '@e\u0301tat'])('makes %s one tag', (ref) => {
       const children = plainTextToSlate(`${ref} > 0`)[0].children;

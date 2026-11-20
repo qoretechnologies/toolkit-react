@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What the form completes while its host shows the skeleton is emitted when the skeleton clears (qorus#646).
+ * What the form completes while its host shows the skeleton is emitted when the skeleton clears.
  *
  * The form emits nothing while its host's skeleton is up: a value read against a schema the host is still
  * loading is no answer, and emitting it wiped a Qog state's stored options. But hosts show the skeleton for

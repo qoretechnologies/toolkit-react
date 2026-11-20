@@ -10,7 +10,7 @@ Design:
 `design/EXPRESSION_BUILDER_REPORT_STRATEGY.md`. Supersedes the from-scratch
 visual builder in `.tasks/FORM_ENGINE_EXPRESSIONS.md` (plumbing retained).
 
-Method (Filip): copy IDE components **and their tests** verbatim → get them
+Method: copy IDE components **and their tests** verbatim → get them
 1:1 + green → then improve. Compare to qorus-ide Storybook **:6007** between
 phases. **No commits until user verifies.**
 
@@ -34,8 +34,8 @@ phases. **No commits until user verifies.**
       from reqraft `useQorusTypes`). Typechecks.
 - [x] `validateField` — already exported from validations.ts (no change needed)
 - [x] `SelectFormField` — `flat` + `intent` now forwarded (additive; defaults
-      preserve current look). This is the fix Filip named: "make it flat and
-      small and it looks the same." The chip can now go borderless.
+      preserve current look). This is the fix: made flat and small, it
+      looks the same. The chip can now go borderless.
 - [x] **GATE:** jest 267/267, full storybook **188/189** (pre-existing flaky
       only). No regression from the shared Select change.
 - Note: `TemplateField`'s `allowFunctions`/`isFunction` mechanism moved to

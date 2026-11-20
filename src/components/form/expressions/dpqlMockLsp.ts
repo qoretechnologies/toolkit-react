@@ -85,7 +85,7 @@ const documentCatalogue = (uri: string): ITemplateCatalogue => {
   const fields = (provider ? DPQL_MOCK_PROVIDERS[provider] : undefined) ?? dpqlMockDocumentFields.get(uri);
   return storyDpqlCatalogue({
     /* the field of a story with no catalogue of its own is a Qog state's option, as a form's expression is in the
-       IDE: its local context written freely (qlip #418: `$local:name` of FormEngine · Compact Expressions read as
+       IDE: its local context written freely (`$local:name` of FormEngine · Compact Expressions read as
        naming nothing against a field with no context) */
     catalogue: dpqlMockCatalogue ?? 'qog-unhosted',
     stateData: dpqlMockDocumentStateData.get(uri),
@@ -349,7 +349,7 @@ export const startDpqlMockLspServer = (
       ...DEFAULT_LSP_CAPABILITIES,
       textDocumentSync: { openClose: true, change: 2 },
       completionProvider: { triggerCharacters: ['@', '$', '.', ':'] },
-      // the real server answers hovers: functions, operators, fields, accessors, templates (qorus#646)
+      // the real server answers hovers: functions, operators, fields, accessors, templates
       hoverProvider: true,
     },
     // Unknown requests get an empty success so nothing hangs.

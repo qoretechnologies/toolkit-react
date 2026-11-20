@@ -6,7 +6,13 @@ import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover'
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, { memo, useCallback, useMemo } from 'react';
 import { useCoarsePointer } from '../../hooks/useCoarsePointer';
-import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME, kindBadge } from './completionStyle';
+import {
+  COMPLETION_ITEM_STYLE,
+  kindBadge,
+  listKindIntent,
+  useCompletionListTheme,
+} from './completionStyle';
+import { useIsCalmForm } from '../form/engine/formAppearance';
 import { MarkdownDoc } from './MarkdownDoc';
 import { SMART_EDITOR_OVERLAY_EFFECT } from './styling';
 import {
@@ -23,8 +29,8 @@ import {
 } from '../form/fields/template/TemplatePicker';
 
 /*
- * The one list an editor offers what can be written at its caret in (qorus#646, David: "use the same
- * components ... a consistent UX"): the language server's completion after a trigger, and the field's own
+ * The one list an editor offers what can be written at its caret in (the same components everywhere, for a
+ * consistent UX): the language server's completion after a trigger, and the field's own
  * templates and fields when the editor is clicked, tapped or tabbed into. It is drawn at the caret, never takes
  * the focus - the editor keeps it and drives the list from its keys (see `useLspAutocomplete`) - and is a
  * listbox the editor points to (`aria-controls`), its rows options.
@@ -33,11 +39,12 @@ import {
 // Kind chip + a Warning chip (Qonsole flags mutating verbs) for a
 // completion row; undefined when neither applies.
 function buildKindBadge(
-  item: ICompletionDropdownItem
+  item: ICompletionDropdownItem,
+  calm: boolean
 ): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
   const editorWords = reqraftLabels().editor;
   /* A template row says what it is (State data, Context, Field) and its type, named: not the LSP kind it is sent
-     as, which called every template a Variable (qorus#646, David's review). */
+     as, which called every template a Variable. */
   const marks = (item.raw?.data ?? {}) as {
     kindLabel?: string;
     typeLabel?: string;
@@ -51,7 +58,7 @@ function buildKindBadge(
             label: marks.kindLabel,
             minimal: true as const,
             size: 'small' as const,
-            intent: 'info' as const,
+            intent: listKindIntent('info' as const, calm),
           },
         ]
       : []),
@@ -63,7 +70,7 @@ function buildKindBadge(
   if (marks.browseAll) {
     return undefined;
   }
-  const kindChip = item.kindLabel ? kindBadge(item.metadata?.kind) : undefined;
+  const kindChip = item.kindLabel ? kindBadge(item.metadata?.kind, calm) : undefined;
   const kindBadgeProps =
     kindChip ??
     (item.kindLabel ?
@@ -149,7 +156,9 @@ const CompletionMenuItem = memo(
   }: ICompletionMenuItemProps) => {
     const browserWords = useReqraftLabels().templateBrowser;
     const editorWords = useReqraftLabels().editor;
-    const badge = useMemo(() => buildKindBadge(item), [item]);
+    // a kind chip in the calm look carries no color of its own (`listKindIntent`)
+    const calm = useIsCalmForm();
+    const badge = useMemo(() => buildKindBadge(item, calm), [item, calm]);
     const marks = (item.raw?.data ?? {}) as {
       opens?: boolean;
       continues?: boolean;
@@ -159,7 +168,7 @@ const CompletionMenuItem = memo(
       templateNodeId?: string;
     };
     /* A template's row says what it is under its name, with where it is: no hover over the row's edge, no ⓘ
-       (qorus#646, David's review: the description floated over the row). */
+       (the description used to float over the row). */
     const isTemplate = marks.templateNodeId !== undefined;
     // a hover where a pointer can hover; a finger has the ⓘ
     const tooltip = useMemo(
@@ -268,8 +277,7 @@ const CompletionMenuItem = memo(
         minimal
         scrollIntoView={isFocused}
         /* the press is not a move out of the text, as its ⓘ's is not: the editor, left, drew what was being typed
-           as a chip (`$data:receive_order.`), and the row picked had nothing left to take the place of
-           (qorus#646, David's review) */
+           as a chip (`$data:receive_order.`), and the row picked had nothing left to take the place of */
         onMouseDown={keepTheFocus}
         onClick={handleClick}
         rightAction={(useWhole ?? docsToggle) as any}
@@ -339,6 +347,8 @@ export const CompletionList = memo(
     onToggleDocs,
   }: ICompletionListProps) => {
     const coarse = useCoarsePointer();
+    // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
+    const listTheme = useCompletionListTheme();
     // Flatten groups into rows carrying a flat index to compare against
     // `focusedIndex` (which is flat across all groups).
     const completionGroups = useMemo(() => {
@@ -359,7 +369,7 @@ export const CompletionList = memo(
         maxHeight='300px'
         width={TEMPLATE_PICKER_WIDTH}
         effect={SMART_EDITOR_OVERLAY_EFFECT}
-        customTheme={COMPLETION_LIST_THEME}
+        customTheme={listTheme}
       >
         {note && completionGroups.length > 0 ?
           <ReqoreMenuItem
@@ -368,7 +378,7 @@ export const CompletionList = memo(
             className='completion-note'
             disabled
             compact
-            // read, not cut: it wraps in the list's width (qorus#646, David: it was cut off with room to spare)
+            // read, not cut: it wraps in the list's width (it was cut off with room to spare)
             wrap
             style={{ opacity: 1, cursor: 'default' }}
           />
@@ -382,7 +392,7 @@ export const CompletionList = memo(
             compact
             wrap
             /* a message is read, not waited on: not dimmed as a row that cannot be picked is - dimmed, "No record
-               fields here" was hard to read on the list (qorus#646) */
+               fields here" was hard to read on the list */
             style={emptyIsMessage ? { opacity: 1, cursor: 'default' } : undefined}
           />
         : null}
@@ -422,7 +432,7 @@ CompletionList.displayName = 'CompletionList';
 /**
  * Where a list's popover is placed: against the field it belongs to, below it, from where it was opened (the caret, a
  * chip) - reqore's targetElement and offsetX - so it is never inside the field over what it holds, and goes with the
- * field as the page scrolls (Foxhoundn on reqraft #162). Without a field (not drawn), at the point it was opened at.
+ * field as the page scrolls (reqraft #162). Without a field (not drawn), at the point it was opened at.
  * The wrapper the popover is opened from is a point of no size: it is not what the list is placed against.
  */
 export const placedAgainstTheField = (autocomplete: Pick<IUseLspAutocompleteResult, 'field' | 'position'>) => ({
@@ -446,8 +456,8 @@ export const COMPLETION_POPOVER_PROPS = {
   closeOnInsideClick: false,
   minWidth: '300px',
   flat: true,
-  /* The menu is the popover's surface: no wrapper of the popover's own grey around it (Foxhoundn on qlip #477), and
-     the popover's shadow, which it keeps without one, sets it off from the page (Foxhoundn on qlip #476). */
+  /* The menu is the popover's surface: no wrapper of the popover's own grey around it, and the popover's shadow,
+     which it keeps without one, sets it off from the page. */
   noWrapper: true,
 };
 
@@ -481,6 +491,8 @@ export const CompletionMenu = memo(
               selectedValue={autocomplete.browse.selectedValue}
               keysFromPage
               arrowsFromPage={autocomplete.browse.arrows}
+              // until it hears the page's keys, the opener does: what it heard is handed on now
+              onKeysHeard={() => autocomplete.pickerHears(autocomplete.popoverKey)}
               onPick={autocomplete.pickTemplate}
               onClose={autocomplete.close}
             />
@@ -492,7 +504,7 @@ export const CompletionMenu = memo(
           minWidth={undefined}
           /* At the caret, below it, and only slid along as far as the window needs (reqore's preventOverflow).
              Allowed to flip, a caret near the window's right edge (at the end of a field's text in a drawer)
-             turned it to the caret's left and it grew out of the drawer, over the page (qorus-ide #301). */
+             turned it to the caret's left and it grew out of the drawer, over the page. */
           keepPlacement
           onToggleChange={(open: boolean) =>
             autocomplete.handleExternalClose(open, autocomplete.popoverKey)
@@ -520,7 +532,7 @@ export const CompletionMenu = memo(
                 emptyIsMessage={!!autocomplete.emptyMessage && !autocomplete.isFetching}
                 note={autocomplete.note}
                 emptyLabel={
-                  // what the list says where nothing can be offered: "No record fields here" (qorus#646)
+                  // what the list says where nothing can be offered: "No record fields here"
                   autocomplete.emptyMessage && !autocomplete.isFetching ? autocomplete.emptyMessage
                   : autocomplete.isReplaceMode || autocomplete.isFetching ?
                     (pendingLabel ??

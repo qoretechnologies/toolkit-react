@@ -88,7 +88,7 @@ export const BracedTemplatesAreWhole: Story = {
     docs: {
       description: {
         story:
-          'Renders text with two templates whose braced values hold braces: $record:{prices{*}} - the values of a hash, {*} written unescaped - and $record:{h.\\\\{*}}, a key named {*}. Each is one chip, "record: prices{*}" and "record: h.\\\\{*}", and the text after them stays text; the value ended at its first } before, a chip "record: prices{*" and a stray "}" (qorus#646).',
+          'Renders text with two templates whose braced values hold braces: $record:{prices{*}} - the values of a hash, {*} written unescaped - and $record:{h.\\\\{*}}, a key named {*}. Each is one chip, "record: prices{*}" and "record: h.\\\\{*}", and the text after them stays text; the value ended at its first } before, a chip "record: prices{*" and a stray "}".',
       },
     },
   },

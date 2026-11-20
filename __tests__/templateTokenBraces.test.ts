@@ -10,7 +10,7 @@ import {
 } from '../src/helpers/templates';
 
 /*
- * A template's braced value ends where Qorus ends it (qorus#646): braces nest, and `\{`, `\}` and `\\` are a brace
+ * A template's braced value ends where Qorus ends it: braces nest, and `\{`, `\}` and `\\` are a brace
  * or a backslash of the value (UserApi `_priv_get_template_bracket_arg`). The grammar ended a value at its first
  * `}`, so `$record:{prices{*}}` - the wildcard written as a template - was the chip "record: prices{*" and a
  * stray "}".
@@ -27,7 +27,7 @@ describe("a template's braced value", () => {
     expect(isCompleteTemplateToken('$record:{path\\\\}')).toBe(true);
   });
 
-  // the PO's rule (qorus#646): `\{`, `\}` and `\\` are escapes, decoded first; braces balance, so `{*}` is
+  // the rule: `\{`, `\}` and `\\` are escapes, decoded first; braces balance, so `{*}` is
   // written unescaped; a key literally named `{*}` is the test path `\{*}`, written `$record:{h.\\{*}}`; a lone
   // brace in a key is escaped
   it("reads the PO's cases as Qorus does", () => {

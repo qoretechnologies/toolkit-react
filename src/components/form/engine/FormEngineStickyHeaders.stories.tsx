@@ -26,7 +26,16 @@ const SCROLLER = 'sticky-story-scroller';
  * Enough rows per bucket that scrolling lands INSIDE a box rather than between
  * two of them — a header pinned at the boundary proves nothing.
  */
-const longSchema = (optional = 12): IQorusFormSchema => {
+/**
+ * Rows in the Set box, and in the Optional box unless a story asks for more. Enough that each box is
+ * well over 1.5 times the scroller's 70vh: Reqore pins a box's header only while its box is that tall, clearly
+ * taller than the screen (reqore#715), and these stories are about boxes long enough to read
+ * with their header pinned. 12 rows (~430px) pinned only on a Reqore that pinned every header; at a 1080px screen a box needs about
+ * 1,090px (1.5 x a 756px scroller less its padding).
+ */
+const BOX_ROWS = 40;
+
+const longSchema = (optional = BOX_ROWS): IQorusFormSchema => {
   const schema: IQorusFormSchema = {};
   for (let i = 1; i <= 4; i++) {
     schema[`attention_${i}`] = {
@@ -36,7 +45,7 @@ const longSchema = (optional = 12): IQorusFormSchema => {
       required: true,
     };
   }
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= BOX_ROWS; i++) {
     schema[`set_${i}`] = {
       type: 'string',
       ui_type: 'string',
@@ -55,7 +64,7 @@ const longSchema = (optional = 12): IQorusFormSchema => {
 
 const longValue = (): IOptions => {
   const value: IOptions = {};
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= BOX_ROWS; i++) {
     value[`set_${i}`] = { type: 'string', value: `value ${i}` } as never;
   }
   return value;
@@ -122,8 +131,12 @@ const scroller = () => document.getElementById(SCROLLER) as HTMLElement;
 
 /** One box's header element, found by the label it carries. */
 const boxHeader = (label: string): HTMLElement => {
+  // The first box is "To fill in" until something in it is a fault (a new form).
+  const labels = label === 'Needs attention' ? ['Needs attention', 'To fill in'] : [label];
   const box = Array.from(document.querySelectorAll('.options-readfirst-group')).find((el) =>
-    (el.querySelector(':scope > .reqore-panel-title')?.textContent ?? '').includes(label)
+    labels.some((name) =>
+      (el.querySelector(':scope > .reqore-panel-title')?.textContent ?? '').includes(name)
+    )
   );
   if (!box) {
     throw new Error(`no status box labeled ${label}`);
@@ -242,7 +255,7 @@ export const BoxHeaderClearsTheToolbar: Story = {
     docs: {
       description: {
         story:
-          'The form’s toolbar and the status-box headers are both pinned in the same scroller. The box header is offset by the toolbar’s measured height, so the two stack instead of overlapping and the search stays reachable.',
+          'The form’s toolbar and the status-box headers are both pinned in the same scroller. The box header is offset by the toolbar’s measured height, so the two stack instead of overlapping and the search stays reachable. The pinned toolbar is opaque, in the host’s color, so the rows scrolled under it do not read through the readiness line and the search.',
       },
     },
   },
@@ -257,6 +270,12 @@ export const BoxHeaderClearsTheToolbar: Story = {
     expect(box.top).toBeGreaterThanOrEqual(Math.floor(bar.bottom) - 1);
     /* And the toolbar is itself still pinned, not scrolled away. */
     expect(bar.top).toBeGreaterThanOrEqual(scroller().getBoundingClientRect().top - 1);
+    /* What scrolls under it does not read through it: it paints an opaque surface. At 88% the rows showed through
+       crisply wherever the blur behind it did not apply. */
+    const [, , , alpha = 1] = (getComputedStyle(toolbar()).backgroundColor.match(/[\d.]+/g) || []).map(
+      Number
+    );
+    expect(alpha).toBe(1);
   },
 };
 
@@ -271,7 +290,7 @@ export const OnlyOneBoxHeaderIsEverPinned: Story = {
   /* The last box is longer than the scroller at any screen height, so it can be scrolled past the line it pins at:
      with 12 rows, at a 1080px screen (a 756px scroller) the scroll ended before the box reached the line, and the
      story failed in Storybook's UI at that size while passing in the test runner's smaller window. */
-  args: { options: longSchema(30) },
+  args: { options: longSchema(BOX_ROWS + 4) },
   parameters: {
     docs: {
       description: {
@@ -338,5 +357,229 @@ export const StickyHeadersOnAPhone: Story = {
     expect(getComputedStyle(toolbar()).position).not.toBe('sticky');
     /* The whole cost, against the screen it is charged to. */
     expect(box.bottom - band.top).toBeLessThan(band.height / 5);
+  },
+};
+
+/**
+ * A host's list editor that opens in the card (`cardEditorTypes`), one line per item: the shape of the Qorus IDE's
+ * test Cases field, whose card is a list a few screens long.
+ */
+const CaseListStandin = ({ value }: { value?: string[] }) => (
+  <div className='case-list-standin' style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    {(value ?? []).map((name) => (
+      <div
+        key={name}
+        className='case-list-standin-row'
+        style={{
+          padding: '6px 10px',
+          border: '1px solid #ffffff1a',
+          borderRadius: 6,
+          color: '#d6d6d6',
+          fontSize: 13,
+        }}
+      >
+        {name}
+      </div>
+    ))}
+  </div>
+);
+
+/** A form whose Cases field holds `count` cases, opened, among the long form's other rows. */
+const casesArgs = (count: number): Partial<IFormEngineProps> => {
+  const cases = Array.from({ length: count }, (_, index) => `Case ${index + 1}: an order that ships`);
+  return {
+    options: {
+      cases: {
+        type: 'list',
+        ui_type: 'case-list',
+        display_name: 'Cases',
+        short_desc: 'Ordered test cases',
+      },
+      ...longSchema(),
+    } as unknown as IQorusFormSchema,
+    value: { cases: { type: 'list', value: cases } as never, ...longValue() },
+    componentOverrides: { 'case-list': CaseListStandin } as never,
+    cardEditorTypes: ['case-list'],
+    initialExpandedOptions: ['cases'],
+  };
+};
+
+/** The Cases card, once it has opened with its list in it. */
+const casesCard = () =>
+  waitFor(() => {
+    const card = document.querySelector<HTMLElement>('.options-readfirst-card[data-field="cases"]');
+    expect(card, 'the Cases card').toBeTruthy();
+    expect(card!.querySelector('.case-list-standin-row'), 'its list').toBeTruthy();
+    return card!;
+  });
+
+const cardHeading = (card: HTMLElement) =>
+  card.querySelector(':scope > .options-readfirst-card-header') as HTMLElement;
+
+/**
+ * A card many screens long keeps its heading on screen while its body is read.
+ *
+ * Measured, as the box headers are: the heading's rect has to sit at the line the pinned chrome above it ends at,
+ * while the rows that started under it have gone past.
+ */
+export const ALongCardKeepsItsHeadingWhileItsBodyIsRead: Story = {
+  args: casesArgs(80),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'An open Cases field whose list is several screens long, in a long form. Scrolled into the list, the card’s heading (its name, its description and its actions) stays pinned under the form’s toolbar and the Set box’s header, opaque, so the reader keeps the name of what they are reading. It pins only because the card is more than one and a half times its scroll area.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    await waitFor(() => expect(card.getAttribute('data-pins-header')).toBe('true'));
+    const restingTop = cardHeading(card).getBoundingClientRect().top;
+
+    /* Into the middle of the list, well past the heading's place in the flow. */
+    await scrollTo(scroller().scrollTop + card.getBoundingClientRect().top - pinLine() + 600);
+
+    const heading = cardHeading(card).getBoundingClientRect();
+    /* It moved with the scroll, and then stopped: the scroll reached it. */
+    expect(heading.top).toBeLessThan(restingTop);
+    /* Under the Set box's pinned header, not over it and not behind it. */
+    const box = boxHeader('Set').getBoundingClientRect();
+    expect(box.top).toBeGreaterThanOrEqual(Math.floor(pinLine()) - 1);
+    expect(Math.abs(heading.top - box.bottom)).toBeLessThan(1.5);
+    /* The rows it heads have gone under it, which is what the pin is for. */
+    const firstRow = card.querySelector<HTMLElement>('.case-list-standin-row')!;
+    expect(firstRow.getBoundingClientRect().top).toBeLessThan(heading.top);
+    /* And they do not read through it. */
+    expect(getComputedStyle(cardHeading(card)).backgroundImage).toContain('linear-gradient');
+    expect(cardHeading(card).textContent).toContain('Cases');
+  },
+};
+
+/**
+ * A card that fits on the screen never pins its heading: pinned for the few pixels it overhung, it would draw a band
+ * with nothing under it to label.
+ */
+export const AShortCardNeverPinsItsHeading: Story = {
+  args: casesArgs(6),
+  parameters: {
+    // Interaction-only: a card that does not pin looks as every open card did before.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'An open Cases field with six cases, in a long form. The card is shorter than its scroll area, so scrolled past, its heading leaves with it instead of pinning.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    await waitFor(() => expect(card.getAttribute('data-pins-header')).toBe('false'));
+    /* Scrolled until the card's last row is at the top of the scroller. */
+    const last = [...card.querySelectorAll<HTMLElement>('.case-list-standin-row')].pop()!;
+    await scrollTo(scroller().scrollTop + last.getBoundingClientRect().top - pinLine());
+
+    expect(getComputedStyle(cardHeading(card)).position).not.toBe('sticky');
+    expect(cardHeading(card).getBoundingClientRect().bottom).toBeLessThan(pinLine());
+  },
+};
+
+/**
+ * With nothing of the form's pinned above it (the toolbar's pin off, the box headers' off: a host whose form is one
+ * long field, as the Qorus IDE's Cases are), the heading pins at the scroller's visible top edge, its padding taken
+ * off as Reqore takes it off a panel's header.
+ */
+export const ALongCardPinsAtTheTopWithNothingAboveIt: Story = {
+  args: {
+    ...casesArgs(80),
+    compactStickyBoxHeaders: false,
+    compactPanelProps: { stickyHeader: false },
+  },
+  parameters: {
+    // Interaction-only: the pinned heading is pictured by `ALongCardKeepsItsHeadingWhileItsBodyIsRead`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The long Cases card in a form whose toolbar and box headers do not pin. Scrolled into the list, the card’s heading pins at the very top of the scroller, inside its padding, not a padding’s height below it.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    await waitFor(() => expect(card.getAttribute('data-pins-header')).toBe('true'));
+    const restingTop = cardHeading(card).getBoundingClientRect().top;
+    const edge = () => {
+      const box = scroller();
+
+      return box.getBoundingClientRect().top + (parseFloat(getComputedStyle(box).borderTopWidth) || 0);
+    };
+
+    await scrollTo(scroller().scrollTop + card.getBoundingClientRect().top - edge() + 600);
+
+    const heading = cardHeading(card).getBoundingClientRect();
+
+    expect(heading.top).toBeLessThan(restingTop);
+    expect(Math.abs(heading.top - edge())).toBeLessThan(1.5);
+    expect(getComputedStyle(toolbar()).position).not.toBe('sticky');
+  },
+};
+
+/**
+ * A host editor that pins a band of its own, as the Qorus IDE's open test case pins its case's name and Run case
+ * at the top of the page while the case is read.
+ */
+const BandedListStandin = ({ value }: { value?: string[] }) => (
+  <div className='banded-list-standin'>
+    <div
+      className='banded-list-standin-band'
+      style={{ position: 'sticky', top: 0, zIndex: 5, padding: '8px 10px', background: '#262626' }}
+    >
+      Case 1 · Run case
+    </div>
+    <CaseListStandin value={value} />
+  </div>
+);
+
+/**
+ * With every pin of the form's off (its toolbar, its box headers, its card headings), a host editor's own band still
+ * pins at the top of the page: nothing between it and the page clips. A box whose header did not pin was clipped by
+ * Reqore, and a clipping box is where a sticky element inside it pins, so the IDE's case band scrolled away with
+ * the page when it turned the form's box headers off.
+ */
+export const AHostEditorsOwnBandPinsWithTheFormsPinsOff: Story = {
+  args: {
+    ...casesArgs(80),
+    componentOverrides: { 'case-list': BandedListStandin } as never,
+    compactStickyBoxHeaders: false,
+    compactStickyCardHeaders: false,
+    compactPanelProps: { stickyHeader: false },
+  },
+  parameters: {
+    // Interaction-only: what it draws is a stand-in.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'A Cases field whose editor pins a band of its own, in a form with its toolbar, box headers and card headings all left unpinned. Scrolled into the list, the band stays at the top of the scroller.',
+      },
+    },
+  },
+  play: async () => {
+    const card = await casesCard();
+    const band = () => card.querySelector<HTMLElement>('.banded-list-standin-band')!;
+    await waitFor(() => expect(band()).toBeTruthy());
+    const restingTop = band().getBoundingClientRect().top;
+    const box = scroller();
+    // a sticky `top: 0` pins inside the scroller's padding
+    const line =
+      box.getBoundingClientRect().top +
+      (parseFloat(getComputedStyle(box).borderTopWidth) || 0) +
+      (parseFloat(getComputedStyle(box).paddingTop) || 0);
+
+    await scrollTo(box.scrollTop + card.getBoundingClientRect().top - line + 600);
+
+    expect(band().getBoundingClientRect().top).toBeLessThan(restingTop);
+    expect(Math.abs(band().getBoundingClientRect().top - line)).toBeLessThan(1.5);
   },
 };

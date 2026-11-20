@@ -54,6 +54,32 @@ export const Default: Story = {
   },
 };
 
+/** A host's own words for each kind, in sentence case, as the IDE says them. */
+const KIND_WORDS: Record<string, string> = {
+  workflow: 'Workflow',
+  service: 'Service',
+  job: 'Job',
+};
+
+export const KindInTheHostsWords: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A host that says each kind in its own words passes `kindLabel`: each chip says "Workflow", "Service" or "Job" before its name, and its tooltip says it too, where it said the raw kind.',
+      },
+    },
+  },
+  args: { kindLabel: (kind) => KIND_WORDS[kind] ?? kind, onInterfaceClick: fn() },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getAllByText('Workflow')).toHaveLength(2));
+    await expect(canvas.getByText('Service')).toBeInTheDocument();
+    await expect(canvas.getByText('Job')).toBeInTheDocument();
+    await expect(canvas.queryByText('workflow')).toBeNull();
+  },
+};
+
 /**
  * When `onInterfaceClick` is passed the chips become interactive; clicking one
  * calls it with that reference (the customer view, which can open the interface on
@@ -270,7 +296,7 @@ export const MixedLinkability: Story = {
     docs: {
       description: {
         story:
-          'Renders four chips of which two can be opened: the refused ones keep their place and look but carry an unlink glyph and no click, with the reason in their tooltip (qorus#693).',
+          'Renders four chips of which two can be opened: the refused ones keep their place and look but carry an unlink glyph and no click, with the reason in their tooltip.',
       },
     },
   },

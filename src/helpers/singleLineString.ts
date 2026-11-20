@@ -35,6 +35,7 @@
 const SINGLE_LINE_STRING_TYPES = new Set([
   'string',
   'email',
+  'uri',
   'uuid',
   'hostname',
   'ipv4',

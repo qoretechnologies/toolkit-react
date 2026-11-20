@@ -2,8 +2,8 @@
 
 /**
  * The web address `text` is, when the whole of it is one: an `http:` or `https:` URL and nothing else, with no
- * space in it. A value that is an address is drawn as a link to it (qorus#646, Foxhoundn on qlip #383: "Please
- * render links as links"). Any other scheme is not a link - `javascript:` above all, which a link would run - and
+ * space in it. A value that is an address is drawn as a link to it. Any
+ * other scheme is not a link - `javascript:` above all, which a link would run - and
  * neither is text that only mentions an address.
  */
 export const webLinkOf = (text: unknown): string | undefined => {

@@ -7,6 +7,19 @@ export * from './helpers/templateCatalogueContext';
 // the words a list of templates is read with, which a host that translates its interface passes to `buildTemplates`
 export * from './helpers/reqraftLabels';
 export * from './helpers/templateListLabels';
+// the one builder of a list of templates from the server's payload, grouped by the server's group codes
+export {
+  buildTemplates,
+  DEFAULT_REQRAFT_TEMPLATE_GROUPS,
+  getTemplateStateAlias,
+  reqraftTemplateGroups,
+  setReqraftTemplateGroups,
+} from './helpers/templates';
+export type {
+  IBuildTemplatesOptions,
+  IReqraftTemplateGroups,
+  ITemplatesPayload,
+} from './helpers/templates';
 export {
   validateField,
   validateFieldWithResult,
@@ -90,7 +103,7 @@ export * from './components/codeSize';
 export * from './components/colorValue';
 // The Qorus type catalogue: the built-in copy of GET /system/qorus-type-info, what a type is called and takes
 // (`qorusTypeEntry`: by its name, an optional, soft or complex form of one, or its base type), and what a picker
-// that lists every type offers (qorus#646).
+// that lists every type offers.
 export {
   defaultQorusTypes,
   getQorusTypes,
@@ -104,8 +117,18 @@ export {
 } from './hooks/useQorusTypes';
 export type { IQorusTypeObject, IUseTypes } from './hooks/useQorusTypes';
 // A template's type and base type, as a typed member of its row (`metadata.type`, `metadata.baseType`), else the
-// row's badge where a host keeps it there: a list of templates names the type in the badge it draws (qorus#646).
+// row's badge where a host keeps it there: a list of templates says the type in words, never as a badge.
 export { templateBaseType, templateType } from './helpers/templateType';
+// A list of templates whose values say their type in words, not as a badge: for a host that draws
+// its own list of a catalogue's values.
+export { sayTemplateTypesInWords } from './helpers/templateItems';
+// The words the surrounding form draws types in (the server's catalogue where a form fetched it): for a host that
+// draws its own list of values, with `sayTemplateTypesInWords`.
+export {
+  useTypeLabel,
+  useTypeName,
+  useTypeSentenceForm,
+} from './components/form/typeSentenceForm';
 export type { ITemplateTypeRow } from './helpers/templateType';
 
 // First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable

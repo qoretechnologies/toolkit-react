@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The delegated-access vocabulary (qorus#692): the setting, a grant's state and end,
+// The delegated-access vocabulary: the setting, a grant's state and end,
 // the duration presets and the grant's audit trail read the same on every surface,
 // and an unknown wire value never takes a surface down.
 import { describe, expect, it } from 'vitest';

@@ -72,9 +72,12 @@ export const seedTemplatesCache = (
  * Without a context, consumers keep passing templates in (`localTemplates`)
  * and no request is made — the original reqraft behavior.
  */
+/** No local templates: one object, so a caller that passes none gets the same answer on every render. */
+const NO_LOCAL_TEMPLATES: IReqoreFormTemplates = {};
+
 export const useTemplates = (
   allow?: boolean,
-  localTemplates: IReqoreFormTemplates = {},
+  localTemplates: IReqoreFormTemplates = NO_LOCAL_TEMPLATES,
   interfaceContext?: string
 ): IUseTemplates => {
   const listWords = useReqraftLabels().templateList;
@@ -115,13 +118,23 @@ export const useTemplates = (
     return null;
   }, [shouldFetch, interfaceContext]);
 
+  /* Kept on what the request answered, not on the request's state: useAsyncRetry hands back a new state object on
+     every render, and the templates were a new object with it, and so was every form's row context built on them,
+     on every render of the form. */
   const templates: IReqoreFormTemplates | undefined = useMemo(() => {
     if (!shouldFetch) {
       return allow ? localTemplates || {} : undefined;
     }
 
-    // If the local templates already include the global ones, use them as-is.
-    if (localTemplates?.items?.some(({ label }) => label === 'Context Data')) {
+    /* If the local templates already include the global ones, use them as-is: the server's own context, marked as
+       it is built (`serverContext`), or named so by a host that builds its own list (in either case). */
+    if (
+      localTemplates?.items?.some(
+        (item) =>
+          (item.metadata as { serverContext?: boolean } | undefined)?.serverContext ||
+          /^context data$/i.test(String(item.label ?? ''))
+      )
+    ) {
       return localTemplates;
     }
 
@@ -135,12 +148,19 @@ export const useTemplates = (
       ...globalTemplatesValue,
       items: [...(globalTemplatesValue?.items || []), ...(localTemplates?.items || [])],
     };
-  }, [allow, shouldFetch, interfaceContext, globalTemplates, localTemplates, listWords]);
+  }, [
+    allow,
+    shouldFetch,
+    interfaceContext,
+    globalTemplates.loading,
+    globalTemplates.value,
+    localTemplates,
+    listWords,
+  ]);
 
-  return {
-    loading: shouldFetch && globalTemplates.loading && !TemplatesCache.has(interfaceContext!),
-    error: globalTemplates.error,
-    retry: globalTemplates.retry,
-    value: templates,
-  };
+  const loading = shouldFetch && globalTemplates.loading && !TemplatesCache.has(interfaceContext!);
+  const { error, retry } = globalTemplates;
+
+  // One answer while nothing in it changes: a form builds its fields on it (`renderOption`).
+  return useMemo(() => ({ loading, error, retry, value: templates }), [loading, error, retry, templates]);
 };

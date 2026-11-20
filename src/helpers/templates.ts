@@ -6,7 +6,7 @@ import {
   TReqoreDropdownItem,
   TReqoreDropdownItems,
 } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
-import { cloneDeep, size } from 'lodash';
+import { cloneDeep, size, uniq } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
 import { reqraftLabels } from './reqraftLabels';
@@ -17,7 +17,8 @@ import {
   descriptionTooltip,
   IDescriptionTooltipOptions,
 } from './descriptionTooltip';
-import { NO_VALUE_DESCRIPTION } from './noDescription';
+import { givenDescription, noValueDescription } from './noDescription';
+import { toSentenceCase } from './sentenceCase';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
@@ -83,21 +84,21 @@ export type TReferenceChipProps = Pick<
 /**
  * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
  * text editor and the expression editor: one chip, so a reference is the same size wherever it is shown, at
- * whatever size its text is (qorus#646). One object for all of them: written out in each, the views drifted
+ * whatever size its text is. One object for all of them: written out in each, the views drifted
  * apart, and a chip jumped as a value moved between them.
  *
  * - `small`, never smaller: a chip is pressed (a tap opens its card, a click its list), and a control a finger
  *   must hit is not `micro` or `tiny` (BRAND_DESIGN, "Tap targets are finger-sized"). The one chip was `tiny`, a
  *   14px box with the 14px text it sits in: the label was taller than its box and ran out of it, and the name
- *   was all but cut off (Foxhoundn on qlip #383; David, 2026-10-22: one chip for every view at `small`).
+ *   was all but cut off. So one chip for every view, at `small`.
  * - its label in the font of the text it sits in, padded inside the box;
  * - and wrapping: a chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the
  *   line's width with its label centred in it, and lost both ends - its icon, the start and the end of the path,
- *   and its remove button (Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
+ *   and its remove button: the tag overflowed its line.
  * - a tag, never a badge: reqore's rich text editor draws its chips as compact badges (`asBadge`, `compact`), a
  *   pill with rounder corners and its own height, so a reference in an expression or a rich text field was a pill
- *   beside the tags of every other view (Foxhoundn on qlip #392: "Some template chips are pills, some are badges -
- *   let's unify them please"). Said here, the editor's chip is the tag the others are.
+ *   beside the tags of every other view, some chips pills and some badges. Said here, the editor's chip is the tag
+ *   the others are.
  */
 export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
   size: 'small',
@@ -145,7 +146,7 @@ export const getTemplateValue = (value: string): string => {
  * template here" while typing; use the strict check below when a decision
  * must not misfire on user-typed dollar-strings.
  *
- * A braced segment ends where Qorus ends it (UserApi `_priv_get_template_bracket_arg`, qorus#646): braces nest,
+ * A braced segment ends where Qorus ends it (UserApi `_priv_get_template_bracket_arg`): braces nest,
  * and `\{`, `\}` and `\\` are a brace or a backslash of the value, not one that opens or closes it. So
  * `$record:{prices{*}}` - a wildcard written as a template - is one token; a pattern ending the value at its first
  * `}` drew the chip "record: prices{*" and a stray "}". No pattern can count braces, so the grammar is read one
@@ -154,7 +155,7 @@ export const getTemplateValue = (value: string): string => {
 const TEMPLATE_KEY = /[A-Za-z_][\w-]*/y;
 /* A plain segment as Qorus reads one (UserApi `_priv_get_template_arg`: `\w+[\w.]*`): words and the dots between
    them - `$static:order.id` is one reference, its key `order.id`, and `*` alone, the whole of the context
-   (`$data:*`) - (qorus#646: it was cut at the dot, the chip
+   (`$data:*`) - (it was once cut at the dot, the chip
    "static: order" and the text ".id"). A dot that ends it is not part of it: `$data:receive_order.` is a reference
    being written on. */
 const TEMPLATE_WORD_SEGMENT = /\*(?![\w.])|\w[\w-]*(?:\.[\w-]+)*/y;
@@ -234,7 +235,7 @@ export const isCompleteTemplateToken = (value?: unknown): value is string =>
 /**
  * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
  * two templates side by side. In text it is text; a whole number, a number, a yes/no or a date cannot
- * hold it (qorus#646).
+ * hold it.
  */
 export const hasTextAroundATemplate = (value?: unknown): value is string =>
   typeof value === 'string' &&
@@ -274,7 +275,7 @@ export const textAroundATemplate = (value?: unknown): ITextAroundATemplate | und
  *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
  *  references nobody types by hand, so a surface may render them as a picker
  *  chip. Plain word-path tokens (`$local:id`) stay typeable and belong in the
- *  template-offering input (build #123 review). Word segments cannot contain
+ *  template-offering input (a Qlip review). Word segments cannot contain
  *  `{`, so `:{` inside a complete token always starts a braced segment. */
 export const isBracedTemplateToken = (value?: unknown): value is string =>
   isCompleteTemplateToken(value) && value.includes(':{');
@@ -296,7 +297,7 @@ export const isBracedTemplateToken = (value?: unknown): value is string =>
  */
 /**
  * Whether two keyed references are one, braces or not: `$data:{a.b}` (how a catalogue spells it) is
- * `$data:a.b` (how the language server completes it, and how it may be typed) - qorus#646.
+ * `$data:a.b` (how the language server completes it, and how it may be typed).
  */
 const sameKeyedReference = (a: unknown, b: string): boolean =>
   typeof a === 'string' &&
@@ -461,7 +462,7 @@ export const resolveTemplateLabel = (
   const extended = exact ? undefined : findTemplateByPath(templates, value);
   const item = exact ?? extended?.item;
   if (!item) {
-    // a Qog state's data taken whole, which no row is: named by its state (qorus#646, David's review)
+    // a Qog state's data taken whole, which no row is: named by its state
     const group = catalogueGroupFor(templates, value);
     return group ?
         { label: group.label, item: group.row as TReqoreDropdownItem, path: group.path }
@@ -469,7 +470,7 @@ export const resolveTemplateLabel = (
   }
   const own = (item.label as string) || value;
   const name = extended ? composeExtendedLabel(own, extended.remainder) : own;
-  /* Named with where it is (qorus#646, David's decision): the data it is part of before its name - a Qog state, a
+  /* Named with where it is: the data it is part of before its name - a Qog state, a
      record - "Receive order › … › Address › City", up to three steps whole; its whole path, with the groups that only
      gather templates (Context Data), is its hover's title. Two states both have an "ID". */
   const trail = catalogueRowTrail(templates, item);
@@ -558,18 +559,18 @@ export const templateTooltip = (
   const templateTypeName = templateType(item);
   const type = templateTypeName ? typeSentenceForm(templateTypeName, templateBaseType(item)) : undefined;
   /* What it is, and where nothing says so, why: a hover with no description said only the name, and a reader
-     could not tell an undescribed value from a broken hover (qorus#646, David). */
+     could not tell an undescribed value from a broken hover. */
   const given = [description, host?.description].find(
     (text): text is string => typeof text === 'string' && !!text.trim()
   );
   /* what its color means (`TEMPLATE_INTENT_MEANINGS`), where the catalogue lists it: the same on its chip and
-     its row (qorus#646, David: "what is the significance of the colors?") */
+     its row, so a reader can tell what the colors mean */
   const intent = item ? templateRowIntent(item.metadata as Record<string, unknown>) : 'info';
   // blue is any other data: only green and purple say something of their own
   const meaning =
     intent === 'info' ? undefined : reqraftLabels().templateTree.intentMeanings[intent];
   const body = [
-    describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type),
+    describedWithType(given ?? (host?.noDescription || noValueDescription()), type),
     meaning,
   ]
     .filter(Boolean)
@@ -604,7 +605,7 @@ export const templateAllowedValues = (item: unknown): unknown[] => {
 
 /**
  * What a reference's hover says under its name: what kind of value it is, in words - "A whole number." from the
- * type's sentence form - then its description (qorus#646, David: a field's hover should say the field's type).
+ * type's sentence form - then its description: a field's hover says the field's type.
  * The type was in the catalogue (its badge) and in no hover; where a hover said it, it said it raw, `(int)`.
  * Undefined when there is neither.
  */
@@ -666,7 +667,7 @@ export const filterTemplatesByType = (
         newSubItem.items = filterItems(subItem.items);
 
         /* A Qog state's data is a hash, taken whole where the field takes a record, though none of what it holds
-           fits the field (qorus#646, David's review: Look up customer had no Use in a hash field): its members are
+           fits the field (Look up customer once had no Use in a hash field): its members are
            shown, and none of them can be picked. */
         if (!size(newSubItem.items) && takesRecords && stateOfGroup(subItem.items)) {
           newSubItem.items = subItem.items.map((member) => ({ ...member, disabled: true }));
@@ -728,10 +729,74 @@ export const filterTemplatesByType = (
   return newTemplates;
 };
 
-// --- buildTemplates — ported verbatim from qorus-ide `helpers/functions.tsx`
-// (line ~870). Converts the server's `system/getContextData` payload into
-// ReQore dropdown templates. SEAM (reqraft): the IDE's optional `states`
-// (FSM validity) parameter is dropped — without it every group is valid.
+// --- buildTemplates — ported from qorus-ide `helpers/functions.tsx` (line ~870). Converts the server's
+// `system/getContextData` payload into ReQore dropdown templates; a host says which of its steps are valid
+// (`isStepValid`), and the values are grouped by the server's group codes where it sends them.
+
+/**
+ * The order of the groups a list of templates is drawn in, by the server's group code, and the groups that are not
+ * in the list by default (drawn last, each closed), as the server's registry has them. A host that mirrors the
+ * server's registry gives its own (`setReqraftTemplateGroups`); these are the server's lists of 19 Nov 2026.
+ */
+export interface IReqraftTemplateGroups {
+  order: string[];
+  notListedByDefault: string[];
+}
+
+export const DEFAULT_REQRAFT_TEMPLATE_GROUPS: IReqraftTemplateGroups = {
+  order: ['trigger', 'step', 'time', 'flow', 'kept_data', 'variables', 'settings', 'test'],
+  notListedByDefault: ['test'],
+};
+
+let templateGroups: IReqraftTemplateGroups = DEFAULT_REQRAFT_TEMPLATE_GROUPS;
+
+/**
+ * Gives the order of the groups a list of templates is drawn in, and the groups not listed by default, for the
+ * page: each list given replaces Reqraft's whole list; one left out stays as it was by default. A host that mirrors
+ * the server's registry of group codes passes it here, so a group the server adds is placed as the server says.
+ */
+export const setReqraftTemplateGroups = (groups: Partial<IReqraftTemplateGroups> = {}): void => {
+  templateGroups = { ...DEFAULT_REQRAFT_TEMPLATE_GROUPS, ...groups };
+};
+
+/** The order and the hidden groups now (`setReqraftTemplateGroups`). */
+export const reqraftTemplateGroups = (): IReqraftTemplateGroups => templateGroups;
+
+/**
+ * The spelling a reference to a step's data has under the step's own id, where the catalogue spells it with the
+ * step's key: a Qog built from a template keys its steps by number ('1', '2') over their own ids ('dc_ai_reply'),
+ * and its saved references use the id. A whole-step reference (`$data:{key}`) and a field of it (`$data:{key.…}`)
+ * have one; anything else, or a step whose id is its key, has none.
+ */
+export const getTemplateStateAlias = (
+  value: string | undefined,
+  stateKey: string,
+  stateId: string
+): string | undefined => {
+  if (!value || stateKey === stateId) {
+    return undefined;
+  }
+  if (value === `$data:{${stateKey}}`) {
+    return `$data:{${stateId}}`;
+  }
+  const prefix = `$data:{${stateKey}.`;
+  return value.startsWith(prefix) ? `$data:{${stateId}.${value.slice(prefix.length)}` : undefined;
+};
+
+/** What a host tells `buildTemplates` about its own data. */
+export interface IBuildTemplatesOptions {
+  /**
+   * Whether the step a group of data is from (the payload's key) is valid: an invalid one is drawn disabled, in
+   * danger, as its data cannot be read until it is fixed. Unset, every step is valid.
+   */
+  isStepValid?: (dataId: string) => boolean;
+  /**
+   * The step's own id where it differs from its key in the payload (the payload's key): each value under the step,
+   * its fields included, then carries its reference under that id too (`metadata.aliasValues`,
+   * `getTemplateStateAlias`), so a saved reference that uses the id is found and named.
+   */
+  stateIdOf?: (dataId: string) => string | undefined;
+}
 
 interface ITemplateItemPayload {
   /** Its key, as Qorus names it (`customer.address.city` for a record's field). */
@@ -752,6 +817,11 @@ interface ITemplateItemPayload {
   data_role?: string;
   /** The values it is one of, written as a field's are; its hover lists them (`templateTooltip`). */
   allowed_values?: unknown[];
+  /**
+   * The group the server puts it in (`trigger`, `step`, `time`, `flow`, `kept_data`, `variables`, `settings`,
+   * `test`), on a top-level value; a record's field follows its record.
+   */
+  group?: string;
 }
 
 export interface ITemplatesPayload {
@@ -778,7 +848,8 @@ export type { IReqraftTemplateListLabels } from './templateListLabels';
  */
 export const buildTemplates = (
   templates?: ITemplatesPayload,
-  labels?: Partial<IReqraftTemplateListLabels>
+  labels?: Partial<IReqraftTemplateListLabels>,
+  options: IBuildTemplatesOptions = {}
 ): IReqoreFormTemplates | undefined => {
   if (!templates || !Object.keys(templates).length) {
     return undefined;
@@ -794,9 +865,13 @@ export const buildTemplates = (
     display_name?: string,
     builtIn?: boolean,
     isEventTrigger?: boolean,
-    dataRole?: string
-  ): TReqoreDropdownItems =>
-    items.map(
+    dataRole?: string,
+    // by the label a reader sees (`byLabel`); a group the server orders keeps the server's order
+    sorted = true,
+    // the step's key and its own id, where they differ (`stateIdOf`)
+    stateIdentity?: [string, string]
+  ): TReqoreDropdownItems => {
+    const mapped = items.map(
       ({
         display_name: itemDisplayName,
         value,
@@ -807,9 +882,16 @@ export const buildTemplates = (
         data_role: itemDataRole,
         allowed_values,
         short_desc: itemShortDesc,
+        desc: itemDesc,
       }): TReqoreDropdownItem => {
+        /* The example as a person writes it: text as it is, anything else as data. Text went through JSON too, so
+           a list read `For example: "Prague"`, in quotes nobody types. */
         const serializedExample =
-          example_value !== undefined ? JSON.stringify(example_value) : undefined;
+          example_value === undefined ? undefined
+          : typeof example_value === 'string' ? example_value
+          : JSON.stringify(example_value);
+        // what it is, as Qorus says it in full, else in a line; its stand-in for none is none
+        const itemDescription = givenDescription(itemDesc) ?? givenDescription(itemShortDesc);
         const exampleIsLong =
           serializedExample !== undefined &&
           serializedExample.length > TEMPLATE_EXAMPLE_PREVIEW_LENGTH;
@@ -828,7 +910,8 @@ export const buildTemplates = (
           // reveal it. The single line cuts at the rendered width, so the
           // preview adapts to any popover/panel width without breakpoints.
           descriptionEffect: exampleIsLong ? { noWrap: true } : undefined,
-          badge: type,
+          /* No badge: the type is the template's, a typed member (`metadata.type`) a field matches it by, and a list
+             says it in words, not as a badge reading "int" (`sayTemplateTypesInWords`). */
           metadata: {
             image: logo,
             displayName: display_name,
@@ -837,8 +920,13 @@ export const buildTemplates = (
             app,
             action,
             dataRole: itemDataRole || dataRole,
-            // what it is, as Qorus says it: a list says it of the template, its example aside ("no description" is none)
-            ...(itemShortDesc && itemShortDesc !== 'no description' ? { description: itemShortDesc } : {}),
+            ...(() => {
+              const alias =
+                stateIdentity && getTemplateStateAlias(value, stateIdentity[0], stateIdentity[1]);
+              return alias ? { aliasValues: [alias] } : {};
+            })(),
+            // what it is, as Qorus says it: a list says it of the template, its example aside
+            ...(itemDescription ? { description: itemDescription } : {}),
             // the template's type, a typed member: the badge is a list's to name (`templateType`)
             ...(type ? { type } : {}),
             ...(base_type ? { baseType: base_type } : {}),
@@ -882,7 +970,9 @@ export const buildTemplates = (
             display_name,
             builtIn,
             isEventTrigger,
-            dataRole
+            dataRole,
+            true,
+            stateIdentity
           );
           item.stackWithActions = false;
           item.leftAction = {
@@ -897,44 +987,132 @@ export const buildTemplates = (
 
         return item;
       }
-    ).sort(byLabel);
+    );
+    return sorted ? mapped.sort(byLabel) : mapped;
+  };
 
-  return {
-    items: Object.values(templates).map(
-      ({
-        display_name,
-        items,
-        app,
-        action,
-        short_desc,
-        builtin,
-        is_event_trigger,
-        data_role,
-        logo,
-      }): TReqoreDropdownItem => ({
-        label: display_name,
-        description: short_desc,
+  type TEntry = ITemplatesPayload[string];
+  /* An entry's name: a state's is its author's, kept as written; the server's own context ("Context Data") is the
+     server's, said in sentence case as the list's other words are. */
+  const entryName = (entry: TEntry, dataId: string): string | undefined =>
+    dataId === '_context' ? toSentenceCase(entry.display_name) : entry.display_name;
+  /** An entry's own look: its logo and app, its role, and whether its step can be read. */
+  const entryLook = (entry: TEntry, dataId: string): Partial<TReqoreDropdownItem> => {
+    const valid = entry.internal || !options.isStepValid || options.isStepValid(dataId);
+    return {
+      flat: false,
+      transparent: false,
+      minimal: true,
+      leftIconProps: { image: entry.logo },
+      badge: entry.app,
+      ...(valid ? {} : { disabled: true, intent: 'danger' }),
+      metadata: {
+        dataRole: entry.data_role,
+        // the server's own context: a host that already holds it is not given it again
+        ...(dataId === '_context' ? { serverContext: true } : {}),
+      },
+    } as Partial<TReqoreDropdownItem>;
+  };
+  const entryItems = (
+    entry: TEntry,
+    dataId: string,
+    items: ITemplateItemPayload[] | undefined,
+    sorted: boolean
+  ) => {
+    const stateId = options.stateIdOf?.(dataId);
+    return mapTemplates(
+      items,
+      entry.app,
+      entry.action,
+      entry.logo,
+      entryName(entry, dataId),
+      entry.builtin,
+      entry.is_event_trigger,
+      entry.data_role,
+      sorted,
+      stateId && stateId !== dataId ? [dataId, stateId] : undefined
+    );
+  };
+
+  const grouped = Object.values(templates).some(({ items }) => items?.some(({ group }) => group));
+  if (!grouped) {
+    // an older server sends no group codes: each block of data is a group of its own, as before
+    return {
+      items: Object.entries(templates)
+        .map(
+          ([dataId, entry]): TReqoreDropdownItem => ({
+            label: entryName(entry, dataId),
+            description: givenDescription(entry.short_desc),
+            ...entryLook(entry, dataId),
+            items: entryItems(entry, dataId, entry.items, true),
+          })
+        )
+        .sort(byLabel),
+    } as IReqoreFormTemplates;
+  }
+
+  /* The values in the groups the server puts them in, each group in the server's order of its values, the groups in
+     the order the host gives (`setReqraftTemplateGroups`). "Earlier steps" holds a list per step, in the payload's
+     order; the groups not listed by default come last. */
+  const buckets = new Map<string, { look: Partial<TReqoreDropdownItem>; items: TReqoreDropdownItems }>();
+  const steps: TReqoreDropdownItem[] = [];
+  for (const [dataId, entry] of Object.entries(templates)) {
+    const byCode = new Map<string, ITemplateItemPayload[]>();
+    for (const item of entry.items ?? []) {
+      const code = item.group ?? '';
+      byCode.set(code, [...(byCode.get(code) ?? []), item]);
+    }
+    byCode.forEach((items, code) => {
+      if (code === 'step') {
+        steps.push({
+          label: entryName(entry, dataId),
+          description: givenDescription(entry.short_desc),
+          ...entryLook(entry, dataId),
+          items: entryItems(entry, dataId, items, false),
+        } as TReqoreDropdownItem);
+        return;
+      }
+      const bucket = buckets.get(code) ?? { look: entryLook(entry, dataId), items: [] };
+      bucket.items.push(...entryItems(entry, dataId, items, false));
+      buckets.set(code, bucket);
+    });
+  }
+
+  const { order, notListedByDefault } = templateGroups;
+  const hidden = new Set(notListedByDefault);
+  const seenCodes = [...(steps.length ? ['step'] : []), ...Array.from(buckets.keys())].filter(Boolean);
+  // a code the host does not order goes where Reqraft's own order puts it, else where the payload has it
+  const unordered = uniq([...DEFAULT_REQRAFT_TEMPLATE_GROUPS.order, ...seenCodes]).filter(
+    (code) => seenCodes.includes(code) && !order.includes(code) && !hidden.has(code)
+  );
+  const codes = [
+    ...order.filter((code) => !hidden.has(code)),
+    ...unordered,
+    ...order.filter((code) => hidden.has(code)),
+    ...notListedByDefault.filter((code) => !order.includes(code)),
+  ];
+  const groupOf = (code: string): TReqoreDropdownItems => {
+    const heading = words.valueGroups?.[code];
+    const items =
+      code === 'step' ? (steps as TReqoreDropdownItems) : (buckets.get(code)?.items ?? []);
+    if (!items.length) return [];
+    // a group with no words draws no heading: its values are listed as they are
+    if (!heading) return items;
+    return [
+      {
+        label: heading.label,
+        description: heading.description,
         flat: false,
         transparent: false,
         minimal: true,
-        leftIconProps: {
-          image: logo,
-        },
-        badge: app,
-        metadata: {
-          dataRole: data_role,
-        },
-        items: mapTemplates(
-          items,
-          app,
-          action,
-          logo,
-          display_name,
-          builtin,
-          is_event_trigger,
-          data_role
-        ),
-      })
-    ).sort(byLabel),
+        ...(code === 'step' ? {} : buckets.get(code)?.look),
+        items,
+      } as TReqoreDropdownItem,
+    ];
+  };
+
+  return {
+    // values with no group code at all, then the groups
+    items: [...(buckets.get('')?.items ?? []), ...codes.flatMap(groupOf)],
   } as IReqoreFormTemplates;
 };

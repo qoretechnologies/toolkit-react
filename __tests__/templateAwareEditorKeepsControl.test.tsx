@@ -49,7 +49,7 @@ const renderField = (props: Partial<ITemplateFieldProps>) =>
     </ReqoreUIProvider>
   );
 
-const showsSelector = (c: HTMLElement) => (c.textContent || '').includes('Select Template');
+const showsSelector = (c: HTMLElement) => (c.textContent || '').includes('Select template');
 
 describe('isTemplateAwareUiType', () => {
   it('knows reqraft’s own rich text', () => {

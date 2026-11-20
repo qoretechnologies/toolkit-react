@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * reqraft's copy of the server's type catalogue is the server's catalogue (qorus#646).
+ * reqraft's copy of the server's type catalogue is the server's catalogue.
  *
  * Until a host's server answers GET /system/qorus-type-info, reqraft draws with `defaultQorusTypes`: it names the
  * types with it, and the expression builder decides with its `types_accepted` and `exact_match` which values and

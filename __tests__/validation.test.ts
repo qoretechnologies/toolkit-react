@@ -771,7 +771,7 @@ describe('an option in several required groups', () => {
     const options: any = { opt2: { type: 'string', value: 'x' } };
     expect(unsatisfiedRequiredGroups(options, schema, ['G1', 'G2'])).toEqual(['G2']);
     expect(getRequiredOptionMessage(schema, unsatisfiedRequiredGroups(options, schema, ['G1', 'G2']), 'opt4')).toBe(
-      'This field or Five is required'
+      'A value is required here, or in Five'
     );
   });
 });
@@ -1295,7 +1295,7 @@ describe('expression with an empty operand slot', () => {
     expect(() => validateField('expression', value, { expressions: addition })).not.toThrow();
     const result = validateFieldWithResult('expression', value, { expressions: addition });
     expect(result.isValid).toBe(false);
-    // said by the operand's position and name - addition can take more operands (David, qorus#646) - and
+    // said by the operand's position and name - addition can take more operands - and
     // what to do
     expect(result.reason).toMatch(/^Enter the 1st "/);
   });

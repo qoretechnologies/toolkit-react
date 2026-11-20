@@ -16,7 +16,7 @@ export interface IHiddenFieldWithValue {
 }
 
 /**
- * What is said of a field hidden while it does not apply, that holds a value (qorus#646, David): it is not dropped
+ * What is said of a field hidden while it does not apply, that holds a value: it is not dropped
  * silently. The value is kept - the form does not clear it - but it is not used while the field is hidden, and a
  * value that is not valid says so, since there is no field to show it in.
  */

@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What an option compared by an operator says: in names (qorus#646, David on FormEngine · Compact Operators:
- * "what is 'WHERE status IS equals "COMPLETE"' - what is this expression, and what is "is equals"?").
+ * What an option compared by an operator says: in names (FormEngine · Compact Operators read
+ * 'WHERE status IS equals "COMPLETE"', an expression nobody could read: what is "is equals"?).
  */
 import { describe, expect, it } from 'vitest';
 import { operatorSummary } from '../src/components/form/engine/operatorSummary';

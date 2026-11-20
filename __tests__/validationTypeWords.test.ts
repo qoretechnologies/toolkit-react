@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { validateFieldWithResult } from '../src/helpers/validations';
 
 /**
- * qorus#646: what a form says of a value that is not of its field's type names the type as the server's catalogue
+ * What a form says of a value that is not of its field's type names the type as the server's catalogue
  * does inside a sentence - its sentence form - not in Qore's words ("an integer", "a float", "a True or False
  * value") or words of its own ("a number" for an exact number, "a date" for a date and time).
  */

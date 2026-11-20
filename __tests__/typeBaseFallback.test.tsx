@@ -4,7 +4,7 @@
 // Qorus gives every field, option and argument its base data type (`base_type`). A type the catalogue lists under
 // no name - a user type, a type of a newer server - was named by its code ("qoretechnologies/order",
 // "order-status") and fitted nothing, so its field was offered no template. Now it is named and converted as its
-// base type; with none, a user type is named by its path and anything else is "Unknown type" (qorus#646).
+// base type; with none, a user type is named by its path and anything else is "Unknown type".
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { FetchContext } from '../src/contexts/FetchContext';

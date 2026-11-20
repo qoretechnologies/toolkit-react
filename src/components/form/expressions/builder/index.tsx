@@ -49,6 +49,7 @@ import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 import { findTemplate } from '../../../../helpers/templates';
 import { templateChipLabel } from '../../../../helpers/templateText';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
 import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
@@ -72,6 +73,12 @@ import {
   TExpressionReorderSurface,
 } from '../types';
 import {
+  calmNoteIntent,
+  getCalmAttentionColours,
+  getCalmIntentText,
+  useIsCalmForm,
+} from '../../engine/formAppearance';
+import {
   getCachedExpressionType,
   registerTemplateTypes,
   unregisterTemplateTypes,
@@ -83,9 +90,12 @@ import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
+import { RowLabelledContext } from '../../engine/rowLabelled';
 import { ExpressionItem } from './item';
 import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
+import { toSentenceCase } from '../../../../helpers/sentenceCase';
 
 const noopUseRegisterHintView = (...args: unknown[]): void => {
   void args;
@@ -123,8 +133,8 @@ export interface IExpressionBuilderProps {
    */
   condition?: boolean;
   /**
-   * What the server says of each part of the condition's `&&`, `||` and `!` (`dpql/parse` with `condition: true`,
-   * qorus#646), in its walk order: each is drawn on its part's card. Given to the builder at the top; it hands
+   * What the server says of each part of the condition's `&&`, `||` and `!` (`dpql/parse` with `condition: true`),
+   * in its walk order: each is drawn on its part's card. Given to the builder at the top; it hands
    * each card its own (`conditionPartCards`).
    */
   conditionParts?: IConditionPart[];
@@ -185,6 +195,57 @@ const StyledExpressionItemLabel = styled.div`
 
 export interface IExpressionProps extends IExpressionBuilderProps {}
 
+/**
+ * A note under an expression: what is wrong with it, or what it still lacks. In the calm look a line of words in its
+ * meaning's color, as a word that reads (`getCalmIntentText`), the way the calm form's messages are drawn - never a
+ * tinted chip with a glyph; what it only still lacks is said in the quiet text color. In the classic look the chip
+ * it always was.
+ */
+const ExpressionNote = ({
+  intent,
+  icon,
+  label,
+  className,
+  verdict,
+}: {
+  intent: 'danger' | 'warning' | 'pending';
+  icon: IReqoreIconName;
+  label: string;
+  className?: string;
+  verdict?: string;
+}) => {
+  const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
+  if (calm) {
+    return (
+      <ReqoreP
+        size='small'
+        className={className}
+        data-verdict={verdict}
+        effect={{
+          color: (intent === 'pending' ?
+            getCalmAttentionColours(theme).pending
+          : getCalmIntentText(theme, intent)) as TReqoreEffectColor,
+        }}
+      >
+        {label}
+      </ReqoreP>
+    );
+  }
+  return (
+    <ReqoreTag
+      minimal
+      className={className}
+      data-verdict={verdict}
+      icon={icon}
+      intent={intent === 'pending' ? 'warning' : intent}
+      size='tiny'
+      wrap
+      label={label}
+    />
+  );
+};
+
 export const Expression = ({
   localTemplates,
   value = ExpressionDefaultValue,
@@ -208,6 +269,10 @@ export const Expression = ({
   conditionMessage,
   ...props
 }: IExpressionProps) => {
+  const words = useReqraftLabels().expressions;
+  // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+  const destructive = useDestructiveButtonProps();
+  const calm = useIsCalmForm();
   const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
@@ -263,8 +328,8 @@ export const Expression = ({
     [extraActions, selectedExpression, JSON.stringify(value)]
   );
 
-  // The type the expression gives is the server's, the same as everywhere else in Qorus
-  // (qoretechnologies/qorus#713); it is not known, and nothing is judged by it, until the server gives it.
+  // The type the expression gives is the server's, the same as everywhere else in Qorus;
+  // it is not known, and nothing is judged by it, until the server gives it.
   // `ui_type` is compared with the types this place takes, which are UI types; what the expression gives is
   // named, and judged as a condition, by the type's own name, as the Text view names it (`inferred_type`:
   // "a whole number", where the UI type of every number is `number`).
@@ -287,7 +352,10 @@ export const Expression = ({
         if (arg?.is_expression) {
           const operation = expressions.value?.find((exp) => exp.name === arg.value?.exp);
           return {
-            label: operation?.display_name ? `"${operation.display_name}"` : undefined,
+            label:
+              operation?.display_name ?
+                `"${calm ? toSentenceCase(operation.display_name) : operation.display_name}"`
+              : undefined,
             type: getCachedExpressionType(arg.value)?.inferred_type,
             isOperation: true,
           };
@@ -301,12 +369,11 @@ export const Expression = ({
           type: arg?.type,
         };
       }),
-    [JSON.stringify(value), JSON.stringify(expressions.value), localTemplates, serverType]
+    [JSON.stringify(value), JSON.stringify(expressions.value), localTemplates, serverType, calm]
   );
   // An empty card gives nothing, which is known without asking: it does not fit a place that takes something.
   const typeNotKnownYet = !!value.value?.exp && !serverType;
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
-  // (qorus#646)
   const expectedReturnTypeText = typesInASentence(
     isArray(returnType) ? returnType : [returnType],
     (type) => types.getTypeSentenceForm(type, returnBaseType)
@@ -616,7 +683,7 @@ export const Expression = ({
   const isDragOverArg = (index: number) =>
     dragOverArg === index && dragArg.current !== null && dragArg.current !== index;
 
-  // The `⋮` menu's "Move Argument" section, one per operand. The wording is
+  // The `⋮` menu's "Move argument" section, one per operand. The wording is
   // axis-free on purpose — the operands wrap into a column on narrow screens.
   const argMenuActions = useMemo((): ITemplateMenuActions[] | undefined => {
     if (!canReorderArgs || !reorderSurfaces.includes('overflowMenu')) {
@@ -624,14 +691,14 @@ export const Expression = ({
     }
 
     const moves: [string, string, IReqoreIconName, (index: number) => number][] = [
-      ['before', 'Move before', 'ArrowGoBackLine', (index) => index - 1],
-      ['after', 'Move after', 'ArrowGoForwardLine', (index) => index + 1],
-      ['start', 'Move to start', 'SkipBackLine', () => 0],
-      ['end', 'Move to end', 'SkipForwardLine', () => argCount - 1],
+      ['before', words.moveBefore, 'ArrowGoBackLine', (index) => index - 1],
+      ['after', words.moveAfter, 'ArrowGoForwardLine', (index) => index + 1],
+      ['start', words.moveToStart, 'SkipBackLine', () => 0],
+      ['end', words.moveToEnd, 'SkipForwardLine', () => argCount - 1],
     ];
 
     return Array.from({ length: argCount }, (_, index) => ({
-      label: 'Move Argument',
+      label: words.moveArgument,
       icon: 'ArrowLeftRightLine',
       items: [
         ...moves.map(([key, label, icon, target]) => {
@@ -661,7 +728,7 @@ export const Expression = ({
         },
       ],
     }));
-  }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg]);
+  }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg, words]);
 
   if (selectedExpression?.varargs) {
     restOfArgs = [
@@ -672,14 +739,14 @@ export const Expression = ({
     ];
   }
 
-  /* The expression as a condition (qorus#646): a Qog if state's, a while or for block's, a transition's
+  /* The expression as a condition: a Qog if state's, a while or for block's, a transition's
      condition is read by the server as true unless its value is zero or empty (Fsm.qc calls .toBool()). What
      it gives is said as every condition editor says it: a number or a list is accepted with a warning under
      it, text, a date or a time is refused. Only where the host says it is a condition: a value of type bool
      is checked as a bool, and an int does not fit it. */
   const condition = level === 0 && isCondition ? conditionVerdict(expressionGivesType) : undefined;
   /* A part of the condition's AND, OR or NOT (this card's own, or the one a NOT reads): read as true or false
-     by its value as the whole condition is, and judged by the server by the same rule (qorus#646). Its verdict
+     by its value as the whole condition is, and judged by the server by the same rule. Its verdict
      is the server's, drawn here; nothing on this side checks a part as a bool. */
   const part = partCards?.[path ?? ''];
   const partVerdict = conditionPartVerdict(part);
@@ -693,7 +760,7 @@ export const Expression = ({
      because the type worked out here happened to be a number's (a warning, in the server's words). */
   /* A part whose operation is not chosen yet gives nothing yet, and nothing is said of what it gives: it was told
      "This expression gives nothing, which this field does not take" - a type it never claimed - beside the Text
-     view's "Fill in each …" (qorus#646, David's review). What it lacks is said instead (`noOperationYetText`). */
+     view's "Fill in each …". What it lacks is said instead (`noOperationYetText`). */
   const noOperationYet = !value?.value?.exp;
   /** What the place takes, said with what it lacks: only a type that is a type (not untyped, not `auto`). */
   const takesText =
@@ -744,7 +811,8 @@ export const Expression = ({
         .map((exp) => ({
           name: exp.name,
           value: exp.name,
-          display_name: exp.display_name,
+          // calm: the catalog's Title Case name in sentence case, as an operand's is (`toSentenceCase`)
+          display_name: calm ? toSentenceCase(exp.display_name) : exp.display_name,
           short_desc: exp.short_desc,
           desc: exp.desc,
           badge: exp.symbol,
@@ -764,6 +832,7 @@ export const Expression = ({
       isChild,
       returnType,
       value?.value?.exp,
+      calm,
     ]
   );
 
@@ -808,7 +877,7 @@ export const Expression = ({
 
     /* A typed operand mounts a text field, and the caret goes there. An untyped one has nothing to type into:
        its first control is its template picker, a list that opens when it is focused, and since reqore 0.78
-       one focused as it mounts opens at once. Adding a value is not asking for that list (David, qorus#646),
+       one focused as it mounts opens at once. Adding a value is not asking for that list,
        so the operand itself takes the focus, and its picker opens when the user goes to it. */
     (added.querySelector<HTMLElement>('textarea, input') ?? added).focus();
   }, [argCount]);
@@ -834,18 +903,25 @@ export const Expression = ({
       return undefined;
     }
 
-    const name = (selectedExpression.args[0]?.display_name || 'argument').toLowerCase();
+    const label = words.removeOperand(selectedExpression.args[0]?.display_name);
 
     return Array.from({ length: argCount }, (_, index) => [
       {
-        label: `Remove ${name}`,
+        label,
         icon: 'DeleteBinLine',
         intent: 'danger',
         className: 'expression-remove-arg',
         onClick: () => removeVarArg(index),
       },
     ]);
-  }, [canRemoveArgs, phone, argCount, removeVarArg, JSON.stringify(selectedExpression?.args[0])]);
+  }, [
+    canRemoveArgs,
+    phone,
+    argCount,
+    removeVarArg,
+    JSON.stringify(selectedExpression?.args[0]),
+    words,
+  ]);
   const isSlotDropTarget = canReorderArgs && reorderSurfaces.includes('dragHandle');
   // The slot is indexed one past the last operand, so its drag-over state
   // never lights an operand and vice versa.
@@ -978,8 +1054,13 @@ export const Expression = ({
     <ExpressionItem
       index={index}
       as={ReqorePanel}
-      intent={validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted' : 'danger'}
-      description={isExpressionServerHandled ? 'This expression runs outside Qorus' : ''}
+      intent={
+        // calm: a neutral card - what is wrong is said in words under it, not by a red frame
+        calm ? undefined
+        : validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted'
+        : 'danger'
+      }
+      description={isExpressionServerHandled ? words.runsOutsideQorus : ''}
       flat
       readOnly={readOnly}
       minimal
@@ -996,7 +1077,7 @@ export const Expression = ({
           className='expression-operator-selector'
           value={value?.value?.exp}
           icon='Functions'
-          placeholder='Select operation'
+          placeholder={words.selectOperation}
           fluid={false}
           // shrinks with a narrow panel, its name shortened, rather than holding the panel open
           fixed={false}
@@ -1021,7 +1102,8 @@ export const Expression = ({
         // pushed it - and the actions floating above it on hover - past the group and a narrow screen
         maxWidth: isChild ? 'calc(100% - 10px)' : undefined,
         minWidth: 0,
-        borderStyle: 'dashed',
+        // calm: the solid hairline every calm section has; the dashed frame was decoration
+        borderStyle: calm ? undefined : 'dashed',
         flexShrink: 1,
       }}
       contentStyle={{
@@ -1043,7 +1125,7 @@ export const Expression = ({
           props: {
             className: 'expression-wrap',
             id: 'expression-builder-wrap',
-            placeholder: 'Wrap',
+            placeholder: words.wrap,
             icon: 'Functions',
             showRightIcon: false,
             fluid: false,
@@ -1057,38 +1139,35 @@ export const Expression = ({
             hideItemCount: true,
             onChange: handleWrapExpressionClick,
             showDescription: 'tooltip',
-            tooltip: 'Put this expression inside another one',
+            tooltip: words.wrapTooltip,
             size: 'tiny',
           },
         },
         {
           className: 'expression-unwrap',
-          label: 'Remove',
+          label: words.unwrap,
           textAlign: 'center',
           icon: 'CloseLine',
-          tooltip: 'Remove this expression and keep what is inside it',
+          tooltip: words.unwrapTooltip,
           fixed: true,
           onClick: unwrapExpression,
           show: value.value?.args?.[0]?.is_expression === true && !readOnly ? 'hover' : false,
         },
         {
           className: 'expression-explain',
-          label: showSummary ? 'Hide Explanation' : 'Explain',
+          label: showSummary ? words.hideExplanation : words.explain,
           show: level === 0,
           onClick: () => setShowSummary(!showSummary),
           icon: 'InformationLine',
-          tooltip:
-            showSummary ?
-              'Hide explanation of this expression'
-            : 'Show explanation of this expression',
+          tooltip: showSummary ? words.hideExplanationTooltip : words.explainTooltip,
           fixed: true,
         },
         {
           className: 'expression-group-remove',
-          intent: 'danger',
+          ...destructive,
           textAlign: 'center',
           icon: 'DeleteBinLine',
-          tooltip: 'Remove this expression and everything inside it',
+          tooltip: words.removeExpressionTooltip,
           fixed: true,
           minimal: true,
           show: readOnly ? false : 'hover',
@@ -1098,7 +1177,7 @@ export const Expression = ({
       bottomActions={[
         {
           /* a yes/no place, or a part of an AND or an OR, which another AND or OR can stand for (a part
-             takes any value, qorus#646) */
+             takes any value) */
           show:
             !!selectedExpression &&
             (!!group || areQorusTypesCompatible('bool', returnType, types.value)) &&
@@ -1107,7 +1186,10 @@ export const Expression = ({
             {
               flat: true,
               className: 'expression-and',
-              label: 'AND',
+              // sentence case in the calm look, capitals in the classic one
+              label: words.joinWithAnd,
+              labelEffect: calm ? undefined : { uppercase: true },
+              tooltip: words.joinWithAndTooltip,
               textAlign: 'center',
               icon: 'AddLine',
               fixed: true,
@@ -1119,7 +1201,9 @@ export const Expression = ({
             {
               flat: true,
               className: 'expression-or',
-              label: 'OR',
+              label: words.joinWithOr,
+              labelEffect: calm ? undefined : { uppercase: true },
+              tooltip: words.joinWithOrTooltip,
               textAlign: 'center',
               icon: 'AddLine',
               show: (!group || group === '&&') && !readOnly,
@@ -1149,7 +1233,7 @@ export const Expression = ({
           maxSize='550px'
           bottomActions={[
             {
-              label: confirmDialogData?.cancelText || 'Cancel',
+              label: confirmDialogData?.cancelText || words.cancel,
               onClick: () => {
                 confirmDialogData?.onCancel?.();
                 setConfirmDialogData(undefined);
@@ -1158,7 +1242,7 @@ export const Expression = ({
               minimal: true,
             },
             {
-              label: confirmDialogData?.confirmText || 'Confirm',
+              label: confirmDialogData?.confirmText || words.confirm,
               intent: 'warning',
               icon: 'CheckFill',
               minimal: true,
@@ -1181,15 +1265,15 @@ export const Expression = ({
         />
       )}
       {/* One sentence for an expression with nothing chosen yet: what it lacks and what its place takes. It
-          was said twice, here and under the card (qorus#646). */}
+          was said twice, here and under the card. */}
       {nothingChosenYet ?
         <ReqoreMessage
           size='small'
           opaque={false}
-          intent='info'
+          intent={calmNoteIntent('info', calm)}
           className='expression-no-operation-yet'
         >
-          {noOperationYetText(false, takesText)}
+          {words.noOperationYet(false, takesText)}
         </ReqoreMessage>
       : <ReqoreControlGroup
           // On a phone every operand is a full-width row, so the group spans
@@ -1235,12 +1319,12 @@ export const Expression = ({
               extraActions={extraActions}
               minimal
               label={
-                serverAndQorusExpression ? 'Select Template Or Field'
+                serverAndQorusExpression ? words.selectTemplateOrField
                 : serverExpression ?
-                  'Select Field'
+                  words.selectField
                 : qorusExpression ?
-                  'Select Template'
-                : 'Select Template Or Field'
+                  words.selectTemplate
+                : words.selectTemplateOrField
               }
               allowFunctions={
                 !serverExpression &&
@@ -1436,14 +1520,11 @@ export const Expression = ({
       {partVerdict && (
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             className='expression-condition-part-verdict'
-            data-verdict={partVerdict}
+            verdict={partVerdict}
             icon={partVerdict === 'error' ? 'ErrorWarningLine' : 'AlertLine'}
             intent={partVerdict === 'error' ? 'danger' : 'warning'}
-            size='tiny'
-            wrap
             label={
               part?.message ??
               (partVerdict === 'error' ?
@@ -1459,13 +1540,10 @@ export const Expression = ({
       {condition === 'warning' && (
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             className='expression-condition-verdict'
             icon='AlertLine'
             intent='warning'
-            size='tiny'
-            wrap
             // the server's words for the whole condition, where it said any; the same rule's own otherwise
             label={conditionMessage ?? conditionByTruthinessText(expressionGivesType)}
           />
@@ -1476,13 +1554,10 @@ export const Expression = ({
           <ReqoreVerticalSpacer height={5} />
           {takesCondition && !!expressionGivesType && isTextOrDateType(expressionGivesType) ?
             // a condition that gives text, a date or a time: say how to make it one
-            <ReqoreTag
-              minimal
+            <ExpressionNote
               className='expression-condition-verdict'
               icon='ErrorWarningLine'
               intent='danger'
-              size='tiny'
-              wrap
               label={
                 (level === 0 ? conditionMessage : undefined) ??
                 conditionErrorText(
@@ -1491,12 +1566,9 @@ export const Expression = ({
                 )
               }
             />
-          : <ReqoreTag
-              minimal
+          : <ExpressionNote
               icon='ErrorWarningLine'
               intent='danger'
-              size='tiny'
-              wrap
               label={expressionTypeMismatchText(
                 expressionGivesType ? types.getTypeSentenceForm(expressionGivesType) : undefined,
                 expectedReturnTypeText,
@@ -1511,30 +1583,26 @@ export const Expression = ({
           }
         </>
       )}
-      {selectedExpression && !validationData.isValid ?
+      {/* calm: an operand not filled in yet says so itself, in the calm form's words (`missingOperand`) */}
+      {selectedExpression && !validationData.isValid && !(calm && validationData.missingOperand) ?
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             icon='ErrorWarningLine'
             intent='danger'
-            size='tiny'
-            wrap
-            label={validationData.reason || 'Qorus could not check this expression.'}
+            label={validationData.reason || words.couldNotCheck}
           />
         </>
       : null}
       {noOperationYet && !readOnly && !nothingChosenYet ?
         <>
           <ReqoreVerticalSpacer height={5} />
-          <ReqoreTag
-            minimal
+          <ExpressionNote
             className='expression-no-operation-yet'
             icon='ErrorWarningLine'
-            intent='warning'
-            size='tiny'
-            wrap
-            label={noOperationYetText(isChild || level > 0, takesText)}
+            // calm: what is still to choose is the next step, said quietly - not a warning
+            intent='pending'
+            label={words.noOperationYet(isChild || level > 0, takesText)}
           />
         </>
       : null}
@@ -1544,14 +1612,12 @@ export const Expression = ({
 
 /**
  * What an expression, or a part of one, whose operation is not chosen yet says: what it lacks, as the Text view's
- * holes do, and what its place takes where that is a type (qorus#646). `takes` names the type inside the sentence.
+ * holes do, and what its place takes where that is a type. `takes` names the type inside the sentence.
  */
 export const noOperationYetText = (part: boolean, takes: string | undefined): string =>
-  part ?
-    `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`
-  : `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`;
+  reqraftLabels().expressions.noOperationYet(part, takes);
 
-export const ExpressionBuilder = ({
+const ExpressionBuilderBody = ({
   localTemplates,
   value = ExpressionDefaultValue,
   isChild,
@@ -1576,6 +1642,7 @@ export const ExpressionBuilder = ({
   conditionPartCards: givenPartCards,
   conditionMessage,
 }: IExpressionBuilderProps) => {
+  const words = useReqraftLabels().expressions;
   const templates = useTemplates(!isChild, localTemplates);
   /* The top builder places what the server says of each part of the condition on that part's card; a nested
      one is handed the placement. */
@@ -1653,7 +1720,7 @@ export const ExpressionBuilder = ({
   if (templates.loading) {
     return (
       <ReqoreSpinner type={5} size='normal'>
-        Loading...
+        {words.loading}
       </ReqoreSpinner>
     );
   }
@@ -1680,9 +1747,9 @@ export const ExpressionBuilder = ({
           label={
             isChild ?
               value.value.exp === '||' ?
-                'At least one of these is true (OR)'
-              : 'All of these are true (AND)'
-            : 'If'
+                words.anyOfConditions
+              : words.allOfConditions
+            : words.ifConditions
           }
           style={{
             marginLeft: isChild ? 10 : 0,
@@ -1700,18 +1767,15 @@ export const ExpressionBuilder = ({
                   `${path ? `${path}.` : ''}value.args.${size(value.value.args)}`
                 );
               },
-              tooltip: 'Add a condition',
+              tooltip: words.addCondition,
             },
             {
               className: 'expression-explain',
-              label: showSummary ? 'Hide Explanation' : 'Explain',
+              label: showSummary ? words.hideExplanation : words.explain,
               show: level === 0,
               onClick: () => setShowSummary(!showSummary),
               icon: 'InformationLine',
-              tooltip:
-                showSummary ?
-                  'Hide explanation of this expression'
-                : 'Show explanation of this expression',
+              tooltip: showSummary ? words.hideExplanationTooltip : words.explainTooltip,
               fixed: true,
             },
           ]}
@@ -1741,7 +1805,7 @@ export const ExpressionBuilder = ({
                   type={type}
                   onValueChange={handleChange}
                   /* what its operator takes, as the catalogue declares it: any value, on a Qorus that reads
-                     each part of an AND or an OR as a condition (qorus#646) */
+                     each part of an AND or an OR as a condition */
                   returnType={
                     (_expressions.expressions?.find((exp) => exp.name === value.value.exp)
                       ?.args?.[0]?.ui_type ?? 'any') as any
@@ -1757,7 +1821,8 @@ export const ExpressionBuilder = ({
                 />
                 {index < size(value.value.args) - 1 && (
                   <ExpressionArgumentDetail
-                    label={value.value.exp === '||' ? 'OR' : 'AND'}
+                    // small in the calm look; `ExpressionArgumentDetail` draws it in capitals in the classic one
+                    label={value.value.exp === '||' ? words.joinedByOr : words.joinedByAnd}
                     align='left'
                     style={{
                       marginLeft: 10,
@@ -1775,7 +1840,7 @@ export const ExpressionBuilder = ({
   /* A field path written with accessors - `orders[*].id`, `prices{*}` - is drawn as the path, the chip a record
      field is, not as the accessor operations it is made of: their operands misread (the `@value` of a hash
      wildcard is the item's value, not a record field), and an operation with a source and a body is not what
-     was written (David, qorus#646). It is edited on the Expression tab; here it can be removed, as any operand
+     was written. It is edited on the Expression tab; here it can be removed, as any operand
      can, with its field's controls. */
   const fieldPath = fieldPathOf(value);
   if (fieldPath !== undefined) {
@@ -1819,3 +1884,14 @@ export const ExpressionBuilder = ({
     </ReqoreErrorBoundary>
   );
 };
+
+/**
+ * The builder, scoped as an editor of its own: what it draws (an operand's choices, headed by
+ * their own instruction) is not the form row's field, so the row's label does not name it
+ * (`RowLabelledContext`).
+ */
+export const ExpressionBuilder = (props: IExpressionBuilderProps) => (
+  <RowLabelledContext.Provider value={false}>
+    <ExpressionBuilderBody {...props} />
+  </RowLabelledContext.Provider>
+);

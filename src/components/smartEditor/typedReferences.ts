@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A reference typed out in full is drawn as its chip once it has been typed, as one picked from the completion
-// list is (qorus#646).
+// list is.
 import { Editor, Transforms } from 'slate';
 import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from './types';
 
@@ -111,7 +111,7 @@ export const rechipTypedReferences = (
   }
   const had = chipRanges(converter, paragraph);
   /* A reference that names nothing the field is given stays the text it was typed as (`keepAsText`): drawn as a
-     chip, it would read as a reference that stands for something (qorus#646, David's review). */
+     chip, it would read as a reference that stands for something. */
   const rebuilt = keepAsText ? typedAsText(converter, read, had, keepAsText) : read;
   const typed = chipRanges(converter, rebuilt).filter(
     ([start, end]) => !had.some(([from, to]) => from === start && to === end)
@@ -156,7 +156,7 @@ export const drawRechipped = (editor: Editor, index: number, rechipped: IRechipp
 /**
  * Draws every reference typed out in full in the editor as its chip - those that name nothing the field is given
  * stay text (`keepAsText`) - as leaving the field does, and as Enter or Tab does where the list has nothing more to
- * offer (a context of free keys and its key, `$static:order.id`: qorus#646). With `caretParagraph`, only that
+ * offer (a context of free keys and its key, `$static:order.id`). With `caretParagraph`, only that
  * paragraph, the caret put at its end. Whether anything was drawn.
  */
 export const commitTypedReferences = (

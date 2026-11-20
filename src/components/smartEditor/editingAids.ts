@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What a code editor does for the text typed in it beyond completion and hovers (qorus#646, David: one DPQL editor
- * with every capability the Monaco editor it replaces had): a bracket typed is closed, a selection typed over with a
+ * What a code editor does for the text typed in it beyond completion and hovers (one DPQL editor with every
+ * capability the Monaco editor it replaces had): a bracket typed is closed, a selection typed over with a
  * bracket or a quote is wrapped in it, a closing bracket typed before the same one steps over it, Backspace between
  * an empty pair takes both; the bracket matching the one at the caret is marked; a search finds every place a text
  * is written. Read from the editor's text as its converter projects it, with each chip masked out: a chip is one

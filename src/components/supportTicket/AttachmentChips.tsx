@@ -1,5 +1,6 @@
 import { ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/reqore';
 import { useEffect, useRef, useState } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { ImageLightbox } from '../imageLightbox';
 
 /*
@@ -24,6 +25,7 @@ export interface IAttachmentChipsProps {
 }
 
 export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttachmentChipsProps) => {
+  const words = useReqraftLabels().supportTicket;
   const [thumbnails, setThumbnails] = useState<string[]>([]);
   // index into the image subset that's open in the lightbox, or null when closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -33,7 +35,7 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
   /* Whether the input's blur closes it without committing: Escape cancels. Enter and Escape let go of the focus
      while the input is still on the page, and the blur closes it - taken off the page with the focus, it lost
      the focus in the middle of React's work, and its blur committed then: Enter committed twice, and Escape
-     committed what was typed (qorus#646). */
+     committed what was typed. */
   const cancelRename = useRef(false);
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
               ? [
                   {
                     icon: 'Edit2Line' as const,
-                    tooltip: 'Rename',
+                    tooltip: words.rename,
                     onClick: (event: React.MouseEvent<HTMLDivElement>) => {
                       event.stopPropagation();
                       startRename(index);
@@ -126,7 +128,7 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
               leftIconProps={thumbnail ? { image: thumbnail } : undefined}
               label={file.name}
               size='small'
-              tooltip={thumbnail ? 'Click to preview' : undefined}
+              tooltip={thumbnail ? words.clickToPreview : undefined}
               actions={actions}
               onClick={thumbnail ? () => setPreviewIndex(imageIndex) : undefined}
               onRemoveClick={disabled ? undefined : () => onRemove(index)}

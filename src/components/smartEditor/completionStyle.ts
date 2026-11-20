@@ -1,23 +1,42 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-import { ReqoreFonts } from '@qoretechnologies/reqore';
+import { ReqoreFonts, useReqoreTheme } from '@qoretechnologies/reqore';
+import { useMemo } from 'react';
+import { getCalmPanelSurface, useIsCalmForm } from '../form/engine/formAppearance';
 import { IReqoreCustomTheme } from '@qoretechnologies/reqore/dist/constants/theme';
 import { TReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import type React from 'react';
 import { builtInTypeLabel, TTypeLabel } from '../../helpers/qorusTypeCatalogue';
-import { templateBaseType, templateType } from '../../helpers/templateType';
+import { sayTemplateTypesInWords } from '../../helpers/templateItems';
 import { mapCompletionKindToIcon } from './helpers';
 import { COMPLETION_KIND_INTENTS } from './styling';
 import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
 
 /*
- * One look for the two lists a field offers what can be written in (qorus#646, David: "use the same
- * components ... a consistent UX"): the completion list typing opens (`CompletionList`) and the list a field's
+ * One look for the two lists a field offers what can be written in, the same components for one consistent
+ * experience: the completion list typing opens (`CompletionList`) and the list a field's
  * templates are browsed in (`TemplateBrowser`, kept apart because a large catalogue needs its hierarchy). Both
  * take their color, their rows' font, and their kinds' icons and chips from here, so they cannot drift.
  */
 
-/** The lists' own color. */
+/** The lists' own color in the classic look: a dark purple. */
 export const COMPLETION_LIST_THEME: IReqoreCustomTheme = { main: '#1e0d29' };
+
+/**
+ * The lists' own color in the look in force, for every list a field offers what can be written in: the completion
+ * list, the template picker and browser, a rich-text field's and a number field's template lists. The classic look's
+ * dark purple (`COMPLETION_LIST_THEME`); in the calm look the theme's panel surface, neutral - purple is for an AI or
+ * a Qonsole action, and a list of values is neither. Its rows, its search box and the row under the pointer are
+ * drawn from it, so none of them is purple either.
+ */
+export const useCompletionListTheme = (): IReqoreCustomTheme => {
+  const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
+  return useMemo(
+    (): IReqoreCustomTheme =>
+      calm ? { main: getCalmPanelSurface(theme) as IReqoreCustomTheme['main'] } : COMPLETION_LIST_THEME,
+    [calm, theme]
+  );
+};
 
 /** A row's text: reqore's mono stack, as what it writes. Module-scoped, so a memoized row keeps its reference. */
 export const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: ReqoreFonts.mono };
@@ -26,14 +45,29 @@ export const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: ReqoreFo
 export const FIELD_KIND = 5;
 export const TEMPLATE_KIND = 6;
 
+/** The LSP kind Qonsole draws its wizard items as: its chip keeps its purple in either look (a Qonsole action). */
+const QONSOLE_SNIPPET_KIND = 15;
+
+/**
+ * The color a row's kind chip takes in the lists of values (`useCompletionListTheme`): its kind's in the classic look;
+ * none in the calm one, where the chip's words already say what the row is - blue says only "a filter is on", and
+ * purple only an AI or Qonsole action, so Qonsole's own items keep theirs. A value's chip in the text it is written
+ * in keeps its color either way: the template chips stay as they are.
+ */
+export const listKindIntent = <T extends string | undefined>(
+  intent: T,
+  calm: boolean,
+  kind?: number
+): T | undefined => (calm && kind !== QONSOLE_SNIPPET_KIND ? undefined : intent);
+
 /** A row's kind chip (Field, Variable, Function...), as the completion list draws it. */
-export const kindBadge = (kind: number | undefined) =>
+export const kindBadge = (kind: number | undefined, calm = false) =>
   kind !== undefined && COMPLETION_KIND_CHIPS[kind] ?
     {
       label: COMPLETION_KIND_CHIPS[kind],
       minimal: true as const,
       size: 'small' as const,
-      intent: COMPLETION_KIND_INTENTS[kind],
+      intent: listKindIntent(COMPLETION_KIND_INTENTS[kind], calm, kind),
     }
   : undefined;
 
@@ -42,38 +76,29 @@ export const templateKind = (value: unknown) =>
   typeof value === 'string' && value.startsWith('$record:') ? FIELD_KIND : TEMPLATE_KIND;
 
 /**
- * A catalogue's rows drawn as the completion list draws its own: the kind's icon, the name of the row's type as
- * its badge (`typeLabel`, the built-in catalogue's unless the list is given the server's), its text monospace,
- * compact and borderless. A group (a row with members and no value of its own) keeps its icon and gets no chip.
- * Members, the "+" that takes a record whole and the "?" that opens an example are kept as they are.
+ * A catalogue's rows drawn as the completion list draws its own: the kind's icon, its type said in words under its
+ * name (`sayTemplateTypesInWords`, `typeLabel`, the built-in catalogue's unless the list is given the server's), its
+ * text monospace, compact and borderless. A group (a row with members and no value of its own) keeps its icon and
+ * its own badge. Members, the "+" that takes a record whole and the "?" that opens an example are kept as they are.
  */
 export const styleTemplateItems = <T extends TReqoreDropdownItem>(
   items?: T[],
   typeLabel: TTypeLabel = builtInTypeLabel
-): T[] | undefined =>
+): T[] | undefined => drawnAsCompletions(sayTemplateTypesInWords(items, typeLabel));
+
+/** The completion list's look on a catalogue's rows and their members, their words already said. */
+const drawnAsCompletions = <T extends TReqoreDropdownItem>(items?: T[]): T[] | undefined =>
   items?.map((item) => {
     const entry = item as T & {
       value?: unknown;
-      badge?: unknown;
       items?: T[];
       style?: React.CSSProperties;
-      metadata?: Record<string, unknown>;
     };
     const isGroup =
       Array.isArray(entry.items) && entry.items.length > 0 && entry.value === undefined;
     const kind = isGroup ? undefined : templateKind(entry.value);
-    /* The row's type, named (qorusTypeDisplayName): Reqore draws a badge as it is, and the badge said the type's
-       code - "int", "qoretechnologies/money". The type stays the template's, a typed member the field reads
-       (`templateType`), also where a host's row kept it only in its badge (qorus#646). */
-    const type = isGroup ? undefined : templateType(entry);
     return {
       ...entry,
-      ...(type ?
-        {
-          badge: typeLabel(type, templateBaseType(entry)),
-          metadata: { ...entry.metadata, type },
-        }
-      : {}),
       // the kind's icon, as the completion list draws it
       icon: kind !== undefined ? mapCompletionKindToIcon(kind) : (entry as { icon?: unknown }).icon,
       style: { ...COMPLETION_ITEM_STYLE, ...entry.style },
@@ -81,6 +106,6 @@ export const styleTemplateItems = <T extends TReqoreDropdownItem>(
       minimal: true,
       flat: true,
       // only a row with members carries `items`: Reqore draws a row whose `items` is empty as disabled
-      ...(Array.isArray(entry.items) ? { items: styleTemplateItems(entry.items, typeLabel) } : {}),
+      ...(Array.isArray(entry.items) ? { items: drawnAsCompletions(entry.items) } : {}),
     } as T;
   });

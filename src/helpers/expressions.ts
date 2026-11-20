@@ -18,8 +18,8 @@ import { reqraftLabels } from './reqraftLabels';
 /**
  * The UI type of an argument: a value's own type, or, for an expression, the
  * type the server gave for it (`useExpressionType`) — an expression's type is
- * never worked out here, so it is the same as everywhere else in Qorus
- * (qoretechnologies/qorus#713). `any`, which nothing is judged by, until the
+ * never worked out here, so it is the same as everywhere else in Qorus.
+ * `any`, which nothing is judged by, until the
  * server has given it.
  */
 export const getArgumentType = (
@@ -69,7 +69,7 @@ export const argumentMatchesType = (
  * templates had all been filtered away by a name mismatch.
  *
  * Qore's other names for a type (`integer`, `boolean`) are the catalogue's name for it too: the server's catalogue
- * lists and converts each type by one name only (qorus#646).
+ * lists and converts each type by one name only.
  */
 const normalizeAnyLikeTypeName = (name: string): string =>
   name === 'auto' ? 'any' : catalogueTypeName(name);
@@ -147,7 +147,7 @@ export const isConditionType = (returnType: string | string[] | undefined): bool
 };
 
 /**
- * What an editor says of a condition that gives this type (qorus#646): nothing for true or false or a type it
+ * What an editor says of a condition that gives this type: nothing for true or false or a type it
  * cannot tell (`any`, `auto`); an error for text, a date or a time, which do not say plainly what is meant;
  * and a warning for any other (a number, a list, a hash), which the condition reads as true unless it is
  * zero or empty - accepted, as the Qorus server accepts it, but said, because it is seldom what was meant.
@@ -177,7 +177,7 @@ export const isConditionOption = (
 export const conditionBaseType = (type: string | undefined): string =>
   (type ?? '').replace(/^\*/, '').replace(/^soft/, '').replace(/<.*$/, '');
 
-/** How a condition that gives this base type is made one: compare the value (qorus#646, as the server says). */
+/** How a condition that gives this base type is made one: compare the value, as the server says. */
 const conditionExample = (baseType: string): string =>
   baseType === 'date' ? '@shipped_on > @ordered_on'
   : baseType === 'time' ? '@starts_at < @ends_at'
@@ -194,14 +194,17 @@ export const conditionErrorText = (
   typeInSentence: string | undefined,
   baseType: string | undefined
 ): string =>
-  `${typeInSentence ? `The condition evaluates to ${typeInSentence}, but it` : 'The condition'} must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+  reqraftLabels().expressions.conditionError(
+    typeInSentence,
+    conditionExample(conditionBaseType(baseType))
+  );
 
 /**
  * What the expression builder says of an expression whose result does not fit its place: what it gives, what the
  * place takes, and what to do. `gives` and `takes` name the types inside the sentence - their sentence forms ("a
  * whole number"), as `qorusTypeSentenceForm` gives them, `takes` joined with "or" where a place takes more than
  * one - and `gives` is undefined for an expression that gives nothing yet, `takes` for a place whose type is not
- * known: the sentence then says what it gives without naming a type it cannot name (qorus#646).
+ * known: the sentence then says what it gives without naming a type it cannot name.
  */
 export const expressionTypeMismatchText = (
   gives: string | undefined,
@@ -304,10 +307,10 @@ export const expressionTypeSource = (
 /**
  * What the builder's conversion list says of an argument it converts: from what to what. `from` and `to` name the
  * types inside the sentence - their sentence forms, as `qorusTypeSentenceForm` gives them - and either is undefined
- * where the type is not known; the sentence then names only the other, or neither (qorus#646).
+ * where the type is not known; the sentence then names only the other, or neither.
  */
 export const conversionText = (from: string | undefined, to: string | undefined): string =>
-  `Converted${from ? ` from ${from}` : ''}${to ? ` to ${to}` : ''}`;
+  reqraftLabels().expressions.converted(from, to);
 
 /**
  * What is said of a condition that gives a number, a list, a hash or a type that is not known
@@ -319,16 +322,12 @@ export const conversionText = (from: string | undefined, to: string | undefined)
 export const conditionByTruthinessText = (type: string | undefined): string => {
   const base = conditionBaseType(type);
   const named = qorusTypeSentenceForm(getQorusTypes(), base);
-  if (/^(int|integer|float|number)$/.test(base)) {
-    return `The condition evaluates to ${named}; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.`;
-  }
-  if (base === 'list') {
-    return `The condition evaluates to ${named}; Qorus treats it as true unless it is empty. To make that explicit, compare its size, for example size(@items) > 0.`;
-  }
-  if (base === 'hash') {
-    return `The condition evaluates to ${named}; Qorus treats it as true unless it holds no pairs. To make that explicit, compare its size, for example size(@details) > 0.`;
-  }
-  return "The condition's value is not true or false; Qorus treats it as true unless it is 0 or empty. To make that explicit, compare it, for example @count > 0.";
+  const kind =
+    /^(int|integer|float|number)$/.test(base) ? 'number'
+    : base === 'list' ? 'list'
+    : base === 'hash' ? 'hash'
+    : 'other';
+  return reqraftLabels().expressions.conditionByTruthiness(kind, named);
 };
 
 /** The operators whose every part is read as true or false by its value: AND, OR and NOT. */
@@ -339,7 +338,7 @@ export const isLogicalOperation = (expression: IExpression | undefined): boolean
   !!expression?.is_expression &&
   (LOGICAL_OPERATORS as readonly string[]).includes(expression.value?.exp);
 
-/** How the server reads a part of a condition (`dpql/parse` with `condition: true`, qorus#646). */
+/** How the server reads a part of a condition (`dpql/parse` with `condition: true`). */
 export type TConditionReading = 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
 
 /** A part of an AND, an OR or a NOT in a condition: the type it gives and how it is read. */
@@ -415,7 +414,7 @@ export const conditionPartsWithMessages = (
  * Where each part the server judged is drawn, by the path of its card in the expression (the builder's
  * `path`; `''` for the expression itself).
  *
- * The server reads each part of `&&`, `||` and `!` as a condition (qorus#646) and answers `parts` in its own
+ * The server reads each part of `&&`, `||` and `!` as a condition and answers `parts` in its own
  * walk order: the operands of the expression's logical operator, left to right, a nested `&&`, `||` or `!`
  * standing for its own parts. A part of an AND or an OR has its own card; the part a NOT reads is drawn on
  * the NOT's card. An answer whose parts are not this expression's (a stale one, or none) places nothing.

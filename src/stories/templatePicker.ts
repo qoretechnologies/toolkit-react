@@ -75,7 +75,7 @@ export const chipsOf = (editable: HTMLElement) =>
   );
 
 /**
- * Every row of a list fits it (qorus#646, David's review: a row's name was cut to one letter, its type label cut
+ * Every row of a list fits it (a row's name was cut to one letter, its type label cut
  * mid-word and its description drawn over its edge): each row's name, badges, description and actions are inside
  * the row, the name and each badge are not cut off, and no row is wider than its list.
  */
@@ -121,7 +121,7 @@ export const completionRows = () =>
 
 /**
  * Types `text` as a person does: one key at a time, each one a key press the editor hears (key down, the text it
- * inserts, key up), with nothing set in the editor any other way (qorus#646, David: the stories passed while
+ * inserts, key up), with nothing set in the editor any other way (the stories passed while
  * completion did not work for a person).
  */
 export const typeAsAPerson = async (
@@ -183,7 +183,7 @@ export const saidOfTheText = (canvasElement: HTMLElement) =>
     .filter(Boolean);
 
 /**
- * A template picker drawn in a dropdown's popover fills it (qorus#646, David's review: the popover spanned 950px
+ * A template picker drawn in a dropdown's popover fills it (the popover spanned 950px
  * around a 715px list, its far side empty): its edges are the popover's, less the popover's own padding.
  */
 export const expectPickerFillsItsPopover = () => {
@@ -199,7 +199,7 @@ export const expectPickerFillsItsPopover = () => {
 
 /**
  * The template picker opened in an empty text is at the start of the text, where its pick goes, below the text's top:
- * the first time as every time, however it was opened (David on reqraft #162: from the template button it opened at
+ * the first time as every time, however it was opened (reqraft #162: from the template button it opened at
  * the far right end of the empty text, and a click in the text then opened it at the start).
  */
 export const expectPickerAtTheTextStart = (editable: HTMLElement) =>

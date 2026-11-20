@@ -14,9 +14,14 @@ flow, story descriptions, and more. Those files point on to
 before building any visual surface). **Everything below this section is
 specific to ReQraft (toolkit-react).**
 
-**If the imports above did not load** — you don't see the shared rules because
-this repo is cloned somewhere other than `~/Projects/instruction-files` — find
-the shared repo before doing any frontend work:
+**If you're contributing from outside Qore, skip this:** the shared rules are a
+private repository of the maintainers', and the rules below and the repo's own
+docs (`README.md`, `.tasks/`, `design/`) are all you need.
+
+**If the imports above did not load** (you are a maintainer, and you don't see
+the shared rules because this repo is cloned somewhere other than
+`~/Projects/instruction-files`), find the shared repo before doing any frontend
+work:
 
 1. Check for a gitignored **`.instruction-files-path`** file at this repo's
    root. If it exists, read the path `P` from it, then read `P/CLAUDE.md` and
@@ -26,9 +31,11 @@ the shared repo before doing any frontend work:
    `~/Projects/instruction-files`, then your other project roots). If found at
    `P`, write `P` into `.instruction-files-path` (create it — it's gitignored)
    so future sessions skip the search, then read the files above.
-3. If it isn't cloned anywhere, **STOP and ask the user to clone it**:
+3. If it isn't cloned anywhere and you are a maintainer, **stop and ask the user
+   to clone it**:
    `git clone git@github.com:qoretechnologies/instruction-files.git ~/Projects/instruction-files`
-   Do not proceed with frontend work until the shared rules are loaded.
+   and do not go on with frontend work until the shared rules are loaded. An
+   outside contributor goes on without them (see above).
 
 # ReQraft (toolkit-react) — project-specific rules
 
@@ -107,7 +114,7 @@ Status enum: `OPEN | CLOSED | CONNECTING | PAUSED`
   applies, five minutes by default, none with `cache: false`). That answer is rendered on the first
   paint and not asked for again; a stale one is revalidated silently (no `loading`). A load-on-mount
   that throws (a rejecting `FetchContext`, or none: the default throws "FetchContext not
-  implemented") ends in `error`, never in an unhandled rejection (board f61)
+  implemented") ends in `error`, never in an unhandled rejection
 - `load({ body?, mergeBodies? })` — imperative trigger; `mergeBodies` merges call-time body with
   hook-defined body. Rejects when the context throws, so its caller can handle it
 - Returns: `{ data, loading, load, error, errorData, response }`
@@ -118,7 +125,7 @@ Status enum: `OPEN | CLOSED | CONNECTING | PAUSED`
 - Backed by `ReqraftStorageContext` → `StorageProvider` → persisted to server via user storage API
 - `includeAppPrefix` namespaces the key under the current `appName` from context
 - Storage loads from `currentUserStore` (user's `storage` field from `/users?action=current`)
-- A user the server marks `storage_writable: false` (an interactive support session, qorus#693) gets memory-only writes: the value updates for the page's lifetime and no `PUT users/_current_/` is sent (`storageIsWritable` in `StorageProvider.tsx`)
+- A user the server marks `storage_writable: false` (an interactive support session) gets memory-only writes: the value updates for the page's lifetime and no `PUT users/_current_/` is sent (`storageIsWritable` in `StorageProvider.tsx`)
 
 ### Current User Store (`src/stores/currentUser/currentUser.tsx`)
 
@@ -140,11 +147,25 @@ Shared form field components built on ReQore, exported from `src/components/form
 | `LongString`  | Multi-line text                   |
 | `Markdown`    | Markdown editor/preview           |
 | `Number`      | Numeric input                     |
-| `Object`      | YAML/JSON object editor           |
+| `Object`      | A hash or list with no schema, as rows: a name and a typed value each (a value each for a list), a record or list in a value as rows of its own (data is entered as rows, never as text). Its value in and out stays YAML, JSON or the data; source text only where a host turns on `textEditing` |
 | `RadioGroup`  | Radio group with optional images  |
 | `String`      | Single-line text                  |
 
 A generic `<Field>` component dispatches to the appropriate field by type.
+
+**Props for the field, not for TemplateField.** `TemplateField` spreads its rest onto its own text editor and
+its wrapper, which put what they are given on the DOM. A prop meant only for the caller's field component
+(ArrayAuto's per-row `onSubFormAttentionChange` and `expandFirstRequired`, for `AutoFormField`'s nested
+`FormEngine`) is declared on `ITemplateFieldProps`, taken out of rest and passed to that component only;
+otherwise React warns about an unknown prop on a div (qorus-ide's warning gate, a list of strings;
+`__tests__/arrayRowsPassNoUnknownProps.test.tsx`, story `Components/Form/Auto Array/Rows`).
+
+**Code and prose in text boxes.** Reqore (0.79+) draws a textarea in the page's font, as prose, and leaves
+monospace to the fields that ask for it. Reqraft's code boxes ask through `withCodeFont`
+(`src/components/form/fields/codeFont.ts`): the `Object` field's YAML / JSON source (its Text tab), a
+`binary` field, an auto field of type `data` or `binary`, and a template's example value. A
+consumer's `effect` is kept, `fontFamily` included. `LongString`, `String` and `Markdown` stay
+prose (`__tests__/codeFieldsAreMonospace.test.tsx`).
 
 ### Menu Component (`src/components/menu/Menu.tsx`)
 
@@ -216,11 +237,18 @@ yarn build:test         # Type-check without emit
 ### Storybook Stories & visual testing
 
 - Stories are co-located alongside source: `src/hooks/useFetch/useFetch.stories.tsx`
+- **Parse a story file right after editing it:** `yarn stories:parse <files>` (no files: every story
+  file changed against HEAD) runs Storybook's own indexer (`scripts/parse-stories.mjs`) in about a second
+  and names the line it cannot read. Run it before anything else: a story run, a capture, a commit. A
+  story file Storybook cannot index fails the whole index of a running Storybook the moment it is saved,
+  and every story run fails before its first story (qorus-ide, 18 Nov: unescaped quotes in a
+  description). Gate: `__tests__/storyFilesAreIndexable.test.ts`. Mind the quotes in a story's
+  description, and give a subagent that edits story files the same instruction.
 - Storybook port: **6008**
 - Story + interaction tests run on **Vitest browser mode** (Playwright/Chromium): `yarn test:stories [file-substring]`. Run `yarn install-playwright` once first.
 - **Story network — mocks must follow the instance, and stories must not share connections.**
   - Build every mock URL with `storyApiUrl(path)` / `storySocketUrl(path)` from
-    `src/stories/storyNetwork.ts`, never a hard-coded `https://hq.qoretechnologies.com:8092/…`.
+    `src/stories/storyNetwork.ts`, never a hard-coded instance URL.
     Both mock layers match on host (storybook-addon-mock keys on `host + pathname`,
     mock-socket on the URL minus its query), so a hard-coded host silently stops matching
     when `REACT_APP_QORUS_INSTANCE` is overridden and the request goes to the real network.
@@ -235,7 +263,7 @@ yarn build:test         # Type-check without emit
   - `.storybook/preview.tsx` resets the shared LSP connections and the expression render
     client before every story. Do not add per-file `ReqraftWebSocketsManager.closeAll()`
     calls for LSP isolation.
-  - CI reaches the live hq instance with a valid token, so a story that leaks a real
+  - CI reaches the stories' default instance (`STORY_QORUS_INSTANCE`) with a valid token, so a story that leaks a real
     request can pass in CI and hang locally. When a story passes in CI but times out on
     your machine, look for an unmocked request before anything else.
   - The guard (`src/stories/realNetworkGuard.ts`) covers what an element loads as well:
@@ -311,6 +339,24 @@ yarn build:test         # Type-check without emit
 - Hooks: `useReqraft*` prefix
 - Providers: `Reqraft*Provider`
 - Stores: `*Store` suffix
+
+### Default copy
+
+- A default label says what the reader wants, never what the code does: "Close Address", not "Collapse Address"; "Getting ready…", not "Connecting to language server…". No panel, drawer, row, component, collapse / expand, rendering, language server, request or "the rest of the…" in it, beside the plain-language rule (no network or run-time jargon).
+- `__tests__/reqraftLabelsPlainLanguage.test.ts` reads every English label in `DEFAULT_REQRAFT_LABELS`, the functions too, and fails on those words. Where a word is the reader's own (a database table's rows, an API call's requests) the label's path is listed in `READERS_OWN`.
+
+### Public text
+
+- Reqraft is open source: its sources, stories, tests, docs, these agent rules (`.claude/`), PR descriptions and
+  commit messages are read by anyone. Qorus and its products (the Qorus IDE, Qonsole, Qogs, Qlip) may be named
+  where they explain a component. What is truly internal may not: people and personas, private issues and PRs,
+  visual review build numbers (the dashboard is private), review, board, queue and decision ids, chats and
+  internal hosts. Keep the reason (what a component does and
+  why), drop where it came from: a decision id becomes the rule it stood for, and a person's name and date go.
+- `__tests__/publicText.test.ts` fails on a denylist of those names (`scripts/publicTextGate.mjs`; run
+  `node scripts/publicTextGate.mjs <files>` to see what a file still names). Made-up people in `src/mock/` are not
+  checked. The stories' default instance is written once, in `src/stories/storyNetwork.ts` (`STORY_QORUS_INSTANCE`),
+  the one place the gate allows it: a test or a story that needs a host uses that, or an example host.
 
 ### Context Access
 

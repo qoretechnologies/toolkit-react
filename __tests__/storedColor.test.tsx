@@ -16,7 +16,7 @@ import {
 import { validateFieldWithResult } from '../src/helpers/validations';
 
 /**
- * How a color is stored (qorus#646, David): the hash `{ r, g, b, a? }` - `r`, `g` and `b` whole numbers from 0 to
+ * How a color is stored: the hash `{ r, g, b, a? }` - `r`, `g` and `b` whole numbers from 0 to
  * 255, `a` its opacity from 0 to 1, and no `a` an opaque color. A hex code, bare or as `{ hex }`, is not a stored
  * color: the readers still draw one, so a value stored that way is seen, the validator says what is wrong with
  * it, and the color field stores the hash when it edits it.

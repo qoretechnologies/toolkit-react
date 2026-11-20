@@ -10,7 +10,7 @@ import {
 } from '../src/components/form/expressions/dpqlMockRecordPath';
 
 /**
- * The stories' stand-in for the Qorus language server writes a record field as the server does (qorus#646): Qorus
+ * The stories' stand-in for the Qorus language server writes a record field as the server does: Qorus
  * reads `$record:{<path>}` as a test path and gives it as a field reference, or the accessors over one
  * (`QorusRecordPath::reference()`), and the DPQL serializer writes those with its accessor sugar and qore#5480's path
  * rule: dots separate the parts of a name, quoted or bare, and a dot that is part of a key is `\.`. It wrote the

@@ -83,14 +83,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The DPQL editor overlays "Connecting to language server…" / "Loading
+/** The DPQL editor overlays "Getting ready…" / "Loading
  * schema…" while its LSP session starts — a snapshot must never catch that
  * transient, so every Text-mode play ends by waiting the overlay out. */
 const waitForLspIdle = (canvasElement: HTMLElement) =>
   waitFor(
     () => {
       expect(canvasElement.querySelector('[contenteditable="true"]')).toBeInTheDocument();
-      expect(canvasElement.textContent).not.toContain('Connecting to language server');
+      expect(canvasElement.textContent).not.toContain('Getting ready');
       expect(canvasElement.textContent).not.toContain('Loading schema');
     },
     { timeout: 10000 }
@@ -133,7 +133,7 @@ export const Default: Story = {
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
-    await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    await expect(await canvas.findByText(/^logical equals$/i)).toBeInTheDocument();
     // the toggle is as wide as what its two buttons say, not across the field
     const field = canvasElement.querySelector('.expression-field') as HTMLElement;
     const toggle = canvasElement.querySelector('.expression-mode-toggle') as HTMLElement;
@@ -291,7 +291,7 @@ export const ViaFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell on its Text view, the first of the Text · Visual toggle and the view an expression opens in (qorus#646, David). Choosing Visual shows the builder.',
+          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell on its Text view, the first of the Text · Visual toggle and the view an expression opens in. Choosing Visual shows the builder.',
       },
     },
   },
@@ -333,7 +333,7 @@ export const ViaFormEngine: Story = {
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
-    await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    await expect(await canvas.findByText(/^logical equals$/i)).toBeInTheDocument();
     // A valid expression is validated as an expression, not as the base
     // `bool` type — no "must be True or False" error.
     await expect(canvas.queryByText(/True or False/)).not.toBeInTheDocument();
@@ -430,7 +430,7 @@ export const ViaFormEngineTextMode: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    // It opens on Text (qorus#646, David) — the DPQL editor mounts and seeds from the AST
+    // It opens on Text — the DPQL editor mounts and seeds from the AST
     // (`dpql/serialize` over the mock LSP); the builder is not drawn.
     await expect(await canvas.findByText('Text')).toBeInTheDocument();
     const editable = (await waitFor(
@@ -552,6 +552,13 @@ export const ViaFormEngineTextTyping: Story = {
       timeout: 10000,
     });
     await waitForLspIdle(canvasElement);
+    // A Preview only informs, so the calm look draws it in no colour: a grey box,
+    // not a blue one with code on blue.
+    const box = canvas.getByTestId('expression-preview').closest<HTMLElement>('.reqore-message')!;
+    const [r, g, b] = (getComputedStyle(box).backgroundColor.match(/[\d.]+/g) || []).map(Number);
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(8);
+    // A bare name is a valid expression: DPQL wraps it in `value`, which the catalogue has.
+    expect(canvasElement.textContent).not.toContain('not found');
   },
 };
 
@@ -727,7 +734,7 @@ export const TextModeTypeFits: Story = typedExpressionStory(
   }
 );
 
-/* A condition, written as text (qorus#646): a field its host marks as one (`metadata.condition`) - a Qog if
+/* A condition, written as text: a field its host marks as one (`metadata.condition`) - a Qog if
    state's value, a while or for block's condition. The server reads a condition as true unless its value is
    zero or empty, so the field asks it how it reads the text (`condition: true`) instead of whether it fits
    bool, and says what it answers: a number is accepted with a warning, text is refused. A value of type bool
@@ -837,7 +844,7 @@ export const TextModeConditionThatGivesANumberOnAPhone: Story = {
     docs: {
       description: {
         story:
-          'The condition that gives a number, on a phone (390 px, touch): the warning under the text wraps inside the field, and the Details button beside the text is its icon alone (Foxhoundn, qlip #383).',
+          'The condition that gives a number, on a phone (390 px, touch): the warning under the text wraps inside the field, and the Details button beside the text is its icon alone.',
       },
     },
   },
@@ -973,7 +980,7 @@ export const TextModeHoverSaysWhatAnOperatorIs: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text (DPQL) mode with 1 + 2, over the stories\' stand-in server, and rests the mouse on +: the hover says what the server says of it - "addition (+)", what it does - as the live Qorus /lsp answers. Every story that draws the DPQL editor over the shared stand-in gets the server\'s hovers (qorus#646).',
+          'Renders ExpressionField in Text (DPQL) mode with 1 + 2, over the stories\' stand-in server, and rests the mouse on +: the hover says what the server says of it - "addition (+)", what it does - as the live Qorus /lsp answers. Every story that draws the DPQL editor over the shared stand-in gets the server\'s hovers.',
       },
     },
   },
@@ -1042,7 +1049,7 @@ export const TextModeOfAnUnfinishedExpression: Story = {
   args: {
     value: {
       is_expression: true,
-      // ">" with its first operand switched to "Use Expression", nothing chosen, and its second empty
+      // ">" with its first operand switched to "Use expression", nothing chosen, and its second empty
       value: { exp: '>', args: [{ value: { args: [null] }, is_expression: true }, {}] },
     },
     defaultMode: 'text',
@@ -1054,7 +1061,7 @@ export const TextModeOfAnUnfinishedExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does, and under it what to do with them, once: "Fill in each … (the parts not chosen yet)." - not the server\'s "Unexpected character \'…\'" for each, of text the author did not write (David\'s decision).',
+          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does, and under it what to do with them, once: "Fill in each … (the parts not chosen yet)." - not the server\'s "Unexpected character \'…\'" for each, of text the author did not write.',
       },
     },
   },
@@ -1083,7 +1090,7 @@ export const AnUnfinishedExpressionSaysTheSameInBothViews: Story = {
     docs: {
       description: {
         story:
-          'The comparison left unfinished ("… > …"), opened on its Text view, then on Visual: the Visual view says of the part whose operation is not chosen what it lacks - "Choose what this part does." - as the Text view says "Fill in each …". It said "This expression gives nothing, which this field does not take", of a part that gives nothing yet (David\'s review: the views did not agree).',
+          'The comparison left unfinished ("… > …"), opened on its Text view, then on Visual: the Visual view says of the part whose operation is not chosen what it lacks - "Choose what this part does." - as the Text view says "Fill in each …". It said "This expression gives nothing, which this field does not take", of a part that gives nothing yet, and the two views did not agree.',
       },
     },
   },
@@ -1182,7 +1189,7 @@ export const WriteAConditionInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet: a search condition on the orders record, which takes no templates (as the Qorus app\'s exec-search condition takes none), and whose record the server names. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use Expression"; clicking it opens the condition on its Text view, where an @ offers the record\'s fields: @order_id, @customer, @total and @shipped.',
+          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet: a search condition on the orders record, which takes no templates (as the Qorus app\'s exec-search condition takes none), and whose record the server names. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use expression"; clicking it opens the condition on its Text view, where an @ offers the record\'s fields: @order_id, @customer, @total and @shipped.',
       },
     },
   },
@@ -1190,7 +1197,7 @@ export const WriteAConditionInFormEngine: Story = {
   play: async ({ canvasElement }) => {
     const item = await openMoreMenu(canvasElement);
     expect(item).toHaveTextContent('Write a condition');
-    expect(document.body.textContent).not.toContain('Use Expression');
+    expect(document.body.textContent).not.toContain('Use expression');
     expect(document.body.textContent).not.toContain('Run a function on this value');
     await userEvent.click(item);
     await waitFor(
@@ -1235,7 +1242,7 @@ export const WriteAConditionInFormEngineOnAPhone: Story = {
 
 /**
  * A plain `bool` field with `supports_expressions` and no value — starts as
- * the normal field; the "Use Expression" toggle (More menu) switches it.
+ * the normal field; the "Use expression" toggle (More menu) switches it.
  * Driven live for the toggle interaction.
  */
 export const ToggleInFormEngine: Story = {
@@ -1246,7 +1253,7 @@ export const ToggleInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view (qorus#646, David); Visual shows the builder.',
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view; Visual shows the builder.',
       },
     },
   },
@@ -1287,9 +1294,9 @@ export const ToggleInFormEngine: Story = {
     )) as HTMLElement;
     await userEvent.click(more);
 
-    // "Use Expression" (`.function-selector`) flips the field into expression
+    // "Use expression" (`.function-selector`) flips the field into expression
     // mode.
-    await userEvent.click(await canvas.findByText('Use Expression'));
+    await userEvent.click(await canvas.findByText('Use expression'));
 
     // The ExpressionField shell mounts: its `.expression-field` wrapper, on the Text view.
     await waitFor(
@@ -1744,7 +1751,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
     )) as HTMLElement;
     await userEvent.click(input);
     await userEvent.type(input, '1 + 2');
-    // offered, never switched to without asking (David's review); used as one, the field moves to Expression
+    // offered, never switched to without asking; used as one, the field moves to Expression
     await userEvent.click(
       await waitFor(
         () => {
@@ -1892,7 +1899,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     docs: {
       description: {
         story:
-          "Types `$` into the Text view of an expression whose field offers the row's fields: after the `$` the completion list offers what can follow it, the template contexts Qorus offers a DPQL expression ($config:, $data:, $local:, $timestamp: and the rest - no workflow-only $static: or $dynamic:, and no $transient:, as no transient variable is defined), as the language server offers them - not the row's fields pos and bezeichnung, which follow an `@` (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
+          "Types `$` into the Text view of an expression whose field offers the row's fields: after the `$` the completion list offers what can follow it, the template contexts Qorus offers a DPQL expression ($config:, $data:, $local:, $timestamp: and the rest - no workflow-only $static: or $dynamic:, and no $transient:, as no transient variable is defined), as the language server offers them - not the row's fields pos and bezeichnung, which follow an `@`. While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again.",
       },
     },
   },
@@ -1913,8 +1920,8 @@ export const TextModeOffersTemplateCompletions: Story = {
     await typeAsAPerson(userEvent, '$');
 
     /* After a `$`, what can follow it: the server's template contexts, as the language server offers them - not
-       the row's fields, which are written with an `@` (qorus#646, David: "after '$', fields are shown first,
-       although only templates are possible"). */
+       the row's fields, which are written with an `@`. They were listed first after a `$`, where only templates
+       can be written. */
     await waitFor(
       () => {
         // the contexts Qorus offers a DPQL expression (a Qog's record expression) - no workflow-only ones
@@ -1923,7 +1930,7 @@ export const TextModeOffersTemplateCompletions: Story = {
           document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
         ).map((row) => row.getAttribute('data-label'));
         expect(listed).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
-        // the Qog declares a global variable: its context is offered (qorus#646 round 4, Qorus's catalogue)
+        // the Qog declares a global variable: its context is offered (Qorus's catalogue)
         expect(listed).toEqual(expect.arrayContaining(['$local:', '$timestamp:', '$transient:']));
         // no workflow runs the Qog: no order data
         expect(listed).not.toContain('$static:');
@@ -1964,7 +1971,7 @@ export const AnAtWithNoRecordSaysThereIsNone: Story = {
     docs: {
       description: {
         story:
-          'Types `1 + @` into the Text view of an expression that names no record: the completion list says "No record fields here" instead of opening empty or not at all (David\'s decision), with Browse all templates for the templates it can use, and nothing is said of the `@` while it is open. Escape puts the list away, and the server\'s words for an `@` alone are said; a click after the `@` opens the list again, saying it again.',
+          'Types `1 + @` into the Text view of an expression that names no record: the completion list says "No record fields here" instead of opening empty or not at all, with Browse all templates for the templates it can use, and nothing is said of the `@` while it is open. Escape puts the list away, and the server\'s words for an `@` alone are said; a click after the `@` opens the list again, saying it again.',
       },
     },
   },
@@ -2110,7 +2117,7 @@ export const LiveExplain: Story = {
   },
 };
 
-/* Operands the operator cannot combine (qorus#646): a hash plus a number keeps Qore's run-time result, but the
+/* Operands the operator cannot combine: a hash plus a number keeps Qore's run-time result, but the
    server's parser refuses it (DPQL-E050), and the editor says so as an error - in the Text view, where the
    server publishes it, and in the Visual view, which asks the server about the expression it builds. */
 
@@ -2211,7 +2218,7 @@ export const VisualOperandsThatCombine: Story = {
   },
 };
 
-/* Each part of an AND, an OR or a NOT in a condition is read as true or false by its value (qorus#646), as the
+/* Each part of an AND, an OR or a NOT in a condition is read as true or false by its value, as the
    whole condition is: the server judges each part by the same rule (`dpql/parse` with `condition: true` answers
    `parts`), and the Visual view says what it says of each part on that part's own card. No part is checked as a
    bool here: a number part is accepted, as the server accepts it, with the warning the server gives it. */
@@ -2502,7 +2509,7 @@ export const VisualOperandsTheOperatorCannotCombineOnAPhone: Story = {
 
 /**
  * A template context picked in the Text view is written as text and goes on to what is in it, never an unfinished
- * template (qorus#646, David: "selecting them resulted in an invalid template being added and an error generated").
+ * template: picking one put in an invalid template, and an error with it.
  * Where nothing is listed in it, the list says what to write, and nothing is said of the text while it is open.
  */
 export const AContextPickedGoesOnToWhatIsInIt: Story = {
@@ -2557,8 +2564,7 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
 
 /**
  * The Text view's template picker offers what typing offers: the row's fields and the language server's template
- * contexts, on an empty text and after it is cleared (qorus#646, David: "users should be supported with all
- * available completions in the template picker").
+ * contexts, on an empty text and after it is cleared, so every completion that can be written is there to pick.
  */
 export const TheTextViewPickerOffersEveryCompletion: Story = {
   args: {

@@ -140,7 +140,7 @@ describe('helpers/expressions', () => {
       expect(areQorusTypesCompatible('data', 'binary')).toBe(true);
     });
 
-    // the server's catalogue knows each type by one name: Qore's other name for it is the same type (qorus#646)
+    // the server's catalogue knows each type by one name: Qore's other name for it is the same type
     it("takes Qore's other name for a type as the type it names", () => {
       expect(areQorusTypesCompatible('integer', 'float')).toBe(true);
       expect(areQorusTypesCompatible('number', 'integer')).toBe(true);
@@ -280,7 +280,7 @@ describe('a place that takes a condition', () => {
   });
 });
 
-describe('what is said of a condition (qorus#646)', () => {
+describe('what is said of a condition', () => {
   it('says nothing of true or false, or of a result it cannot tell', () => {
     for (const type of ['bool', '*bool', 'softbool', 'boolean', 'any', 'auto', undefined, '']) {
       expect(conditionVerdict(type)).toBeUndefined();
@@ -300,7 +300,7 @@ describe('what is said of a condition (qorus#646)', () => {
   });
 });
 
-describe('the parts of a condition (qorus#646)', () => {
+describe('the parts of a condition', () => {
   const field = (name: string): IExpression => ({ type: 'auto', value: `$record:{${name}}` });
   const op = (exp: string, ...args: IExpression[]): IExpression => ({
     is_expression: true,
@@ -352,7 +352,7 @@ describe('the parts of a condition (qorus#646)', () => {
   });
 });
 
-describe('what the server says of each part (qorus#646)', () => {
+describe('what the server says of each part', () => {
   const WARN = { code: 'CONDITION_BY_TRUTHINESS', message: 'true unless zero' };
   const REFUSE = { code: 'NOT_A_CONDITION', message: "A condition can't give Text" };
   const int = { type: 'int', reading: 'truthiness' as const };
@@ -388,7 +388,7 @@ describe('what the server says of each part (qorus#646)', () => {
 });
 
 /**
- * What reqraft says of a condition when the server said nothing: the server's own words (qorus#646), so the IDE's
+ * What reqraft says of a condition when the server said nothing: the server's own words, so the IDE's
  * convention test can compare them. An example by type for one that is not a condition, and how Qorus reads one
  * by its value, by type.
  */

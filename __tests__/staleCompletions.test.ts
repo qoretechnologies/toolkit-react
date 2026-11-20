@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The completion list shows the answer to the request it is waiting for, and only that one (qorus#646). An
+ * The completion list shows the answer to the request it is waiting for, and only that one. An
  * answer still on its way when the list was put away, or when a newer request replaced it, used to open the
  * list anyway: typed `forEach`, Escape before the list came, and the list came under the next tap, which
  * took one of its rows - `forEachforEach`.

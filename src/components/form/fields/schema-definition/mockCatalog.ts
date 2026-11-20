@@ -1,6 +1,6 @@
 /**
  * Mock schema option catalogue — a faithful TypeScript mirror of the
- * qorus#225 `SchemaMetadata.qc::getOptionCatalog` output.
+ * Qorus `SchemaMetadata.qc::getOptionCatalog` output.
  *
  * Stories and unit tests inject this through `catalogOverride` so the
  * editor renders without a live Qorus. `buildMockCatalog(sandboxed)`

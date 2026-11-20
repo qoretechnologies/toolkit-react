@@ -240,3 +240,76 @@ export const NestedSchemas: Story = {
     await expect(canvasElement.textContent).not.toContain('[object Object]');
   },
 };
+
+/** A set of named values kept as rows: each item a name and its typed value. */
+const NamedValueSchema = {
+  name: { type: 'string', display_name: 'Name', required: true },
+  value: { type: 'auto', display_name: 'Value' },
+} as never;
+
+const namedValues = [
+  { type: 'hash', value: { name: { type: 'string', value: 'interface' }, value: { type: 'string', value: 'order-sync:1.0' } } },
+  { type: 'hash', value: { name: { type: 'string', value: 'retryOnError' }, value: { type: 'bool', value: true } } },
+  { type: 'hash', value: { name: { type: 'string', value: 'autostart' }, value: { type: 'bool', value: false } } },
+  { type: 'hash', value: { name: { type: 'string', value: 'timeout' }, value: { type: 'int', value: 30 } } },
+];
+
+export const NamedValues: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list whose items are each a name and its value, read as a fact sheet when the host marks the field with `metadata: { named_values: true }`: each name is a quiet label, written as the data spells it, and its value sits beside it in its own look. No numbers, no headings, no accent bar.',
+      },
+    },
+  },
+  args: { value: namedValues, schema: NamedValueSchema, colors, namedValues: true },
+  play: async ({ canvasElement }) => {
+    const rows = [...canvasElement.querySelectorAll<HTMLElement>('.schema-view-named-value')];
+    const labels = rows.map((row) => row.firstElementChild as HTMLElement);
+
+    await expect(labels.map((label) => (label.textContent ?? '').trim())).toEqual([
+      'interface',
+      'retryOnError',
+      'autostart',
+      'timeout',
+    ]);
+    await expect(canvasElement.querySelector('.schema-view-item-title')).toBeNull();
+
+    for (const label of labels) {
+      const style = getComputedStyle(label);
+      // a quiet label: the name as written, in the label face, not a mono heading
+      await expect(style.textTransform, 'a name keeps its own case').toBe('none');
+      await expect(style.fontFamily, 'a name is not set in mono').not.toMatch(/mono/i);
+      await expect(Number(style.fontWeight), 'a name is not bold').toBeLessThan(700);
+      await expect(style.borderLeftWidth, 'a name has no accent bar').toBe('0px');
+      // the label column is measured from the names, so each fits on one line
+      const lineHeight = parseFloat(style.lineHeight) || 16;
+      await expect(label.offsetHeight, 'a name fits on one line').toBeLessThan(lineHeight * 1.6);
+    }
+  },
+};
+
+export const NamedValuesWithMoreThanAValue: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NestedSchemas` and `NamedValues`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'A list marked as named values where one item holds more than a name and a value keeps the numbered look for every item, so a list never mixes the two.',
+      },
+    },
+  },
+  args: {
+    value: [...namedValues, { type: 'hash', value: { name: 'owner', value: 'ops', note: 'on call' } }],
+    schema: NamedValueSchema,
+    colors,
+    namedValues: true,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('.schema-view-named-value')).toBeNull();
+    await expect(canvasElement.querySelectorAll('.schema-view-item-title')).toHaveLength(5);
+  },
+};

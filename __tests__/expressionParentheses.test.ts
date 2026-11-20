@@ -86,7 +86,7 @@ describe('renderExpressionToText parenthesisation', () => {
 });
 
 /**
- * An operator holding more than two operands (qorus#646).
+ * An operator holding more than two operands.
  *
  * `+` and `*` take any number of operands, and the Visual view builds them that way: the IDE's
  * Message Content is one `+` of three. The server writes them infix (`DpqlSerializer::serializeArithmeticOp`,

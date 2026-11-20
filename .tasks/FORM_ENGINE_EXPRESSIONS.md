@@ -117,19 +117,19 @@ server decision — held behind `useRenderExpression`, does not block.
       with AND/OR separators + Add condition + per-condition remove; per-
       level `main:darken:${level}` tint. Picker always keeps the selected
       expression even when its return type doesn't match the filter.
-- [x] Stories rewritten to mirror foxhoundn's IDE stories using the
+- [x] Stories rewritten to mirror the IDE's expression stories using the
       **`.expression` count** convention + the `.expression-and/or`
       interaction (1→2→3). 11/11 play tests pass; verified visually vs `:6009`.
 - [x] **Live story** (`ExpressionField › Live`, `tags: ['!test']`,
       `parameters: { live: true }`) — fetches the REAL catalogue (no
       `expressions` override), mirroring the DpqlEditor live stories.
       `.storybook/preview.tsx` instance is now env-configurable
-      (`REACT_APP_QORUS_INSTANCE` || hq default). Full suite **189/189**
-      (Live excluded from the offline runner; defaults to hq when env unset).
+      (`REACT_APP_QORUS_INSTANCE` || a default instance). Full suite **189/189**
+      (Live excluded from the offline runner; uses the default instance when env unset).
 - Verification gap (honest): could NOT render-verify the Live story against
       real data — `localhost:8012` returns the catalogue to curl but sends no
       CORS header for the storybook origin (browser blocks the fetch), and I
-      have no `hq:8092` token. The data path is proven via curl (121
+      have no token for the default instance. The data path is proven via curl (121
       expressions) and the wiring mirrors the working DpqlEditor live pattern;
       the user verifies by running storybook with their token/instance.
 

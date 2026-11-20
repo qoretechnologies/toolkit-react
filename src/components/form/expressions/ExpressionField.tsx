@@ -35,6 +35,9 @@ import {
 } from '../../../helpers/expressions';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
+import { calmNoteIntent, useIsCalmForm } from '../engine/formAppearance';
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
+import { DEFAULT_EXPRESSION_LABELS, IExpressionModeLabels } from './labels';
 
 export type TExpressionMode = 'visual' | 'text';
 
@@ -56,23 +59,16 @@ const astKeyOf = (ast: unknown): string => JSON.stringify(ast ?? {});
 /**
  * A control in the field's column at its own width: the column stretches what it holds across it. The Text /
  * Visual toggle is as wide as what the two say, not across the form: a control is its own width on any screen
- * wider than a phone's (qorus#646, David's width rule), so it is not fluid either.
+ * wider than a phone's, so it is not fluid either.
  */
 const OWN_WIDTH_STYLE: React.CSSProperties = { alignSelf: 'flex-start' };
 
-/** The words of the field's Text / Visual toggle, for a host that translates them. */
-export interface IExpressionModeLabels {
-  text: string;
-  visual: string;
-  /** The Text button's hover when there is no language server to write the expression with. */
-  textUnavailable: string;
-}
+/** The words of the field's Text / Visual toggle, for a host that translates them (`setReqraftLabels`'s
+ *  `expressions.modes`; a field's `modeLabels` come before them). */
+export type { IExpressionModeLabels };
 
-export const DEFAULT_EXPRESSION_MODE_LABELS: IExpressionModeLabels = {
-  text: 'Text',
-  visual: 'Visual',
-  textUnavailable: 'The expression language server is not available',
-};
+/** The English words of the Text / Visual toggle. */
+export const DEFAULT_EXPRESSION_MODE_LABELS: IExpressionModeLabels = DEFAULT_EXPRESSION_LABELS.modes;
 
 export interface IExpressionFieldProps {
   /** The expression value: `{ is_expression:true, value:{ exp, args } }`. */
@@ -125,7 +121,7 @@ export interface IExpressionFieldProps {
   defaultMode?: TExpressionMode;
   /**
    * The Text view's text when the value is not an expression yet: a template or a literal the field held
-   * when "Use Template / Expression" opened it. Nothing is emitted until it is edited.
+   * when "Use template / expression" opened it. Nothing is emitted until it is edited.
    */
   initialText?: string;
   /**
@@ -138,7 +134,7 @@ export interface IExpressionFieldProps {
    * The text written in the Text view that the value does not hold yet - typed and not read, or read and not
    * parsed - each time it changes; undefined once it parses or is cleared. For a host that unmounts the field
    * between visits to keep it, and give it back as `draftText` while the value is still the one it was written
-   * over (qorus#646: "@create + 1", which did not parse, became the field's 201 when the author came back).
+   * over ("@create + 1", which did not parse, became the field's 201 when the author came back).
    */
   onDraftChange?: (text: string | undefined) => void;
   /**
@@ -148,7 +144,7 @@ export interface IExpressionFieldProps {
    */
   heldAsValue?: boolean;
   /**
-   * The view a host's own tabs ask for (Value · Expression · Visual, qorus#646). Followed as the field's own
+   * The view a host's own tabs ask for (Value · Expression · Visual). Followed as the field's own
    * Visual / Text toggle is: leaving the Text view parses what is written first, so nothing is lost.
    */
   requestedMode?: TExpressionMode;
@@ -166,7 +162,7 @@ export interface IExpressionFieldProps {
   /**
    * Set to a function that reads the text typed and not yet read - its parse still waiting - and gives the
    * expression it is, or nothing. A host leaving the Text view calls it first, so what was just typed is not
-   * lost with the editor (qorus#646).
+   * lost with the editor.
    */
   flushRef?: MutableRefObject<(() => Promise<IExpression | undefined>) | null>;
   /**
@@ -337,6 +333,7 @@ export const ExpressionField = memo(
     componentOverrides,
     reorder,
   }: IExpressionFieldProps) => {
+    const calm = useIsCalmForm();
     const { expressions } = useExpressions({
       override: expressionsOverride,
       expressionsUrl,
@@ -344,9 +341,10 @@ export const ExpressionField = memo(
     const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
+    const words = useReqraftLabels().expressions;
     const modeWords = useMemo(
-      () => ({ ...DEFAULT_EXPRESSION_MODE_LABELS, ...modeLabels }),
-      [modeLabels]
+      () => ({ ...words.modes, ...modeLabels }),
+      [words.modes, modeLabels]
     );
     const onModeChangeRef = useRef(onModeChange);
     onModeChangeRef.current = onModeChange;
@@ -378,17 +376,17 @@ export const ExpressionField = memo(
     const textRef = useRef(text);
     textRef.current = text;
     /* No language server to parse or write the text: the Text view cannot work, so the field shows the
-       Visual view, which needs none, and says why (qorus#646). */
+       Visual view, which needs none, and says why. */
     const [textUnavailable, setTextUnavailable] = useState(false);
     /* Why the server would not write this value as text, or null. The field is then built in Visual: an empty
-       Text view would be one the author types over, replacing the value (qorus#646). */
+       Text view would be one the author types over, replacing the value. */
     const [textRefused, setTextRefused] = useState<string | null>(null);
     // read when a refusal lands, so a host's new callback on each render does not restart the seed
     const onTextUnavailableRef = useRef(onTextUnavailable);
     onTextUnavailableRef.current = onTextUnavailable;
     /* Whether the Text view's language server can parse and write its text - the session's own signal
        (`onReady`), never a guess by time. Typed text waits for it; it is not asked of a session that is not
-       up, whose answer is "nothing parsed" (qorus#646: under load, text typed before the session was up
+       up, whose answer is "nothing parsed" (under load, text typed before the session was up
        never reached the value). Each visit to the Text view opens a session of its own. */
     const [sessionReady, setSessionReady] = useState(false);
     const sessionReadyRef = useRef(false);
@@ -455,8 +453,8 @@ export const ExpressionField = memo(
     /*
      * The field's writing of its latest expression as text, shared by its two views: the Visual view has the server
      * write what it builds to check it, and the Text view opens on the same writing rather than asking the server
-     * for it again. Entering the Text view while the Visual view's check was on its way asked twice
-     * (qorus#646). An answer with no text (no session yet) or a refusal is not kept: the next asks again.
+     * for it again. Entering the Text view while the Visual view's check was on its way asked twice.
+     * An answer with no text (no session yet) or a refusal is not kept: the next asks again.
      */
     const writtenRef = useRef<{ key: string; text: Promise<string> }>();
     const writeExpression = useCallback<TWriteExpression>((expression, write) => {
@@ -515,7 +513,7 @@ export const ExpressionField = memo(
     const parseOptions = useMemo(() => (condition ? { condition: true } : undefined), [condition]);
 
     /**
-     * The expression built in the Visual view, as the server is asked about it (qorus#646): whole, and only
+     * The expression built in the Visual view, as the server is asked about it: whole, and only
      * where the server can type its operands - with the record's fields or a provider's. The server refuses
      * operands its operators cannot combine (DPQL-E050, `@create + 1` with `create` a hash), which nothing
      * on this side can tell; the Text view shows it as the server publishes it, and so does this view.
@@ -531,7 +529,7 @@ export const ExpressionField = memo(
       [mode, fields, provider, condition, ast]
     );
 
-    /* What the server said of each part of the condition built in the Visual view (qorus#646), for the
+    /* What the server said of each part of the condition built in the Visual view, for the
        expression it was said of: an answer about an expression since edited is not drawn on it. */
     const [conditionParts, setConditionParts] = useState<{
       key: string;
@@ -552,7 +550,7 @@ export const ExpressionField = memo(
        Text view draws it, in place of the builder's own fallback. */
     const currentConditionMessage = currentCondition?.whole;
     const qorusTypes = useQorusTypes();
-    /** A type named inside a sentence: the sentence form of what it is ("a whole number"), or nothing (qorus#646). */
+    /** A type named inside a sentence: the sentence form of what it is ("a whole number"), or nothing. */
     const typeInSentence = useCallback(
       (type: string | undefined) =>
         qorusTypes.getTypeSentenceForm(conditionBaseType(type)) ?? 'nothing',
@@ -578,7 +576,7 @@ export const ExpressionField = memo(
         condition_reading?: IDpqlParseResult['condition_reading'];
         diagnostics?: IDpqlParseResult['diagnostics'];
       }): void => {
-        /* A condition is not a type to fit (qorus#646): the server reads it as true unless its value is
+        /* A condition is not a type to fit: the server reads it as true unless its value is
            zero or empty, so it is said as every condition editor says it - a number accepted with a warning,
            text refused. The server's reading, with its own words, when it gave one; the inferred type read
            the same way when it did not (a server that does not know the question). */
@@ -634,7 +632,7 @@ export const ExpressionField = memo(
     //
     // A rendering is kept with the AST it renders, and drawn only for that AST (`previewState`): after an edit,
     // for the pause and the server's answer, the previous expression's rendering was drawn under the new text
-    // (qorus#646: "record: pos" under `bezeichnung == bezeichnung`).
+    // ("record: pos" under `bezeichnung == bezeichnung`).
     useEffect(() => {
       const key = astKey;
       previewAskedFor.current = key;
@@ -698,7 +696,7 @@ export const ExpressionField = memo(
         /* Emptied, the editor holds nothing of the value: an expression that comes back (a revert, an undo) is
            written into it, as on entering Text. Left marked seeded, the visit kept the empty text, and a revert
            put `pos + 1` back in the form with nothing in the editor (FormEngine · Reverting A Removed Expression
-           Puts It Back, qorus#646). */
+           Puts It Back). */
         seededRef.current = false;
         setText('');
       }
@@ -710,7 +708,7 @@ export const ExpressionField = memo(
     const flushPendingParse = useCallback(async (): Promise<IExpression | undefined> => {
       if (pendingParse.current === null) return undefined;
       /* An emptied text is no value, as an emptied Value tab is: the field holds nothing. It stayed what it
-         was, and came back on the next visit (qorus#646: the text's × left the 201). */
+         was, and came back on the next visit (the text's × left the 201). */
       if (!pendingParse.current.trim()) {
         if (parseTimer.current) clearTimeout(parseTimer.current);
         pendingParse.current = null;
@@ -846,7 +844,7 @@ export const ExpressionField = memo(
           setAstText(t);
           /* The text shown is checked against the field's type, as typed text is. It was checked only when the
              editor reported it back as a change, which it does only while it has the focus: with the focus in
-             the picker (opened at once, qorus#646) an expression that does not fit said nothing. */
+             the picker (opened at once) an expression that does not fit said nothing. */
           if (targetType || condition) {
             const result = await dpqlRef.current?.parse?.(t, targetType, parseOptions);
             if (!cancelled && !userTypedRef.current) readTypeCheck(result);
@@ -883,7 +881,7 @@ export const ExpressionField = memo(
       /* Only an edit is read back. The text is the value written by the session (or the host's own text for
          it), and reading it back unedited made a view switch change the value: a writer that cannot say all
          of it - Qore's DPQL serializer wrote `a + b` for a `+` of three arguments - dropped the third from the
-         stored expression the moment it was looked at in Visual (qorus#646). */
+         stored expression the moment it was looked at in Visual. */
       const edited = text !== astText && userTypedRef.current;
       // read by the session once it is ready; one that cannot be reached leaves the text unread, as asked
       if (mode === 'text' && text && edited && (await whenSessionReady())) {
@@ -946,7 +944,7 @@ export const ExpressionField = memo(
             style={OWN_WIDTH_STYLE}
           >
             {/* Text first, and the view an expression opens in: as the value's tabs read (Value · Expression ·
-                Visual), the written form before the built one (qorus#646, David) */}
+                Visual), the written form before the built one */}
             <ReqoreButton
               icon='CodeLine'
               active={mode === 'text'}
@@ -979,8 +977,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 className='expression-text-unavailable'
               >
-                The expression language server is not available, so this text cannot be read yet. It
-                is kept as you typed it; the Visual view builds the expression without the server.
+                {words.textUnreadable}
               </ReqoreMessage>
             : null}
             <DpqlEditor
@@ -1003,7 +1000,7 @@ export const ExpressionField = memo(
               completeOnClick
               /* the field's templates and fields, browsed as its catalogue nests them from the editor's picker
                  and put in at the end of the text - where a value can go there: after a value (`12`), one would
-                 be refused, and the picker says why it cannot be used (qorus#646, David's decision) */
+                 be refused, and the picker says why it cannot be used */
             />
             {/* What the server said about the result's type, when the field
                 declares one to check against.
@@ -1035,10 +1032,13 @@ export const ExpressionField = memo(
                 size='small'
                 flat
                 opaque={false}
-                title={typeCheck.mayFail ? 'This may not fit' : 'This does not fit'}
+                title={typeCheck.mayFail ? words.mayNotFit : words.doesNotFit}
               >
-                {`The expression gives ${typeInSentence(typeCheck.inferred)}, and this field takes ${typeInSentence(typeCheck.target)}.`}
-                {typeCheck.mayFail ? ' Qorus converts the value when it runs, and checks it then.' : ''}
+                {words.typeNote(
+                  typeInSentence(typeCheck.inferred),
+                  typeInSentence(typeCheck.target),
+                  !!typeCheck.mayFail
+                )}
                 {typeCheck.fix ?
                   <>
                     <ReqoreVerticalSpacer height={6} />
@@ -1062,7 +1062,13 @@ export const ExpressionField = memo(
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
             {previewState === 'shown' ?
-              <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
+              <ReqoreMessage
+                intent={calmNoteIntent('info', calm)}
+                size='small'
+                title={words.preview}
+                flat
+                opaque={false}
+              >
                 <DpqlRendering text={preview?.text} data-testid='expression-preview' />
               </ReqoreMessage>
             : null}
@@ -1076,7 +1082,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 className='expression-text-refused'
               >
-                This expression cannot be shown as text, so it is built here: {textRefused}
+                {words.textRefused(textRefused)}
               </ReqoreMessage>
             : null}
             {textUnavailable ?
@@ -1087,8 +1093,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 className='expression-text-unavailable'
               >
-                The Text view needs the expression language server, which is not available: the
-                expression is built here instead.
+                {words.textViewUnavailable}
               </ReqoreMessage>
             : null}
             <ExpressionBuilder

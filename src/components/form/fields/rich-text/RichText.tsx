@@ -41,10 +41,9 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
-import { TEMPLATE_BROWSE_LIST_PROPS } from './useTemplateTags';
+import { useTemplateBrowseListProps } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
-import { NO_VALUE_DESCRIPTION } from '../../../../helpers/noDescription';
 import {
   hostSaysOf,
   referenceStanding,
@@ -76,7 +75,7 @@ import { useTabCameIn } from '../../../smartEditor/useTabCameIn';
 
 /** What opens the field's template list as it is typed: a template begins with `$`. */
 /* A `$` asks for templates; a `:` or `.` in a reference being written goes on to what is in its context, state or
-   record (qorus#646): asked anywhere else, nothing is offered (`offerTemplates`). */
+   record: asked anywhere else, nothing is offered (`offerTemplates`). */
 const TEMPLATE_TRIGGERS = new Set(['$', ':', '.']);
 
 /* What the list says where a context is written that nothing is listed in. One function for the editor's life:
@@ -108,7 +107,7 @@ export interface IRichTextFormFieldProps extends Omit<
   allowTemplates?: boolean;
   templates?: IReqoreFormTemplates;
   /**
-   * The field's template catalogue, as Qorus gives it for the field's context (qorus#646: REST
+   * The field's template catalogue, as Qorus gives it for the field's context (REST
    * `getTemplateCatalogue`): the template contexts the field can use, each with its keys and whether it can be used
    * whole. Offered as the "Template contexts" group of `templates`, in the picker and as it is typed.
    */
@@ -292,7 +291,7 @@ export const RichTextFormField = memo(({
   const emitted = useEmittedValues<unknown>(isEqual);
 
   /* The edit the debounce below has yet to send. The field can go away before it fires - a value's tab
-     switched, a row closed, right after a pick - and the edit went with it (qorus#646): a read-first row's
+     switched, a row closed, right after a pick - and the edit went with it: a read-first row's
      Done sends it before the row closes, Cancel and Escape drop it, and any other way out sends it (see
      `usePendingEdit`). */
   type TEdit = string | IReqoreRichTextEditorProps['value'];
@@ -348,7 +347,7 @@ export const RichTextFormField = memo(({
      (`templateToken`), or — for a reference neither grammar matches, a DPQL `@create` say — the catalogue
      that NAMES it. Both can arrive AFTER the first render: the catalogue is fetched, and the effect above
      rebuilds the document only when the stored string changes. So a preset reference the catalogue had not
-     yet named stayed raw text until the author re-picked it (qorus#646). Re-chip the string in hand when
+     yet named stayed raw text until the author re-picked it. Re-chip the string in hand when
      what recognises its references changes — text mode only, and only when a chip is actually gained or
      lost, so a document being edited is left exactly as it is while nothing new is recognised. A choice
      chip is the choices' to draw (see above), so a document that is one is left alone. */
@@ -493,7 +492,7 @@ export const RichTextFormField = memo(({
     (rest as { disabled?: boolean }).disabled
   );
 
-  /* The field's templates, in one picker (qorus#646, David's decisions): browsed as they nest - a click, a tap or
+  /* The field's templates, in one picker: browsed as they nest - a click, a tap or
      Tab into the text opens it at the caret, a click on a chip opens it at the chip's group to replace it - and
      reached by what is typed after a `$`, in the rows the same popover shows then (a group's row opens the picker
      at its members). */
@@ -530,7 +529,7 @@ export const RichTextFormField = memo(({
   const typeLabel = useTypeLabel();
   /* The text as the field reads it: its whole references chips (`templateTextToNodes`), for a reference typed out
      to be drawn as its chip when the field is left, or Enter or Tab takes it - as a picked one is, and as the DPQL
-     editor draws one (qorus#646, David: `$static:order.id` stayed text). One that names nothing the field is given
+     editor draws one (`$static:order.id` stayed text). One that names nothing the field is given
      stays text. */
   const typedConverter = useMemo<ISlateConverter>(
     () => ({
@@ -550,7 +549,7 @@ export const RichTextFormField = memo(({
       if (!typed) return [];
       const rows = templateSearchItems(templateRoots, typed, typeLabel, wholeRecords);
       /* a context written that nothing is listed in: the list says what to write next above Browse all
-         templates, which puts a working reference in its place (`noteAt`; qorus#646, David's review) */
+         templates, which puts a working reference in its place (`noteAt`) */
       return [...rows, browseAllTemplatesItem()];
     },
     [templateRoots, typeLabel, wholeRecords]
@@ -602,8 +601,8 @@ export const RichTextFormField = memo(({
         // in an empty text the arrows have nowhere else to go: they move through the picker
         const empty = !defaultSlateConverter.fromSlateNodes(editor.children as any).trim();
         /* A reference being written at the caret is completed where it is: what is listed of it, what to write
-           next and Browse all templates, to put a working one in its place - not the picker's top (qorus#646,
-           David's review: a click at the end of `$dynamic:` showed the picker's top silently). */
+           next and Browse all templates, to put a working one in its place - not the picker's top (a click
+           at the end of `$dynamic:` showed the picker's top silently). */
         // what is typed in the text the caret is in: a chip before it is a value, not a reference being written
         const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
         const textBefore = (leaf.text ?? '').slice(0, caret.anchor.offset);
@@ -622,7 +621,7 @@ export const RichTextFormField = memo(({
   /* A click on a template chip the catalogue lists opens the picker at the chip's group, its row the keyboard's,
      and the pick takes its place; a second click puts it away. */
   /* A text emptied where the author is writing (cleared, or its last character deleted) offers what an empty text
-     offers: the picker at its top, as a click in it opens it (Foxhoundn on qlip #425; David: the picker offers
+     offers: the picker at its top, as a click in it opens it (the picker offers
      every completion in every state). */
   const writtenRef = useRef<string>();
   // the value the text is drawn with (`formattedValue`, below)
@@ -766,12 +765,15 @@ export const RichTextFormField = memo(({
              field's help and in the picker row for an unlabelled value. */
           /* Drawn, as the picker row draws the same string (`descriptionTooltip`):
              left raw, it printed the punctuation the row does not. */
-            // what the value is, or why nothing says so (qorus#646)
+            // what the value is, or why nothing says so
             tooltip:
               listed ?
                 // its whole path heads the card, as every view's hover of a listed template says it
                 templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm)
-              : descriptionTooltip(descriptionByValue[tagValue] || NO_VALUE_DESCRIPTION, descriptions),
+              : descriptionTooltip(
+                  descriptionByValue[tagValue] || treeWords.noValueDescription,
+                  descriptions
+                ),
             // The same chip the read summary and the read-only tag draw.
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(tag.metadata),
@@ -792,6 +794,8 @@ export const RichTextFormField = memo(({
         chipBehavior.click,
         openChoiceChip,
         templateChipClick,
+        // what a hover says is in the host's words: drawn again in others
+        treeWords,
       ]
     );
 
@@ -853,6 +857,8 @@ export const RichTextFormField = memo(({
      editor's `tags` is the template catalogue this component computes. */
   const editorProps = { ...rest };
   delete (editorProps as { tags?: unknown }).tags;
+  // the template list's color in the look in force: neutral in the calm one
+  const browseListProps = useTemplateBrowseListProps();
 
   return (
     <>
@@ -882,7 +888,7 @@ export const RichTextFormField = memo(({
       {...(editorProps as Omit<typeof editorProps, 'tags'>)}
       tagsListProps={{
         useTargetWidth: true,
-        ...TEMPLATE_BROWSE_LIST_PROPS,
+        ...browseListProps,
         ...(rest.tagsListProps || {}),
       }}
       getTagProps={handleGetTagProps}

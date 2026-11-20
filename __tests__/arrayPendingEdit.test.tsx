@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A list field's edit that waits for its pause is never lost when the field goes away (qorus#646): both list
+// A list field's edit that waits for its pause is never lost when the field goes away: both list
 // editors keep a local copy and report it 300 ms after the last change, and a read-first row's Done closed them
 // inside that pause. Done sends the edit before the row closes, Cancel and Escape drop it, and any other way out
 // sends it.

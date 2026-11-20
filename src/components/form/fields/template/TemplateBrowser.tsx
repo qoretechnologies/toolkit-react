@@ -12,7 +12,7 @@ import {
 } from '../../../../helpers/templateTree';
 import { withTemplateCatalogue } from '../../../../helpers/templateCatalogue';
 import { useTemplateCatalogue } from '../../../../helpers/templateCatalogueContext';
-import { TEMPLATE_BROWSE_LIST_PROPS } from '../rich-text/useTemplateTags';
+import { useTemplateBrowseListProps } from '../rich-text/useTemplateTags';
 import { TemplatePicker } from './TemplatePicker';
 
 let templateBrowserCounter = 0;
@@ -31,8 +31,8 @@ export interface ITemplateBrowserProps extends Omit<IReqoreDropdownProps, 'items
 }
 
 /**
- * The control a field's templates are chosen from - a picker button, a number's input, a template-only value
- * (qorus#646): the template picker (`TemplatePicker`), the same one an editor opens at its caret, in the control's
+ * The control a field's templates are chosen from - a picker button, a number's input, a template-only value:
+ * the template picker (`TemplatePicker`), the same one an editor opens at its caret, in the control's
  * popover. A catalogue is browsed as it nests, searched at any depth, and a record taken whole or opened. The pick
  * is handed on as the catalogue row it is (`onItemSelect`), a template of any keys with the key written as its
  * value.
@@ -57,7 +57,7 @@ export const TemplateBrowser = ({
   wholeRecords,
   ...rest
 }: ITemplateBrowserProps & Record<string, unknown>) => {
-  // the template contexts too, each taken whole or gone into, as typing offers them (qorus#646)
+  // the template contexts too, each taken whole or gone into, as typing offers them
   // with the catalogue of the fields here, where the host gave one (`TemplateCatalogueProvider`)
   const catalogue = useTemplateCatalogue();
   const treeWords = useReqraftLabels().templateTree;
@@ -80,6 +80,8 @@ export const TemplateBrowser = ({
   const id = useMemo(() => `template-browser-${++templateBrowserCounter}`, []);
   // the popover's own controls: a pick puts it away
   const popover = useRef<{ close?: () => void } | null>(null);
+  // the list's color in the look in force: neutral in the calm one
+  const browseListProps = useTemplateBrowseListProps();
   const handOn = useCallback(
     (node: ITemplateNode, written?: string) => {
       const row = (node.row ?? { label: node.label, value: node.value }) as Record<string, unknown>;
@@ -99,7 +101,7 @@ export const TemplateBrowser = ({
   );
   return (
     <ReqoreDropdown
-      {...TEMPLATE_BROWSE_LIST_PROPS}
+      {...browseListProps}
       {...(rest as IReqoreDropdownProps)}
       // the picker draws its own rows and keys: the dropdown is its popover
       filterable={false}

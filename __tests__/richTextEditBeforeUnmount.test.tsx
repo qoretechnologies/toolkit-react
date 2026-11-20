@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// An edit is handed to the field's host even when the field goes away before the debounce would have sent it
-// (qorus#646): a template picked on a value's Value tab and the Expression tab opened at once lost the pick -
+// An edit is handed to the field's host even when the field goes away before the debounce would have sent it:
+// a template picked on a value's Value tab and the Expression tab opened at once lost the pick -
 // the Value tab's field unmounted with the edit still waiting, and the value stayed empty.
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

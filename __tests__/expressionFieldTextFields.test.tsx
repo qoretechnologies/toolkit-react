@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 //
 // The expression's Text view gets the record's fields the field's schema declares (`dpql_fields`), so
-// every field the Visual view offers can be referred to by name there too (David's review of qorus#646).
+// every field the Visual view offers can be referred to by name there too.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen } from '@testing-library/react';
 import { forwardRef } from 'react';

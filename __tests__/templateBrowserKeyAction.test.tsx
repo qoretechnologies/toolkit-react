@@ -21,7 +21,7 @@ const { setReqraftLabels } = await import('../src/helpers/reqraftLabels');
 
 /**
  * A control that cannot be typed into (a template-only value, a number's input) writes a key for a context of free
- * keys with the row's Key action (David's decision): the row itself takes the whole value, and where a text can be
+ * keys with the row's Key action: the row itself takes the whole value, and where a text can be
  * typed into, the key is typed and no such action is offered.
  */
 const CATALOGUE = {

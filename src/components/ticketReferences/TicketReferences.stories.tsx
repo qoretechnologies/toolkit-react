@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
 import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
+import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import { IInterfaceReference } from '../supportTicket/meta';
 import { ITicketReferenceAttachment, TicketReferences } from './TicketReferences';
 
@@ -216,6 +217,31 @@ export const NoPreview: Story = {
   },
 };
 
+/** A fetch that answers with bytes that are not a picture reads like a failed fetch. */
+export const PreviewThatDoesNotLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the references view where one screenshot\'s bytes are not an image the browser can draw: that tile shows its file name, like a screenshot with no preview, while the others keep their thumbnails.',
+      },
+    },
+  },
+  args: {
+    fetchAttachmentUrl: (id: string) =>
+      Promise.resolve(id === 'img-1' ? STORY_BROKEN_IMAGE : IMG_URLS[id] ?? svgUrl(id, '#555555')),
+  },
+  play: async ({ canvasElement }) => {
+    const tile = (name: string) =>
+      canvasElement.querySelector<HTMLElement>(`button[title="${name}"]`);
+    // the screenshots that load are thumbnails …
+    await waitFor(() => expect(tile('pool-metrics.png')?.querySelector('img')).not.toBeNull());
+    // … and the one that does not is its file name, never a broken picture
+    await waitFor(() => expect(tile('error-screenshot.png')?.textContent).not.toContain('…'));
+    await expect(tile('error-screenshot.png')?.querySelector('img')).toBeNull();
+  },
+};
+
 /** Nothing attached or linked. */
 export const Empty: Story = {
   parameters: {
@@ -325,7 +351,7 @@ export const MixedLinkability: Story = {
     docs: {
       description: {
         story:
-          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover (qorus#693).',
+          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover.',
       },
     },
   },

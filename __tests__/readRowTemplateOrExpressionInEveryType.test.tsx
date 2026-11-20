@@ -13,7 +13,7 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qorus#646 (found by the IDE agent): a template or an expression on a color option read "Set" in its
+ * Found in the Qorus IDE: a template or an expression on a color option read "Set" in its
  * collapsed row. The row's color branch came before its template and expression branches, and the color
  * summary calls anything that is not a color "Set". A template is the field it names and an expression
  * reads as DPQL, whatever the field's type: those checks come first, before any type draws its own value.

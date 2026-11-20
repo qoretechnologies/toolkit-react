@@ -3,6 +3,7 @@ import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Moda
 import { CSSProperties, memo, useCallback } from 'react';
 import { copyText } from '../../../../helpers/secureContextApis';
 import { DEFAULT_TEMPLATE_LIST_LABELS } from '../../../../helpers/templateListLabels';
+import { withCodeFont } from '../codeFont';
 
 export interface IReqraftTemplateExampleValueModalProps extends Partial<IReqoreModalProps> {
   /** The template field's display name — the modal heading. @default 'Example value' */
@@ -96,6 +97,8 @@ export const ReqraftTemplateExampleValueModal = memo(
           value={value}
           minimal
           fluid
+          // A template's sample value is data: monospace.
+          effect={withCodeFont()}
           style={FILL_STYLE}
           wrapperStyle={FILL_STYLE}
         />

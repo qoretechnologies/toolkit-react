@@ -217,10 +217,10 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       if (ready) onReady?.();
     }, [ready]);
 
-    /* What the field can refer to (qorus#646, David's decisions): its templates as their catalogue nests them, and
+    /* What the field can refer to: its templates as their catalogue nests them, and
        the record's fields as a group of their own - one tree, browsed in the template picker (a click in the empty
        text, the template button, a chip, a group's row) and reached by what is typed (`dpqlCompletionsWith`). */
-    /* The field's template catalogue (qorus#646): the contexts it can use where it is used, asked of the language
+    /* The field's template catalogue: the contexts it can use where it is used, asked of the language
        server once the document's context is bound, and again when that changes. A server that does not know the
        request leaves the field with its own templates. */
     const [askedCatalogue, setAskedCatalogue] = useState<ITemplateCatalogue>();
@@ -270,7 +270,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       [templates, dpql.fieldMeta, catalogue, editorWords]
     );
     /* A reference that names none of the field's templates says so where it is written, and stays the text it
-       was typed as (qorus#646, David's review: a half-typed reference was taken as it was). */
+       was typed as: a half-typed reference was once taken as it was. */
     const namesNothing = useCallback(
       (reference: string) => referenceNamesNothing(templateRoots, reference),
       [templateRoots]

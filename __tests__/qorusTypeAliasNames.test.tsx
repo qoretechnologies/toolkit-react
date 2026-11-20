@@ -6,7 +6,7 @@ import { defaultQorusTypes, qorusTypeDisplayName, useQorusTypes } from '../src/h
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qorus#646: a type is called what the server catalogue calls it, but the catalogue lists each type once, by
+ * A type is called what the server catalogue calls it, but the catalogue lists each type once, by
  * its own name. Qore has other names for some of them - `boolean` and `integer` are `bool` and `int`, and a
  * soft type (`softint`, `softbool`, ...) is a declaration that converts a value to its base type - and a type
  * named that way (an expression's argument, a field declared `boolean`) was shown as the raw name: "this field
@@ -35,7 +35,7 @@ describe('a type named the way Qore also names it', () => {
     expect(qorusTypeDisplayName(catalogue, 'boolean')).toBe('Flag');
   });
 
-  // qorus#646: a type is never named by its code - a user type by its path, anything else as unknown
+  // a type is never named by its code - a user type by its path, anything else as unknown
   it('names a type no catalogue lists under any name as unknown, never by its code', () => {
     expect(qorusTypeDisplayName(defaultQorusTypes, 'order-status')).toBe('Unknown type');
     expect(qorusTypeDisplayName(defaultQorusTypes, 'softorder')).toBe('Unknown type');

@@ -6,7 +6,7 @@ import { hasTextAroundATemplate, textAroundATemplate } from '../src/helpers/temp
 import { validateField, validateFieldWithResult } from '../src/helpers/validations';
 
 /**
- * qorus#646 (David): a whole number, a number, a yes/no or a date written with text around a template
+ * A whole number, a number, a yes/no or a date written with text around a template
  * ("$record:{bestellnummer} Stk.") is not one of those. It was valid: anything that starts with `$` and
  * has a `:` was taken for a template, so the form could be saved with a value its type cannot hold.
  */
@@ -23,7 +23,7 @@ describe('text around a template', () => {
     expect(hasTextAroundATemplate(12)).toBe(false);
   });
 
-  /* qlip build 20261008-083118 (Foxhoundn): "How does the user fix this? Why has this happened?" - the
+  /* a Qlip review: the author is told how to fix it and why it happened - the
      message names the text that makes the value text, says it is not of the field's type because of it,
      and says what to do. */
   const cases: [string, string][] = [

@@ -10,7 +10,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A compact row opens or closes by what the user did to the row as it was drawn (qorus#646).
+ * A compact row opens or closes by what the user did to the row as it was drawn.
  *
  * A click on a row was a toggle that read its direction from the latest state. The first-required scan opens its
  * row with an update of its own; a click on that row, still drawn closed, landed on top of it and closed the row
@@ -147,7 +147,7 @@ describe('a click on a compact row', () => {
     await waitFor(() => expect(openRows(container)).toEqual(['name']));
     await user.click(
       required(
-        container.querySelector<HTMLElement>('[aria-label="Collapse Name"]'),
+        container.querySelector<HTMLElement>('[aria-label="Close Name"]'),
         "the row's label"
       )
     );
@@ -166,7 +166,7 @@ describe('a click on a compact row', () => {
 
     await user.click(
       required(
-        container.querySelector<HTMLElement>('[aria-label="Collapse Name"]'),
+        container.querySelector<HTMLElement>('[aria-label="Close Name"]'),
         "the row's label"
       )
     );

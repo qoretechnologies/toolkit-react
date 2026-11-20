@@ -34,7 +34,7 @@ export interface IReadFirstInks {
 }
 
 /**
- * The read-first rows' own colors (qorus#646). A row is drawn on the page, or in a status box - the attention box
+ * The read-first rows' own colors. A row is drawn on the page, or in a status box - the attention box
  * tinted with the warning intent, the set box with the success one, both at 12%, the optional box a shade darker
  * than the page - and hovered, a 5% wash of the text over any of them. Its colored words and icons were the intents
  * themselves (a danger reason 2.7:1 on the attention box), its notes and help mark faded to 45-55% (4.1:1, 2.7:1).

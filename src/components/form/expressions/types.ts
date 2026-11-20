@@ -104,7 +104,7 @@ export interface IExpressionSchema {
   return_type_arg_priority?: string[];
   /**
    * Never offered for picking: the operation is drawn only inside the construct that makes it - `wildcard_item`,
-   * the item of a `[*]` wildcard, which DPQL does not write (qorus#646). The operation pickers leave it out.
+   * the item of a `[*]` wildcard, which DPQL does not write. The operation pickers leave it out.
    */
   internal?: boolean;
 }
@@ -117,7 +117,7 @@ export const isOfferedForPicking = (schema: Pick<IExpressionSchema, 'internal'>)
 export type TExpressionReorderSurface = 'overflowMenu' | 'dragHandle' | 'positionPicker';
 
 /**
- * `true` (the default) renders the drag grip together with the "Move Argument"
+ * `true` (the default) renders the drag grip together with the "Move argument"
  * section in the field's `⋮` menu; `false` turns reordering off; a list
  * renders exactly those surfaces.
  */

@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A reference is named the same whichever way it is spelled, and with where it is (qorus#646, David's decisions):
+ * A reference is named the same whichever way it is spelled, and with where it is:
  * the catalogue spells a Qog state's data `$data:{a.b}`, the language server completes it as `$data:a.b`; a chip
  * says the data it is part of before its name, the start and the end of a long path, and its hover the whole path.
  */
@@ -30,7 +30,7 @@ describe('describeTemplateReference', () => {
   it('names context data by its name, the group that only gathers it in its hover', () => {
     expect(describeTemplateReference(QOG_FIELD_TEMPLATES, '$timestamp:now')).toMatchObject({
       label: 'Current Timestamp',
-      path: 'Context Data › Current Timestamp',
+      path: 'Context data › Current Timestamp',
     });
   });
 

@@ -4,8 +4,7 @@ Locked design for the user-facing polish work on top of the `0.9.0`
 foundation. Mirrors the Phase 5 / Phase 6 sections of the original
 `qorus-ide/.design/DPQL_RICHTEXT.md` (carried forward here as the
 component now lives in Reqraft) and absorbs the issues found while
-testing against the live `wss://hq.qoretechnologies.com:8092/lsp`
-endpoint.
+testing against a live Qorus server's LSP endpoint.
 
 The execution checklist lives at
 [`.tasks/SMART_EDITOR_UX_POLISH.md`](../.tasks/SMART_EDITOR_UX_POLISH.md).
@@ -179,7 +178,7 @@ it).
 
 **Problem.** Our `plainTextToSlate` in `dpqlEditor/dpqlHelpers.ts` is a
 client-side reader. It finds the references the server's DPQL tokenizer
-reads, as it reads them (qorus#646): `$prefix:value`, `$prefix:{value}`
+reads, as it reads them: `$prefix:value`, `$prefix:{value}`
 (ending where the tokenizer's does: a backslash escapes the next character,
 braces nest, a string inside is read whole), `@field` and the quoted
 `@"field"` the server writes for a name DPQL does not read bare (its chip

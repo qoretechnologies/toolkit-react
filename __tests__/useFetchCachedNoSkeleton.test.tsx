@@ -102,7 +102,7 @@ describe('useFetch with a warm cache', () => {
     // them, not just the last, or the flash passes unnoticed.
     await waitFor(() => expect(seen.loading.length).toBeGreaterThan(0));
     expect(seen.loading.some((l) => l === true)).toBe(false);
-    // ...and a fresh answer is not asked for at all (board f61).
+    // ...and a fresh answer is not asked for at all.
     expect(get).not.toHaveBeenCalled();
   });
 
@@ -131,7 +131,7 @@ describe('useFetch with a warm cache', () => {
 
   it('still revalidates a stale cached resource, silently', async () => {
     // Silent, but not skipped: a STALE entry is refreshed behind the rendered data.
-    // A fresh one is not asked for (board f61; `useFetchLoadOnMount.test.tsx`).
+    // A fresh one is not asked for (`useFetchLoadOnMount.test.tsx`).
     seedCache('/system/qorus-type-info', CATALOGUE, STALE);
 
     const get = vi.fn(async () => ({ ok: true, data: CATALOGUE }));

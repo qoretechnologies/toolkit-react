@@ -1,6 +1,6 @@
 /**
  * A reqraft component's own props stop at the component: what it hands on to the Reqore component it draws is
- * that component's props only (qorus#646).
+ * that component's props only.
  *
  * The menu item handed `activePaths` to a router link, which wrote it onto its `<a>`. A sweep for the same
  * read-then-spread pattern found four more: each read a prop of its own, then spread its props into a Reqore
@@ -117,9 +117,17 @@ describe('what a reqraft component hands the Reqore component it draws', () => {
   });
 
   it('the object field: not disabled, which its own buttons take', () => {
+    // its tabs are drawn only with the source text route on (`textEditing`, a host's opt-in)
     render(
       <ReqoreUIProvider>
-        <ReqraftObjectFormField type='object' value={{ a: 1 }} onChange={vi.fn()} disabled />
+        <ReqraftObjectFormField
+          type='object'
+          dataType='yaml'
+          value={'a: 1\n'}
+          onChange={vi.fn()}
+          disabled
+          textEditing
+        />
       </ReqoreUIProvider>
     );
     expect(keysHanded('ReqoreTabs').has('disabled')).toBe(false);

@@ -4,7 +4,7 @@ import { getReadableTextOpacity, READABLE_TEXT } from '../helpers/readableColors
 
 /**
  * How faded the theme's text (or an icon drawn in it) can be in this theme and still read: `opacity`, or as
- * little more as it takes (4.5:1 for text, `READABLE_ICON` 3:1 for an icon; qorus#646).
+ * little more as it takes (4.5:1 for text, `READABLE_ICON` 3:1 for an icon).
  */
 export const useReadableOpacity = (
   opacity: number,

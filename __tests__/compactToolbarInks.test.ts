@@ -5,7 +5,7 @@ import { getCompactToolbarInks } from '../src/components/form/engine/compactTool
 import { contrastRatio, READABLE_TEXT } from '../src/helpers/readableColors';
 
 /* The read-first summary ("Incomplete · 4/6 set · 2 need attention →") drew its words in the warning and success
-   intents themselves: 4.0-4.1:1 on the IDE's dark page (qorus#646). In every theme its words read. */
+   intents themselves: 4.0-4.1:1 on the IDE's dark page. In every theme its words read. */
 describe('the read-first completion summary', () => {
   for (const main of ['#333333', '#0f0f0f', '#f4f4f4', '#ffffff', '#1b2f45']) {
     test(`reads on a ${main} theme`, () => {

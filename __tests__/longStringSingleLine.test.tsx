@@ -64,7 +64,7 @@ describe('a single-line field', () => {
    * It takes no line break, so it never grows a line of its own; a long value wraps, and the field is as tall
    * as its text, so the whole value is read in it (an editable row shows three lines of it). It offers no resize
    * grip: its height is its text's, and at one line the clear button covered the corner the grip is drawn in, so
-   * the grip showed and could not be dragged (David, qorus#646).
+   * the grip showed and could not be dragged.
    */
   it('is one line tall, wraps a long value to the height of its text, and offers no resize grip', () => {
     render(<LongStringFormField type='string' value='name' onChange={() => {}} />);

@@ -1,5 +1,6 @@
 import { IReqoreModalProps, ReqoreModal } from '@qoretechnologies/reqore/dist/components/Modal';
 import { memo, useCallback, useEffect, useState } from 'react';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 
 export const FocusedEditing = memo(
   ({
@@ -19,6 +20,7 @@ export const FocusedEditing = memo(
     modalOnly?: boolean;
   }) => {
     const [_isFullscreen, setIsFullscreen] = useState(isFullscreen);
+    const fieldWords = useReqraftLabels().fields;
 
     const handleFullscreenToggle = useCallback(() => {
       setIsFullscreen((prev) => !prev);
@@ -32,7 +34,7 @@ export const FocusedEditing = memo(
       <>
         {_isFullscreen && (
           <ReqoreModal
-            label='Focused Editing'
+            label={fieldWords.focusedEditing}
             icon='FullscreenFill'
             blur={15}
             customTheme={{ main: '#111111' }}

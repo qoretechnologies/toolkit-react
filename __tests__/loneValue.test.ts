@@ -1,9 +1,9 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The server parses a reference written alone as `template(ref)` (Qore DpqlParser, DP_EXPR_TEMPLATE; professor's
- * `/lsp` parses `$record:{pos}` to `{exp: 'template', args: [{type: 'int', value: '$record:{pos}'}]}` and writes it
- * back as `@pos`). It is the lone value it is: never shown as an operation (qorus#646, David's review: "What is
- * template(...)?").
+ * The server parses a reference written alone as `template(ref)` (Qore DpqlParser, DP_EXPR_TEMPLATE; a
+ * Qorus server's `/lsp` parses `$record:{pos}` to `{exp: 'template', args: [{type: 'int', value: '$record:{pos}'}]}`
+ * and writes it back as `@pos`). It is the lone value it is: never shown as an operation, which left a reader
+ * asking what "template(...)" was.
  */
 import { describe, expect, it } from 'vitest';
 import { asLoneValue, isLoneValueOperation } from '../src/components/form/expressions/loneValue';

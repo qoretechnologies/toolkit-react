@@ -134,7 +134,7 @@ export const shouldMarkAsExpression = (
  * Left as no opinion, the flag was kept only while the field still held an expression
  * (`shouldMarkAsExpression`). An expression put back over a field that had been cleared, or replaced with a
  * value, came back without it: its AST was stored as a literal hash, and its row read "2 fields", `exp` and
- * `args` (qorus#646).
+ * `args`.
  */
 export const restoredFieldChange = (field?: {
   value?: unknown;

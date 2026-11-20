@@ -9,8 +9,8 @@ const CONTEXT_NEEDING_A_VALUE = /^\$[\w-]+:$/;
 export const titleNeedsAValue = (title: string): boolean => CONTEXT_NEEDING_A_VALUE.test(title);
 
 /**
- * A row's title, a context that needs a value after it marked so (qorus#646, David: "titles like '$foreach:' should
- * read '$foreach:...' to show the user that the template requires a value after"): `$foreach:` and an italic "…",
+ * A row's title, a context that needs a value after it marked so (`$foreach:` reads `$foreach:...`, which tells the
+ * user that the template needs a value after it): `$foreach:` and an italic "…",
  * which is drawn only - what the row writes is the context as it is.
  */
 export const rowTitle = (title: string): ReactNode =>

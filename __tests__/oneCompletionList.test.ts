@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A field offers what can be written in one popover (qorus#646, David's decisions): the rows typing opens at the
+// A field offers what can be written in one popover: the rows typing opens at the
 // caret (`CompletionList`), and the template picker (`TemplatePicker`) that browses a field's templates as they
 // nest - opened in the same popover by a click in an empty text, a chip, a group's row, and from a template control
 // (`TemplateBrowser`, whose dropdown is only the picker's popover). Reqore's own lists list templates nowhere: no

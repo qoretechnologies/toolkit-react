@@ -1,8 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
  * An option's help says what the option takes, its description or why it has none, and its allowed values as the
- * policy has them (qorus#646, David: "there should be a reason given why there is no description" and "use a
- * bulleted list with an "Allowed values" header in bold and data styling for each value").
+ * policy has them (a reason is given why there is no description; the allowed values are a bulleted list under an
+ * "Allowed values" header in bold, each value in data styling).
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';

@@ -5,7 +5,7 @@
 // whether a form has finished loading. FormFieldsSkeleton rendered it only when
 // its caller named a reason, and the nested waits (a field resolving its named
 // arg schema, a hash resolving its sub-schema) named none, so they drew a
-// placeholder nothing could wait for: qorus-ide's Qlip build 279 captured the AI
+// placeholder nothing could wait for: the IDE's Qlip review captured the AI
 // guardrail's Rules row on one.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';

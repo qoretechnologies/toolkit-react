@@ -1,7 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A template reference is drawn as the same chip wherever it is shown: the read summary (TemplateText), the
-// read-only chip (ReadOnlyTemplateTag), the rich text editor (RichText) and the expression editor's DPQL chips
-// (qorus#646).
+// read-only chip (ReadOnlyTemplateTag), the rich text editor (RichText) and the expression editor's DPQL chips.
 //
 // They drew the chip at different sizes — `size='tiny'` with the prose's own font, the caller's size, and the
 // editor's default size — so switching a value between its Visual and Expression views made the chip jump. They

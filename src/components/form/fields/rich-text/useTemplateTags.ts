@@ -10,7 +10,11 @@ import {
 } from '../../../../helpers/templateItems';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { useTypeLabel } from '../../typeSentenceForm';
-import { COMPLETION_LIST_THEME, styleTemplateItems } from '../../../smartEditor/completionStyle';
+import {
+  COMPLETION_LIST_THEME,
+  styleTemplateItems,
+  useCompletionListTheme,
+} from '../../../smartEditor/completionStyle';
 
 /**
  * How the list a field's templates are browsed in is drawn, wherever it opens - an editor's (its `tagsListProps`)
@@ -22,9 +26,15 @@ export const TEMPLATE_BROWSE_LIST_PROPS = {
   listCustomTheme: COMPLETION_LIST_THEME,
 };
 
+/** `TEMPLATE_BROWSE_LIST_PROPS` in the look in force: the list's color is `useCompletionListTheme`'s. */
+export const useTemplateBrowseListProps = (): typeof TEMPLATE_BROWSE_LIST_PROPS => {
+  const listCustomTheme = useCompletionListTheme();
+  return useMemo(() => ({ ...TEMPLATE_BROWSE_LIST_PROPS, listCustomTheme }), [listCustomTheme]);
+};
+
 /**
  * Each template's description led by where it comes from, when its host says (`withTemplateSources`): the list
- * draws a row's description under its name (qorus#646).
+ * draws a row's description under its name.
  */
 const withSourceDescribed = <T>(items: T[] | undefined): T[] | undefined =>
   items?.map((item) => {
@@ -47,7 +57,7 @@ const withSourceDescribed = <T>(items: T[] | undefined): T[] | undefined =>
 /**
  * The templates a rich-text editor lists when it is clicked, tapped or tabbed into, and inserts as chips:
  * the field's own, under "Templates". One list for every text a value is written in - a rich-text field and
- * an expression's Text view alike (qorus#646: the Text view listed nothing until "@" or "$" was typed).
+ * an expression's Text view alike (the Text view listed nothing until "@" or "$" was typed).
  */
 export const useTemplateTags = (
   templates: IReqoreFormTemplates | undefined,

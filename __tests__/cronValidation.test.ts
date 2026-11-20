@@ -24,6 +24,14 @@ describe('cronExpressionFromValue', () => {
     expect(cronExpressionFromValue({ minutes: '15', hours: '' })).toBe('15 * * * *');
   });
 
+  it("reads a Qorus job's schedule hash, its weekday named dayofweek", () => {
+    // every Monday at 08:00, as the server sends a job's `job-schedule`
+    expect(
+      cronExpressionFromValue({ minute: 0, hour: 8, day: '*', month: '*', dayofweek: 1 })
+    ).toBe('0 8 * * 1');
+    expect(cronExpressionFromValue({ dayofweek: '1-5' })).toBe('* * * * 1-5');
+  });
+
   it('coerces numeric fields', () => {
     expect(cronExpressionFromValue({ minutes: 0, hours: 3 })).toBe('0 3 * * *');
   });

@@ -4,7 +4,7 @@
  * A compact row hands its editor a channel for publishing actions into the
  * row's menu (`rowMenuContext`). The first `TemplateField` in the row claims it;
  * anything that field renders — an expression's operands, a nested value — must
- * not see it. Operands that did publish offered "Use Template" in a menu that
+ * not see it. Operands that did publish offered "Use template" in a menu that
  * cannot say which operand it acts on, and, publishing different offerings into
  * one row, drove the row into a render loop that froze the page.
  */
@@ -70,7 +70,7 @@ describe('TemplateField and the row menu', () => {
     expect(registerRowMenuItems).toHaveBeenCalled();
     const [, key, items] = registerRowMenuItems.mock.calls.at(-1)!;
     expect(key).toContain('template');
-    expect(items.map((item: { label: string }) => item.label)).toContain('Use Template');
+    expect(items.map((item: { label: string }) => item.label)).toContain('Use template');
   });
 
   it('hides the row menu from the editor it renders', () => {
@@ -110,6 +110,6 @@ describe('an editor that takes templates into its own text', () => {
     );
     const [, key, items] = registerRowMenuItems.mock.calls.at(-1)!;
     expect(key).not.toContain('template');
-    expect(items.map((item: { label: string }) => item.label)).not.toContain('Use Template');
+    expect(items.map((item: { label: string }) => item.label)).not.toContain('Use template');
   });
 });

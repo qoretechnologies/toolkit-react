@@ -93,6 +93,60 @@ export const Unset: Story = {
   },
 };
 
+export const DefaultUntilChanged: Story = {
+  args: {
+    checked: true,
+    isDefault: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field that holds no value but has a default of Yes: the switch shows Yes, with a quiet "Default" beside it, because nothing has been chosen. Choosing a value removes it.',
+      },
+    },
+  },
+  render(args) {
+    const [chosen, setChosen] = useState<boolean | undefined>(undefined);
+    return (
+      <BooleanFormField
+        {...args}
+        checked={chosen ?? args.checked}
+        isDefault={chosen === undefined}
+        onChange={(checked) => {
+          args.onChange?.(checked);
+          setChosen(checked);
+        }}
+      />
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Default')).toBeInTheDocument();
+    await expect(canvas.getByRole('switch', { name: 'Boolean' })).toBeChecked();
+  },
+};
+
+export const DefaultGoesWhenChosen: Story = {
+  args: DefaultUntilChanged.args,
+  render: DefaultUntilChanged.render,
+  parameters: {
+    // Interaction-only: the end state is pictured by `Unchecked`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story: 'Verifies that choosing a value on a field showing its default removes the "Default" beside the switch.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    await userEvent.click(switchTrack(canvas.getByLabelText('Boolean')));
+    await expect(args.onChange).toHaveBeenLastCalledWith(false);
+    await expect(canvas.queryByText('Default')).toBeNull();
+  },
+};
+
 export const UnsetSelectsYes: Story = {
   args: {
     checked: undefined,

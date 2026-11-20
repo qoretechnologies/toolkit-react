@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The template picker's list is drawn at a height that ends at a row's end, never through a row (qorus-ide #301:
- * the last row of a Qog's templates was drawn cut through its description, 15 px past the list's 300 px).
+ * The template picker's list is drawn at a height that ends at a row's end, never through a row (the
+ * last row of a Qog's templates was drawn cut through its description, 15 px past the list's 300 px).
  */
 import { describe, expect, it } from 'vitest';
 import {

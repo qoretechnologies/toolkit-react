@@ -30,7 +30,7 @@ useWebsocket 3, TemplateField 1.
    probe. Against an unreachable instance none settles — the form stays a
    skeleton, the menu entry never appears, the socket never reconnects or gives
    up. CI's live instance answered all three, which is why CI stayed green.
-4. **Mock URLs hard-coded the hq host.** Both mock layers match on host, so
+4. **Mock URLs hard-coded the default instance's host.** Both mock layers match on host, so
    overriding `REACT_APP_QORUS_INSTANCE` silently disabled every mock.
 
 ## Fix

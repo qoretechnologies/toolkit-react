@@ -65,13 +65,40 @@ describe('the completion header', () => {
     expect(text).toContain('1 need attention');
   });
 
-  it('counts a flagged field as set but not as done', async () => {
+  it('counts a flagged field under attention, not under set, so the line adds up', async () => {
     renderForm(SCHEMA_WITH_FLAGGED_FIELD);
     const text = await header();
-    // Both fields hold a value, so "set" is honest; only one of them is done.
-    expect(text).toContain('2/2 set');
+    // Both fields hold a value, but the flagged one is in the attention count and the Needs
+    // attention box; "set" says what the Set box holds, so 1 set + 1 need attention = 2.
+    expect(text).toContain('1/2 set');
     expect(text).toContain('50%');
     expect(text).not.toContain('100%');
+  });
+
+  it('reads Ready at 100% though optional fields are empty', async () => {
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='iface'
+            value={BOTH_FILLED}
+            options={
+              {
+                ...(SCHEMA_CLEAN as object),
+                notes: { type: 'string', ui_type: 'string', display_name: 'Notes' },
+                owner: { type: 'string', ui_type: 'string', display_name: 'Owner' },
+              } as never
+            }
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const text = await header();
+    expect(text).toContain('Ready');
+    expect(text).toContain('2/2 set');
+    expect(text).toContain('100%');
   });
 
   it('calls an untouched form that lacks a required value Incomplete, never Draft', async () => {
@@ -95,7 +122,9 @@ describe('the completion header', () => {
     expect(text).not.toContain('Draft');
     expect(text).not.toContain('Ready');
     expect(text).toContain('0/2 set');
-    expect(text).toContain('2 need attention');
+    // Nobody has been to either field yet, so they are still to fill in, not faults.
+    expect(text).toContain('2 to fill in');
+    expect(text).not.toContain('need attention');
   });
 
   it('still reads Ready at 100% when nothing is flagged', async () => {

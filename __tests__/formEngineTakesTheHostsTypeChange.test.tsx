@@ -14,7 +14,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A type the host changes is taken, even where the value the field holds stays the same (qorus#646).
+ * A type the host changes is taken, even where the value the field holds stays the same.
  *
  * The Qorus IDE's sheet review: an added field is a whole number holding the record's field `pos`, and is then
  * made true or false. The host hands down the same `pos`, now typed `bool`. Since 9cd612cc the form recognises

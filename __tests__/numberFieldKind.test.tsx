@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A number field reports the kind of number its type holds (qorus#646): the auto field and the template
+// A number field reports the kind of number its type holds: the auto field and the template
 // field's type-picked editor handed the number field no kind, so it took every number for a whole one, and a
 // float field reported `12.5` as the text "12.5".
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';

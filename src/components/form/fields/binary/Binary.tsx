@@ -3,8 +3,10 @@ import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/T
 import { ChangeEvent, memo, useCallback, useEffect, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { withCodeFont } from '../codeFont';
 import { usePendingEdit } from '../pendingEdit';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IReqraftBinaryFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange' | 'value'> {
   value?: string;
@@ -29,13 +31,14 @@ const stripDataUrlPrefix = (dataUrl: string): string => {
  */
 export const ReqraftBinaryFormField = memo(
   ({ value, onChange, ...rest }: IReqraftBinaryFormFieldProps) => {
+    const fieldWords = useReqraftLabels().fields;
     const [localValue, setLocalValue] = useState<string>(value ?? '');
     // The parent's echo of an emit still in flight is not a change: copying it
     // over the local value lost what was typed since. See `EmittedValues`.
     const emitted = useEmittedValues<string | undefined>();
     /* What the parent holds, as the field shows it: no value is the empty text. Compared with `undefined`,
        the empty text of a field opened without a value was a change, and the field reported '' 100 ms
-       after it opened - the form counted itself edited, and an unset field got '' (qorus#646). */
+       after it opened - the form counted itself edited, and an unset field got ''. */
     const held = value ?? '';
 
     /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
@@ -103,8 +106,10 @@ export const ReqraftBinaryFormField = memo(
             emitted.record('');
             onChange?.('');
           }}
-          placeholder='Base64-encoded binary value'
+          placeholder={fieldWords.binaryValuePlaceholder}
           {...rest}
+          // Encoded bytes (base64, hex): data, so it asks for monospace.
+          effect={withCodeFont(rest.effect)}
         />
         <ReqraftFileFormField disabled={rest.disabled} onChange={handleFileChange} />
       </ReqoreControlGroup>

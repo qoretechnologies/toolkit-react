@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// An edit a debounced field has not reported yet is never lost when the field goes away (qorus#646).
+// An edit a debounced field has not reported yet is never lost when the field goes away.
 //
 // A field keeps a local copy of what is typed and reports it after a pause. The pause's timer dies with the
 // field, and a read-first row's Done closes the row - and the field - at once: a value typed and Done pressed

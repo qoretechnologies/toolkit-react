@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What kind of value an option takes, in words (qorus#646, David's decision): an open option shows it beside its
- * name, and "Show field types" shows it on read rows - never the type's code (`<string>`, IDE rule 7).
+ * What kind of value an option takes, in words: an open option shows it beside its
+ * name, and "Show field types" shows it on read rows - never the type's code (`<string>`).
  */
 import { describe, expect, it } from 'vitest';
 import {

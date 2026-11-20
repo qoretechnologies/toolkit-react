@@ -16,7 +16,7 @@ export interface ICompactToolbarInks {
 }
 
 /**
- * The completion summary's colors (qorus#646): the intents as they were, 4.0-4.1:1 on a dark page, did not read as
+ * The completion summary's colors: the intents as they were, 4.0-4.1:1 on a dark page, did not read as
  * text. Read against the theme's background, and a shade darker and lighter as the page or the panel the form is
  * drawn on may be.
  */

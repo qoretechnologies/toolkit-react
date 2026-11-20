@@ -31,7 +31,7 @@ export interface IFormFieldsSkeletonProps {
    * Always rendered, `loading` when the caller names none: `data-wait` is also
    * how a page asks whether it has finished loading, so a placeholder without
    * it is one nothing can wait for. The nested waits named none, and a story
-   * handed a skeleton to its visual capture (qorus-ide Qlip build 279).
+   * handed a skeleton to its visual capture.
    */
   reason?: string;
 }

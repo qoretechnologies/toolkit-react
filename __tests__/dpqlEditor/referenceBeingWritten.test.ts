@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * What a template picked in an expression's text takes the place of (qorus#646, David's review): a `$` typed to ask
+ * What a template picked in an expression's text takes the place of: a `$` typed to ask
  * for one stayed in front of the chip, and `pos + 1 + $pos` is refused by the server.
  */
 import { describe, expect, it } from 'vitest';

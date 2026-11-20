@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // The type an expression gives, as the server works it out.
 //
-// An expression has one type everywhere in Qorus (qoretechnologies/qorus#713):
+// An expression has one type everywhere in Qorus:
 // the server's expression type rules decide it for DPQL validation, the
 // language server, evaluation and the editors alike. The builder used to work
 // out its own type from the catalogue's `ui_return_type` one level deep, which

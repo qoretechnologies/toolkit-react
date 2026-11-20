@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The one model of what a field can refer to (qorus#646, David: templates are offered as a Qog's are, as a
+ * The one model of what a field can refer to (templates are offered as a Qog's are, as a
  * hierarchy, in one picker for a rich-text field and a DPQL field alike): its templates (`$…`) and, in a DPQL
  * field, the record's fields (`@…`), as a tree of nodes. Every list that offers them reads this model - the picker
  * browsed level by level (`TemplatePicker`), and the rows typing offers at the caret (`templateSearchItems`) - so
@@ -378,8 +378,8 @@ export const templateTree = (
     .filter((row) => !(row as { divider?: boolean }).divider)
     .map((row, index) => nodeOf(row, String(index), [], [], wholeRecords));
   /* A field the catalogue already lists as its `$record:{…}` template is that field: listed once, where the host
-     lists it and as the host writes it, with what the record says of it where the host says nothing (qorus#646,
-     the IDE's Sheet Contract Review: "Fields of the row" and Record fields held the same fields). */
+     lists it and as the host writes it, with what the record says of it where the host says nothing (in
+     the IDE's Sheet Contract Review, "Fields of the row" and Record fields held the same fields). */
   const listed =
     fields && Object.keys(fields).length ?
       recordFieldNodes(roots)
@@ -446,8 +446,8 @@ const withRecordFieldsSaid = (
 
 /**
  * A lone group opened: where it is the only one, its members are what there is to choose from. Where there are
- * others - the record's fields, what the language server completes - it is kept whole, under its name (qorus#646,
- * David's review: "Order data"'s templates stood loose beside Record fields), so a host that adds groups opens it
+ * others - the record's fields, what the language server completes - it is kept whole, under its name (opened instead,
+ * "Order data"'s templates stood loose beside Record fields), so a host that adds groups opens it
  * only once they are added (`keepLoneGroup`).
  */
 export const openLoneGroup = (roots: ITemplateNode[]): ITemplateNode[] =>
@@ -694,8 +694,8 @@ export const catalogueRowTrail = (
 export type TTemplateIntent = 'success' | 'custom1' | 'info';
 
 /**
- * What each color a template is drawn in means, as its hover says it (qorus#646, David: "what is the significance
- * of the colors?"): green is the data of the event that starts the Qog, purple a value Qorus gives, blue any other
+ * What each color a template is drawn in means, as its hover says it, so a reader need not
+ * guess what the colors mean: green is the data of the event that starts the Qog, purple a value Qorus gives, blue any other
  * template (which its hover does not need to say).
  */
 export const TEMPLATE_INTENT_MEANINGS: Record<TTemplateIntent, string> =
@@ -746,7 +746,7 @@ export const catalogueGroupFor = (
 };
 
 /**
- * Whether a reference names nothing the field is given (qorus#646, David's review: a half-typed reference was left
+ * Whether a reference names nothing the field is given (a half-typed reference was left
  * standing as if it were one): a reference into a context whose templates the catalogue lists, every one, which
  * none of them is. A context the catalogue lists nothing of, or one whose keys are written freely (`$dynamic:*`),
  * or a part of the catalogue not loaded yet, says nothing either way.
@@ -792,7 +792,7 @@ export const templateContextOf = (reference: string | undefined): string | undef
   reference ? /^(\$[\w-]+:)/.exec(unbracedReference(reference))?.[1] : undefined;
 
 /**
- * The template contexts of the tree a `$` and what follows it start (qorus#646, David: "`$` → contexts"): each
+ * The template contexts of the tree a `$` and what follows it start (a `$` lists the contexts): each
  * context its nodes are in (`$data:`, `$local:`, ...), as a node of its own whose members are its first nodes, in
  * the order the tree lists them. Taking one writes it and goes on to what is in it.
  */
@@ -800,7 +800,7 @@ export const templateContextOf = (reference: string | undefined): string | undef
  * The template contexts Qorus reads as a hash, `*` the whole of it (UserApi `expandOneVariable()`: the contexts read
  * with `getHashDotValue()`, which gives the whole hash for `*`, and those with a `"*"` case of their own; an argument
  * `*` is read by `_priv_get_template_arg()`: `\*|\w+[\w.]*`). A context of these is a container: used whole as
- * `$<context>:*` where the field takes a record (qorus#646, David's review).
+ * `$<context>:*` where the field takes a record.
  */
 export const WHOLE_TEMPLATE_CONTEXTS = new Set([
   'autovar',
@@ -911,8 +911,8 @@ const serverGroups = (): Array<{
 
 /**
  * The template picker's roots: the field's own (`templateTree`) and what the language server completes where a
- * value can be written (qorus#646, David: "users should be supported with all available completions in the
- * template picker" - the picker and typing offer the same set). The record's fields the server knows join the
+ * value can be written (every completion there is, in the picker too: the picker and typing offer the same
+ * set). The record's fields the server knows join the
  * field's Record fields group (once each); the server's template contexts (each written and gone on from), its
  * functions and its values and keywords are groups of their own.
  */
@@ -940,8 +940,8 @@ const rehomed = (
 export const TEMPLATE_CONTEXTS_LABEL = DEFAULT_REQRAFT_LABELS.templateTree.templateContexts;
 
 /**
- * The picker's roots with the template contexts of the field's own templates as a group of their own (qorus#646,
- * David's review: every container that can be used has Use, and the picker offers what typing offers): each
+ * The picker's roots with the template contexts of the field's own templates as a group of their own (every
+ * container that can be used has Use, and the picker offers what typing offers): each
  * context - `$local:`, `$data:`, `$dynamic:` - a container of what is in it, used whole as `$<context>:*` where the
  * value takes a record. Where there is more than one context; one alone is the field's group already.
  */

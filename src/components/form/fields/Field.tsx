@@ -4,7 +4,6 @@ import {
   IReqoreLabelProps,
   ReqoreCheckbox,
   ReqoreControlGroup,
-  ReqoreSpan,
 } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
@@ -36,10 +35,12 @@ import {
   getSelectItemUnavailability,
   ISelectFieldCollectionItem,
   ISelectFieldCollectionItemAction,
+  TSelectFieldCollectionGroups,
   TSelectFieldCollectionItemTooltip,
   UNAVAILABLE_ITEM_CLASS,
 } from './select/SelectCollection';
 import { useAllowedValueAvailability } from '../engine/OptionFieldMessages';
+import { ChoiceGroupHeading, useSelectedChoiceIntent } from './ChoiceGroupHeading';
 import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 import { AutoFormField } from './auto/AutoFormField';
@@ -52,6 +53,7 @@ import { IDataSchemaDefinition } from './schema-definition/types';
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
 import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 
 /** Soft Qore types (softint, softstring, …) render as their concrete base —
  * the soft/hard distinction is value-level, not UI. */
@@ -101,6 +103,11 @@ export interface IReqraftAllowedValue extends IQorusAllowedValue {
   tooltip?: TSelectFieldCollectionItemTooltip;
   /** Affordances inline with the value's name, where the row already has the height. */
   title_actions?: ISelectFieldCollectionItemAction[];
+  /**
+   * The groups the value is listed in, by name, in the full list of choices; how each is drawn is the field's
+   * `allowed_values_groups`.
+   */
+  groups?: string[];
 }
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> extends Omit<
@@ -122,6 +129,8 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> exte
   /** For list fields: the type of each element */
   element_type?: string;
   ui_element_type?: string;
+  /** How the groups the allowed values are listed in are drawn — see `ISelectFieldCollectionGroup`. */
+  allowed_values_groups?: TSelectFieldCollectionGroups;
   /** Fixed allowed values for list items */
   element_allowed_values?: IQorusAllowedValue[];
   element_allowed_values_creatable?: boolean;
@@ -141,6 +150,7 @@ export const FormField = <T extends TFormFieldType>({
   labelPosition = 'top', // eslint-disable-line @typescript-eslint/no-unused-vars
   allowed_values,
   allowed_values_creatable,
+  allowed_values_groups,
   arg_schema,
   element_type,
   ui_element_type,
@@ -157,9 +167,11 @@ export const FormField = <T extends TFormFieldType>({
   options, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...rest
 }: IFormFieldProps<T>) => {
-  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  const fieldWords = useReqraftLabels().fields;
+  // an item that cannot be picked is dimmed, as far as its name still reads
   const unavailableOpacity = useReadableOpacity(0.55);
   const id = useId();
+  const selectedChoiceIntent = useSelectedChoiceIntent();
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
   // a choice's description card: drawn as markdown, opened by a tap on touch (`descriptionTooltip`)
   const descriptions = useDescriptionTooltips();
@@ -417,6 +429,7 @@ export const FormField = <T extends TFormFieldType>({
             type='object'
             dataType='yaml'
             resultDataType='yaml'
+            name={name}
             disabled={rest.disabled}
             size={fieldSize}
           />
@@ -453,7 +466,7 @@ export const FormField = <T extends TFormFieldType>({
                       label={label}
                       tooltip={described.tooltip}
                       checked={checked}
-                      intent={checked ? 'info' : undefined}
+                      intent={selectedChoiceIntent(checked)}
                       onClick={() => {
                         const next =
                           checked ?
@@ -531,6 +544,7 @@ export const FormField = <T extends TFormFieldType>({
             type='array'
             dataType='yaml'
             resultDataType='yaml'
+            name={name}
             disabled={rest.disabled}
             size={fieldSize}
           />
@@ -603,6 +617,7 @@ export const FormField = <T extends TFormFieldType>({
       actions: item.actions,
       title_actions: extended.title_actions,
       tooltip: extended.tooltip,
+      groups: extended.groups,
       metadata: item.metadata,
       // Both sources of a refusal end up here, as one state: the click handler
       // is dropped and the reason is printed, whichever of them decided.
@@ -640,6 +655,7 @@ export const FormField = <T extends TFormFieldType>({
       return (
         <SelectFormField
           items={allowed_values.map(mapAllowedValue)}
+          groups={allowed_values_groups}
           value={value}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
           canCreateItems
@@ -650,16 +666,17 @@ export const FormField = <T extends TFormFieldType>({
       );
     }
 
-    // Creatable but not chip-shaped: "Saved & Suggested Values" style — the
+    // Creatable but not chip-shaped: "Saved & suggested values" style — the
     // raw field holds the value, and a pick replaces it
     if (allowed_values_creatable) {
       return (
         <SelectFormField
           items={allowed_values.map(mapAllowedValue)}
-          // a pick replaces what the field holds, and the list ticks the suggestion it holds (qorus#646)
+          groups={allowed_values_groups}
+          // a pick replaces what the field holds, and the list ticks the suggestion it holds
           markedValue={heldAllowedValue(value, allowed_values)}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
-          placeholder='Saved & Suggested Values'
+          placeholder={fieldWords.savedAndSuggestedValues}
           minimal
           icon='SaveFill'
           fluid
@@ -676,11 +693,11 @@ export const FormField = <T extends TFormFieldType>({
     if (allowed_values.length <= 3) {
       return (
         <ReqoreControlGroup vertical size={choiceSize}>
-          <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
+          <ChoiceGroupHeading>
             {/* Headed by the field's own name; "Select one:" only when it has
                 none. Same rule as FieldAllowedValuesCheckGroup. */}
-            {display_name ? `${display_name}:` : 'Select one:'}
-          </ReqoreSpan>
+            {display_name ? `${display_name}:` : fieldWords.selectOne}
+          </ChoiceGroupHeading>
           {allowed_values.map((item, index) => {
             // its value and its name however the entry is written: an envelope, a bare value or a name
             const itemValue = allowedValueOf(item);
@@ -694,7 +711,7 @@ export const FormField = <T extends TFormFieldType>({
               <ReqoreCheckbox
                 margin='right'
                 label={label}
-                // one choice, a radio in its own group; a picture beside the name, the radio kept (qorus#646)
+                // one choice, a radio in its own group; a picture beside the name, the radio kept
                 type='radio'
                 name={`${id}-choice`}
                 {...pictureBesideTheName(
@@ -732,7 +749,7 @@ export const FormField = <T extends TFormFieldType>({
                 readOnly={!!unavailable}
                 uncheckedIcon={unavailable ? 'LockLine' : undefined}
                 checked={checked}
-                intent={checked ? 'info' : undefined}
+                intent={selectedChoiceIntent(checked)}
                 onClick={
                   unavailable ? undefined : (
                     () => handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
@@ -751,6 +768,7 @@ export const FormField = <T extends TFormFieldType>({
     return (
       <SelectFormField
         items={allowed_values.map(mapAllowedValue)}
+        groups={allowed_values_groups}
         value={value}
         onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
         fluid

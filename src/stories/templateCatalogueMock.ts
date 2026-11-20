@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * Template catalogues as Qorus gives them, for the stories' stand-in servers (qorus#646, David: each story shows
+ * Template catalogues as Qorus gives them, for the stories' stand-in servers (each story shows
  * what a real field of its kind shows).
  *
  * `templateCatalogueFixtures/*.json` are Qorus's own responses for typical fields, written by its catalogue

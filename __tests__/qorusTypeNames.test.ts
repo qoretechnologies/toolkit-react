@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A type is called what the Qorus server calls it (qorus#646, David's names: Text, Whole number, Number,
+ * A type is called what the Qorus server calls it (Text, Whole number, Number,
  * Exact number, True or false, Date).
  *
  * The server's type catalogue (QorusDataTypeCatalogue::Info, served at /system/qorus-type-info) is the one source
@@ -62,7 +62,7 @@ describe("reqraft's fallback type list", () => {
     }
   });
 
-  it('names each type as David decided, and no two the same', () => {
+  it('names each type as the server does, and no two the same', () => {
     expect(
       Object.fromEntries(
         ['string', 'richtext', 'int', 'float', 'number', 'bool', 'date'].map((name) => [
@@ -88,7 +88,7 @@ describe("reqraft's fallback type list", () => {
 });
 
 describe('the words that name a type before the server answers', () => {
-  it("the type picker calls a type the catalogue's name, where David named it", () => {
+  it("the type picker calls a type the catalogue's name, where the catalogue names it", () => {
     const picker = Object.fromEntries(
       getImmediateValueTypes().map((type) => [type.name, type.display_name])
     );

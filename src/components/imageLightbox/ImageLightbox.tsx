@@ -7,6 +7,8 @@ import {
 } from '@qoretechnologies/reqore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import { loadedImageUrl } from '../supportTicket/useLoadedImages';
 
 /*
  * The shared full-image viewer: a `ReqoreModal` holding one image at a time, with
@@ -77,13 +79,14 @@ export const ImageLightbox = ({
   onDownload,
   onRename,
 }: IImageLightboxProps) => {
+  const words = useReqraftLabels().supportTicket;
   const [zoom, setZoom] = useState<boolean>(false);
   // inline rename state: editing toggles the input row; draftName is the working value
   const [editing, setEditing] = useState<boolean>(false);
   /* Whether the input's blur closes it without committing: Escape cancels. Enter and Escape let go of the focus
      while the input is still on the page, and the blur closes it - taken off the page with the focus, it lost
      the focus in the middle of React's work, and its blur committed then: Enter committed twice, and Escape
-     committed what was typed (qorus#646). */
+     committed what was typed. */
   const cancelRename = useRef(false);
   const [draftName, setDraftName] = useState<string>('');
   // url per attachment: undefined = not fetched, null = fetch failed, string = ready
@@ -126,6 +129,7 @@ export const ImageLightbox = ({
     }
     requested.current.add(id);
     fetchRef.current(id)
+      .then(loadedImageUrl)
       .then((resolved) => mounted.current && setUrls((current) => ({ ...current, [id]: resolved })))
       .catch(() => mounted.current && setUrls((current) => ({ ...current, [id]: null })));
     return undefined;
@@ -183,20 +187,20 @@ export const ImageLightbox = ({
       blur={3}
       icon='ImageLine'
       label={image.filename}
-      badge={multiple ? `${index + 1} / ${images.length}` : undefined}
+      badge={multiple ? words.imagePosition(index + 1, images.length) : undefined}
       actions={[
-        { icon: 'ArrowLeftSLine', tooltip: 'Previous', onClick: () => step(-1), show: multiple },
-        { icon: 'ArrowRightSLine', tooltip: 'Next', onClick: () => step(1), show: multiple },
+        { icon: 'ArrowLeftSLine', tooltip: words.previous, onClick: () => step(-1), show: multiple },
+        { icon: 'ArrowRightSLine', tooltip: words.next, onClick: () => step(1), show: multiple },
         {
           icon: 'Edit2Line',
-          tooltip: 'Rename',
+          tooltip: words.rename,
           className: 'imagelightbox-rename',
           onClick: startRename,
           show: !!onRename && !editing,
         },
         {
           icon: 'DownloadLine',
-          tooltip: 'Download',
+          tooltip: words.download,
           onClick: () => onDownload?.(image.attachment_id, image.filename),
           show: !!onDownload,
         },
@@ -237,10 +241,10 @@ export const ImageLightbox = ({
         {url ? (
           <img src={url} alt={image.filename} onClick={() => setZoom((z) => !z)} />
         ) : url === null ? (
-          <ReqoreSpan effect={{ opacity: 0.6 }}>Preview unavailable — use Download.</ReqoreSpan>
+          <ReqoreSpan effect={{ opacity: 0.6 }}>{words.previewUnavailable}</ReqoreSpan>
         ) : (
           <ReqoreSpinner iconColor='info' size='big'>
-            Loading…
+            {words.loading}
           </ReqoreSpinner>
         )}
       </Stage>

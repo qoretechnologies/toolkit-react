@@ -4,8 +4,8 @@
 // The browser finds the caret position nearest a point for any point - beside the text, above it, at the page's
 // corner - and a pointer on no character asked the server about the nearest one. A scripted click sends its pointer
 // events at the page's corner, so typing after it opened the hover of the first word, anchored in that corner over
-// the text being typed (qorus#646, Foxhoundn on DpqlEditor · Accessor Chain Typed Out Is A Chip and Quoted Field
-// Typed Out Is A Chip: "artifact text `field` and `@orders` on the top left of the chip").
+// the text being typed (DpqlEditor · Accessor Chain Typed Out Is A Chip and Quoted Field Typed Out Is A Chip
+// drew a stray `field` and `@orders` at the top left of the chip).
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

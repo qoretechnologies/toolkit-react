@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A value that is a web address is drawn as a link to it; nothing else is (qorus#646).
+// A value that is a web address is drawn as a link to it; nothing else is.
 import { describe, expect, it } from 'vitest';
 import { webLinkOf } from '../src/helpers/webLink';
 

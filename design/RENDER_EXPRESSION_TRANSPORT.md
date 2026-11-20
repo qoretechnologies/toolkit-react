@@ -43,11 +43,11 @@ The hoped-for shortcut — that `dpql/serialize`'s `richtext` or
 `renderExpression` renders the *AST semantically*; `toRichtext` highlights
 the *DPQL source string*. Different things; the shortcut does not exist.
 
-## The 20-builders question (Filip, 2026-06-10 call)
+## The 20-builders question (2026-06-10)
 
-> "you can have 20 [builders]… if one [message] comes, you need to
-> associate it with one of the 20 expression builders… would it have
-> different connections or how would you associate the message?"
+A page can have 20 expression builders. When one message comes, it has to be
+associated with one of the 20: does each builder have its own connection, or
+how is the message associated?
 
 The answer has three parts:
 

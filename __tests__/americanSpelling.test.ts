@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 /**
- * qorus#646: reqraft is written in American English, as Qorus and the IDE are. The server's type catalogue says
+ * Reqraft is written in American English, as Qorus and the IDE are. The server's type catalogue says
  * "Color", and reqraft said "Colour" beside it; its texts said "centred", "labelled", "summarises", "catalogue" too.
  *
  * What is read is every text reqraft shows or documents: the prose of its sources - string literals, template

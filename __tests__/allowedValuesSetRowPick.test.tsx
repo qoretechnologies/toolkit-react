@@ -9,7 +9,7 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * A value picked from a field's allowed values is a value, not an expression (qorus#646: the Qorus IDE's guided
+ * A value picked from a field's allowed values is a value, not an expression (the Qorus IDE's guided
  * check "status: One of" changed its Field, a '*string' option, to "paid" and the form got back
  * `{ type: 'string', value: 'paid', is_expression: true }`, which the IDE reads as no field at all). The field said
  * whether its type can be null in the argument every reader takes for the expression flag.

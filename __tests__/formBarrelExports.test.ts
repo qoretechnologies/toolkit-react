@@ -10,6 +10,7 @@ import {
   ExpressionField,
   MarkdownRendererContext,
   RowOpenPickerContext,
+  SavedValuesContext,
 } from '../src/components/form';
 
 describe('form barrel — expression editor exports', () => {
@@ -29,6 +30,17 @@ describe('form barrel — the row-open instruction', () => {
   it('exports the context a host editor reads to open its own picker', () => {
     expect(RowOpenPickerContext).toBeDefined();
     expect(RowOpenPickerContext.Provider).toBeDefined();
+  });
+});
+
+/**
+ * A host keeps the values its users save for reuse; it hands them to every form
+ * through this context, from the barrel.
+ */
+describe('form barrel — saved values', () => {
+  it('exports the context a host provides its saved values through', () => {
+    expect(SavedValuesContext).toBeDefined();
+    expect(SavedValuesContext.Provider).toBeDefined();
   });
 });
 

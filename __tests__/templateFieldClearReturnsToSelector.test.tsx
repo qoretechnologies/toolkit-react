@@ -67,7 +67,7 @@ const asksForDataType = (container: HTMLElement) =>
 const isTypable = (container: HTMLElement) =>
   !!container.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]');
 const showsTemplateSelector = (container: HTMLElement) =>
-  (container.textContent || '').includes('Select Template');
+  (container.textContent || '').includes('Select template');
 
 describe('clearing an untyped field with templates on offer', () => {
   it('opens on a typable control when it mounts empty', async () => {

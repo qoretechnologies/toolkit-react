@@ -1,9 +1,12 @@
+import { MONO_FONT } from '@qoretechnologies/reqore/dist/constants/fonts';
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fireEvent, fn } from 'storybook/test';
+import { expect, fireEvent, fn, userEvent, waitFor } from 'storybook/test';
 import { useMemo, useState } from 'react';
 
 import jsyaml from 'js-yaml';
 import { sleep, testsClickButton, testsWaitForText } from '../../../../../__tests__/utils';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
+import { _testsWithViewport } from '../../../../stories/Tests/utils';
 import { StoryMeta } from '../../../../types';
 import { ReqraftObjectFormField } from './Object';
 
@@ -54,15 +57,25 @@ export const Object: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field in JSON object mode with no value. Clicking "New Object" seeds an empty JSON object in the editor.',
+          'Renders the Object field in JSON object mode with no value: the button that adds a row. Adding one opens its Name, and a name typed there is the object\'s first value. Rows are the only route, as there is never free JSON text: no Text tab and no text box to type JSON or YAML into.',
       },
     },
   },
-  async play() {
-    await testsWaitForText('New Object');
-    await testsClickButton({ label: 'New Object' });
-    await testsWaitForText('{');
-    await testsWaitForText('}');
+  async play({ canvasElement, args }) {
+    await testsClickButton({ label: 'Add new item for "Values"' });
+    // the row just added opens the field it cannot be kept without: its Name
+    const NAME_EDITOR = '.array-auto-item textarea[aria-label="Name"]';
+    await waitFor(() => expect(canvasElement.querySelector(NAME_EDITOR)).toBeTruthy(), {
+      timeout: 10000,
+    });
+    await userEvent.type(canvasElement.querySelector(NAME_EDITOR) as HTMLElement, 'region');
+    await waitFor(
+      () => expect(args.onChange).toHaveBeenLastCalledWith(JSON.stringify({ region: null }, null, 2)),
+      { timeout: 10000 }
+    );
+    // nobody is asked to type the value as source
+    await expect(canvasElement.querySelector('textarea')).toBeNull();
+    await expect(canvasElement.querySelector('.reqore-tabs-list')).toBeNull();
   },
 };
 
@@ -79,15 +92,14 @@ export const List: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field in YAML list mode with no value. Clicking "New List" seeds an empty list in the editor.',
+          'Renders the Object field in YAML list mode with no value. Adding a row gives the list a Value to fill in, with no Name: a list\'s items have none.',
       },
     },
   },
-  async play() {
-    await testsWaitForText('New List');
-    await testsClickButton({ label: 'New List' });
-    await testsWaitForText('[');
-    await testsWaitForText(']');
+  async play({ canvasElement }) {
+    await testsClickButton({ label: 'Add new item for "Values"' });
+    await testsWaitForText('Value');
+    await expect(canvasElement.querySelector('.readfirst-row[data-field="name"]')).toBeNull();
   },
 };
 
@@ -176,12 +188,13 @@ export const NativeOnly: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field in native-array mode with mixed item types — the native editor shows the items without a YAML/JSON textarea alternative.',
+          'Renders the Object field in native-array mode with mixed item types, a row each (a record, a word, a number, a yes / no), without a YAML or JSON text box.',
       },
     },
   },
-  async play() {
-    await testsWaitForText('"value"');
+  async play({ canvasElement }) {
+    await testsWaitForText('Test');
+    await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(4));
   },
 };
 
@@ -203,19 +216,22 @@ export const ValueCanBeRemoved: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field with a populated native array. Clicking Remove clears the value and the field falls back to the "New List" placeholder.',
+          'Renders the Object field with a populated native array. Clicking Remove clears the value: its rows go, and the button that adds one stays.',
       },
     },
   },
-  async play() {
-    await testsWaitForText('"value"');
+  async play({ canvasElement }) {
+    await testsWaitForText('Test');
     await testsClickButton({ label: 'Remove' });
-    await testsWaitForText('New List');
+    await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(0));
+    await testsWaitForText('Add new item for "Values"');
   },
 };
 
 export const Json: Story = {
   args: {
+    // the source text route, which a host with a guided editor of the same thing turns on (a schema builder)
+    textEditing: true,
     type: 'object',
     dataType: 'json',
     value: JSON.stringify({
@@ -229,12 +245,12 @@ export const Json: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field with a JSON string value. Switching to Text mode, editing the JSON and clicking Save fires onChange with the new JSON serialization.',
+          'With `textEditing` on, as only a host that also has a guided editor of the same source does (the IDE\'s schema builders): Renders the Object field with a JSON string value. Switching to Text mode, editing the JSON and clicking Save fires onChange with the new JSON serialization, and the rows of the Editor tab show the new value.',
       },
     },
   },
   async play({ args }) {
-    await testsWaitForText('"value"');
+    await testsWaitForText('value');
     await testsClickButton({ label: 'Text' });
     await sleep(300);
     await fireEvent.change(document.querySelector('textarea'), {
@@ -265,12 +281,14 @@ export const Json: Story = {
       )
     );
     await testsClickButton({ label: 'Editor' });
-    await testsWaitForText('"value2"');
+    await testsWaitForText('value2');
   },
 };
 
 export const Yaml: Story = {
   args: {
+    // the source text route, which a host with a guided editor of the same thing turns on (a schema builder)
+    textEditing: true,
     type: 'object',
     dataType: 'yaml',
     value: jsyaml.dump({
@@ -287,12 +305,12 @@ export const Yaml: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field with a YAML string value. Switching to Text mode, editing the YAML and clicking Save fires onChange with the new YAML serialization.',
+          'With `textEditing` on, as only a host that also has a guided editor of the same source does (the IDE\'s schema builders): Renders the Object field with a YAML string value. Switching to Text mode, editing the YAML and clicking Save fires onChange with the new YAML serialization.',
       },
     },
   },
   async play({ args }) {
-    await testsWaitForText('"value"');
+    await testsWaitForText('value');
     await testsClickButton({ label: 'Text' });
     await sleep(300);
     await fireEvent.change(document.querySelector('textarea'), {
@@ -310,12 +328,14 @@ export const Yaml: Story = {
       'key: value\nkey2: value2\nbool: false\nnum: 23\n'
     );
     await testsClickButton({ label: 'Editor' });
-    await testsWaitForText('"value2"');
+    await testsWaitForText('value2');
   },
 };
 
 export const YamlToJson: Story = {
   args: {
+    // the source text route, which a host with a guided editor of the same thing turns on (a schema builder)
+    textEditing: true,
     type: 'object',
     dataType: 'yaml',
     value: jsyaml.dump({
@@ -332,12 +352,12 @@ export const YamlToJson: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field with a YAML input value and JSON output — editing the YAML in Text mode and saving fires onChange with the equivalent JSON string.',
+          'With `textEditing` on, as only a host that also has a guided editor of the same source does (the IDE\'s schema builders): Renders the Object field with a YAML input value and JSON output — editing the YAML in Text mode and saving fires onChange with the equivalent JSON string.',
       },
     },
   },
   async play({ args }) {
-    await testsWaitForText('"value"');
+    await testsWaitForText('value');
     await testsClickButton({ label: 'Text' });
     await sleep(300);
     await fireEvent.change(document.querySelector('textarea'), {
@@ -355,12 +375,14 @@ export const YamlToJson: Story = {
       '{\n  "key": "value",\n  "key2": "value2",\n  "bool": false,\n  "num": 23\n}'
     );
     await testsClickButton({ label: 'Editor' });
-    await testsWaitForText('"value2"');
+    await testsWaitForText('value2');
   },
 };
 
 export const NativeToYaml: Story = {
   args: {
+    // the source text route, which a host with a guided editor of the same thing turns on (a schema builder)
+    textEditing: true,
     type: 'object',
     dataType: 'native',
     value: {
@@ -377,12 +399,12 @@ export const NativeToYaml: Story = {
     docs: {
       description: {
         story:
-          'Renders the Object field with a native object value and YAML output — editing in Text mode and saving fires onChange with the YAML serialization.',
+          'With `textEditing` on, as only a host that also has a guided editor of the same source does (the IDE\'s schema builders): Renders the Object field with a native object value and YAML output — editing in Text mode and saving fires onChange with the YAML serialization.',
       },
     },
   },
   async play({ args }) {
-    await testsWaitForText('"value"');
+    await testsWaitForText('value');
     await testsClickButton({ label: 'Text' });
     await sleep(300);
     await fireEvent.change(document.querySelector('textarea'), {
@@ -405,6 +427,107 @@ export const NativeToYaml: Story = {
       })
     );
     await testsClickButton({ label: 'Editor' });
-    await testsWaitForText('"value2"');
+    await testsWaitForText('value2');
+  },
+};
+
+export const ItsSourceIsInMonospace: Story = {
+  args: {
+    // the source text route, which a host with a guided editor of the same thing turns on
+    textEditing: true,
+    type: 'object',
+    dataType: 'yaml',
+    resultDataType: 'yaml',
+    value: jsyaml.dump({ region: 'eu-west', retries: 3, scopes: ['read', 'write'] }),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "With `textEditing` on, the Text tab shows the value's YAML source in Reqore's monospace face. Reqore 0.79 draws a textarea in the page's font, as prose, and leaves monospace to the fields that ask for it; YAML is code, so this one asks.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await testsWaitForText('eu-west');
+    await testsClickButton({ label: 'Text' });
+
+    await waitFor(() => {
+      const textarea = canvasElement.querySelector('textarea') as HTMLTextAreaElement;
+
+      expect(textarea.value).toContain('region: eu-west');
+      // Reqore's own stack, not the browser's generic `monospace` (computed with double quotes)
+      expect(getComputedStyle(textarea).fontFamily).toBe(MONO_FONT.replace(/'/g, '"'));
+    });
+  },
+};
+
+/** The values a story's rows hold, a record among them. */
+const ROWS_VALUE = { region: 'eu-west', retries: 3, limits: { daily: 100 } };
+
+/** The rows of `ROWS_VALUE`, and the record's value opened on rows of its own. */
+const playValuesAreRows = async (canvasElement: HTMLElement) => {
+  await testsWaitForText('region');
+  await testsWaitForText('limits');
+  await expect(canvasElement.querySelector('textarea')).toBeNull();
+  await expect(canvasElement.querySelector('.reqore-tree')).toBeNull();
+
+  // the record's value (the third row's) opens on rows of its own
+  const VALUE_ROW = '.readfirst-row[data-field="value"]';
+  await waitFor(() => expect(canvasElement.querySelectorAll(VALUE_ROW)).toHaveLength(3), {
+    timeout: 10000,
+  });
+  await userEvent.click(canvasElement.querySelectorAll<HTMLElement>(VALUE_ROW)[2]);
+  await waitFor(
+    () => {
+      const rows = [...canvasElement.querySelectorAll<HTMLElement>('.array-auto-item')];
+      expect(rows, 'three rows and the record\'s one').toHaveLength(4);
+      // in the record's row, under its value
+      expect(rows[2].contains(rows[3])).toBe(true);
+      expect(rows[3].textContent).toContain('daily');
+    },
+    { timeout: 10000 }
+  );
+};
+
+export const ValuesAreRows: Story = {
+  args: {
+    type: 'object',
+    dataType: 'native',
+    resultDataType: 'native',
+    value: ROWS_VALUE,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an object\'s values as rows, a name and a typed value each, with no tree and no text to type JSON or YAML into (data is entered through a form, never as JSON): region, retries, and limits, whose record is rows of its own (daily).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => playValuesAreRows(canvasElement),
+};
+
+export const ValuesAreRowsOnAPhone: Story = {
+  ...ValuesAreRows,
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The object\'s rows on a phone (390 px), with limits open on its own rows (daily), inside the screen.',
+      },
+    },
+  },
+  play: async (context) => {
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      await playValuesAreRows(context.canvasElement);
+
+      if (narrowed) {
+        context.canvasElement.querySelectorAll<HTMLElement>('.array-auto-item').forEach((row) => {
+          expect(row.getBoundingClientRect().right).toBeLessThanOrEqual(PHONE_VIEWPORT.width + 1);
+        });
+      }
+    });
   },
 };

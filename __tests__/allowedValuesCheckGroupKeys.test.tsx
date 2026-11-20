@@ -1,5 +1,5 @@
 /**
- * An allowed-values check group draws its choices with no React key warning (qorus#646).
+ * An allowed-values check group draws its choices with no React key warning.
  *
  * Each choice was keyed by `item.value?.toString()`: a choice whose value is not resolved yet has no key, and
  * object values all key as "[object Object]". React warned for every such group (qorus-ide's Qog processor
