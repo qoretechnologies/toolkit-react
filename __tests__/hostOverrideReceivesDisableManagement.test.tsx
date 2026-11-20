@@ -11,9 +11,9 @@ const fetchContext = emptyFetchContext();
  * A host-injected editor is told when the field's own management is locked.
  *
  * `disableManagement` says the value may be picked but not managed: no editing of what it names and no creating of
- * a new one. It is destructured into a named prop, so it never reached a host editor - the IDE's connection
- * editor, which the IDE's "create an option's value" form locks to the step's connection so the value is created
- * there and nowhere else, kept offering "Edit connection" and "Create new connection" (qorus#683, qorus-ide#646).
+ * a new one. It is destructured into a named prop, so it never reached a host editor - a host's connection
+ * editor, in a form that locks it to one connection so the value is created there and nowhere else, kept
+ * offering "Edit connection" and "Create new connection".
  */
 const schema = (disableManagement?: boolean) =>
   ({
