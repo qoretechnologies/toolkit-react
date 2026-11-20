@@ -1269,6 +1269,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   focusAttentionRequest?: number;
   /**
+   * Open a named field and put the caret in it: each new `seq` brings the field `name` out of wherever it is folded
+   * (a closed Optional or Set box, its "N more fields", the line of defaults under the form, the row of a field that
+   * absorbs it) and opens it, as a click on it would. For a host's own way to a field ("Set the subject" in an
+   * example). Like `focusAttentionRequest`, it takes the caret even from the host's own button.
+   */
+  focusFieldRequest?: { name: string; seq: number };
+  /**
    * The readiness line's two numbers, reported whenever they change. A host that draws
    * its own submit control draws it from these, so the control and the form can never
    * disagree about what is left. `{ count: 0, faults: 0 }` is a form with nothing left.
@@ -1670,6 +1677,7 @@ const FormEngineImpl = ({
   compactBoxLabels,
   revealRequired = false,
   focusAttentionRequest,
+  focusFieldRequest,
   onAttentionChange,
   outsideAttention,
   compactStickyBoxHeaders = true,
@@ -3414,6 +3422,9 @@ const FormEngineImpl = ({
     },
     [expandOption, absorbingHosts]
   );
+  /* The field a host asked to open (`focusFieldRequest`): the box that holds it is opened for it, however the form
+     folds that box. */
+  const [requestedField, setRequestedField] = useState<string>();
   const collapseOption = useCallback((optionName: string) => {
     if (alwaysExpandedRef.current.includes(optionName)) {
       return;
@@ -3713,6 +3724,49 @@ const FormEngineImpl = ({
       })?.focus({ preventScroll: true });
     }
   }, [focusAttentionRequest]);
+
+  // A host's way to one field (`focusFieldRequest`): each new request brings the field out of wherever the form
+  // folds it and opens it, as a click on it would. Through "Change" (`changeDefault`), so a field the line of
+  // defaults holds becomes a row and one another field absorbs opens in the row that holds it; the box holding the
+  // row opens for it (`requestedField`). The host's button holds the caret, so it lets go of it here, as for
+  // `focusAttentionRequest`, and the row's own open effect takes it.
+  const lastFieldRequest = useRef(focusFieldRequest?.seq);
+  useEffect(() => {
+    if (!focusFieldRequest || focusFieldRequest.seq === lastFieldRequest.current) {
+      return;
+    }
+    lastFieldRequest.current = focusFieldRequest.seq;
+    const { name } = focusFieldRequest;
+    if (!compact || !options?.[name]) {
+      return;
+    }
+    hasAutoFocusedRef.current = true;
+    const wrap = compactWrapNodeRef.current;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body && !wrap?.contains(active)) {
+      active.blur();
+    }
+    const rowName = absorbingHosts[name] ?? name;
+    setRequestedField(rowName);
+    if (!expandedOptions.includes(rowName)) {
+      changeDefault(name);
+      return;
+    }
+    // Already open: its open effect has run, so the caret goes to its control here.
+    const row = wrap?.querySelector<HTMLElement>(`[data-field="${rowName}"]`);
+    if (row) {
+      revealRow(row, 'auto');
+      findRowFocusTarget(row.querySelector<HTMLElement>('.options-readfirst-row-editor'), {
+        textEntryOnly: row.classList.contains('options-readfirst-card'),
+      })?.focus({ preventScroll: true });
+    }
+  }, [focusFieldRequest?.seq]);
+  // The request is spent once its row closes: its box folds as the form folds it again.
+  useEffect(() => {
+    if (requestedField && !expandedOptions.includes(requestedField)) {
+      setRequestedField(undefined);
+    }
+  }, [expandedOptions]);
 
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
@@ -5251,9 +5305,18 @@ const FormEngineImpl = ({
                          nor a cap folds it away (it moves only into an open box - `boxIsClosed`). */
                       const isOpenRow = (entry: TRowEntry) => expandedOptions.includes(entry.name);
                       const hasPreselectedRows = boxHasPreselectedRows(box.key);
+                      // a box holding the field a host asked to open opens for it (`focusFieldRequest`)
+                      const holdsRequestedField =
+                        !!requestedField &&
+                        groupsInBox.some((groupName) =>
+                          (buckets[box.key][groupName] || []).some(
+                            (entry) => entry.name === requestedField
+                          )
+                        );
                       const wouldCollapse =
                         compactCollapsedGroups.includes(box.key) &&
                         !query &&
+                        !holdsRequestedField &&
                         !(box.key === 'optional' && onlyOptionalRows && !collapsedGroupsRequested);
                       // Only a box that was opened SOLELY to reveal a preselected
                       // row splits its body; a box that renders open anyway shows

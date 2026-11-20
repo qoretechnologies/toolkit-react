@@ -1911,6 +1911,74 @@ export const ALongCodeValueSaysItsSizeInWords: Story = {
   },
 };
 
+/** A test case form: the subject is optional, folded away under Optional, and an example asks for it. */
+const SUBJECT_OPTIONS = {
+  name: { type: 'string', display_name: 'Name', required: true },
+  subject: {
+    type: 'string',
+    display_name: 'Subject',
+    short_desc: 'What the test case exercises',
+  },
+  retries: { type: 'int', display_name: 'Retries' },
+} as never;
+
+const FormWithSetTheSubject = () => {
+  const [request, setRequest] = useState<{ name: string; seq: number }>();
+  const [value, setValue] = useState<any>({ name: { type: 'string', value: 'Order sync' } });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+      <ReqoreButton
+        className='set-the-subject'
+        fixed
+        onClick={() => setRequest({ name: 'subject', seq: (request?.seq ?? 0) + 1 })}
+      >
+        Set the subject
+      </ReqoreButton>
+      <FormEngine
+        compact
+        name='test-case'
+        options={SUBJECT_OPTIONS}
+        value={value}
+        onChange={setValue}
+        focusFieldRequest={request}
+      />
+    </div>
+  );
+};
+
+export const AHostOpensANamedField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A form whose Subject is optional and folded away in the closed Optional box, and a host button, "Set the subject", that asks the form for it (`focusFieldRequest`). The request opens the Optional box, opens the Subject row and puts the caret in it, as a click on it would, though the button held the caret.',
+      },
+    },
+  },
+  render: () => <FormWithSetTheSubject />,
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="name"]')).toBeTruthy());
+    // folded away at first: the Optional box is closed
+    await expect(
+      canvasElement.querySelector('[data-field="subject"].readfirst-row-editing, [data-field="subject"].options-readfirst-card'),
+      'the subject is not open'
+    ).toBeNull();
+
+    await userEvent.click(canvasElement.querySelector('.set-the-subject') as HTMLElement);
+
+    const subject = await waitFor(() => {
+      const row = canvasElement.querySelector<HTMLElement>(
+        '[data-field="subject"].readfirst-row-editing, [data-field="subject"].options-readfirst-card'
+      );
+      expect(row, 'the subject is open').toBeTruthy();
+      return row!;
+    });
+    await waitFor(() =>
+      expect(subject.contains(document.activeElement), 'the caret is in the subject').toBe(true)
+    );
+  },
+};
+
 export const AnAbsorbedDefaultIsChangedInTheRowThatHoldsIt: Story = {
   parameters: {
     docs: {
