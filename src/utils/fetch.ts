@@ -43,11 +43,14 @@ export interface IReqraftFetchConfig {
     unauthorized?: IReqraftUnauthorizedInfo
   ) => string;
   /**
-   * Asked before every request reqraft sends (`query`, `queryRaw`, `useFetch`). A refusal
-   * answers the request locally, as the server would, and nothing is sent: for a request
-   * the app knows the server refuses — an interactive support session asks for nothing its
-   * read surface refuses (qorus#770) — so the server is not asked only to say no, and the
-   * caller meets the same answer either way.
+   * Asked before every request `query` and `queryRaw` send (a `noApiPrefix` one included),
+   * and so before every `useFetch`. A refusal answers the request locally, as the server
+   * would, and nothing is sent: for a request the app knows the server refuses — an
+   * interactive support session asks for nothing its read surface refuses (qorus#770) — so
+   * the server is not asked only to say no, and the caller meets the same answer either way.
+   *
+   * Not asked for reqraft's sockets, or for the requests it sends to a url the app hands it
+   * (ticket attachments, tracking): the app decides those where it opens or makes them.
    */
   requestGuard?: (request: IReqraftRequest) => IReqraftRequestRefusal | undefined;
 }
@@ -189,7 +192,8 @@ async function doFetchData(
   signal?: AbortSignal
 ): Promise<Response> {
   // A request the app's guard refuses is answered here, as the server would answer it,
-  // and never sent: every request reqraft makes passes this point.
+  // and never sent. Every request `query` and `queryRaw` send passes this point; what
+  // does not is listed at `requestGuard`.
   const refusal = fetchConfig.requestGuard?.({
     method,
     url: reqraftApiPath(url, noApiPrefix),
