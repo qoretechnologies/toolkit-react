@@ -12,7 +12,12 @@ import {
 } from './__fixtures__/kindMarks';
 import { whenImageSettled } from './useLoadedImages';
 import { IInterfaceReference } from './meta';
-import { ReferencePicker, TReferencePickerItem } from './ReferencePicker';
+import { parseToRgb } from 'polished';
+import {
+  REFERENCE_PICKER_MORE_BELOW_CLASS,
+  ReferencePicker,
+  TReferencePickerItem,
+} from './ReferencePicker';
 import { TicketReplyBox } from './TicketReplyBox';
 
 /**
@@ -189,7 +194,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          'Renders the two-pane reference browser. Picking an interface adds it as a reference and leaves the row in the list, selected and ticked, rather than removing it.',
+          'Renders the two-pane reference browser. Picking an interface adds it as a reference and leaves the row in the list, chosen and ticked, rather than removing it: the neutral chosen look, not blue, which says only that a filter is on. The kinds pane has more kinds than it shows, so its bottom edge fades where the list goes on.',
       },
     },
   },
@@ -204,6 +209,19 @@ export const Default: Story = {
     );
     // its siblings are untouched
     await expect(option(canvas, 'invoice-export:2.0')).toBeInTheDocument();
+    // chosen in the neutral look: a step lighter than the rows beside it, never tinted blue
+    const { red, green, blue } = parseToRgb(
+      getComputedStyle(option(canvas, 'order-sync:1.2')).backgroundColor
+    );
+    await expect(Math.max(red, green, blue) - Math.min(red, green, blue), 'a gray').toBeLessThan(12);
+    await expect(red, 'a surface, not the bare pane').toBeGreaterThan(0);
+    // the kinds pane goes on below what it shows, and its edge says so
+    const kindsPane = await waitFor(() => {
+      const pane = canvasElement.querySelector<HTMLElement>(`.${REFERENCE_PICKER_MORE_BELOW_CLASS}`);
+      expect(pane).toBeTruthy();
+      return pane!;
+    });
+    await expect(getComputedStyle(kindsPane).maskImage).toContain('gradient');
   },
 };
 

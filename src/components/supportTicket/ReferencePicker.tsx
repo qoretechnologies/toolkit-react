@@ -8,8 +8,9 @@ import {
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { useScrollFade } from '@qoretechnologies/reqore/dist/hooks/useScrollFade';
 import { rgba } from 'polished';
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
 import { useReqraftLabels } from '../../helpers/reqraftLabels';
@@ -76,32 +77,83 @@ const BUTTON_ICON_ALPHA = 0.7;
  */
 const PICKED_CLASS = 'reqore-reference-picker-picked';
 
+/* A pane with rows out of view at an edge carries these, and fades that edge (`useScrollFade`). */
+export const REFERENCE_PICKER_MORE_ABOVE_CLASS = 'reqraft-reference-picker-more-above';
+export const REFERENCE_PICKER_MORE_BELOW_CLASS = 'reqraft-reference-picker-more-below';
+/** How far into a pane its edge fades where more rows are out of view. */
+const EDGE_FADE_PX = 24;
+
 /*
  * A scroll pane with the thin, unobtrusive scrollbar the Qonsole surfaces use
  * (transparent track, translucent rounded thumb) rather than the raw browser one.
  * webkit-only, like those surfaces: setting `scrollbar-width` as well would let
  * Chromium override this custom 6px with its own, wider, "thin".
+ *
+ * An edge with rows out of view fades out: the kinds pane ended on a row cut through
+ * its words ("Value maps") with nothing saying the list went on below it.
  */
-const Pane = styled.div<{ $right?: boolean; $maxHeight: string }>`
-  ${({ $right }) =>
-    $right
-      ? 'flex: 1; min-width: 0;'
-      : `width: ${KIND_PANE_WIDTH}px; flex: none; border-right: 1px solid ${BORDER};`}
+const StyledPane = styled.div<{ $right?: boolean; $stack?: boolean; $maxHeight: string }>`
+  ${({ $right, $stack }) =>
+    $stack ? ''
+    : $right ? 'flex: 1; min-width: 0;'
+    : `width: ${KIND_PANE_WIDTH}px; flex: none; border-right: 1px solid ${BORDER};`}
   max-height: ${({ $maxHeight }) => $maxHeight};
   overflow-y: auto;
   padding: 4px;
 
   ${thinScrollbar}
+
+  &.${REFERENCE_PICKER_MORE_BELOW_CLASS} {
+    --reference-picker-fade: linear-gradient(
+      to bottom,
+      #000 calc(100% - ${EDGE_FADE_PX}px),
+      transparent
+    );
+  }
+  &.${REFERENCE_PICKER_MORE_ABOVE_CLASS} {
+    --reference-picker-fade: linear-gradient(to top, #000 calc(100% - ${EDGE_FADE_PX}px), transparent);
+  }
+  &.${REFERENCE_PICKER_MORE_ABOVE_CLASS}.${REFERENCE_PICKER_MORE_BELOW_CLASS} {
+    --reference-picker-fade: linear-gradient(
+      to bottom,
+      transparent,
+      #000 ${EDGE_FADE_PX}px,
+      #000 calc(100% - ${EDGE_FADE_PX}px),
+      transparent
+    );
+  }
+  &.${REFERENCE_PICKER_MORE_ABOVE_CLASS}, &.${REFERENCE_PICKER_MORE_BELOW_CLASS} {
+    -webkit-mask-image: var(--reference-picker-fade);
+    mask-image: var(--reference-picker-fade);
+  }
 `;
 
-/** The stacked counterpart of `Pane` — one column, so one scroll region. */
-const Stack = styled.div<{ $maxHeight: string }>`
-  max-height: ${({ $maxHeight }) => $maxHeight};
-  overflow-y: auto;
-  padding: 4px;
-
-  ${thinScrollbar}
-`;
+/**
+ * A pane that scrolls, faded at an edge with rows out of view. Its own component, so the
+ * fade follows the pane it measures when the layout switches between columns and one stack.
+ */
+const Pane = ({
+  children,
+  ...props
+}: {
+  children: ReactNode;
+  $right?: boolean;
+  $stack?: boolean;
+  $maxHeight: string;
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useScrollFade({
+    scrollRef: ref,
+    axis: 'y',
+    startClassName: REFERENCE_PICKER_MORE_ABOVE_CLASS,
+    endClassName: REFERENCE_PICKER_MORE_BELOW_CLASS,
+  });
+  return (
+    <StyledPane ref={ref} {...props}>
+      {children}
+    </StyledPane>
+  );
+};
 
 /*
  * The selected kind's interfaces once the panes have collapsed. The indent and the
@@ -164,24 +216,12 @@ const Note = styled.div<{ $opacity: number }>`
 `;
 
 /*
- * How a picked row reads: `info`, tinted rather than filled.
- *
- * Two Reqore details make this less obvious than `selected` + `intent`:
- *
- * - `selected` becomes `active` on the button, and the active branch paints a solid
- *   background from the intent while ignoring `minimal` and `transparent` outright.
- *   So `selected` can't be softened — it has to go, and `minimal` carries the state.
- * - `ReqoreMenuItem` sets `transparent` on every row, and `transparent` short-circuits
- *   `minimal`'s tint to nothing. Turning it off for picked rows is what lets the tint
- *   land, and it's only spread when the row IS picked — a `transparent: undefined` on
- *   the others would override the menu item's own default and flatten them all.
- *
- * The point of the tint: a solid blue bar is too much weight for "this one's already
- * in your list". The rows still up for choosing are what the user is reading, and they
- * should stay the loudest thing in the pane.
+ * How a picked row reads: a chosen value, as every chosen value reads - Reqore's
+ * neutral chosen look (a selected row's surface a step lighter, with no intent) and its
+ * tick. It was tinted blue, and blue says only that a filter narrows a list. The rows
+ * still up for choosing keep their quiet look, so they stay what the reader reads.
  */
-const pickedItemProps = (isPicked: boolean) =>
-  isPicked ? ({ intent: 'info', minimal: true, transparent: false } as const) : {};
+const pickedItemProps = (isPicked: boolean) => (isPicked ? ({ selected: true } as const) : {});
 
 /**
  * One interface in the list. A bare string is the name and nothing else — the common
@@ -587,7 +627,7 @@ export const ReferencePicker = ({
         />
       </Search>
       {stacked ? (
-        <Stack $maxHeight={maxHeight}>
+        <Pane $stack $maxHeight={maxHeight}>
           <ReqoreMenu transparent flat padded={false} width='100%' size='small'>
             {kindItems.slice(0, splitAt)}
           </ReqoreMenu>
@@ -597,7 +637,7 @@ export const ReferencePicker = ({
               {kindItems.slice(splitAt)}
             </ReqoreMenu>
           ) : null}
-        </Stack>
+        </Pane>
       ) : (
         <Panes>
           <Pane $maxHeight={maxHeight}>
