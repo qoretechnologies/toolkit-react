@@ -106,7 +106,15 @@ export interface ITemplateNode {
   row?: ITemplateCatalogueRow;
   /** The context of the field's template catalogue it is (`withTemplateCatalogue`): what Qorus says of it. */
   catalogue?: ITemplateCatalogueContext;
+  /**
+   * Which of the tree's own groups it is, where it is one: the record's fields or the template contexts. Code finds a
+   * group by this, never by its label, which is the host's word and may be in any language.
+   */
+  group?: TTemplateTreeGroup;
 }
+
+/** The groups a template tree adds of its own (`ITemplateNode.group`). */
+export type TTemplateTreeGroup = 'recordFields' | 'templateContexts';
 
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value : undefined;
@@ -273,7 +281,11 @@ export interface ITemplateTreeField {
   fields?: Record<string, ITemplateTreeField>;
 }
 
-/** The name of the group a DPQL field's record fields are listed under. */
+/**
+ * The English name of the group a DPQL field's record fields are listed under.
+ * @deprecated The group is named in the host's words (`reqraftLabels().templateTree.recordFields`) and found by its
+ * `group` ('recordFields'), never by this label.
+ */
 export const RECORD_FIELDS_LABEL = DEFAULT_REQRAFT_LABELS.templateTree.recordFields;
 
 export interface ITemplateTreeOptions {
@@ -391,12 +403,13 @@ export const templateTree = (
   );
   if (Object.keys(unlisted).length) {
     const id = String(merged.length);
-    const trail = [RECORD_FIELDS_LABEL];
+    const trail = [reqraftLabels().templateTree.recordFields];
     merged.push({
       id,
       label: reqraftLabels().templateTree.recordFields,
       reference: undefined,
       kind: 'field',
+      group: 'recordFields',
       description: reqraftLabels().templateTree.recordFieldsDescription,
       trail: [],
       trailIds: [],
@@ -936,7 +949,11 @@ const rehomed = (
   : {}),
 });
 
-/** The name of the picker's group of template contexts. */
+/**
+ * The English name of the picker's group of template contexts.
+ * @deprecated The group is named in the host's words (`reqraftLabels().templateTree.templateContexts`) and found by
+ * its `group` ('templateContexts'), never by this label.
+ */
 export const TEMPLATE_CONTEXTS_LABEL = DEFAULT_REQRAFT_LABELS.templateTree.templateContexts;
 
 /**
@@ -960,25 +977,27 @@ export const withTemplateContexts = (
     return roots;
   }
   const id = 'contexts';
+  const groupLabel = reqraftLabels().templateTree.templateContexts;
   return [
     ...roots,
     {
       id,
-      label: reqraftLabels().templateTree.templateContexts,
+      label: groupLabel,
       kind: 'context',
+      group: 'templateContexts',
       description: reqraftLabels().templateTree.templateContextsDescription,
       trail: [],
       trailIds: [],
       children: contexts.map((context) => ({
         ...context,
         id: `${id}.${context.id}`,
-        trail: [TEMPLATE_CONTEXTS_LABEL],
+        trail: [groupLabel],
         trailIds: [id],
         children: (context.children ?? []).map((member) =>
           rehomed(
             member,
             `${id}.${context.id}`,
-            [TEMPLATE_CONTEXTS_LABEL, context.label],
+            [groupLabel, context.label],
             [id, `${id}.${context.id}`]
           )
         ),
@@ -1018,12 +1037,12 @@ export const withServerCompletions = (
       (item.kind === 14 || item.kind === 12 || item.kind === 24) && !/^[$@]/.test(written(item))
   );
   let out = roots;
+  const words = reqraftLabels().templateTree;
   if (fields.length) {
-    const fieldGroup = roots.find(
-      (node) => node.label === RECORD_FIELDS_LABEL && node.kind === 'field'
-    );
+    // found by what it is, not by its label: the host may word it in any language
+    const fieldGroup = roots.find((node) => node.group === 'recordFields');
     const id = fieldGroup?.id ?? 'server.fields';
-    const trail = [RECORD_FIELDS_LABEL];
+    const trail = [fieldGroup?.label ?? words.recordFields];
     const extra: ITemplateNode[] = fields.map((item, index) => ({
       id: `${id}.server.${index}`,
       label: item.label.replace(/^@/, ''),
@@ -1044,9 +1063,10 @@ export const withServerCompletions = (
           ...out,
           {
             id,
-            label: reqraftLabels().templateTree.recordFields,
+            label: words.recordFields,
             kind: 'field',
-            description: reqraftLabels().templateTree.recordFieldsDescription,
+            group: 'recordFields',
+            description: words.recordFieldsDescription,
             trail: [],
             trailIds: [],
             children: extra,
@@ -1062,6 +1082,7 @@ export const withServerCompletions = (
   if (serverOnly.length || ownContexts.size === 1) {
     const id = 'contexts';
     const group = out.find((node) => node.id === id);
+    const groupLabel = group?.label ?? words.templateContexts;
     const fromServer = serverOnly.map((item, index): ITemplateNode => {
       const context = written(item);
       const said = ((item as { data?: { use_whole?: boolean } }).data ?? {}) as {
@@ -1076,7 +1097,7 @@ export const withServerCompletions = (
         reference: context,
         kind: 'context',
         description: describe(item),
-        trail: [TEMPLATE_CONTEXTS_LABEL],
+        trail: [groupLabel],
         trailIds: [id],
         continues: true,
         ...(whole ? { value: wholeContextValue(context), takesWhole: true } : {}),
@@ -1088,13 +1109,13 @@ export const withServerCompletions = (
         templateContextsOf(roots, '', wholeRecords).map((context) => ({
           ...context,
           id: `${id}.${context.id}`,
-          trail: [TEMPLATE_CONTEXTS_LABEL],
+          trail: [groupLabel],
           trailIds: [id],
           children: (context.children ?? []).map((member) =>
             rehomed(
               member,
               `${id}.${context.id}`,
-              [TEMPLATE_CONTEXTS_LABEL, context.label],
+              [groupLabel, context.label],
               [id, `${id}.${context.id}`]
             )
           ),
@@ -1110,9 +1131,10 @@ export const withServerCompletions = (
           ...out,
           {
             id,
-            label: reqraftLabels().templateTree.templateContexts,
+            label: groupLabel,
             kind: 'context',
-            description: reqraftLabels().templateTree.templateContextsDescription,
+            group: 'templateContexts',
+            description: words.templateContextsDescription,
             trail: [],
             trailIds: [],
             children: members,

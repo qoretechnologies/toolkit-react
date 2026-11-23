@@ -70,12 +70,8 @@ function buildKindBadge(
   if (marks.browseAll) {
     return undefined;
   }
-  const kindChip = item.kindLabel ? kindBadge(item.metadata?.kind, calm) : undefined;
-  const kindBadgeProps =
-    kindChip ??
-    (item.kindLabel ?
-      { label: item.kindLabel, minimal: true as const, size: 'small' as const }
-    : null);
+  // the row's own words for its kind (the host's, or what a template says it is), in its kind's colour
+  const kindBadgeProps = item.kindLabel ? kindBadge(item.metadata?.kind, calm, item.kindLabel) : null;
   const warningBadge =
     item.warning ?
       {

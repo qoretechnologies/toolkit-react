@@ -208,6 +208,7 @@ export const withTemplateCatalogue = (
     id: TEMPLATE_CONTEXTS_GROUP_ID,
     label: reqraftLabels().templateTree.templateContexts,
     kind: 'context',
+    group: 'templateContexts',
     description: reqraftLabels().templateTree.templateContextsDescription,
     trail: [],
     trailIds: [],

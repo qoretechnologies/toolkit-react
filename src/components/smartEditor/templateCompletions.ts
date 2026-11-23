@@ -21,7 +21,7 @@ import {
 import { ILspCompletionItem } from '../../utils/lspClient.types';
 import { TCompletionInserter } from './types';
 
-/** LSP completion kinds the list draws a field and a template with (`COMPLETION_KIND_CHIPS`). */
+/** LSP completion kinds the list draws a field and a template with (`kindBadge`). */
 const FIELD_KIND = 5;
 const TEMPLATE_KIND = 6;
 

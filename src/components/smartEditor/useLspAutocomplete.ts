@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
-import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from '../../helpers/reqraftLabels';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BaseEditor, BasePoint, Editor, Point, Range, Transforms } from 'slate';
@@ -44,9 +44,6 @@ const DEBOUNCE_MS = 150;
 // Defer `isFetching=true` so the "Loading…" stub only shows for genuinely
 // slow responses; sub-250ms responses never set the flag.
 const LOADER_DELAY_MS = 250;
-
-export const COMPLETION_KIND_CHIPS: Record<number, string> =
-  DEFAULT_REQRAFT_LABELS.editor.completionKinds;
 
 export interface ICompletionDropdownItem {
   label: string;

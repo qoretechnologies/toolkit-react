@@ -8,8 +8,8 @@ import type React from 'react';
 import { builtInTypeLabel, TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import { sayTemplateTypesInWords } from '../../helpers/templateItems';
 import { mapCompletionKindToIcon } from './helpers';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 import { COMPLETION_KIND_INTENTS } from './styling';
-import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
 
 /*
  * One look for the two lists a field offers what can be written in, the same components for one consistent
@@ -60,16 +60,22 @@ export const listKindIntent = <T extends string | undefined>(
   kind?: number
 ): T | undefined => (calm && kind !== QONSOLE_SNIPPET_KIND ? undefined : intent);
 
-/** A row's kind chip (Field, Variable, Function...), as the completion list draws it. */
-export const kindBadge = (kind: number | undefined, calm = false) =>
-  kind !== undefined && COMPLETION_KIND_CHIPS[kind] ?
-    {
-      label: COMPLETION_KIND_CHIPS[kind],
-      minimal: true as const,
-      size: 'small' as const,
-      intent: listKindIntent(COMPLETION_KIND_INTENTS[kind], calm, kind),
-    }
-  : undefined;
+/**
+ * A row's kind chip (Field, Variable, Function...), as the completion list draws it. Its words are the row's own
+ * (`label`, a completion's `kindLabel`) or else the host's for the kind, read when it is drawn: never a copy of the
+ * English taken when the module loaded.
+ */
+export const kindBadge = (kind: number | undefined, calm = false, label?: string) => {
+  const words = label ?? (kind !== undefined ? reqraftLabels().editor.completionKinds[kind] : undefined);
+  return words ?
+      {
+        label: words,
+        minimal: true as const,
+        size: 'small' as const,
+        intent: listKindIntent(kind !== undefined ? COMPLETION_KIND_INTENTS[kind] : undefined, calm, kind),
+      }
+    : undefined;
+};
 
 /** The kind a template value is drawn as. */
 export const templateKind = (value: unknown) =>
