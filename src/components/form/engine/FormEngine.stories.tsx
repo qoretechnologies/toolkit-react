@@ -14163,7 +14163,7 @@ export const AnOptionSaysWhatItTakesInItsHoverAndHelp: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Quantity, a whole number: what it takes is in its name\'s hover - "Takes a whole number." - and in its help, opened from its (?), above its description; not beside its name (type information goes on hover, in the (?) help, or with "Show all field information"). With all field information shown, it is beside the name: Whole number. The capture leaves that on.',
+          'Renders the form and opens Quantity, a whole number: what it takes is in its name\'s hover - "Takes a whole number." - and in its help, opened from its (?), above its description; not beside its name (type information goes on hover, in the (?) help, or with "Show all field information"). With all field information shown, it is beside the name: Whole number, a quiet word, not a chip. The capture leaves that on.',
       },
     },
   },
@@ -14193,6 +14193,10 @@ export const AnOptionSaysWhatItTakesInItsHoverAndHelp: Story = {
         'Whole number'
       )
     );
+    // a quiet word in the open row as in a read row, never a chip with an edge
+    const typeWord = optionRow('quantity').querySelector<HTMLElement>('.options-readfirst-type')!;
+    expect(typeWord.closest('.reqore-tag'), 'the type is a word, not a tag').toBeNull();
+    expect(getComputedStyle(typeWord).borderTopStyle).toBe('none');
   },
 };
 
@@ -14384,7 +14388,7 @@ export const AListOfATypeWithNoEditorIsEditedAsItsElementsBaseType: Story = {
     docs: {
       description: {
         story:
-          "Renders a form whose Recipients is a list of email addresses and whose Order references is a list of qoretechnologies/order-ref, a user type; the elements of both are text by their base type. With all field information shown they say List (Email address) and List (Text), and each opens on a text field for every element, holding its value, where every element said \"Unknown type!\".",
+          "Renders a form whose Recipients is a list of email addresses and whose Order references is a list of qoretechnologies/order-ref, a user type; the elements of both are text by their base type. With all field information shown they say List (email address) and List (text), and each opens on a text field for every element, holding its value, where every element said \"Unknown type!\".",
       },
     },
   },
@@ -14413,11 +14417,11 @@ export const AListOfATypeWithNoEditorIsEditedAsItsElementsBaseType: Story = {
     await userEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
     await waitFor(() =>
       expect(optionRow('recipients')?.querySelector('.options-readfirst-type')?.textContent).toBe(
-        'List (Email address)'
+        'List (email address)'
       )
     );
     expect(optionRow('order_refs')?.querySelector('.options-readfirst-type')?.textContent).toBe(
-      'List (Text)'
+      'List (text)'
     );
     // each element edited as text, its base type: an element's text field takes templates, so it is the editor
     // that writes them as chips
@@ -14454,7 +14458,7 @@ export const AListOfATypeWithNoEditorIsEditedAsItsElementsBaseTypeOnAPhone: Stor
     docs: {
       description: {
         story:
-          'The same form at phone width (390 px): the lists say List (Email address) and List (Text), and each element opens on a text field holding its value.',
+          'The same form at phone width (390 px): the lists say List (email address) and List (text), and each element opens on a text field holding its value.',
       },
     },
   },

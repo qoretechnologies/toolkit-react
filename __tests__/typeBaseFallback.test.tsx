@@ -137,13 +137,13 @@ describe('a type the catalogue does not list', () => {
         { type: 'list', ui_element_type: 'email', element_base_type: 'string' },
         builtInTypeName
       )
-    ).toBe('List (Email address)');
+    ).toBe('List (email address)');
     expect(
       optionTypeWords(
         { type: 'list', ui_element_type: 'qoretechnologies/order-ref', element_base_type: 'string' },
         builtInTypeName
       )
-    ).toBe('List (Text)');
+    ).toBe('List (text)');
     expect(optionTypeSentence(option, builtInTypeName, builtInTypeSentenceForm)).toBe(
       'key-value pairs (a hash)'
     );

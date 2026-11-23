@@ -14,6 +14,18 @@ import {
 } from '../src/helpers/qorusTypeCatalogue';
 
 describe("an option's type in words", () => {
+  it('names what a list holds in sentence case, one word per type', () => {
+    expect(
+      optionTypeWords({ type: 'list', ui_element_type: 'string' }, builtInTypeName)
+    ).toBe('List (text)');
+    expect(
+      optionTypeWords({ type: 'list', ui_element_type: 'int' }, builtInTypeName)
+    ).toBe('List (whole number)');
+    // every type the catalogue names is one word for one type: never two names for text
+    const names = defaultQorusTypes.map((type) => type.display_name);
+    expect(names).not.toContain('String');
+  });
+
   it("is its type's name in the catalogue", () => {
     expect(optionTypeWords({ type: 'string' }, builtInTypeName)).toBe('Text');
     expect(optionTypeWords({ type: 'int' }, builtInTypeName)).toBe('Whole number');
@@ -26,12 +38,6 @@ describe("an option's type in words", () => {
     );
     expect(optionTypeWords({ type: 'string', ui_type: 'long-string' }, builtInTypeName)).toBe(
       'Text'
-    );
-  });
-
-  it('says what a list holds after it', () => {
-    expect(optionTypeWords({ type: 'list', ui_element_type: 'string' }, builtInTypeName)).toBe(
-      'List (Text)'
     );
   });
 

@@ -260,10 +260,15 @@ export type TTypeLabel = (typeName: string | undefined, baseType?: string) => st
 export const builtInTypeLabel: TTypeLabel = (typeName, baseType) =>
   qorusTypeDisplayName(builtInQorusTypes(), typeName, baseType);
 
+/** A type's name inside words, in sentence case: "Email address" → "email address"; an acronym stays ("JSON"). */
+const typeNameInWords = (name: string): string =>
+  /^[A-Z][a-z]/.test(name) ? name[0].toLowerCase() + name.slice(1) : name;
+
 /**
  * What kind of value an option takes, in words: its kind of control's name where the catalogue names it (a
- * color), else its type's ("Whole number"), with what a list holds after it ("List (Text)"). Undefined where the
- * catalogue names neither: nothing is said rather than the type's code.
+ * color), else its type's ("Whole number"), with what a list holds after it, in sentence case ("List (text)",
+ * "List (email address)"). Undefined where the catalogue names neither: nothing is said rather than the type's
+ * code.
  */
 export const optionTypeWords = (
   schema:
@@ -285,7 +290,7 @@ export const optionTypeWords = (
   // a type no catalogue entry names is the kind of value its base type is; a list's elements, theirs
   const kind = named(schema?.ui_type) ?? named(schema?.type, baseType);
   const element = named(schema?.ui_element_type, elementBaseType);
-  return kind && element ? `${kind} (${element})` : kind;
+  return kind && element ? `${kind} (${typeNameInWords(element)})` : kind;
 };
 
 /**

@@ -241,6 +241,22 @@ export const NestedSchemas: Story = {
   },
 };
 
+export const NestedSchemasWithTheirTypes: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The nested records with each field\'s type shown beside its name, in the words the rows of a form say it in (Text, Key-value pairs (hash), True or false), never the type\'s code (hash, string).',
+      },
+    },
+  },
+  args: { value: nestedValue, schema: NestedSchema, colors, showTypes: true },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.textContent).toContain('Token URL · Text');
+    await expect(canvasElement.textContent).not.toMatch(/ · (hash|string|int|bool)\b/);
+  },
+};
+
 /** A set of named values kept as rows: each item a name and its typed value. */
 const NamedValueSchema = {
   name: { type: 'string', display_name: 'Name', required: true },

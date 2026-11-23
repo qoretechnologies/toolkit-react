@@ -37,6 +37,8 @@ import {
   titleKeyFor,
 } from '../readFirst';
 import { TemplateText } from '../../fields/template/TemplateText';
+import { optionTypeWords } from '../../../../helpers/qorusTypeCatalogue';
+import { useTypeName } from '../../typeSentenceForm';
 import { TFieldWithOwnTemplates } from '../rendererTypes';
 import { isEmptyUiEnvelope, isUiEncodedValue } from './structuredData';
 
@@ -579,6 +581,8 @@ const SchemaRecord = ({
   // deep, and the renderer is a property of the form, not of any one level.
   const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
   const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
+  // what a field takes, in the words the rows above say it in ("Text", "List (text)"), never its type's code
+  const typeName = useTypeName();
   // a field's name, softer than its value: as soft as it still reads
   const labelOpacity = useReadableOpacity(0.55);
   const keys = orderedKeys(record, schema).filter((key) => key !== skipKey);
@@ -620,8 +624,8 @@ const SchemaRecord = ({
         const value = fieldSchema && !nested && isEmptyUiEnvelope(raw) ? undefined : unwrap(raw);
         // a named value is labelled by its name, as the data spells it
         const label = name ?? fieldLabel(key, fieldSchema);
-        const labelWithType =
-          showTypes && fieldSchema?.type ? `${label} · ${fieldSchema.type}` : label;
+        const typeWords = showTypes ? optionTypeWords(fieldSchema, typeName) : undefined;
+        const labelWithType = typeWords ? `${label} · ${typeWords}` : label;
 
         // A field that describes its own level renders AS that level, indented
         // under its name — the same decision, one step down.

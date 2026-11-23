@@ -175,6 +175,20 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
 // activating the row adds the field first.
 /**
+ * What an option takes ("Text", "List (text)"), after its name: a quiet word in the name's color at the description's
+ * opacity, the same in a read row, an open row and a card's heading. It was a tag, which an open row drew with an
+ * edge beside the plain words of the others: a chip says a value, and this is about the field.
+ */
+const TypeWords = ({ words, opacity }: { words: string; opacity: number }) => (
+  <span
+    className='options-readfirst-type'
+    style={{ opacity, fontWeight: 400, fontSize: '0.85em', whiteSpace: 'nowrap' }}
+  >
+    {words}
+  </span>
+);
+
+/**
  * The text inside a rich-text envelope, when a list item is one.
  *
  * An option like Gmail's `to` is `type: "list"`, `element_type: "string"`,
@@ -1623,15 +1637,7 @@ export const CompactRow = memo(
       : null;
     // beside the name, muted: it is about the field, not its value
     const typeTag =
-      typeWords && typeShown ?
-        <ReqoreTag
-          size='tiny'
-          minimal
-          className='options-readfirst-type'
-          label={typeWords}
-          labelEffect={{ opacity: rowInks.descOpacity }}
-        />
-      : null;
+      typeWords && typeShown ? <TypeWords words={typeWords} opacity={rowInks.descOpacity} /> : null;
 
     // The gap rides on the message itself rather than on the panel around it:
     // the panel is a vertical ReqoreControlGroup, which owns its own layout and
@@ -2742,13 +2748,7 @@ export const CompactRow = memo(
               <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
                 {nameWithAsterisk(requiredMark)}
                 {typeLabel ?
-                  <ReqoreTag
-                    size='tiny'
-                    minimal
-                    className='options-readfirst-type'
-                    label={typeLabel}
-                    labelEffect={{ opacity: rowInks.descOpacity }}
-                  />
+                  <TypeWords words={typeLabel} opacity={rowInks.descOpacity} />
                 : null}
               </span>
               {helpIcon}
