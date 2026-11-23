@@ -169,7 +169,7 @@ describe('dpql/parse type analysis', () => {
     });
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'warning',
-      message: 'The expression gives text, but this field takes a whole number. Qorus converts it when it runs.',
+      message: 'The expression gives text, but the value here must be a whole number. Qorus converts it when it runs.',
       code: 'TYPE_MISMATCH',
     });
   });
@@ -185,7 +185,7 @@ describe('dpql/parse type analysis', () => {
     expect(result.suggested_fix).toBeUndefined();
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'error',
-      message: 'The expression gives a whole number, but this field takes true or false, and Qorus cannot convert it.',
+      message: 'The expression gives a whole number, but the value here must be true or false, and Qorus cannot convert it.',
     });
   });
 

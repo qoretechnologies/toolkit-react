@@ -262,7 +262,7 @@ describe('makeDpqlTagRenderer', () => {
     expect(props.tooltip).toMatchObject({ title: 'Total' });
     // and why nothing else: the record gives no description
     expect(drawn(props.tooltip).dataset.drawn).toBe(
-      'An exact number.\n\nNo description was given for this field.'
+      'An exact number.\n\nNo description was given.'
     );
   });
 });

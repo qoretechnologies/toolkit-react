@@ -675,8 +675,8 @@ const analyse = (
         severity: coercible ? 'warning' : 'error',
         message:
           coercible ?
-            `The expression gives ${typeInSentence(inferred)}, but this field takes ${typeInSentence(target)}. Qorus converts it when it runs.`
-          : `The expression gives ${typeInSentence(inferred)}, but this field takes ${typeInSentence(target)}, and Qorus cannot convert it.`,
+            `The expression gives ${typeInSentence(inferred)}, but the value here must be ${typeInSentence(target)}. Qorus converts it when it runs.`
+          : `The expression gives ${typeInSentence(inferred)}, but the value here must be ${typeInSentence(target)}, and Qorus cannot convert it.`,
         code: 'TYPE_MISMATCH',
         ...span,
       },

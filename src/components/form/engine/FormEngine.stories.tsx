@@ -448,7 +448,7 @@ export const ValueCanBeRemoved: Story = {
     },
   },
   play: async () => {
-    await _testsWaitForText('Click here to upload a different file');
+    await _testsWaitForText('Upload a different file');
     // The first row's value goes, and its menu now offers the way back.
     await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
@@ -463,7 +463,7 @@ export const ValueCanBeRemoved: Story = {
     // Then the second row's.
     await openOptionRowMenu(1);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
-    await _testsWaitForTextToNotExist('Click here to upload a different file');
+    await _testsWaitForTextToNotExist('Upload a different file');
   },
 };
 
@@ -483,7 +483,7 @@ export const RowActionsOnAPhone: Story = {
     },
   },
   play: async () => {
-    await _testsWaitForText('Click here to upload a different file');
+    await _testsWaitForText('Upload a different file');
     await openOptionRowMenu(0);
     await _testsWaitForText('Focused editing');
     await _testsWaitForText('Remove value');
@@ -507,7 +507,7 @@ export const ChangeCanBeReverted: Story = {
     await ValueCanBeRemoved.play!(args);
     await openOptionRowMenu(1);
     await _testsClickButton({ selector: '.options-item-revert', nth: 0 });
-    await _testsWaitForText('Click here to upload a different file');
+    await _testsWaitForText('Upload a different file');
   },
 };
 
@@ -527,7 +527,7 @@ export const AllChangesCanBeReverted: Story = {
   play: async (args) => {
     await ValueCanBeRemoved.play!(args);
     await _testsClickButton({ selector: '.fields-revert' });
-    await _testsWaitForText('Click here to upload a different file');
+    await _testsWaitForText('Upload a different file');
   },
 };
 
@@ -698,7 +698,7 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     );
     // Option 2 settles the first group; the second (4 or 5) is still empty, and 6 is required: 4, 5 and 6
     // need attention, and 4 names only what would settle its empty group
-    await _testsWaitForText('3 fields are not valid and require attention. Click here to only show invalid fields.');
+    await _testsWaitForText('3 fields are not valid. Show only those fields.');
     await _testsWaitForText('A value is required here, or in Required Option 5');
     await _testsWaitForText('A value is required here, or in Required Option 4');
   },

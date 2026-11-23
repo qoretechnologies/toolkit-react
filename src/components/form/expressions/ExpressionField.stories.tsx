@@ -1090,7 +1090,7 @@ export const AnUnfinishedExpressionSaysTheSameInBothViews: Story = {
     docs: {
       description: {
         story:
-          'The comparison left unfinished ("… > …"), opened on its Text view, then on Visual: the Visual view says of the part whose operation is not chosen what it lacks - "Choose what this part does." - as the Text view says "Fill in each …". It said "This expression gives nothing, which this field does not take", of a part that gives nothing yet, and the two views did not agree.',
+          'The comparison left unfinished ("… > …"), opened on its Text view, then on Visual: the Visual view says of the part whose operation is not chosen what it lacks - "Choose what this part does." - as the Text view says "Fill in each …". It said "This expression gives nothing, which cannot be used here", of a part that gives nothing yet, and the two views did not agree.',
       },
     },
   },
@@ -2397,7 +2397,7 @@ export const VisualConditionWithANumberPart: Story = {
     expect(tag?.closest('.reqore-panel')).toBe(cards[0]);
     // a number part is no type mismatch: nothing is refused
     expect(errorsShown(canvasElement)).toEqual([]);
-    expect(canvasElement.textContent).not.toContain('but this field takes');
+    expect(canvasElement.textContent).not.toContain('but the value here must be');
   },
 };
 

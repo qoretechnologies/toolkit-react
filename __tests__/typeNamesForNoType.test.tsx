@@ -79,14 +79,14 @@ describe('a sentence about a type that is not known', () => {
   it('says what an expression gives without naming what a place of no known type takes', () => {
     const said = expressionTypeMismatchText('a whole number', undefined);
     expect(said).toBe(
-      'This expression gives a whole number, which this field does not take. Choose another expression, or put this one inside an expression that converts it.'
+      'This expression gives a whole number, which cannot be used here. Choose another expression, or put this one inside an expression that converts it.'
     );
     expect(said).not.toMatch(/undefined|takes\s*\./);
   });
 
   it('says what a place takes, and "nothing" for an expression that gives nothing yet', () => {
     expect(expressionTypeMismatchText(undefined, 'true or false')).toBe(
-      'This expression gives nothing, but this field takes true or false. Choose an expression that gives true or false, or put this one inside an expression that converts it.'
+      'This expression gives nothing, but the value here must be true or false. Choose an expression that gives true or false, or put this one inside an expression that converts it.'
     );
   });
 

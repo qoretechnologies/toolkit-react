@@ -259,7 +259,7 @@ describe('a group whose members cannot be loaded', () => {
     expect(onPick).not.toHaveBeenCalled();
   });
 
-  it('asks again with Retry, and lists the members that come', async () => {
+  it('asks again with Try again, and lists the members that come', async () => {
     const load = vi
       .fn<() => Promise<ITemplateNode[]>>()
       .mockRejectedValueOnce(new Error('The server did not answer'))
@@ -281,7 +281,7 @@ describe('a group whose members cannot be loaded', () => {
     expect(container.querySelector('.template-picker-load-failed')).toBeNull();
   });
 
-  it('says so again when Retry fails too', async () => {
+  it('says so again when Try again fails too', async () => {
     const load = vi.fn(() => Promise.reject(new Error('Still down')));
     const { container } = renderPicker(failing(load), 'lazy');
     const retry = await waitFor(() => {

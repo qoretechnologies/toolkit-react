@@ -508,7 +508,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     referenceNamesNothing: (written) =>
       `No template here is called \`${written}\`: pick one from the list, or remove it.`,
     noValueDescription: 'No description was given for this value.',
-    noFieldDescription: 'No description was given for this field.',
+    noFieldDescription: 'No description was given.',
   },
   templateField: {
     setCustomValue: 'Set custom value',
@@ -527,11 +527,11 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     runFunction: 'Run a function on this value',
     useTemplate: 'Use template',
     useTemplateTooltip: 'Use a template',
-    noTemplatesOnOffer: 'No templates are offered here for this field.',
+    noTemplatesOnOffer: 'There are no templates to use here.',
     useCustomValue: 'Use custom value',
     useCustomValueTooltip: 'Write the value here instead of choosing a template',
     createNewExpression: 'Create new expression',
-    takesExpression: 'This field takes an expression.',
+    takesExpression: 'Takes an expression.',
     setValue: 'Set value',
     unlistedReference: 'Not one of the values offered here',
   },
@@ -579,7 +579,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     useWhole: (label) => `Use the whole record: all of ${label} as one value`,
     loadFailed: (label, reason) =>
       `Could not load what is in ${label}${reason ? `: ${reason}` : '.'}`,
-    retry: 'Retry',
+    retry: 'Try again',
     loading: 'Loading…',
     noMatch: (query) => `No template matches "${query}"`,
     nothingHere: 'Nothing here',
@@ -693,7 +693,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     clearValueConfirm: (label) => `Clear the current value of "${label}"?`,
     draft: 'Draft',
     cancelEdit: 'Cancel edit',
-    cancelEditTooltip: 'Cancel edit — discard the changes made since this field was opened',
+    cancelEditTooltip: 'Cancel edit — discard your changes and keep the earlier value',
     closeField: 'Close field',
     done: 'Done',
     defaultIs: (value, description) => `Default: ${value} — ${description}`,
@@ -712,7 +712,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     lineCount: (count, shown = formatCount(count)) => `${shown} ${count === 1 ? 'line' : 'lines'}`,
     charCount: (count, shown = formatCount(count)) =>
       `${shown} ${count === 1 ? 'character' : 'characters'}`,
-    fieldDisabled: 'This field is disabled',
+    fieldDisabled: 'Cannot be changed here',
     setByServer: 'Set by Qorus — not editable',
     dependenciesNotFulfilled: 'Disabled — dependencies are not fulfilled',
     dependencyUnset: (label) => `${label} unset`,
@@ -779,9 +779,11 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     noOptions: 'No options available',
     searchOptionsRequired:
       'This provider record requires some search options to be set. You can set them below.',
-    showingInvalidOnly: 'Showing invalid fields only. Click here again to show all fields.',
+    showingInvalidOnly: 'Only the fields to fix are shown. Show all fields.',
     invalidFields: (count) =>
-      `${count < 2 ? 'A field is not valid and requires' : `${count} fields are not valid and require`} attention. Click here to only show invalid fields.`,
+      count < 2 ?
+        'A field is not valid. Show only that field.'
+      : `${count} fields are not valid. Show only those fields.`,
     fieldsNotSupported: (count) =>
       `${plural(count, 'field')} hidden because they are not supported on the current instance`,
     moreOptions: 'More options available',
@@ -841,8 +843,8 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
           ` because ${source.label} ${source.isOperation ? 'gives' : 'is'} ${gives}`
         : '';
       return takes ?
-          `This expression gives ${gives ?? 'nothing'}${because}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
-        : `This expression gives ${gives ?? 'nothing'}${because}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+          `This expression gives ${gives ?? 'nothing'}${because}, but the value here must be ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
+        : `This expression gives ${gives ?? 'nothing'}${because}, which cannot be used here. Choose another expression, or put this one inside an expression that converts it.`;
     },
     templateOfKind: (kind) => `a $${kind} template`,
     thisValue: 'this value',

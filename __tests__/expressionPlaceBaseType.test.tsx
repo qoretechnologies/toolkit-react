@@ -65,7 +65,7 @@ const FIND_ORDER = {
   ],
 };
 
-const MISMATCH = /This expression gives .*(but this field takes|which this field does not take)/;
+const MISMATCH = /This expression gives .*(but the value here must be|which cannot be used here)/;
 
 const renderExpression = (value: unknown, returnType: string, returnBaseType?: string) =>
   render(

@@ -38,7 +38,7 @@ describe('what a type mismatch says of where the type comes from', () => {
     );
     expect(source).toEqual({ label: '"Order note"', isOperation: false });
     expect(expressionTypeMismatchText('text', 'a whole number', source)).toBe(
-      'This expression gives text because "Order note" is text, but this field takes a whole number. Choose an ' +
+      'This expression gives text because "Order note" is text, but the value here must be a whole number. Choose an ' +
         'expression that gives a whole number, or put this one inside an expression that converts it.'
     );
   });

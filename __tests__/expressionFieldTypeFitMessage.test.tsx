@@ -177,7 +177,7 @@ describe('the type-fit message', () => {
     });
     // the types inside the sentence by their sentence forms (the server's catalogue)
     expect(container.textContent).toContain(
-      'The expression gives a whole number, and this field takes key-value pairs (a hash).'
+      'The expression gives a whole number, and the value here must be key-value pairs (a hash).'
     );
     expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
   });
@@ -196,7 +196,7 @@ describe('the type-fit message', () => {
       await waitFor(
         () =>
           expect(container.textContent).toContain(
-            'The expression gives a value of type Whole number, and this field takes a value of type Hash.'
+            'The expression gives a value of type Whole number, and the value here must be a value of type Hash.'
           ),
         { timeout: 5000 }
       );

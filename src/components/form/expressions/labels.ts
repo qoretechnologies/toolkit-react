@@ -166,7 +166,7 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
   mayNotFit: 'This may not fit',
   doesNotFit: 'This does not fit',
   typeNote: (gives, takes, mayFail) =>
-    `The expression gives ${gives}, and this field takes ${takes}.${
+    `The expression gives ${gives}, and the value here must be ${takes}.${
       mayFail ? ' Qorus converts the value when it runs, and checks it then.' : ''
     }`,
   preview: 'Preview',
@@ -185,7 +185,7 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
   noOperationYet: (part, takes) =>
     part ?
       `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`
-    : `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`,
+    : `Choose what this expression does${takes ? `: it must give ${takes}` : ''}.`,
   couldNotCheck: 'Qorus could not check this expression.',
   runsOutsideQorus: 'This expression runs outside Qorus',
   selectOperation: 'Select operation',

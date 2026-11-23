@@ -235,8 +235,8 @@ export interface IValidationLabels {
 /** A sentence ends with a stop: one is added where the text has none. */
 const sentence = (text: string): string => (/[.!?]$/.test(text) ? text : `${text}.`);
 
-/** The field's type inside a sentence, where the catalogue has no name for it. */
-const notA = (type: string | undefined): string => type ?? "of this field's type";
+/** The type a value must have, inside a sentence, where the catalogue has no name for it. */
+const notA = (type: string | undefined): string => type ?? 'the type needed here';
 
 /** 1st, 2nd, 3rd, 4th, … 11th, 12th, 13th, … 21st: a position as it is written. */
 const ordinal = (n: number): string => {
@@ -273,7 +273,7 @@ export const DEFAULT_VALIDATION_LABELS: IValidationLabels = {
     return pattern ? `${main} Pattern: ${pattern}` : main;
   },
 
-  valueMustBe: (type) => (type ? `Value must be ${type}` : "Value must be of this field's type"),
+  valueMustBe: (type) => (type ? `Value must be ${type}` : 'Value must be of the type needed here'),
   atLeast: (min) => `Value must be ${min} or more`,
   atMost: (max) => `Value must be ${max} or less`,
   textAndTemplatesMakeText: (type) =>
@@ -294,7 +294,7 @@ export const DEFAULT_VALIDATION_LABELS: IValidationLabels = {
   notList: 'Value must be a list',
   atLeastOneValue: 'At least one value is required',
   dateInvalid: 'Date is invalid',
-  notYaml: 'Value is not valid YAML',
+  notYaml: 'Value must be written in YAML or JSON',
   valueEmpty: 'Value is empty',
   autoTypeInvalid: 'Auto-detected type is invalid',
   nothingNotValid: 'Nothing is not a valid value',

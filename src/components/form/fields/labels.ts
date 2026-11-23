@@ -91,7 +91,7 @@ export const DEFAULT_FIELD_LABELS: IFieldLabels = {
   uploadAFile: 'Upload a file',
   buildAFile: 'Build a file',
   uploadedFile: 'Uploaded file',
-  uploadDifferentFile: (extensions) => `Click here to upload a different ${extensions} file`,
+  uploadDifferentFile: (extensions) => `Upload a different ${extensions} file`,
   clickOrDropFiles: 'Click or drop files here to upload',
   edit: 'Edit',
   remove: 'Remove',

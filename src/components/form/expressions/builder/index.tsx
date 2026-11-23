@@ -759,7 +759,7 @@ export const Expression = ({
      condition field need not declare `bool`, and a mismatch was then never drawn - the refusal was shown only
      because the type worked out here happened to be a number's (a warning, in the server's words). */
   /* A part whose operation is not chosen yet gives nothing yet, and nothing is said of what it gives: it was told
-     "This expression gives nothing, which this field does not take" - a type it never claimed - beside the Text
+     "This expression gives nothing, which cannot be used here" - a type it never claimed - beside the Text
      view's "Fill in each …". What it lacks is said instead (`noOperationYetText`). */
   const noOperationYet = !value?.value?.exp;
   /** What the place takes, said with what it lacks: only a type that is a type (not untyped, not `auto`). */

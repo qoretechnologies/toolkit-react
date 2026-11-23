@@ -219,7 +219,7 @@ export const DefaultBoolean: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it lacks and what its place takes, the type named inside the sentence as the server names it (its sentence form): "Choose what this expression does: this field takes true or false." It said "This expression gives nothing", a type it never claimed, and it is said once.',
+          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it lacks and what its place takes, the type named inside the sentence as the server names it (its sentence form): "Choose what this expression does: it must give true or false." It said "This expression gives nothing", a type it never claimed, and it is said once.',
       },
     },
   },
@@ -228,7 +228,7 @@ export const DefaultBoolean: Story = {
     // the types inside the sentence by their sentence forms, not their labels ("True or false")
     await waitFor(() =>
       expect(document.body.textContent).toContain(
-        'Choose what this expression does: this field takes true or false.'
+        'Choose what this expression does: it must give true or false.'
       )
     );
     // said once: it was said twice, once without what the field takes
@@ -2075,7 +2075,7 @@ export const ConditionThatGivesANumber: Story = {
         ),
       { timeout: 10000 }
     );
-    await expect(document.body.textContent).not.toContain('but this field takes');
+    await expect(document.body.textContent).not.toContain('but the value here must be');
   },
 };
 
@@ -2131,7 +2131,7 @@ export const BoolValueThatGivesANumber: Story = {
   },
   play: async () => {
     await waitFor(
-      () => expect(document.body.textContent).toContain('but this field takes'),
+      () => expect(document.body.textContent).toContain('but the value here must be'),
       { timeout: 10000 }
     );
     await expect(conditionVerdict()).toBeNull();

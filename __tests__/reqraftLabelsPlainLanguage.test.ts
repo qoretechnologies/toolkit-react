@@ -120,3 +120,72 @@ describe('reqraft labels say what the reader wants', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/*
+ * A label speaks to the reader about what they want, not about the control it sits on: no "this field" narrating
+ * the control ("This field takes an expression" is "Takes an expression"), no "click here" (name what the click
+ * gets: "Show only those fields"), asking again for what failed is "Try again" ("Retry" is an operation of its own
+ * in Qorus), a value typed in the wrong format is told the format it may be written in, never only "not valid
+ * YAML", and a word is a word, never a key or a protocol name ("EnumMember" is "Enum member").
+ */
+const SPEAKS_OF_THE_CONTROL: [RegExp, string][] = [
+  [/\bthis field\b/i, 'narrates the control: say what it does or what is wanted'],
+  [/\bclick here\b/i, 'says "click here": name what the click gets'],
+  [/\bRetry(?:ing)?\b(?!-After)/, 'asks again with "Retry": say "Try again"'],
+  [/\b(?:invalid|not (?:a )?valid)\s+(?:json|yaml)\b/i, 'names only the format it failed: name the one it takes'],
+];
+
+/** A whole label written as a key or a protocol name: `EnumMember`, `typeParameter`. */
+const KEY_SHAPED = /^(?:[A-Z][a-z0-9]+|[a-z][a-z0-9]*)(?:[A-Z][a-zA-Z0-9]*)+$/;
+/** Names written as one mixed-case word. */
+const MIXED_CASE_NAMES = new Set(['OAuth', 'GraphQL', 'JavaScript', 'WebSocket', 'GitHub', 'OpenAPI']);
+
+/** Every text a label gives: a function called with each stand-in, none left out (its branch for nothing too). */
+const everySaid = (value: unknown, path: string): [string, string][] => {
+  if (typeof value === 'string') return [[path, value]];
+  if (typeof value === 'function') {
+    const standIns: unknown[] = ['Name', 2, 1, ['Name', 'Other'], undefined];
+    const texts = standIns.flatMap((standIn) => {
+      try {
+        const text = said((value as (...args: unknown[]) => unknown)(...Array(3).fill(standIn)));
+        return text === undefined ? [] : [text];
+      } catch {
+        return [];
+      }
+    });
+    return Array.from(new Set(texts)).map((text): [string, string] => [path, text]);
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, child]) => everySaid(child, `${path}.${key}`));
+  }
+  return [];
+};
+
+describe('reqraft labels speak to the reader, not of the control', () => {
+  const all = everySaid(DEFAULT_REQRAFT_LABELS, 'labels');
+
+  it('reads every branch of a label, the one for nothing too', () => {
+    expect(all).toContainEqual(['labels.validation.valueMustBe', 'Value must be of the type needed here']);
+    expect(SPEAKS_OF_THE_CONTROL.some(([pattern]) => pattern.test('This field takes an expression.'))).toBe(true);
+    expect(SPEAKS_OF_THE_CONTROL.some(([pattern]) => pattern.test('a Retry-After header'))).toBe(false);
+    expect(KEY_SHAPED.test('EnumMember')).toBe(true);
+    expect(KEY_SHAPED.test('Enum member')).toBe(false);
+  });
+
+  it('narrates no control, says no click here, asks again with Try again and names the format a value takes', () => {
+    const offenders = all.flatMap(([path, text]) =>
+      SPEAKS_OF_THE_CONTROL.filter(([pattern]) => pattern.test(text)).map(
+        ([, why]) => `${path}: "${text}" ${why}`
+      )
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('writes words, never a key', () => {
+    // the labels as written: a function's words around a stand-in ("v" + a version) are no key
+    const offenders = strings(DEFAULT_REQRAFT_LABELS, 'labels')
+      .filter(([, text]) => KEY_SHAPED.test(text.trim()) && !MIXED_CASE_NAMES.has(text.trim()))
+      .map(([path, text]) => `${path}: "${text}"`);
+    expect(offenders).toEqual([]);
+  });
+});

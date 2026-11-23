@@ -2308,7 +2308,7 @@ const concatIn = (type: string, base_type: string): Record<string, unknown> => (
 });
 
 /** The expression's type mismatch, as a field's builder says it. */
-const MISMATCH = /This expression gives .*(but this field takes|which this field does not take)/;
+const MISMATCH = /This expression gives .*(but the value here must be|which cannot be used here)/;
 
 export const AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseType: StoryObj<typeof meta> = {
   render: () => (
@@ -2325,7 +2325,7 @@ export const AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseType: StoryObj<typeo
     docs: {
       description: {
         story:
-          'Renders two fields holding concat(...), an expression that gives text: one of qoretechnologies/order-ref, a user type no type catalog lists whose base type is text, and one of qoretechnologies/due, whose base type is a date. The first takes it - it said "This expression gives text, which this field does not take" - and the second does not, and says it takes a date and time.',
+          'Renders two fields holding concat(...), an expression that gives text: one of qoretechnologies/order-ref, a user type no type catalog lists whose base type is text, and one of qoretechnologies/due, whose base type is a date. The first takes it - it said "This expression gives text, which cannot be used here" - and the second does not, and says it takes a date and time.',
       },
     },
   },

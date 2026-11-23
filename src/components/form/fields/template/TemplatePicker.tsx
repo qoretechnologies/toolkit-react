@@ -317,7 +317,7 @@ export const TemplatePicker = memo(
     // a host's members come when they are asked for: the rows are drawn again when they have come
     const [, membersCame] = useReducer((count: number) => count + 1, 0);
     const [loading, setLoading] = useState<string | null>(null);
-    // the group whose members could not be loaded, and why: said where they would be, with Retry
+    // the group whose members could not be loaded, and why: said where they would be, with Try again
     const [loadFailure, setLoadFailure] = useState<{ node: ITemplateNode; reason?: string } | null>(
       null
     );

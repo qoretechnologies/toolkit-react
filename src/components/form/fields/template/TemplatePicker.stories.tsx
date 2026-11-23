@@ -366,7 +366,7 @@ export const MembersLoadedWhenOpened: Story = {
   },
 };
 
-/** A group whose members cannot be loaded says which, says why and offers Retry; the picker around it stays usable. */
+/** A group whose members cannot be loaded says which, says why and offers Try again; the picker around it stays usable. */
 export const MembersThatCannotBeLoaded: Story = {
   args: {
     templates: {
@@ -385,7 +385,7 @@ export const MembersThatCannotBeLoaded: Story = {
       description: {
         story:
           'Opens Order data, whose members cannot be loaded: the picker says it could not load them and why, with ' +
-          'Retry, and its way back and search box stay usable. Back returns to the other groups.',
+          'Try again, and its way back and search box stay usable. Back returns to the other groups.',
       },
     },
   },
@@ -408,7 +408,7 @@ export const MembersThatCannotBeLoaded: Story = {
 
 let cameOnRetry = 0;
 
-/** Retry asks again: the members that come are listed, and what failed is no longer said. */
+/** Try again asks again: the members that come are listed, and what failed is no longer said. */
 export const RetryLoadsTheMembers: Story = {
   args: {
     templates: {
@@ -433,7 +433,7 @@ export const RetryLoadsTheMembers: Story = {
     docs: {
       description: {
         story:
-          'Opens Order data, whose first load fails, and clicks Retry: Order ID is listed and the failure is gone.',
+          'Opens Order data, whose first load fails, and clicks Try again: Order ID is listed and the failure is gone.',
       },
     },
   },
