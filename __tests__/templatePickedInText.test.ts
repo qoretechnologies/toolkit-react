@@ -114,8 +114,8 @@ describe('a template chip in an expression', () => {
     }
   });
 
-  it('is blue (info) for a field of the row, as on the Value tab', () => {
-    expect(makeDpqlTagRenderer({})(tag('$record:{pos}'))).toMatchObject({ intent: 'info' });
+  it('is the plain chip for a field of the row, as on the Value tab (blue means only that a filter is on)', () => {
+    expect(makeDpqlTagRenderer({})(tag('$record:{pos}'))).not.toHaveProperty('intent');
   });
 
   it('keeps the per-prefix palette only where asked to', () => {

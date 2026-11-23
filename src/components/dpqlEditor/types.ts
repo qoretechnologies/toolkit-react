@@ -136,9 +136,9 @@ export interface IDpqlEditorProps {
   /** Whether to show hover popovers (`textDocument/hover`). Default `true`. */
   enableHover?: boolean;
   /**
-   * Draw a template (`$…`) chip as every other template chip is drawn (`getTemplateTagStyle`: `info`, or the
-   * catalogue entry's built-in or event-trigger intent). Default `true`: a template was blue in a
-   * value's text and gray in an expression's. `false` keeps the per-prefix palette (`TEMPLATE_COLORS`).
+   * Draw a template (`$…`) chip as every other template chip is drawn (`getTemplateTagStyle`: the plain chip, or the
+   * catalogue entry's built-in or event-trigger intent). Default `true`: a template was one color in a
+   * value's text and another in an expression's. `false` keeps the per-prefix palette (`TEMPLATE_COLORS`).
    */
   templateTagsUseIntent?: boolean;
   /**

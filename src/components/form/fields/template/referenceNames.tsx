@@ -4,7 +4,11 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { size } from 'lodash';
 import { createContext, useContext } from 'react';
 import { catalogueValues } from '../../../../helpers/templateText';
-import { describeTemplateReference } from '../../../../helpers/templates';
+import {
+  describeTemplateReference,
+  getTemplateTagStyle,
+  TTemplateMeta,
+} from '../../../../helpers/templates';
 
 /**
  * SEAM (reqraft): what a host knows of the references its values mention beyond its catalogue of templates.
@@ -53,6 +57,11 @@ export interface IReferenceStanding {
   label?: string;
   /** Nothing names it: the catalogue does not list it and the host does not know it. */
   unlisted: boolean;
+  /**
+   * What a value the catalogue lists in the same context is (its metadata), for an unlisted reference: where its
+   * value would come from, so its chip is drawn in that source's look (`$local:test` as a value Qorus gives).
+   */
+  kin?: TTemplateMeta;
 }
 
 /**
@@ -85,14 +94,27 @@ export const referenceStanding = (
   }
   // (a walk into a listed value is that value's: `describeTemplateReference` names it)
   const context = referenceContext(reference);
-  return {
-    unlisted: catalogueValues(templates).some((value) => referenceContext(value) === context),
-  };
+  const kin = catalogueValues(templates).find((value) => referenceContext(value) === context);
+  return kin ?
+      {
+        unlisted: true,
+        kin: describeTemplateReference(templates, kin).item?.metadata as TTemplateMeta | undefined,
+      }
+    : { unlisted: false };
 };
 
-/** The chip props a reference nothing names draws with: a warning, and the host's hint on hover. */
-export const unlistedReferenceChipProps = (names: ITemplateReferenceNames) => ({
-  intent: 'warning' as const,
+/**
+ * The chip props a reference nothing names draws with: its source's look (the chip a value of its context gets,
+ * `getTemplateTagStyle`), an amber warning mark after its name, and the host's hint on hover. The whole chip was
+ * filled amber, a status block where the calm look says a status with a mark: the warning is the mark's.
+ */
+export const unlistedReferenceChipProps = (
+  names: ITemplateReferenceNames,
+  standing?: Pick<IReferenceStanding, 'kin'>
+) => ({
+  ...getTemplateTagStyle(standing?.kin),
+  rightIcon: 'ErrorWarningLine' as const,
+  rightIconProps: { intent: 'warning' as const },
   tooltip: names.unlistedHint || reqraftLabels().templateField.unlistedReference,
   className: UNLISTED_REFERENCE_CLASS,
 });

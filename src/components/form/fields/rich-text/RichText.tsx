@@ -723,7 +723,7 @@ export const RichTextFormField = memo(({
           // a reference nothing names says so; one the host knows wears its name (`referenceStanding`)
           const standing = referenceStanding(naming, tagValue, referenceNames);
           const unlisted =
-            standing.unlisted ? unlistedReferenceChipProps(referenceNames) : undefined;
+            standing.unlisted ? unlistedReferenceChipProps(referenceNames, standing) : undefined;
           return {
             icon: 'ExchangeDollarLine',
             leftIconProps: { image: metadata?.image },
@@ -740,7 +740,14 @@ export const RichTextFormField = memo(({
             // The same chip the read summary (`TemplateText`) and the read-only tag draw.
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(metadata),
-            ...(unlisted ? { intent: unlisted.intent, className: unlisted.className } : {}),
+            ...(unlisted ?
+              {
+                intent: unlisted.intent,
+                rightIcon: unlisted.rightIcon,
+                rightIconProps: unlisted.rightIconProps,
+                className: unlisted.className,
+              }
+            : {}),
             // a click opens the picker at its group, to replace it
             ...templateChipClick(tag),
           };

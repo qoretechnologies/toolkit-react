@@ -109,12 +109,15 @@ export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
   compact: false,
 });
 
-export const getTemplateTagStyle = (
-  meta?: TTemplateMeta
-): { intent: 'success' | 'info' | 'custom1' } => {
+/**
+ * The color a template's chip says where its value comes from in: the data of the event that starts the Qog is
+ * green, a value Qorus itself gives purple. Any other value, an app's or a step's output and the usual one, is the
+ * plain chip every other reference is: blue means only that a filter is on, and a blue chip read as one.
+ */
+export const getTemplateTagStyle = (meta?: TTemplateMeta): { intent?: 'success' | 'custom1' } => {
   if (meta?.isEventTrigger) return { intent: 'success' };
   if (meta?.builtIn) return { intent: 'custom1' };
-  return { intent: 'info' };
+  return {};
 };
 
 export const isValueTemplate = (value: string): boolean => {

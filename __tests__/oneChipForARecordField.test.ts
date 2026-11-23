@@ -31,8 +31,9 @@ describe('a record field written in DPQL', () => {
     expect(field).toMatchObject({
       label: 'record: orders[*].id',
       icon: 'ExchangeDollarLine',
-      intent: 'info',
     });
+    // an output's chip is the plain one: blue means only that a filter is on
+    expect(field).not.toHaveProperty('intent');
     // the same color and icon; the template's chip is labeled by its element, with the label the field's says
     const { tooltip: _fieldTooltip, label: fieldLabel, ...fieldLook } = field;
     const { tooltip: _templateTooltip, ...templateLook } = template;

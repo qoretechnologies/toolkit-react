@@ -105,7 +105,7 @@ const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTex
         }
         // a reference nothing names says so; one the host knows wears its name (`referenceStanding`)
         const standing = referenceStanding(templates, segment.value || '', names);
-        const unlisted = standing.unlisted ? unlistedReferenceChipProps(names) : undefined;
+        const unlisted = standing.unlisted ? unlistedReferenceChipProps(names, standing) : undefined;
         return (
           <ReqoreTag
             key={`tag-${index}`}
@@ -136,7 +136,13 @@ const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTex
                 | TTemplateMeta
                 | undefined
             )}
-            {...(unlisted ? { intent: unlisted.intent } : {})}
+            {...(unlisted ?
+              {
+                intent: unlisted.intent,
+                rightIcon: unlisted.rightIcon,
+                rightIconProps: unlisted.rightIconProps,
+              }
+            : {})}
           />
         );
       })}

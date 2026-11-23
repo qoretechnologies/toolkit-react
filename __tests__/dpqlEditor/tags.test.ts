@@ -62,6 +62,6 @@ describe('makeDpqlTagRenderer template references', () => {
     );
 
     // the reference chip every view draws, and nothing that names it
-    expect(props).toEqual({ ...REFERENCE_CHIP_PROPS, icon: 'ExchangeDollarLine', intent: 'info' });
+    expect(props).toEqual({ ...REFERENCE_CHIP_PROPS, icon: 'ExchangeDollarLine' });
   });
 });

@@ -703,13 +703,16 @@ export const catalogueRowTrail = (
   };
 };
 
-/** What a template's color says (`getTemplateTagStyle`), the same on its chip, its row's badge and its hover. */
+/**
+ * Where a template's value comes from, which its color says (`getTemplateTagStyle`), the same on its chip, its row's
+ * badge and its hover: `info` is any other value, an app's or a step's output, whose chip is the plain one.
+ */
 export type TTemplateIntent = 'success' | 'custom1' | 'info';
 
 /**
  * What each color a template is drawn in means, as its hover says it, so a reader need not
- * guess what the colors mean: green is the data of the event that starts the Qog, purple a value Qorus gives, blue any other
- * template (which its hover does not need to say).
+ * guess what the colors mean: green is the data of the event that starts the Qog, purple a value Qorus gives, the
+ * plain chip any other template (which its hover does not need to say).
  */
 export const TEMPLATE_INTENT_MEANINGS: Record<TTemplateIntent, string> =
   DEFAULT_REQRAFT_LABELS.templateTree.intentMeanings;

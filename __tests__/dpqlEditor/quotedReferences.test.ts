@@ -109,8 +109,8 @@ describe('a quoted field is drawn as its chip', () => {
     expect(renderTag(tag('@"create.order-id"'))).toMatchObject({
       label: 'record: create.order-id',
       icon: 'ExchangeDollarLine',
-      intent: 'info',
     });
+    expect(renderTag(tag('@"create.order-id"'))).not.toHaveProperty('intent');
     expect(renderTag(tag('@"create.order-id"')).tooltip).toBeTruthy();
     // its name unescaped into the path, not its quoted text; a dot of a key stays a dot of a key (qore#5480)
     expect(renderTag(tag('@"say \\"hi\\""')).label).toBe('record: say "hi"');

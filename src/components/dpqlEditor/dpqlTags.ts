@@ -62,9 +62,9 @@ export const getTemplatePrefixColor = (value: string): string => {
 export interface IDpqlTagRendererOptions {
   /**
    * Draw a template (`$…`) chip as every other template chip is drawn - in a value's text, a template field, a
-   * read row (`getTemplateTagStyle`): `info`, or the catalogue entry's built-in (`custom1`) or event-trigger
-   * (`success`) intent. The default (a template picked on a value's Value tab was blue
-   * there and gray on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
+   * read row (`getTemplateTagStyle`): the plain chip, or the catalogue entry's built-in (`custom1`) or
+   * event-trigger (`success`) intent. The default (a template picked on a value's Value tab was one color
+   * there and another on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
    * prefix it did not list (`$record:`) gray.
    */
   templateTagsUseIntent?: boolean;
