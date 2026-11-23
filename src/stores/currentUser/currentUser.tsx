@@ -22,8 +22,17 @@ export interface ICurrentUserSupportSession {
   actor_name?: string;
   /** the workspace's portable namespace */
   group_namespace: number;
-  /** the workspace group's name */
+  /**
+   * the workspace group's technical name: an identifier, not something to show a
+   * person while `group_display_name` is there
+   */
   group_name?: string;
+  /**
+   * the workspace's readable name, the one its customer gave it (qorus#770). Show
+   * this, and `group_name` only when it is absent: a core before qorus#770 and a
+   * control plane that does not send it leave it out.
+   */
+  group_display_name?: string;
   /** the identity profile, `workspace-read` */
   profile: string;
   /** when the session ends at the latest: the grant's expiry (ISO 8601) */

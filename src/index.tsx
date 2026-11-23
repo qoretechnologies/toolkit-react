@@ -72,6 +72,9 @@ export type {
   IReqraftFetchResponse,
   IReqraftQueryConfig,
   IReqraftRawResponse,
+  IReqraftRequest,
+  IReqraftRequestRefusal,
+  IReqraftUnauthorizedInfo,
 } from './utils/fetch';
 export * from './utils/websocket';
 export { ReqraftLspClient } from './utils/lspClient';
