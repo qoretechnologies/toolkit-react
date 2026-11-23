@@ -8,7 +8,6 @@ import {
 } from '@qoretechnologies/ts-toolkit';
 import { isValueTemplate } from '../../../helpers/templates';
 import { describeColorValue } from '../../colorValue/colorValue';
-import { DEFAULT_COLOR_VALUE_LABELS } from '../../colorValue/labels';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isEmptyUiEnvelope, isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -689,8 +688,8 @@ export const formatOptionValue = (
     const color = describeColorValue(value);
     return (
       color.kind === 'color' ? color.text
-      : color.kind === 'invalid' ? DEFAULT_COLOR_VALUE_LABELS.invalid(color.shown)
-      : DEFAULT_COLOR_VALUE_LABELS.empty
+      : color.kind === 'invalid' ? reqraftLabels().colorValue.invalid(color.shown)
+      : reqraftLabels().colorValue.empty
     );
   }
 

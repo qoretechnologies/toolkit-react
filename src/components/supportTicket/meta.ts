@@ -433,5 +433,5 @@ export const defaultInterfaceKindLabel = (kind: string): string => {
     return known;
   }
 
-  return words.otherInterfaceKind(humaniseWireValue(kind));
+  return words.otherInterfaceKind(humaniseWireValue(kind), kind);
 };

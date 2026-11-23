@@ -20,6 +20,9 @@ import {
   ISupportTicketLabels,
 } from '../components/supportTicket/labels';
 import { DEFAULT_AB_TEST_LABELS, IAbTestLabels } from '../tracking/ui/labels';
+import { DEFAULT_COLOR_VALUE_LABELS, IReqraftColorValueLabels } from '../components/colorValue/labels';
+import { DEFAULT_DESCRIPTION_LABELS, IDescriptionLabels } from '../components/Description/labels';
+import { DEFAULT_QORUS_TYPE_LABELS, IQorusTypeLabels } from './qorusTypeLabels';
 
 /**
  * The words of the template tree: what a row says a node is, its groups, and what a template's color means. Read by
@@ -447,6 +450,12 @@ export interface IReqraftLabels {
   supportTicket: ISupportTicketLabels;
   /** The A/B test card and overlay. */
   abTest: IAbTestLabels;
+  /** A field's description: its reveal, and the ⓘ that opens it beside a control. */
+  description: IDescriptionLabels;
+  /** A color read as a value: its swatch, and what is said where there is none. */
+  colorValue: IReqraftColorValueLabels;
+  /** The built-in type catalogue, which names types until the server's answers. */
+  qorusTypes: IQorusTypeLabels;
 }
 
 /** What a host gives: any of the words of any part, and one or more entries of a part's maps. */
@@ -861,6 +870,9 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
   composer: DEFAULT_COMPOSER_LABELS,
   supportTicket: DEFAULT_SUPPORT_TICKET_LABELS,
   abTest: DEFAULT_AB_TEST_LABELS,
+  description: DEFAULT_DESCRIPTION_LABELS,
+  colorValue: DEFAULT_COLOR_VALUE_LABELS,
+  qorusTypes: DEFAULT_QORUS_TYPE_LABELS,
 };
 
 const merged = (given: TReqraftLabelOverrides): IReqraftLabels => {

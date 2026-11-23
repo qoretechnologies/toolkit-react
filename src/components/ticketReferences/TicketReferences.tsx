@@ -17,7 +17,6 @@ import type { IReqorePanelSubAction } from '@qoretechnologies/reqore/dist/compon
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 import { useReqraftLabels } from '../../helpers/reqraftLabels';
-import timeago from 'epoch-timeago';
 import { SearchFilterBar } from '../searchFilterBar';
 import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
@@ -31,6 +30,7 @@ import {
   TTicketViewerRole,
 } from '../supportTicket/meta';
 import { loadedImageUrl, useLoadedImages } from '../supportTicket/useLoadedImages';
+import { formatRelativeTime } from '../supportTicket/accessMeta';
 import type { ITicketThreadAttachment, ITicketThreadMessage } from '../ticketThread/TicketThread';
 
 /*
@@ -102,16 +102,9 @@ export interface ITicketReferencesProps {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-// `epoch-timeago` — the same library reqore's `ReqoreTimeAgo` and the IDE's ticket
-// list use. This is a string context (a metadata run), so a helper rather than the
-// component; it stays consistent with them instead of a bespoke Intl reimplementation.
-const timeAgo = (iso?: string): string => {
-  if (!iso) {
-    return '';
-  }
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? '' : timeago(ms);
-};
+// How long ago, in the page's language (`formatRelativeTime`, as a ticket's access lines say it): this is a string
+// context (a metadata run), so a helper rather than a component. It was `epoch-timeago`, which speaks only English.
+const timeAgo = (iso?: string): string => formatRelativeTime(iso, Date.now());
 
 interface IFileType {
   icon: IReqoreIconName;

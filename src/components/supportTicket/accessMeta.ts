@@ -1,5 +1,6 @@
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { pageLocale } from '../../helpers/locale';
 import { reqraftLabels } from '../../helpers/reqraftLabels';
 import type { ISupportTicketLabels } from './labels';
 import { ITicketEnumMeta, humaniseWireValue } from './meta';
@@ -224,21 +225,25 @@ const CLOCK_TICK_SECONDS = 60;
 /**
  * "in 3 hours" / "2 days ago" against a clock the caller passes, so a story freezes it
  * and two surfaces reading the same grant agree. An unparsable instant is an empty
- * string, never "NaN years ago"; an instant inside the clock's tick is "just now".
+ * string, never "NaN years ago"; an instant inside the clock's tick is "just now", in
+ * the host's words (`supportTicket.justNow`).
  *
- * Not `epoch-timeago` (what `ReqoreTimeAgo` and `TicketReferences` use): it speaks only
- * of the past and reads the real clock, so it can neither say "in 3 hours" for a grant
- * that is still running nor hold still in a story.
+ * Said in the page's language (`pageLocale`: the host's `<html lang>`, else the
+ * browser's) unless the caller names one. Not `epoch-timeago`: it speaks only English,
+ * only of the past and reads the real clock, so it can neither say "in 3 hours" for a
+ * grant that is still running nor hold still in a story.
  */
-export const formatRelativeTime = (iso: string | undefined, now: number, locale = 'en'): string => {
+export const formatRelativeTime = (
+  iso: string | undefined,
+  now: number,
+  locale: string | undefined = pageLocale()
+): string => {
   if (!iso) return '';
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '';
   const seconds = Math.round((then - now) / 1000);
   if (seconds >= 0 && seconds < CLOCK_TICK_SECONDS) {
-    return locale === 'en'
-      ? ticketWords().justNow
-      : new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(0, 'second');
+    return ticketWords().justNow;
   }
   for (const [unit, secondsInUnit] of RELATIVE_UNITS) {
     if (Math.abs(seconds) >= secondsInUnit || unit === 'second') {
@@ -251,8 +256,8 @@ export const formatRelativeTime = (iso: string | undefined, now: number, locale 
   return '';
 };
 
-/** The absolute instant, for a tooltip beside a relative one. */
-export const formatInstant = (iso: string | undefined, locale = 'en-GB'): string => {
+/** The absolute instant, for a tooltip beside a relative one: in the page's language unless the caller names one. */
+export const formatInstant = (iso: string | undefined, locale: string | undefined = pageLocale()): string => {
   if (!iso) return '';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())

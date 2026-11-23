@@ -5,6 +5,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 import { markdownSummaryLine, markdownToProse } from '../../helpers/markdownText';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { useIsCalmForm } from '../form/engine/formAppearance';
 import { useMarkdownRenderer } from './markdownRendererContext';
 
@@ -204,6 +205,7 @@ export const Description = memo(
     // the calm look reads a description as plain secondary text; the classic one set it in italics
     const calm = useIsCalmForm();
     const effect = useMemo(() => (calm ? { opacity: 0.7 } : { italic: true, opacity: 0.7 }), [calm]);
+    const words = useReqraftLabels().description;
 
     const components = useMemo(
       () => ({
@@ -236,11 +238,11 @@ export const Description = memo(
             style={{ cursor: 'pointer' }}
             onClick={handleDescriptionClick}
           >
-            {showLongDescription ? '...less' : '...more'}
+            {showLongDescription ? words.less : words.more}
           </ReqoreTextEffect>
         </>
       );
-    }, [showLongDescription, saysMore, handleDescriptionClick]);
+    }, [showLongDescription, saysMore, handleDescriptionClick, words]);
 
     if (!shortDescription && !longDescription) {
       return null;

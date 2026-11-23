@@ -5,9 +5,10 @@ import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { cloneElement, Key, memo, ReactElement } from 'react';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
+import { reqraftLabels } from '../../helpers/reqraftLabels';
 
-/** What the ⓘ is called, for a screen reader: the thing it explains. */
-export const describedControlInfoLabel = (name: string) => `About ${name}`;
+/** What the ⓘ is called, for a screen reader: the thing it explains, in the host's words (`description.about`). */
+export const describedControlInfoLabel = (name: string) => reqraftLabels().description.about(name);
 
 export interface IDescriptionInfoButtonProps {
   /** The description it opens: the server's markdown, drawn as every description card is. */

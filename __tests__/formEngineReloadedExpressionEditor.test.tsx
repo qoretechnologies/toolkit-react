@@ -99,12 +99,12 @@ const renderExpanded = async (value: Record<string, unknown>) => {
   return container;
 };
 
-/* The tell, taken from the live report: the type pill reads `Key/Value {}` and
+/* The tell, taken from the live report: the type pill reads `Key/value {}` and
    the envelope's own keys are laid out for hand editing. `is_expression` is
    never something an author types. */
 const showsRawEnvelope = (container: HTMLElement) => {
   const text = container.textContent || '';
-  return text.includes('is_expression') || text.includes('Key/Value');
+  return text.includes('is_expression') || /key\/value/i.test(text);
 };
 
 /* The builder itself drew — its root, not the shell around it. */

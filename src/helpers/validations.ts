@@ -10,7 +10,7 @@ import isNaN from 'lodash/isNaN';
 import isNumber from 'lodash/isNumber';
 import isObject from 'lodash/isPlainObject';
 import size from 'lodash/size';
-import { defaultQorusTypes, qorusTypeSentenceForm } from './qorusTypeCatalogue';
+import { builtInQorusTypes, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 import uniqWith from 'lodash/uniqWith';
 import { fixOperatorValue, getAddress, getProtocol, splitByteSize } from './common';
 import { isOptionInterfaceUiType } from './optionUiTypes';
@@ -322,7 +322,7 @@ const isValueDefined = (type: string, value: any): boolean => {
  * keeps it - the form's own words, said before and without any server.
  */
 const typeInSentence = (type: string): string | undefined =>
-  qorusTypeSentenceForm(defaultQorusTypes, type);
+  qorusTypeSentenceForm(builtInQorusTypes(), type);
 
 /** What is said of a value that is not of its field's type, the type named where there is one. */
 const valueMustBe = (type: string): string => words().valueMustBe(typeInSentence(type));

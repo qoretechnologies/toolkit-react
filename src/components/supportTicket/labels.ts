@@ -38,8 +38,12 @@ export interface ISupportTicketLabels {
   systemMessage: string;
   /** The reading name of each interface kind, by its id (`value-map`): plural, as a category to pick from. */
   interfaceKinds: Record<string, string>;
-  /** The reading name of a kind with none of its own; `name` is its id as words ("Message queue"). */
-  otherInterfaceKind: (name: string) => string;
+  /**
+   * The reading name of a kind with none of its own, plural as a category to pick from: `name` is its id as words
+   * ("Message queue"), `kind` the id itself (`message-queue`), for a host that names its kinds in its own words
+   * and plurals rather than building one from the English.
+   */
+  otherInterfaceKind: (name: string, kind: string) => string;
 
   /* ── delegated workspace access (`accessMeta.ts`) ── */
   /** A value with no words of its own and nothing to read it from. */

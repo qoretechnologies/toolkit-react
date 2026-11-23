@@ -63,7 +63,7 @@ describe('time against a given clock', () => {
   });
 
   it('gives the absolute instant for a tooltip, and the millis left', () => {
-    expect(formatInstant('2026-10-19T15:00:00Z')).toMatch(/19 Oct 2026/);
+    expect(formatInstant('2026-10-19T15:00:00Z', 'en-GB')).toMatch(/19 Oct 2026/);
     expect(formatInstant('nope')).toBe('nope');
     expect(millisUntil('2026-10-19T12:00:01Z', NOW)).toBe(1000);
     expect(Number.isNaN(millisUntil(undefined, NOW))).toBe(true);

@@ -1,4 +1,11 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { DEFAULT_COLOR_FORM_FIELD_LABELS, IColorFormFieldLabels } from './color/labels';
+
+/** The parts of a cron expression, in the order it is written. */
+export type TCronPart = 'minute' | 'hour' | 'day' | 'month' | 'weekday';
+
+/** The units a timeout is shown in (`TTimeoutUnit`). */
+export type TTimeoutUnitName = 'ms' | 'seconds' | 'minutes' | 'hours';
 
 /**
  * The words of the form's field editors: choices, lists, files, objects, binary values and the help that lists a
@@ -77,6 +84,20 @@ export interface IFieldLabels {
   valueColumn: string;
   nameColumn: string;
   descriptionColumn: string;
+  /** The color field's words. */
+  color: IColorFormFieldLabels;
+  /** The kinds of value a field of no fixed type offers, by type: what each is called in its type picker. */
+  valueTypes: Record<string, string>;
+  /** The boxes of a cron field: what each part of the expression is called, as its placeholder and its name. */
+  cronParts: Record<TCronPart, string>;
+  /** The button that empties a cron field. */
+  clearCron: string;
+  /** A timeout's units, as its unit picker names them. */
+  timeoutUnits: Record<TTimeoutUnitName, string>;
+  /** A timeout's units where there is little room (a phone): "s", "m". */
+  timeoutUnitSymbols: Record<TTimeoutUnitName, string>;
+  /** A timeout as it reads ("45 seconds", "1 minute"): `count` in `unit`, the plural chosen by the count. */
+  timeoutAmount: (count: number, unit: TTimeoutUnitName) => string;
 }
 
 /** The English words, the ones a host gets when it gives none. */
@@ -125,4 +146,29 @@ export const DEFAULT_FIELD_LABELS: IFieldLabels = {
   valueColumn: 'Value',
   nameColumn: 'Name',
   descriptionColumn: 'Description',
+  color: DEFAULT_COLOR_FORM_FIELD_LABELS,
+  valueTypes: {
+    bool: 'True or false',
+    date: 'Date',
+    string: 'Text',
+    binary: 'Binary data',
+    float: 'Number',
+    list: 'List',
+    hash: 'Key/value {}',
+    int: 'Whole number',
+    rgbcolor: 'RGB color',
+  },
+  cronParts: {
+    minute: 'Minute',
+    hour: 'Hour',
+    day: 'Day',
+    month: 'Month',
+    weekday: 'Weekday',
+  },
+  clearCron: 'Clear',
+  timeoutUnits: { ms: 'ms', seconds: 'seconds', minutes: 'minutes', hours: 'hours' },
+  timeoutUnitSymbols: { ms: 'ms', seconds: 's', minutes: 'm', hours: 'h' },
+  timeoutAmount: (count, unit) =>
+    unit === 'ms' ? `${count} ms`
+    : `${count} ${count === 1 ? unit.slice(0, -1) : unit}`,
 };

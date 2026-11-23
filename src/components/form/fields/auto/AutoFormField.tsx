@@ -180,16 +180,23 @@ export interface IAutoFieldProps
  * editor of its own to draw — the picker used to offer them anyway, and each
  * one drew "Unknown type!".
  */
-export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => [
-  { name: 'bool', display_name: 'True or false' },
-  { name: 'date', display_name: 'Date' },
-  { name: 'string', display_name: 'Text' },
-  { name: 'binary', display_name: 'Binary data' },
-  { name: 'float', display_name: 'Number' },
-  { name: 'list', display_name: 'List' },
-  { name: 'hash', display_name: 'Key/Value {}' },
-  { name: 'int', display_name: 'Whole number' },
-  { name: 'rgbcolor', display_name: 'RGB Color' },
+export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => {
+  // what each is called, in the host's words (`setReqraftLabels`, `fields.valueTypes`), read when it is asked for
+  const names = reqraftLabels().fields.valueTypes;
+  return IMMEDIATE_VALUE_TYPES.map((name) => ({ name, display_name: names[name] ?? name }));
+};
+
+/** The types a value typed into the field can be, in the order the picker lists them. */
+const IMMEDIATE_VALUE_TYPES: IQorusType[] = [
+  'bool',
+  'date',
+  'string',
+  'binary',
+  'float',
+  'list',
+  'hash',
+  'int',
+  'rgbcolor',
 ];
 
 /** @deprecated Use `getImmediateValueTypes()`; every picker now offers this list. */

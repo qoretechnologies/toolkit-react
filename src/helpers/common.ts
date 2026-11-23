@@ -1,6 +1,7 @@
 import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { TQorusFormFieldSchema, TQorusFormOperatorValue } from '@qoretechnologies/ts-toolkit';
 import yaml from 'js-yaml';
+import { reqraftLabels } from './reqraftLabels';
 
 // ─── Typed ↔ YAML helpers ──────────────────────────────────────────────────────
 
@@ -217,7 +218,9 @@ export type TTimeoutUnit = 'ms' | 'seconds' | 'minutes' | 'hours';
 
 /** Timeout display units, smallest → largest, with the ms multiplier each one
  * scales by and the symbol shown where space is tight (phone-width selector).
- * The stored value is always the integer millisecond count. */
+ * The stored value is always the integer millisecond count. The words a unit is
+ * said in are the host's (`fields.timeoutUnits`, `timeoutUnitSymbols`); `short`
+ * is the English symbol, kept for callers that read it. */
 export const TIMEOUT_UNITS: { value: TTimeoutUnit; ms: number; short: string }[] = [
   { value: 'ms', ms: 1, short: 'ms' },
   { value: 'seconds', ms: 1000, short: 's' },
@@ -228,7 +231,9 @@ export const TIMEOUT_UNITS: { value: TTimeoutUnit; ms: number; short: string }[]
 export const timeoutUnitToMs = (unit: TTimeoutUnit): number =>
   TIMEOUT_UNITS.find(({ value }) => value === unit)!.ms;
 
+/** The unit's symbol where space is tight ("s", "m"), in the host's words. */
 export const timeoutUnitSymbol = (unit: TTimeoutUnit): string =>
+  reqraftLabels().fields.timeoutUnitSymbols[unit] ??
   TIMEOUT_UNITS.find(({ value }) => value === unit)!.short;
 
 /** The largest unit that represents `value` without rounding (45000 →
@@ -242,11 +247,13 @@ export const getLargestExactTimeoutUnit = (value?: number): TTimeoutUnit => {
   return 'ms';
 };
 
-/** Human-readable timeout (e.g. `"45 seconds"`) — scaled to the largest unit
- * that represents the millisecond count exactly (90500 → `"90500 ms"`). */
+/** Human-readable timeout (e.g. `"45 seconds"`, `"1 minute"`) — scaled to the
+ * largest unit that represents the millisecond count exactly (90500 →
+ * `"90500 ms"`), in the host's words (`fields.timeoutAmount`), which choose the
+ * plural by the count. */
 export const formatTimeoutValue = (ms: number): string => {
   const unit = getLargestExactTimeoutUnit(ms);
-  return `${ms / timeoutUnitToMs(unit)} ${unit}`;
+  return reqraftLabels().fields.timeoutAmount(ms / timeoutUnitToMs(unit), unit);
 };
 
 /** Human-readable file size, e.g. `"12.3 KB"` — whole bytes below 1 KiB, one

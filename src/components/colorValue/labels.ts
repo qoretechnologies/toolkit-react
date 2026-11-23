@@ -10,7 +10,7 @@ export interface IReqraftColorValueLabels {
   empty: string;
 }
 
-/** The English words; a compact form row's summary of a color uses them too. */
+/** The English words: what a host gets for any it does not give (`setReqraftLabels`, `colorValue`). */
 export const DEFAULT_COLOR_VALUE_LABELS: IReqraftColorValueLabels = {
   swatch: (color) => `Color ${color}`,
   invalid: (shown) => `Not a color: ${shown}`,

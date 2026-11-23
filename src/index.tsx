@@ -108,6 +108,7 @@ export * from './components/colorValue';
 // (`qorusTypeEntry`: by its name, an optional, soft or complex form of one, or its base type), and what a picker
 // that lists every type offers.
 export {
+  builtInQorusTypes,
   defaultQorusTypes,
   getQorusTypes,
   offeredQorusTypes,

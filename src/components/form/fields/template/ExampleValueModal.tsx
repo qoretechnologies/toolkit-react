@@ -2,7 +2,7 @@ import { ReqoreModal, ReqoreTextarea, useReqoreProperty } from '@qoretechnologie
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { CSSProperties, memo, useCallback } from 'react';
 import { copyText } from '../../../../helpers/secureContextApis';
-import { DEFAULT_TEMPLATE_LIST_LABELS } from '../../../../helpers/templateListLabels';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { withCodeFont } from '../codeFont';
 
 export interface IReqraftTemplateExampleValueModalProps extends Partial<IReqoreModalProps> {
@@ -47,13 +47,18 @@ export const ReqraftTemplateExampleValueModal = memo(
   ({
     label,
     value,
-    // the English words of a list of templates (`DEFAULT_TEMPLATE_LIST_LABELS`), which `buildTemplates` passes on
-    copyLabel = DEFAULT_TEMPLATE_LIST_LABELS.copy,
-    copyNotificationContent = DEFAULT_TEMPLATE_LIST_LABELS.copied,
-    copyFailedNotificationContent = DEFAULT_TEMPLATE_LIST_LABELS.copyFailed,
+    copyLabel: givenCopyLabel,
+    copyNotificationContent: givenCopied,
+    copyFailedNotificationContent: givenCopyFailed,
     ...rest
   }: IReqraftTemplateExampleValueModalProps) => {
     const addNotification = useReqoreProperty('addNotification');
+    // the words of a list of templates in the host's language (`setReqraftLabels`), where the caller gives none:
+    // `buildTemplates` passes its own on, a host that mounts the dialog itself may not
+    const words = useReqraftLabels().templateList;
+    const copyLabel = givenCopyLabel ?? words.copy;
+    const copyNotificationContent = givenCopied ?? words.copied;
+    const copyFailedNotificationContent = givenCopyFailed ?? words.copyFailed;
 
     const handleCopyClick = useCallback(async () => {
       // Copying can be refused (permissions, a page served over plain http): the
@@ -76,7 +81,7 @@ export const ReqraftTemplateExampleValueModal = memo(
 
     return (
       <ReqoreModal
-        label={label || DEFAULT_TEMPLATE_LIST_LABELS.exampleValueTitle}
+        label={label || words.exampleValueTitle}
         icon='FileTextLine'
         height='70vh'
         className='reqraft-template-example-value-modal'

@@ -26,6 +26,8 @@ const NAMES_A_CONTROL: Record<string, RegExp> = {
   'labels.abTest.stopDescription': /\bAccept\b/g,
   'labels.abTest.helpShow': /\bEnter\b/g,
   'labels.abTest.helpLifecycle': /\bResume\b/g,
+  // the color field's help names its boxes by the words they show
+  'labels.fields.color.helpChannels': /\b(Green|Blue)\b/g,
 };
 
 /** A label's text: a string as is, a function called with lower-case stand-ins, parts joined. */

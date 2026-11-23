@@ -104,9 +104,9 @@ describe('the type picker of an untyped field', () => {
       'Binary data',
       'Number',
       'List',
-      'Key/Value {}',
+      'Key/value {}',
       'Whole number',
-      'RGB Color',
+      'RGB color',
     ]);
     // The text value resolved to `string`, which the picker shows as chosen.
     expect(picker.props?.value).toBe('string');

@@ -62,9 +62,9 @@ const IMMEDIATE_TYPE_NAMES = [
   'Binary data',
   'Number',
   'List',
-  'Key/Value {}',
+  'Key/value {}',
   'Whole number',
-  'RGB Color',
+  'RGB color',
 ];
 
 /**
@@ -314,7 +314,7 @@ export const NoSoftTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Number, List, Key/Value {}, Whole number, RGB Color) and no soft type, and shows no item count.',
+          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Number, List, Key/value {}, Whole number, RGB color) and no soft type, and shows no item count.',
       },
     },
   },

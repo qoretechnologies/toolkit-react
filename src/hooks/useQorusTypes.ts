@@ -1,6 +1,8 @@
 import { size } from 'lodash';
 import { useCallback, useEffect, useMemo } from 'react';
+import { useReqraftLabels } from '../helpers/reqraftLabels';
 import {
+  builtInQorusTypes,
   compactQorusTypes,
   defaultQorusTypes,
   IQorusTypeObject,
@@ -14,6 +16,7 @@ import { useFetch } from './useFetch/useFetch';
 
 // the catalogue and its names are the hook's public API as they always were
 export {
+  builtInQorusTypes,
   compactQorusTypes,
   compactTypesList,
   defaultQorusTypes,
@@ -51,9 +54,12 @@ export const useQorusTypes = (): IUseTypes => {
     loadOnMount: true,
   });
 
-  const value = size(data) ? data : defaultQorusTypes;
+  // until the server answers, reqraft's copy in the host's words, drawn again when they change
+  useReqraftLabels();
+  const builtIn = builtInQorusTypes();
+  const value = size(data) && data !== defaultQorusTypes ? data : builtIn;
   // the server's answer, once there is one: what `getQorusTypes` gives code outside a component from then on
-  const answered = value === defaultQorusTypes ? undefined : value;
+  const answered = value === builtIn ? undefined : value;
   useEffect(() => {
     if (answered) {
       setServerQorusTypes(answered);
