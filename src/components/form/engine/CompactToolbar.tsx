@@ -141,6 +141,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     attentionFaultCount: fieldAttentionFaultCount,
     outsideAttentionCount = 0,
     onRevealOutside,
+    readinessLabels,
     completion,
     showInvalidOnly,
     onToggleInvalidOnly,
@@ -250,7 +251,9 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   what the form still lacks, and a form nobody has touched can
                   lack things. "Draft" means unsaved changes and belongs to the
                   batched mode's per-row chip alone. */}
-              {invalidCount || attentionCount ? feWords.incomplete : feWords.ready}
+              {invalidCount || attentionCount ?
+                (readinessLabels?.incomplete ?? feWords.incomplete)
+              : (readinessLabels?.complete ?? feWords.ready)}
             </StyledSummary>
             {/* "set" counts what the Set box holds: a value nothing flags. A flagged value is in
                 the attention count instead, so the line adds up ("1/7 set · 6 need attention ·

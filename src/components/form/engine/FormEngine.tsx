@@ -136,6 +136,7 @@ import { CompactToolbar } from './CompactToolbar';
 import {
   CompactToolbarContext,
   ICompactToolbarContext,
+  IFormReadinessLabels,
   TCompactSort,
 } from './compactToolbarContext';
 import { DefaultsNote } from './DefaultsNote';
@@ -310,6 +311,8 @@ export interface IFormOutsideAttention {
   /** Takes the reader to them, from the readiness line's "need attention" link. */
   onReveal?: () => void;
 }
+
+export type { IFormReadinessLabels } from './compactToolbarContext';
 
 /** One shared "nothing came down from above" bag. See `inheritedScopeFor`. */
 /**
@@ -1290,6 +1293,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   outsideAttention?: IFormOutsideAttention;
   /**
+   * The readiness line's own words for this form, in place of the app-wide labels' "Ready" and "Incomplete". A form
+   * that is one page of several says what its complete state means ("This page is set"), so a reader does not take
+   * the first page, all set, for the finished thing while a Next leads on to more. Each word not given keeps the
+   * labels' (`setReqraftLabels`).
+   */
+  readinessLabels?: IFormReadinessLabels;
+  /**
    * Compact mode only: the three status-box headers stay pinned to the top of
    * whatever scrolls while their own box is in view. Default `true`.
    *
@@ -1680,6 +1690,7 @@ const FormEngineImpl = ({
   focusFieldRequest,
   onAttentionChange,
   outsideAttention,
+  readinessLabels,
   compactStickyBoxHeaders = true,
   compactStickyCardHeaders = true,
   compactStickyOffset = 0,
@@ -4481,6 +4492,7 @@ const FormEngineImpl = ({
       attentionFaultCount: readFirstAttentionFaultCount + readFirstFaultsOutsideBox,
       outsideAttentionCount,
       onRevealOutside: outsideAttention?.onReveal,
+      readinessLabels,
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
@@ -4531,6 +4543,10 @@ const FormEngineImpl = ({
       readFirstAttentionFaultCount,
       readFirstFaultsOutsideBox,
       readFirstCompletion,
+      outsideAttentionCount,
+      outsideAttention?.onReveal,
+      readinessLabels?.complete,
+      readinessLabels?.incomplete,
       showInvalidOptionsOnly,
       handleToggleInvalidOnly,
       availableOptions,

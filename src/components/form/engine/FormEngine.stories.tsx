@@ -2142,6 +2142,65 @@ export const AHostOpensANamedChoiceOfThree: Story = {
   },
 };
 
+/** The first page of a two-page editor: its fields, all set, and the host's Next to the second page. */
+const FIRST_PAGE_OPTIONS = {
+  name: { type: 'string', display_name: 'Name', required: true },
+  version: { type: 'string', display_name: 'Version', required: true },
+  desc: { type: 'long-string', display_name: 'Description', required: true },
+  author: { type: 'string', display_name: 'Author', required: true },
+} as never;
+
+const FIRST_PAGE_VALUE = {
+  name: { type: 'string', value: 'Order sync' },
+  version: { type: 'string', value: '1.0' },
+  desc: { type: 'string', value: 'Moves new orders from the shop to the warehouse.' },
+  author: { type: 'string', value: 'Operations' },
+};
+
+const FirstPageOfTwo = () => {
+  const [value, setValue] = useState<any>(FIRST_PAGE_VALUE);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+      <FormEngine
+        compact
+        name='first-page'
+        options={FIRST_PAGE_OPTIONS}
+        value={value}
+        onChange={setValue}
+        readinessLabels={{ complete: 'This page is set' }}
+      />
+      <ReqoreButton className='next-page' fixed icon='ArrowRightLine' intent='info'>
+        Next: add its steps
+      </ReqoreButton>
+    </div>
+  );
+};
+
+export const AFirstPageSaysItIsSet: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The first page of an editor with two pages, every field set, and the host\'s "Next: add its steps" under it. The page is set, not the editor finished, so the host gives the form its own word for its complete state (`readinessLabels={{ complete: "This page is set" }}`): the readiness line says "This page is set · 4/4 set" where it said "Ready", and a reader no longer takes the editor for done. A form given no words of its own says "Ready" as before.',
+      },
+    },
+  },
+  render: () => <FirstPageOfTwo />,
+  play: async ({ canvasElement }) => {
+    const status = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>('.options-readfirst-status');
+      expect(element, 'the readiness line is drawn').toBeTruthy();
+      return element!;
+    });
+    await waitFor(() => expect(status.textContent).toBe('This page is set'));
+    await expect(
+      canvasElement.querySelector('.options-readfirst-completion')!.textContent,
+      'the line says the page is set, not that the editor is ready'
+    ).not.toContain('Ready');
+    await expect(canvasElement.querySelector('.options-readfirst-completion')!.textContent).toContain('4/4 set');
+  },
+};
+
 export const AnAbsorbedDefaultIsChangedInTheRowThatHoldsIt: Story = {
   parameters: {
     docs: {
