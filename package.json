@@ -103,7 +103,7 @@
     "vitest": "^4.1.8"
   },
   "peerDependencies": {
-    "@qoretechnologies/reqore": ">=0.74.0",
+    "@qoretechnologies/reqore": ">=0.78.21",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
