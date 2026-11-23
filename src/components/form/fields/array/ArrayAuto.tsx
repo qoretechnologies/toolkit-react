@@ -267,21 +267,18 @@ export const ArrayAuto = ({
         </ReqorePanel>
         );
       })}
-      <ReqoreControlGroup fluid>
-        <ReqoreButton
-          onClick={addValue}
-          icon='AddLine'
-          rightIcon='AddLine'
-          textAlign='center'
-          customTheme={{
-            main: '#22273b',
-          }}
-          size={rest.size}
-          disabled={rest.disabled || rest.readOnly}
-        >
-          {fieldWords.addNewItem(display_name || name)}
-        </ReqoreButton>
-      </ReqoreControlGroup>
+      {/* The add control is an ordinary button as wide as its words, with one leading +: an
+          action, not a colored bar across the field (a filled indigo bar read as a status). */}
+      <ReqoreButton
+        className='array-auto-add'
+        onClick={addValue}
+        icon='AddLine'
+        fixed
+        size={rest.size}
+        disabled={rest.disabled || rest.readOnly}
+      >
+        {fieldWords.addNewItem(display_name || name)}
+      </ReqoreButton>
     </ReqoreControlGroup>
   );
 };

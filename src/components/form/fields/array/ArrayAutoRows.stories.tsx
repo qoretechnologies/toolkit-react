@@ -2,6 +2,7 @@ import { ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { expect, waitFor } from 'storybook/test';
+import { expectAPlainAddButton } from '../../../../stories/addControl';
 import { StoryMeta } from '../../../../types';
 import { ArrayAuto } from './ArrayAuto';
 
@@ -29,7 +30,7 @@ const RedirectUris = () => {
   ]);
 
   return (
-    <ReqoreControlGroup vertical style={{ maxWidth: 560 }}>
+    <ReqoreControlGroup vertical className='story-field' style={{ maxWidth: 560 }}>
       <ArrayAuto
         name='redirect_uris'
         type='string'
@@ -69,5 +70,7 @@ export const AListOfStringsPassesNoUnknownProps: Story = {
     );
 
     await expect(reported.filter((message) => UNKNOWN_PROP.test(message))).toEqual([]);
+    // Its add control is an ordinary button as wide as its words, as every list field's is.
+    await expectAPlainAddButton(canvasElement.querySelector('.story-field')!);
   },
 };

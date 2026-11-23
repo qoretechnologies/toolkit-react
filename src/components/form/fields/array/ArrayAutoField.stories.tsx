@@ -2,6 +2,7 @@ import { ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fireEvent, fn, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
+import { expectAPlainAddButton } from '../../../../stories/addControl';
 import { StoryMeta } from '../../../../types';
 import { NumberFormField } from '../number/Number';
 import { StringFormField } from '../string/String';
@@ -483,5 +484,40 @@ export const HashItemsHeadedByIdentity: Story = {
 
     // Nothing anywhere may read as a stringified record.
     await expect(document.body.textContent).not.toContain('[object Object]');
+  },
+};
+
+export const TheAddControlIsAPlainButton: Story = {
+  args: {
+    type: 'hash',
+    display_name: 'Values',
+    arg_schema: {
+      name: { type: 'string', ui_type: 'string', display_name: 'Name', required: true },
+    },
+    value: [{ name: 'Retries' }],
+    renderItem: hashRenderItem,
+  },
+  render(args) {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <ReqoreControlGroup vertical className='story-field' style={{ width: 560 }}>
+        <ArrayAutoField {...args} value={value} onChange={(_name, val) => setValue(val)} />
+      </ReqoreControlGroup>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list of records with its add control under them: an ordinary button as wide as its words, with one leading +, at the start of the field. It was a bar across the whole field, filled in indigo with a + at each end, which read as a status rather than as an action.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(() => expect(canvasElement.querySelector('.array-auto-add')).toBeTruthy(), {
+      timeout: 5000,
+    });
+    await expectAPlainAddButton(canvasElement.querySelector('.story-field')!);
   },
 };

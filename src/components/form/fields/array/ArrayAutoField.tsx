@@ -383,12 +383,13 @@ export const ArrayAutoField = memo(
           );
         })}
 
+        {/* The add control is an ordinary button as wide as its words, with one leading +: an
+            action, not a colored bar across the field (a filled indigo bar read as a status). */}
         <ReqoreButton
+          className='array-auto-add'
           onClick={addItem}
           icon='AddLine'
-          rightIcon='AddLine'
-          textAlign='center'
-          customTheme={{ main: '#22273b' }}
+          fixed
           size={fieldSize as any}
           disabled={disabled || readOnly}
         >
