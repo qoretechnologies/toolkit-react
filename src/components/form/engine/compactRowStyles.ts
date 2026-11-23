@@ -551,7 +551,9 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   font-size: 13px;
   min-width: 0;
   white-space: normal;
-  overflow-wrap: anywhere;
+  /* Between words, never inside one while the word fits a line of its own (\`anywhere\` broke "Expected" in a
+     narrow column, "Expect / ed"); a word longer than the whole line still breaks rather than run out of the row. */
+  overflow-wrap: break-word;
   cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
   /* what the option takes goes under the name where both do not fit on a line (a phone): beside it, it took the
      name's room, which broke a word in two ("Compute d") */
@@ -1094,6 +1096,24 @@ export const StyledGroupBody = styled.div<{
      less overwhelming on a phone. */
   &.readfirst-narrow {
     --readfirst-row-gap: 18px;
+  }
+  /* A narrow form (a phone): an open field inside another form's open field (a record in a list of records, its
+     checks) gives its editor, a form of its own, the card's whole width; the card's heading keeps its inset. Inset
+     at both sides at every level, a check's form three levels down was left about half a phone, and its labels broke
+     inside a word. The outermost card keeps its inset: it sits in its section's bleed, and its forms' edges are
+     drawn inside the section's. The nested form's rows bring their own inset. */
+  &.readfirst-narrow
+    .options-readfirst-card
+    .options-readfirst-card:has(.array-auto-item, .readfirst-nested-list) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  &.readfirst-narrow
+    .options-readfirst-card
+    .options-readfirst-card:has(.array-auto-item, .readfirst-nested-list)
+    > .options-readfirst-card-header {
+    padding-left: ${CALM_INSET};
+    padding-right: ${CALM_INSET};
   }
   &.readfirst-narrow .readfirst-row {
     grid-template-columns: minmax(0, 1fr) auto;

@@ -922,3 +922,142 @@ export const ANarrowFormOpensItsPickerInsideItsRow: Story = {
     await expect(inputBox.right).toBeLessThanOrEqual(rowBox.right + 1);
   },
 };
+
+/** A case's expectations: each a step, an outcome and its checks; each check a field, a check and a value. */
+const NESTED_OPTIONS = {
+  expectations: {
+    type: 'list',
+    ui_type: 'list',
+    element_type: 'hash',
+    display_name: 'What it expects',
+    arg_schema: {
+      step: { type: 'string', ui_type: 'string', display_name: 'Step' },
+      outcome: { type: 'string', ui_type: 'string', display_name: 'Expected to' },
+      checks: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Checks',
+        arg_schema: {
+          path: { type: 'string', ui_type: 'string', display_name: 'Field' },
+          kind: { type: 'string', ui_type: 'string', display_name: 'Check' },
+          expected: { type: 'string', ui_type: 'string', display_name: 'Expected value' },
+        },
+      },
+    },
+  },
+} as unknown as IOptionsSchemaArg;
+
+const NESTED_VALUE = {
+  expectations: {
+    type: 'list',
+    value: [
+      {
+        type: 'hash',
+        value: {
+          step: 'price the order',
+          outcome: 'Succeed',
+          checks: [
+            { path: 'total', kind: 'Greater than', expected: '0' },
+            { path: 'status', kind: 'One of', expected: 'priced' },
+          ],
+        },
+      },
+    ],
+  },
+} as unknown as IOptions;
+
+/** The words of the text node of `element` that reads `text` which are drawn across two lines. */
+const wordsBrokenIn = (element: Element, text: string): string[] => {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.textContent?.trim() !== text) continue;
+    const broken: string[] = [];
+    for (const word of node.textContent.matchAll(/\S+/g)) {
+      const range = document.createRange();
+      range.setStart(node, word.index);
+      range.setEnd(node, word.index + word[0].length);
+      if (new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size > 1) {
+        broken.push(word[0]);
+      }
+    }
+    return broken;
+  }
+  throw new Error(`No text "${text}" in the row`);
+};
+
+export const NestedFormsTakeThePhonesWidth: Story = {
+  args: {
+    options: NESTED_OPTIONS,
+    groups: undefined,
+    value: NESTED_VALUE,
+    alwaysExpandedOptions: ['expectations'],
+  },
+  parameters: {
+    qlip: { viewport: { width: 380, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Three forms inside one another on a 380px phone: a case expects things of a step, and each expectation holds checks, each check a form of its own. A form inside an open field takes the open card\'s whole width under its heading instead of being inset again at every level, so a check\'s form three levels down starts near the edge of the first, and a label that wraps (Expected value) breaks between its words, never inside one.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWithViewport(380, 844, async (narrowed) => {
+      const checksRow = await waitFor(
+        () => {
+          const row = canvasElement.querySelector<HTMLElement>(
+            '.array-auto-item [data-field="checks"]'
+          );
+          expect(row).toBeTruthy();
+          return row!;
+        },
+        { timeout: 10000 }
+      );
+      checksRow.click();
+      const expectedRows = await waitFor(
+        () => {
+          const found = [...canvasElement.querySelectorAll<HTMLElement>('.readfirst-row')].filter(
+            (row) =>
+              row.getBoundingClientRect().width > 0 &&
+              /^Expected value/.test(row.textContent?.trim() ?? '')
+          );
+          expect(found.length).toBe(2);
+          return found;
+        },
+        { timeout: 10000 }
+      );
+      if (!narrowed) return;
+
+      const topCard = canvasElement
+        .querySelector('.options-readfirst-card')!
+        .getBoundingClientRect();
+      for (const row of expectedRows) {
+        const box = row.getBoundingClientRect();
+        // inset at every level, it started 46px in
+        await expect(
+          box.left - topCard.left,
+          'a check three levels down starts near the edge of the first'
+        ).toBeLessThanOrEqual(30);
+        await expect(
+          wordsBrokenIn(row, 'Expected value'),
+          'its label breaks between words, never inside one'
+        ).toEqual([]);
+        // ...also where its column is narrower than a word: \`anywhere\` broke "Expect / ed" in one
+        const label = [...row.querySelectorAll('*')].find(
+          (element) => element.childElementCount === 0 && element.textContent === 'Expected value'
+        )!;
+        await expect(getComputedStyle(label).overflowWrap, 'a label never breaks a word it can fit').toBe(
+          'break-word'
+        );
+      }
+      // nothing runs off the phone, and no record's box runs out of the card it is in
+      await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+        document.documentElement.clientWidth
+      );
+      for (const item of canvasElement.querySelectorAll('.array-auto-item')) {
+        await expect(item.getBoundingClientRect().right).toBeLessThanOrEqual(topCard.right + 1);
+      }
+    });
+  },
+};
