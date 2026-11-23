@@ -3,6 +3,7 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { InterfaceReferenceTags } from '../src/components/supportTicket/InterfaceReferenceTags';
+import { TicketThread } from '../src/components/ticketThread/TicketThread';
 
 /**
  * A reference chip says its kind before its name. A host with its own words for the kinds passes `kindLabel`, as it
@@ -38,5 +39,43 @@ describe("a reference chip's kind", () => {
 
     expect(screen.getByText('workflow')).toBeTruthy();
     expect(screen.getByText('data-provider')).toBeTruthy();
+  });
+});
+
+describe("a ticket thread's reference chips", () => {
+  const MESSAGES = [
+    {
+      message_id: 'm1',
+      author_type: 'customer',
+      author_id: 'c1',
+      body: 'Both of these stopped this morning.',
+      created: '2026-10-19T10:00:00Z',
+      referenced_interfaces: REFERENCES,
+    },
+  ] as never;
+
+  it("say each kind in the host's words where it gives them", () => {
+    render(
+      <ReqoreUIProvider>
+        <TicketThread
+          messages={MESSAGES}
+          kindLabel={(kind) => (kind === 'data-provider' ? 'Data provider' : 'Workflow')}
+        />
+      </ReqoreUIProvider>
+    );
+
+    expect(screen.getByText('Workflow')).toBeTruthy();
+    expect(screen.getByText('Data provider')).toBeTruthy();
+    expect(screen.queryByText('workflow')).toBeNull();
+  });
+
+  it('say each kind as the reference carries it without them', () => {
+    render(
+      <ReqoreUIProvider>
+        <TicketThread messages={MESSAGES} />
+      </ReqoreUIProvider>
+    );
+
+    expect(screen.getByText('workflow')).toBeTruthy();
   });
 });

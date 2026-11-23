@@ -131,6 +131,9 @@ export interface ITicketThreadProps {
    *  own icon vocabulary (e.g. the qorus-ide IDE) pass one; when omitted, a built-in
    *  per-kind default is used so every surface shows consistent chips. */
   resolveInterfaceIcon?: TResolveInterfaceIcon;
+  /** Say a reference's kind in the host's own words ("Workflow" for `workflow`) on every message's reference
+   *  chips; passed through to `InterfaceReferenceTags`. Omitted, the kind is said as the reference carries it. */
+  kindLabel?: (kind: IInterfaceReference['interface_kind']) => string;
   /** Draw the kind's image ahead of a reference's own logo on the reference chips;
    *  see `preferKindImage` on `InterfaceReferenceTags`. Off by default. */
   preferKindImage?: boolean;
@@ -760,6 +763,7 @@ export const TicketThread = ({
   onDownloadAttachment,
   fetchAttachmentUrl,
   resolveInterfaceIcon,
+  kindLabel,
   preferKindImage,
   onInterfaceClick,
   isInterfaceLinkable,
@@ -885,6 +889,7 @@ export const TicketThread = ({
                       size='tiny'
                       references={refsFor(message)}
                       resolveInterfaceIcon={resolveInterfaceIcon}
+                      kindLabel={kindLabel}
                       preferKindImage={preferKindImage}
                       onInterfaceClick={onInterfaceClick}
                       isInterfaceLinkable={isInterfaceLinkable}

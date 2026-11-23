@@ -331,6 +331,38 @@ export const WithInterfaceReferences: Story = {
   },
 };
 
+const KIND_WORDS: Record<string, string> = { workflow: 'Workflow', service: 'Service', job: 'Job' };
+
+export const TheHostWordsAReferencesKind: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A host that says each kind in its own words passes `kindLabel`: every reference chip in the thread leads with "Workflow", "Service" or "Job" where it led with the raw key ("workflow order-processing:1.0").',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'customer',
+    messages: REFERENCED_THREAD,
+    kindLabel: (kind) => KIND_WORDS[kind] ?? kind,
+    resolveInterfaceIcon: (kind) =>
+      kind === 'workflow' ? 'GitBranchLine' : kind === 'service' ? 'ServerLine' : 'TimerLine',
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+
+    await waitFor(() => expect(canvas.getAllByText('Workflow')).toHaveLength(2));
+    await expect(canvas.getByText('Service')).toBeInTheDocument();
+    await expect(canvas.getByText('Job')).toBeInTheDocument();
+    // the raw key is not said any more
+    await expect(canvas.queryByText('workflow')).toBeNull();
+    await expect(canvas.queryByText('service')).toBeNull();
+    // each chip still names its interface
+    await expect(canvas.getByText('order-processing:1.0')).toBeInTheDocument();
+  },
+};
+
 /**
  * The staff viewpoint: staff messages sit on the right, the customer on the
  * left, and a staff-only internal note says so in its label ("Internal note") and its
