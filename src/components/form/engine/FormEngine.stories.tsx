@@ -1958,9 +1958,15 @@ const SUBJECT_OPTIONS = {
   retries: { type: 'int', display_name: 'Retries' },
 } as never;
 
-const FormWithSetTheSubject = () => {
+const FormWithSetTheSubject = ({
+  options = SUBJECT_OPTIONS,
+  initialValue = { name: { type: 'string', value: 'Order sync' } },
+}: {
+  options?: never;
+  initialValue?: Record<string, unknown>;
+}) => {
   const [request, setRequest] = useState<{ name: string; seq: number }>();
-  const [value, setValue] = useState<any>({ name: { type: 'string', value: 'Order sync' } });
+  const [value, setValue] = useState<any>(initialValue);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
       <ReqoreButton
@@ -1973,7 +1979,7 @@ const FormWithSetTheSubject = () => {
       <FormEngine
         compact
         name='test-case'
-        options={SUBJECT_OPTIONS}
+        options={options}
         value={value}
         onChange={setValue}
         focusFieldRequest={request}
@@ -2012,6 +2018,127 @@ export const AHostOpensANamedField: Story = {
     await waitFor(() =>
       expect(subject.contains(document.activeElement), 'the caret is in the subject').toBe(true)
     );
+  },
+};
+
+/** A kind's mark, as a host draws one beside each value: a choice whose values carry one opens as a card. */
+const kindMark = (letter: string, hue: number) =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' rx='14' fill='hsl(${hue},45%,42%)'/><text x='32' y='42' text-anchor='middle' fill='white' font-family='sans-serif' font-size='30'>${letter}</text></svg>`
+  )}`;
+
+/** The subject as a choice of what kind of interface the test case exercises: a pick-one with a mark per kind. */
+const SUBJECT_KIND_OPTIONS = {
+  name: { type: 'string', display_name: 'Name', required: true },
+  subject: {
+    type: 'string',
+    display_name: 'Subject',
+    short_desc: 'What kind of interface the test case exercises',
+    allowed_values: [
+      { display_name: 'Workflow', value: { type: 'string', value: 'workflow' }, image: kindMark('W', 210) },
+      { display_name: 'Service', value: { type: 'string', value: 'service' }, image: kindMark('S', 150) },
+      { display_name: 'Job', value: { type: 'string', value: 'job' }, image: kindMark('J', 30) },
+      { display_name: 'Step', value: { type: 'string', value: 'step' }, image: kindMark('P', 280) },
+    ],
+  },
+  retries: { type: 'int', display_name: 'Retries' },
+} as never;
+
+export const AHostOpensANamedChoice: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same request ("Set the subject", `focusFieldRequest`) for a Subject that is a choice of four kinds, each with its mark, so it opens as a card with no text box: a picker of the kinds, holding Service. A card hands the caret only to where text goes, so that nobody presses a button they never asked for; a field the host asked for by name takes it anyway, on its picker, never on the card\'s help, Clear or Done. It used to open with the caret on the page.',
+      },
+    },
+  },
+  render: () => (
+    <FormWithSetTheSubject
+      options={SUBJECT_KIND_OPTIONS}
+      initialValue={{
+        name: { type: 'string', value: 'Order sync' },
+        subject: { type: 'string', value: 'service' },
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="subject"]')).toBeTruthy());
+    await expect(
+      canvasElement.querySelector('[data-field="subject"].options-readfirst-card'),
+      'the subject is not open'
+    ).toBeNull();
+
+    await userEvent.click(canvasElement.querySelector('.set-the-subject') as HTMLElement);
+
+    const card = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>(
+        '[data-field="subject"].options-readfirst-card'
+      );
+      expect(element, 'the subject opens as a card').toBeTruthy();
+      return element!;
+    });
+    await waitFor(() =>
+      expect(card.contains(document.activeElement), 'the caret is in the subject, not on the page').toBe(
+        true
+      )
+    );
+    // on the field's own picker, which says what it holds, not on the card's help, Clear or Done
+    const caret = document.activeElement as HTMLElement;
+    await expect(caret.getAttribute('aria-haspopup'), "the caret is on the subject's picker").toBe('listbox');
+    await expect(caret.textContent).toContain('Service');
+  },
+};
+
+/** Three kinds: few enough that the engine draws them as a set of choices rather than a picker. */
+const SUBJECT_THREE_KINDS_OPTIONS = {
+  ...(SUBJECT_KIND_OPTIONS as Record<string, any>),
+  subject: {
+    ...(SUBJECT_KIND_OPTIONS as Record<string, any>).subject,
+    allowed_values: (SUBJECT_KIND_OPTIONS as Record<string, any>).subject.allowed_values.slice(0, 3),
+  },
+} as never;
+
+export const AHostOpensANamedChoiceOfThree: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same request for a Subject that is a choice of three kinds, which the card draws as a set of choices, holding Service: the caret lands on the checked choice, Service, not on the first one or the card\'s help, Clear or Done.',
+      },
+    },
+  },
+  render: () => (
+    <FormWithSetTheSubject
+      options={SUBJECT_THREE_KINDS_OPTIONS}
+      initialValue={{
+        name: { type: 'string', value: 'Order sync' },
+        subject: { type: 'string', value: 'service' },
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="subject"]')).toBeTruthy());
+    await userEvent.click(canvasElement.querySelector('.set-the-subject') as HTMLElement);
+
+    const card = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>(
+        '[data-field="subject"].options-readfirst-card'
+      );
+      expect(element, 'the subject opens as a card').toBeTruthy();
+      return element!;
+    });
+    await waitFor(() =>
+      expect(card.contains(document.activeElement), 'the caret is in the subject, not on the page').toBe(
+        true
+      )
+    );
+    const caret = document.activeElement as HTMLInputElement;
+    const choices = Array.from(
+      card.querySelectorAll<HTMLElement>('input[type="radio"], input[type="checkbox"], [role="radio"]')
+    );
+    await expect(choices.length, 'the kinds are a set of choices').toBe(3);
+    await expect(choices.indexOf(caret), 'the caret is on Service, the checked choice').toBe(1);
   },
 };
 

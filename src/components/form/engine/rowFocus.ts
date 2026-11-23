@@ -107,6 +107,44 @@ export const findRowFocusTarget = (
   return firstMatch(container, OTHER_CONTROL_SELECTOR);
 };
 
+/** A pick-one's choices: native since reqore 0.78 (a radio or a checkbox), or a control that says it is one. */
+const CHOICE_SELECTOR =
+  'input[type="radio"]:not([disabled]), input[type="checkbox"]:not([disabled]), [role="radio"]:not([aria-disabled="true"]), [role="checkbox"]:not([aria-disabled="true"])';
+
+const isCheckedChoice = (element: HTMLElement): boolean =>
+  (element as HTMLInputElement).checked === true || element.getAttribute('aria-checked') === 'true';
+
+/**
+ * The control a field the HOST named (`focusFieldRequest`) hands the caret to, when it opens as a card.
+ *
+ * A card takes the caret only where text goes (`textEntryOnly` above), so that nobody's next space presses a
+ * toolbar button they never asked for. A field asked for by name was asked for, and a card that takes no text (a
+ * pick-one of a few values) still has to take the caret, or it lands on the page. So: where text goes, if
+ * anywhere; else the checked choice of a pick-one, else its first choice; else a picker's trigger. Never the
+ * card's chrome (a fullscreen toggle, a list's "add").
+ *
+ * @param container the row's value cell
+ */
+export const findAskedFieldFocusTarget = (
+  container: HTMLElement | null | undefined
+): HTMLElement | undefined => {
+  if (!container) {
+    return undefined;
+  }
+  const textEntry = firstMatch(container, TEXT_ENTRY_SELECTOR);
+  if (textEntry) {
+    return textEntry;
+  }
+  const choices = Array.from(container.querySelectorAll<HTMLElement>(CHOICE_SELECTOR)).filter(
+    (element) =>
+      belongsToTheFieldsOwnEditor(container, element) && !element.closest('[aria-hidden="true"]')
+  );
+  if (choices.length) {
+    return choices.find(isCheckedChoice) ?? choices[0];
+  }
+  return firstMatch(container, PICKER_TRIGGER_SELECTOR);
+};
+
 /**
  * Controls whose ONLY behaviour is to reveal the choices.
  *

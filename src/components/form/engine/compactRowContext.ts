@@ -174,6 +174,9 @@ export interface ICompactRowContext {
   /** The opaque surface a pinned card header paints under the card's own tint, so the body scrolls out of sight
    *  under it: the surface the status box headers pin on. */
   pinnedHeaderSurface?: string;
+  /** The row a host asked to open by name (`focusFieldRequest`), while it is open: it takes the caret even when it
+   *  opens as a card with no text box (`findAskedFieldFocusTarget`). */
+  requestedField?: string;
 
   // Theme + theme-derived colors
   theme: IReqoreTheme;

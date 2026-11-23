@@ -55,7 +55,7 @@ import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { revealRow } from './revealRow';
-import { findRowFocusTarget } from './rowFocus';
+import { findAskedFieldFocusTarget, findRowFocusTarget } from './rowFocus';
 import { useEmittedValues } from '../fields/emittedValues';
 import {
   cloneDeep,
@@ -3752,13 +3752,16 @@ const FormEngineImpl = ({
       changeDefault(name);
       return;
     }
-    // Already open: its open effect has run, so the caret goes to its control here.
+    // Already open: its open effect has run, so the caret goes to its control here. A card asked for by name takes
+    // it even with no text box: on its checked choice, or its picker (`findAskedFieldFocusTarget`).
     const row = wrap?.querySelector<HTMLElement>(`[data-field="${rowName}"]`);
     if (row) {
       revealRow(row, 'auto');
-      findRowFocusTarget(row.querySelector<HTMLElement>('.options-readfirst-row-editor'), {
-        textEntryOnly: row.classList.contains('options-readfirst-card'),
-      })?.focus({ preventScroll: true });
+      const editor = row.querySelector<HTMLElement>('.options-readfirst-row-editor');
+      (row.classList.contains('options-readfirst-card') ?
+        findAskedFieldFocusTarget(editor)
+      : findRowFocusTarget(editor)
+      )?.focus({ preventScroll: true });
     }
   }, [focusFieldRequest?.seq]);
   // The request is spent once its row closes: its box folds as the form folds it again.
@@ -4392,6 +4395,7 @@ const FormEngineImpl = ({
       cInfo,
       cBg,
       rowInks,
+      requestedField,
     }),
     [
       templates.value,
@@ -4452,6 +4456,7 @@ const FormEngineImpl = ({
       cInfo,
       cBg,
       rowInks,
+      requestedField,
     ]
   );
 

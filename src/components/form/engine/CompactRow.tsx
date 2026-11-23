@@ -70,7 +70,7 @@ import {
   getOptionFieldMessages,
   messageDrawsAttention,
 } from './OptionFieldMessages';
-import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
+import { findAskedFieldFocusTarget, findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
 import { RowLabelledContext } from './rowLabelled';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
@@ -1098,6 +1098,10 @@ export const CompactRow = memo(
     // never pull a reader out of a control they moved into themselves.
     const editorRef = React.useRef<HTMLDivElement>(null);
     const rowRef = React.useRef<HTMLDivElement>(null);
+    /* The host asked for this row by name (`focusFieldRequest`): read by the open effect when it runs, so a ref. */
+    const askedFor = useContextSelector(CompactRowContext, (v) => v.requestedField === optionName);
+    const askedForRef = React.useRef(askedFor);
+    askedForRef.current = askedFor;
     /* Open as a card, a long body keeps its heading on screen (`cardHeaderPin.ts`). */
     const cardPin = useCardHeaderPin(
       rowRef,
@@ -1140,8 +1144,11 @@ export const CompactRow = memo(
           settled = true;
           return true;
         }
-        // A card hands the caret only to where text goes (see `findRowFocusTarget`).
-        const control = findRowFocusTarget(editor, { textEntryOnly: !inlineEditable });
+        // A card hands the caret only to where text goes (see `findRowFocusTarget`), unless the host asked for this
+        // field by name: then a card with no text box takes it on its checked choice, or its picker.
+        const control =
+          findRowFocusTarget(editor, { textEntryOnly: !inlineEditable }) ??
+          (!inlineEditable && askedForRef.current ? findAskedFieldFocusTarget(editor) : undefined);
         if (!control) return false;
         // The least scroll that shows the row clear of the pinned box header, and none
         // while the line the caret lands on is in view (`isCaretLineInView`: the row's own
