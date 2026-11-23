@@ -430,7 +430,7 @@ describe('query', () => {
 
 /**
  * A request the app knows the instance refuses is answered before it leaves: an
- * interactive support session asks for nothing its read surface refuses (qorus#770),
+ * interactive support session asks for nothing its read surface refuses,
  * and the caller meets the same answer the server would give.
  */
 describe('requestGuard', () => {

@@ -28,8 +28,8 @@ export interface ICurrentUserSupportSession {
    */
   group_name?: string;
   /**
-   * the workspace's readable name, the one its customer gave it (qorus#770). Show
-   * this, and `group_name` only when it is absent: a core before qorus#770 and a
+   * the workspace's readable name, the one its customer gave it. Show
+   * this, and `group_name` only when it is absent: an older Qorus and a
    * control plane that does not send it leave it out.
    */
   group_display_name?: string;

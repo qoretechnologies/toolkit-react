@@ -5,8 +5,8 @@ import { ReqraftQueryClient } from '../providers/ReqraftProvider';
  * What the server said with a 401, for `unauthorizedRedirect` to decide where to go.
  *
  * Not every 401 is an expired sign-in. Qorus names why in the body's `err`: an
- * interactive support session that has ended answers `SUPPORT-SESSION-ENDED`
- * (qorus#770), and the first request after a reload can be the one that says so,
+ * interactive support session that has ended answers `SUPPORT-SESSION-ENDED`,
+ * and the first request after a reload can be the one that says so,
  * before the app knows from anything else that it ran in such a session.
  */
 export interface IReqraftUnauthorizedInfo {
@@ -46,7 +46,7 @@ export interface IReqraftFetchConfig {
    * Asked before every request `query` and `queryRaw` send (a `noApiPrefix` one included),
    * and so before every `useFetch`. A refusal answers the request locally, as the server
    * would, and nothing is sent: for a request the app knows the server refuses — an
-   * interactive support session asks for nothing its read surface refuses (qorus#770) — so
+   * interactive support session asks for nothing its read surface refuses — so
    * the server is not asked only to say no, and the caller meets the same answer either way.
    *
    * Not asked for reqraft's sockets, or for the requests it sends to a url the app hands it
