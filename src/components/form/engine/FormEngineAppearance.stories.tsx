@@ -946,7 +946,7 @@ const NESTED_OPTIONS = {
       },
     },
   },
-} as unknown as IOptionsSchemaArg;
+} as unknown as Record<string, IOptionsSchemaArg>;
 
 const NESTED_VALUE = {
   expectations: {
