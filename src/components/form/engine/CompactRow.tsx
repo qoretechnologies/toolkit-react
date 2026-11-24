@@ -548,13 +548,13 @@ export const CompactRow = memo(
 
       if (valueType === 'file') {
         const fileSize = getFileSize(field?.value);
-        // Match the File editor's chip: info-blue, FileLine icon, size as the
-        // trailing key pill (the editor renders it as a ReqoreButton badge).
+        // The File editor's chip: FileLine icon, size as the trailing key pill (the editor renders it as a
+        // ReqoreButton badge). Calm: a value is a grey reference, never blue, which says only that a filter is on.
         return (
           <ReqoreTag
             size='small'
             minimal
-            intent='info'
+            intent={calm ? undefined : 'info'}
             icon='FileLine'
             label={formatted}
             labelKey={fileSize !== undefined ? formatBytes(fileSize) : undefined}
@@ -617,7 +617,8 @@ export const CompactRow = memo(
                   className='options-readfirst-case-tag'
                   size='small'
                   minimal
-                  intent='info'
+                  // calm: a name is a grey reference, never blue (a filter)
+                  intent={calm ? undefined : 'info'}
                   label={name}
                 />
               ))}

@@ -1473,6 +1473,20 @@ const channelsOf = (color: string): [number, number, number, number] => {
   return [r, g, b, a];
 };
 
+/** Whether a color is a gray: its channels within a few steps of each other (blue says only that a filter is on). */
+const isGray = (color: string): boolean => {
+  const [r, g, b] = channelsOf(color);
+  return Math.max(r, g, b) - Math.min(r, g, b) <= 12;
+};
+
+/** A read summary's chip is a gray reference: its words and its edge. */
+const expectGrayChip = (chip: Element | null, what: string) => {
+  expect(chip, what).toBeTruthy();
+  const { color, borderTopColor } = getComputedStyle(chip as HTMLElement);
+  expect(isGray(color), `${what}'s words are gray, not ${color}`).toBe(true);
+  expect(isGray(borderTopColor), `${what}'s edge is gray, not ${borderTopColor}`).toBe(true);
+};
+
 /** WCAG contrast of an element's text on what is painted behind it: every translucent layer down to an opaque one. */
 const textContrast = (element: HTMLElement): number => {
   const layers: number[][] = [];
@@ -7214,6 +7228,8 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('#0000FF'); // color → uppercase hex
     await _testsWaitForText('rgba(255, 0, 0, 0.5)'); // color with alpha → rgba()
     await _testsWaitForText('config.txt'); // file → filename
+    // a file is a gray reference, never blue
+    expectGrayChip(document.querySelector('[data-field="upload"] .reqore-tag'), 'the file chip');
     // A hash the schema DESCRIBES needs no count: its preview names every field,
     // so "3 fields" above "Host / Port / Secure" would be the same fact twice.
     // A hash it does not describe keeps the count — the untyped tree beneath it
@@ -10616,6 +10632,11 @@ export const CompactRowTestCaseChips: Story = {
     //     on the whole form are the two named cases, so neither the unnamed nor
     //     the empty field contributed one.
     expect(canvasElement.querySelectorAll('.options-readfirst-case-tag').length).toBe(2);
+
+    // (e) a case's name is a gray reference, never blue (blue says only that a filter is on)
+    for (const chip of canvasElement.querySelectorAll('.options-readfirst-case-tag')) {
+      expectGrayChip(chip, `the case ${chip.textContent?.trim()}`);
+    }
   },
 };
 
