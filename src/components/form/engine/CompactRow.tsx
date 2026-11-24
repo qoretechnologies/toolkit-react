@@ -23,6 +23,7 @@ import {
 import flatten from 'lodash/flatten';
 import isEqual from 'lodash/isEqual';
 import size from 'lodash/size';
+import uniq from 'lodash/uniq';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/validations';
@@ -924,11 +925,7 @@ export const CompactRow = memo(
     // What the field that satisfied its group is set instead of: the group's other fields, by name.
     const coveredOthers =
       groupResolved && !coveredByLabel ?
-        [
-          ...new Set(
-            chipGroups.flatMap((groupName) => requiredGroupsInfo.members[groupName] || [])
-          ),
-        ]
+        uniq(chipGroups.flatMap((groupName) => requiredGroupsInfo.members[groupName] || []))
           .filter((member) => member !== optionName)
           .map((member) => (options?.[member]?.display_name as string) || member)
       : [];
