@@ -899,8 +899,8 @@ export const CompactRow = memo(
       !(Array.isArray(optionField.value) && optionField.value.length === 0);
     // Required-group membership shows a PERSISTENT chip on every member: amber
     // "One of" while the group is unmet (tap → flash siblings), then a muted-green
-    // resolution once satisfied — "Covers" on the field that satisfied it,
-    // "Covered by <X>" on the rest. The resolution folds in what used to be a
+    // resolution once satisfied — "Instead of <X>" (or "Instead of 2 others") on
+    // the field that satisfied it, "Covered by <X>" on the rest. The resolution folds in what used to be a
     // separate value-slot note.
     const memberGroups: string[] = (schema?.required_groups as string[]) || [];
     const unmetGroups = memberGroups.filter(
@@ -921,8 +921,21 @@ export const CompactRow = memo(
     // dropdown rather than going inert.
     const chipGroups = unmetGroups.length ? unmetGroups : memberGroups;
     const groupResolved = !!memberGroups.length && !unmetGroups.length;
+    // What the field that satisfied its group is set instead of: the group's other fields, by name.
+    const coveredOthers =
+      groupResolved && !coveredByLabel ?
+        [
+          ...new Set(
+            chipGroups.flatMap((groupName) => requiredGroupsInfo.members[groupName] || [])
+          ),
+        ]
+          .filter((member) => member !== optionName)
+          .map((member) => (options?.[member]?.display_name as string) || member)
+      : [];
+    // A group of one, once set, replaces nothing and lists nothing: no chip.
+    const replacesNothing = groupResolved && !coveredByLabel && !coveredOthers.length;
     const requiredGroupChip =
-      !hidden && !readOnly && memberGroups.length && !schema?.required ?
+      !hidden && !readOnly && memberGroups.length && !schema?.required && !replacesNothing ?
         <span
           style={{ display: 'inline-flex' }}
           role='presentation'
@@ -956,7 +969,7 @@ export const CompactRow = memo(
               !groupResolved ? feWords.oneOf
               : coveredByLabel ?
                 feWords.coveredBy(coveredByLabel)
-              : feWords.covers
+              : feWords.covers(coveredOthers[0], coveredOthers.length)
             }
             filterable={
               chipGroups.reduce((n, g) => n + requiredGroupsInfo.members[g].length, 0) > 6

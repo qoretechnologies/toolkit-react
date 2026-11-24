@@ -230,7 +230,11 @@ export interface IFormEngineLabels {
   valueIsExpression: string;
   oneOf: string;
   coveredBy: (label: string) => string;
-  covers: string;
+  /**
+   * The chip on the field that satisfies a one-of group: what it is set instead of. `first` is the
+   * name of one of the group's other fields, `count` how many others there are (one or more).
+   */
+  covers: (first: string, count: number) => string;
   revertChanges: string;
   clearValue: string;
   clearValueConfirm: (label: string) => string;
@@ -696,7 +700,7 @@ export const DEFAULT_REQRAFT_LABELS: IReqraftLabels = {
     valueIsExpression: 'This value is an expression',
     oneOf: 'One of',
     coveredBy: (label) => `Covered by “${label}”`,
-    covers: 'Covers',
+    covers: (first, count) => (count === 1 ? `Instead of “${first}”` : `Instead of ${count} others`),
     revertChanges: 'Revert changes',
     clearValue: 'Clear value',
     clearValueConfirm: (label) => `Clear the current value of "${label}"?`,

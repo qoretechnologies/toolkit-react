@@ -7505,7 +7505,7 @@ export const CompactFieldTypesEditing: Story = {
 
 // required_groups linkage: every member shows a PERSISTENT chip — amber "One of"
 // while unmet (tap-popover → scroll + flash siblings, hover highlights), flipping
-// to a muted-green "Covers" / "Covered by <X>" once satisfied. Members live in
+// to a muted-green "Instead of …" / "Covered by <X>" once satisfied. Members live in
 // DIFFERENT panels to prove cross-panel linkage.
 export const CompactRequiredGroups: Story = {
   parameters: {
@@ -7613,12 +7613,12 @@ export const CompactRequiredGroups: Story = {
     await _testsWaitForText('https://example.com');
 
     // One fulfilled member satisfies the group → the status flips to Ready and the
-    // Once satisfied: the filled member keeps a "Covers" chip; the empty siblings
-    // show their "Covered by 'By URL'" note INLINE (not a chip), and no "One of"
+    // Once satisfied: the filled member keeps a chip saying what it is set instead of; the
+    // empty siblings show their "Covered by 'By URL'" note INLINE (not a chip), and no "One of"
     // remains. So exactly one required-group chip stays (the coverer's).
     await _testsWaitForText('Ready');
     await _testsWaitForTextsCount('Covered by “By URL”', undefined, 2);
-    await _testsWaitForText('Covers');
+    await _testsWaitForText('Instead of 2 others');
     await _testsWaitForTextToNotExist('One of');
     await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(1);
 
@@ -7638,6 +7638,53 @@ export const CompactRequiredGroups: Story = {
       await expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(6);
     }
     await userEvent.unhover(lit[0]);
+  },
+};
+
+export const TheFieldThatCoversItsGroupSaysWhatItReplaces: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a one-of group of two fields in different sections, one of them set. The set field says what it is set instead of, by name: Instead of “Webhook URL”.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    groups: {
+      general: { label: 'General', sort: 0 },
+      advanced: { label: 'Advanced', sort: 1 },
+    },
+    options: {
+      connection: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Connection',
+        required_groups: ['target'],
+        preselected: true,
+        group: 'general',
+      },
+      webhookUrl: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Webhook URL',
+        required_groups: ['target'],
+        preselected: true,
+        group: 'advanced',
+      },
+    } as IOptionsSchema,
+    value: { connection: { type: 'string', value: 'discord-alerts' } } as unknown as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Instead of “Webhook URL”');
+    const chip = document.querySelector<HTMLElement>(
+      '.readfirst-row[data-field="connection"] .options-readfirst-required-group'
+    );
+    await expect(chip?.textContent).toContain('Instead of “Webhook URL”');
+    await _testsWaitForText('Covered by “Connection”');
+    await _testsWaitForTextToNotExist('Covers');
   },
 };
 
