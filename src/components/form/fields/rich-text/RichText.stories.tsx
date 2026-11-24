@@ -456,6 +456,36 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
   },
 };
 
+/** The font a picker row's name is drawn in. */
+const fontOf = (row: HTMLElement) => getComputedStyle(row).fontFamily;
+
+/** The picker's groups are words; a template is drawn as what it writes. */
+export const ItsGroupsAreWords: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty field: the template picker opens on its groups (Context data, Look up customer, ' +
+          'Receive order, the template contexts), drawn in the body font with what they say, as words. Context data ' +
+          'opened, a template in it (Interface Name) is drawn in the code font, as what it writes; back at the groups, ' +
+          'the picture shows them.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('textbox'));
+    const group = await pickerRow('Context data');
+    await expect(fontOf(group)).not.toMatch(/mono/i);
+    await userEvent.click(group);
+    const template = await pickerRow('Interface Name');
+    await expect(fontOf(template)).toMatch(/mono/i);
+    // back to the groups, which the picture shows
+    await userEvent.click(within(document.querySelector<HTMLElement>('.template-picker')!).getByText('Templates'));
+    await expect(fontOf(await pickerRow('Look up customer'))).not.toMatch(/mono/i);
+  },
+};
+
 /** A record that is a value of its own is taken whole from the picker ("Use"), or opened for its fields. */
 export const ARecordIsTakenWhole: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },

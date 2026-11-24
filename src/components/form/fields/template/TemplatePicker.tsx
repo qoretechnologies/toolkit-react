@@ -922,7 +922,11 @@ export const TemplatePicker = memo(
                     } as any)
                   : undefined
                 }
-                style={{ ...COMPLETION_ITEM_STYLE, ...(coarse ? { minHeight: 44 } : {}) }}
+                // a template is drawn as what it writes (the code font); a group's name and what it says are words
+                style={{
+                  ...(group ? {} : COMPLETION_ITEM_STYLE),
+                  ...(coarse ? { minHeight: 44 } : {}),
+                }}
               />
             );
           })}

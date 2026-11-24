@@ -107,7 +107,8 @@ const drawnAsCompletions = <T extends TReqoreDropdownItem>(items?: T[]): T[] | u
       ...entry,
       // the kind's icon, as the completion list draws it
       icon: kind !== undefined ? mapCompletionKindToIcon(kind) : (entry as { icon?: unknown }).icon,
-      style: { ...COMPLETION_ITEM_STYLE, ...entry.style },
+      // a value is drawn as what it writes (the code font); a group's name and what it says are words
+      style: isGroup ? entry.style : { ...COMPLETION_ITEM_STYLE, ...entry.style },
       compact: true,
       minimal: true,
       flat: true,
