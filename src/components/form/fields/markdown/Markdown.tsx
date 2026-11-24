@@ -57,6 +57,10 @@ export const MarkdownFormField = ({ hidePreview, ...rest }: IMarkdownFormFieldPr
   // simply takes the whole field.
   const isMobileOrTablet = useReqoreProperty('isMobileOrTablet');
   const showPreview = !hidePreview && !isMobileOrTablet;
+  // An empty field has nothing to preview: the editor takes the row instead of half of it beside an empty band. The
+  // editor stays where it is in the tree when the preview comes, so the first letter typed keeps the caret.
+  const hasSomethingToPreview =
+    typeof rest.value === 'string' ? rest.value.trim() !== '' : rest.value != null;
 
   const editor = (
     <StyledLongStringWrapper flexFlow='column'>
@@ -71,11 +75,13 @@ export const MarkdownFormField = ({ hidePreview, ...rest }: IMarkdownFormFieldPr
   return (
     <StyledWrapper columnsGap='10px'>
       {editor}
-      <StyledPreviewColumn>
-        <StyledPreviewWrapper size='small' aria-label={fieldWords.preview} flat fluid>
-          {renderMarkdown({ value: rest.value ?? '', compact: true })}
-        </StyledPreviewWrapper>
-      </StyledPreviewColumn>
+      {hasSomethingToPreview ? (
+        <StyledPreviewColumn>
+          <StyledPreviewWrapper size='small' aria-label={fieldWords.preview} flat fluid>
+            {renderMarkdown({ value: rest.value ?? '', compact: true })}
+          </StyledPreviewWrapper>
+        </StyledPreviewColumn>
+      ) : null}
     </StyledWrapper>
   );
 };

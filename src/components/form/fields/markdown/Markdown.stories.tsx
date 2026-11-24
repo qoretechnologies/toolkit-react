@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 
 import { markdown } from '../../../../../mock/fields';
@@ -78,5 +78,44 @@ export const PreviewHidden: Story = {
 
     await expect(canvas.getByLabelText('MarkdownEditor')).toBeInTheDocument();
     await expect(canvas.queryByLabelText('Preview')).toBeNull();
+  },
+};
+
+export const AnEmptyFieldHasNoPreview: Story = {
+  args: {
+    'aria-label': 'MarkdownEditor',
+    value: '',
+  },
+  // the preview is drawn beside the editor only above tablet width
+  globals: { viewport: { value: 'desktop1440' } },
+  parameters: {
+    viewport: {
+      options: { desktop1440: { name: 'Desktop', styles: { width: '1440px', height: '900px' } } },
+    },
+    docs: {
+      description: {
+        story:
+          'Renders an empty Markdown field on a desktop: with nothing to preview, the editor takes the whole row and no preview is drawn beside it. Typing the first words brings the preview in beside the editor, and the caret stays where it was typing.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const editor = canvas.getByLabelText('MarkdownEditor');
+
+    await expect(canvas.queryByLabelText('Preview')).toBeNull();
+    const row = editor.closest<HTMLElement>('.reqore-columns')!;
+    // the editor's column takes the row: nothing beside it
+    await expect(row.children).toHaveLength(1);
+    await expect((row.firstElementChild as HTMLElement).getBoundingClientRect().width).toBeGreaterThan(
+      row.getBoundingClientRect().width * 0.95
+    );
+
+    await userEvent.click(editor);
+    await userEvent.keyboard('Hello **there**');
+    await waitFor(() => expect(canvas.getByLabelText('Preview')).toBeInTheDocument());
+    await expect(canvas.getByLabelText('Preview')).toHaveTextContent('Hello there');
+    await expect(document.activeElement).toBe(canvas.getByLabelText('MarkdownEditor'));
+    await expect(canvas.getByLabelText('MarkdownEditor')).toHaveValue('Hello **there**');
   },
 };
