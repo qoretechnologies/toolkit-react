@@ -250,7 +250,10 @@ export const formatRelativeTime = (
       // "tomorrow" and "yesterday" read well; "next month" does not say when a grant ends, and a week
       // is not a unit here so seven days read "in 7 days", not "next week"
       const numeric = secondsInUnit > 60 * 60 * 24 ? 'always' : 'auto';
-      return new Intl.RelativeTimeFormat(locale, { numeric }).format(Math.round(seconds / secondsInUnit), unit);
+      // the past rounds as the future does: `Math.round` takes -1.5 up to -1, so 90 minutes ago read "1 hour
+      // ago" against "in 2 hours", and half a second more on the clock made it "2 hours ago"
+      const count = Math.sign(seconds) * Math.round(Math.abs(seconds) / secondsInUnit);
+      return new Intl.RelativeTimeFormat(locale, { numeric }).format(count, unit);
     }
   }
   return '';
