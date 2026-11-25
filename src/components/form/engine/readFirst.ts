@@ -471,8 +471,11 @@ export const getValueType = (
     return uiType;
   }
 
-  return (option?.type || uiType || (schema as { type?: string } | undefined)?.type) as
+  const type = (option?.type || uiType || (schema as { type?: string } | undefined)?.type) as
     string | undefined;
+  /* An optional type (`*bool`, `*int`) is its plain type that may also hold nothing, as validation reads it: its
+     value reads as the plain type's does (Yes or No, a number formatted), not as text. */
+  return type?.startsWith('*') ? type.slice(1) || undefined : type;
 };
 
 /** Human-readable byte count (e.g. `1.2 KB`). */
