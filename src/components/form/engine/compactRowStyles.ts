@@ -626,6 +626,16 @@ export const StyledLabelDesc = styled(ReqoreP)`
   -webkit-box-orient: vertical;
 `;
 
+/* An open row's short_desc: a line of its own under the row, as wide as the row, never clamped (the row's grid puts it
+   on a row of its own, `.options-readfirst-open-desc`). */
+export const StyledOpenRowDesc = styled(ReqoreP)`
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
+`;
+
 export const StyledCardHeading = styled.div`
   display: flex;
   flex-flow: column;
@@ -1141,6 +1151,10 @@ export const StyledGroupBody = styled.div<{
     grid-column: 1 / -1;
     grid-row: 3;
     justify-self: end;
+  }
+  /* its description under the actions there, as it is under the editor elsewhere */
+  &.readfirst-narrow.readfirst-cramped .readfirst-row-editing > .options-readfirst-open-desc {
+    grid-row: 4;
   }
   /* Read (non-editing) rows: float the trailing actions (status dot + the
      hover-revealed delete/revert) out of the grid flow so a delete button can't

@@ -5796,6 +5796,68 @@ export const CompactDescriptionsToggle: Story = {
   },
 };
 
+// An open field's description: under the row, as wide as it, never cut.
+export const CompactOpenFieldDescriptionRunsUnderTheRow: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a Delay field whose description is two sentences long, and opens it. The description runs under the open row across its whole width, every word shown, where it was clamped to three lines of a few words in the label column beside the input.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      delay: {
+        type: 'int',
+        ui_type: 'int',
+        display_name: 'Delay',
+        short_desc:
+          'How long to wait before the transition runs, in seconds, counted from the moment its trigger fires instead of when it was scheduled. Leave it empty to run the transition at once.',
+        preselected: true,
+      },
+    } as IOptionsSchema,
+    value: { delay: { type: 'int', value: 30 } } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Delay');
+    await _testsClickText('30');
+    const row = await waitFor(
+      () => {
+        const element = document.querySelector<HTMLElement>(
+          '.readfirst-row-editing[data-field="delay"]'
+        );
+        expect(element).toBeTruthy();
+        return element as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+    const description = await waitFor(() => {
+      const element = row.querySelector<HTMLElement>('.options-readfirst-open-desc');
+      expect(element).toBeTruthy();
+      return element as HTMLElement;
+    });
+    // under the row: below the editor, not in the label column beside it
+    const editor = row.querySelector<HTMLElement>('.options-readfirst-row-editor') as HTMLElement;
+    await expect(description.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      editor.getBoundingClientRect().bottom - 1
+    );
+    // as wide as the row's content, not the label column
+    const label = row.querySelector<HTMLElement>('.options-readfirst-label-block') as HTMLElement;
+    await expect(description.getBoundingClientRect().width).toBeGreaterThan(
+      label.getBoundingClientRect().width * 2
+    );
+    // every word shown: nothing clamped or cut
+    await expect(getComputedStyle(description).webkitLineClamp).not.toBe('3');
+    await expect(description.scrollHeight).toBeLessThanOrEqual(description.clientHeight + 1);
+    await expect(description.textContent).toContain(
+      'Leave it empty to run the transition at once.'
+    );
+  },
+};
+
 export const CompactSearchHidden: Story = {
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state

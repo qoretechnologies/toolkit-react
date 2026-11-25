@@ -67,6 +67,7 @@ import {
   StyledLabelName,
   StyledAbsorbedField,
   StyledLabelDesc,
+  StyledOpenRowDesc,
   StyledRowActions,
   StyledRowInset,
   StyledRowLabel,
@@ -1884,19 +1885,6 @@ export const CompactRow = memo(
                   {helpIcon}
                 </StyledLabelName>
               </StyledRowLabel>
-              {/* An OPEN field always shows its short_desc — that's where the hint
-                  is needed and there's no per-row button to reveal it (the edit
-                  card does the same). The global descriptions toggle governs READ
-                  rows only, so collapsing the field is what hides it again. */}
-              {labelShortDesc ?
-                <StyledLabelDesc
-                  className='options-readfirst-label-desc'
-                  size='small'
-                  effect={{ opacity: rowInks.descOpacity }}
-                >
-                  {markdownToProse(labelShortDesc)}
-                </StyledLabelDesc>
-              : null}
               {codeSizeNode}
             </StyledLabelBlock>
             <div
@@ -1981,6 +1969,22 @@ export const CompactRow = memo(
               {moreMenu}
               {closeExpandedFieldButton}
             </StyledRowActions>
+            {/* An OPEN field always shows its short_desc - that's where the hint
+                is needed and there's no per-row button to reveal it (the edit
+                card does the same). The global descriptions toggle governs READ
+                rows only, so collapsing the field is what hides it again.
+                Under the row, across its whole width and never cut: in the label
+                column beside a full-width editor it was clamped to three lines
+                of a few words each ("instead of when it…"). */}
+            {labelShortDesc ?
+              <StyledOpenRowDesc
+                className='options-readfirst-label-desc options-readfirst-open-desc'
+                size='small'
+                effect={{ opacity: rowInks.descOpacity }}
+              >
+                {markdownToProse(labelShortDesc)}
+              </StyledOpenRowDesc>
+            : null}
             {/* Cluster node is rendered LAST (it's absolutely positioned, so DOM
                 order doesn't move it) — keeping it out of the leading cells lets
                 the `> div:nth-child(1/2/3)` editing-row alignment nudges land on
