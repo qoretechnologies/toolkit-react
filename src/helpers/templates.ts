@@ -19,6 +19,7 @@ import {
 } from './descriptionTooltip';
 import { givenDescription, noValueDescription } from './noDescription';
 import { toSentenceCase } from './sentenceCase';
+import { codeSpan } from './markdownText';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
@@ -899,15 +900,14 @@ export const buildTemplates = (
           serializedExample !== undefined &&
           serializedExample.length > TEMPLATE_EXAMPLE_PREVIEW_LENGTH;
 
+        const shownExample =
+          serializedExample === undefined ? undefined
+          : exampleIsLong ? `${serializedExample.slice(0, TEMPLATE_EXAMPLE_PREVIEW_LENGTH)}…`
+          : serializedExample;
+
         const item: TReqoreDropdownItem = {
           label: itemDisplayName,
-          description: serializedExample
-            ? words.exampleValue(
-                exampleIsLong
-                  ? `${serializedExample.slice(0, TEMPLATE_EXAMPLE_PREVIEW_LENGTH)}…`
-                  : serializedExample
-              )
-            : undefined,
+          description: shownExample !== undefined ? words.exampleValue(shownExample) : undefined,
           // Ellipsize ONLY where the "?" full-value affordance exists — for a
           // short value an ellipsis would hide information with no way to
           // reveal it. The single line cuts at the rendered width, so the
@@ -928,6 +928,12 @@ export const buildTemplates = (
                 stateIdentity && getTemplateStateAlias(value, stateIdentity[0], stateIdentity[1]);
               return alias ? { aliasValues: [alias] } : {};
             })(),
+            /* the example for a list that draws a description as markdown (the template picker), in a code span, as
+               written: drawn as markdown, the plain words read `__other__` as bold; a list that draws the plain
+               description shows it as it is */
+            ...(shownExample !== undefined ?
+              { exampleMarkdown: words.exampleValue(codeSpan(shownExample)) }
+            : {}),
             // what it is, as Qorus says it: a list says it of the template, its example aside
             ...(itemDescription ? { description: itemDescription } : {}),
             // the template's type, a typed member: the badge is a list's to name (`templateType`)
@@ -1010,6 +1016,8 @@ export const buildTemplates = (
       badge: entry.app,
       ...(valid ? {} : { disabled: true, intent: 'danger' }),
       metadata: {
+        // the app's logo where the picker draws a group's (`metadata.image`): without it every group was a folder
+        ...(entry.logo ? { image: entry.logo } : {}),
         dataRole: entry.data_role,
         // the server's own context: a host that already holds it is not given it again
         ...(dataId === '_context' ? { serverContext: true } : {}),

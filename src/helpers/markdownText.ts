@@ -152,6 +152,26 @@ export const markdownToPlainText = (value: unknown): string => {
 export const markdownToProse = (value: unknown): string =>
   markdownToPlainText(value).replace(/\s+/g, ' ').trim();
 
+/**
+ * The text as a markdown code span, read as written: a fence one backtick longer than the longest run of backticks in
+ * it, padded with a space where an end would otherwise be read off (`__other__` in a span stays `__other__`, never
+ * bold).
+ */
+export const codeSpan = (value: string): string => {
+  const longest = Math.max(0, ...(value.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(longest + 1);
+  // a span that starts or ends with a backtick, or starts and ends with a space, has one space read off each end
+  const pad =
+    (
+      value.startsWith('`') ||
+      value.endsWith('`') ||
+      (value.startsWith(' ') && value.endsWith(' ') && value.trim() !== '')
+    ) ?
+      ' '
+    : '';
+  return `${fence}${pad}${value}${pad}${fence}`;
+};
+
 /** A heading line (ATX), which names a section rather than saying anything about it. */
 const HEADING = /^\s{0,3}#{1,6}(?:\s|$)/;
 /** Where a collapsed line stops when it has to: a line, not a paragraph, under a name. */

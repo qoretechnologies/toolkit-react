@@ -20,6 +20,7 @@ import {
 import { withTouchScreen } from '../../../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
+import qorusAppLogo from '../../../../stories/Data/qorusAppLogo.svg';
 import {
   CONTEXT_DATA_PAYLOAD,
   GROUPED_TEMPLATE_PAYLOAD,
@@ -516,3 +517,51 @@ export const GroupedByTheServersGroups: Story = {
   },
 };
 
+
+/** A group from an app shows the app's logo, and an example is said as written. */
+export const AGroupShowsItsAppsLogo: Story = {
+  args: {
+    templates: buildTemplates({
+      choice: {
+        display_name: 'Pick a reply',
+        app: 'Qorus',
+        logo: qorusAppLogo,
+        items: [
+          {
+            display_name: 'Reply',
+            value: '$data:{choice.reply}',
+            type: 'string',
+            example_value: '__other__',
+          },
+        ],
+      },
+      // a group from no app: a folder
+      kept: {
+        display_name: 'Kept values',
+        items: [{ display_name: 'Count', value: '$data:{kept.count}', type: 'int' }],
+      },
+    }),
+    fields: undefined,
+    onPick: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Two groups of templates: Pick a reply, from an app, drawn with the app's logo, and Kept values, from none, " +
+          'drawn as a folder. Opened, Reply says Example value: __other__ as written, never as bold text.',
+      },
+    },
+  },
+  play: async () => {
+    const group = await pickerRow('Pick a reply');
+    await waitFor(() =>
+      expect(group.querySelector('img')?.getAttribute('src')).toBe(qorusAppLogo)
+    );
+    expect((await pickerRow('Kept values')).querySelector('img')).toBeNull();
+    await userEvent.click(group);
+    const reply = await pickerRow('Reply');
+    await waitFor(() => expect(reply.textContent).toContain('Example value: __other__'));
+    expect(reply.querySelector('strong, b')).toBeNull();
+  },
+};

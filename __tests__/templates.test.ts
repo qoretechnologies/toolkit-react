@@ -393,7 +393,29 @@ describe('helpers/templates', () => {
       expect(group?.badge).toBe('qorus');
       expect(group?.description).toBe('Context values');
       expect(group?.leftIconProps?.image).toBe('logo.png');
+      // the logo where the template picker draws a group's, in place of a folder
+      expect(group?.metadata?.image).toBe('logo.png');
       expect(group?.metadata?.dataRole).toBe('input');
+    });
+
+    it('says an example as written, plain for a list and in a code span for the picker', () => {
+      const list = buildTemplates({
+        data: {
+          display_name: 'Data',
+          items: [
+            { display_name: 'Choice', value: '$local:choice', example_value: '__other__' },
+            { display_name: 'Ticked', value: '$local:ticked', example_value: 'a `b` c' },
+          ],
+        },
+      });
+      const named = (label: string) =>
+        list?.items?.[0].items?.find((item) => item.label === label);
+      // a list draws its description as it is
+      expect(named('Choice')?.description).toBe('Example value: __other__');
+      // the picker draws markdown: `__other__` stays itself, never bold
+      expect(named('Choice')?.metadata?.exampleMarkdown).toBe('Example value: `__other__`');
+      // a backtick in the value: a longer fence, so the span holds it
+      expect(named('Ticked')?.metadata?.exampleMarkdown).toBe('Example value: ``a `b` c``');
     });
 
     // Selected BY NAME, not by position: the picker orders its entries

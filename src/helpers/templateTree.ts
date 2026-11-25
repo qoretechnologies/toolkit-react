@@ -230,7 +230,11 @@ const nodeOf = (
       : templateNodeKindOf(reference),
     type: value ? templateType(row) : undefined,
     baseType: value ? templateBaseType(row) : undefined,
-    description: text(row.metadata?.description) ?? text(row.description),
+    // what it is, else its example as written (`exampleMarkdown`, a code span), else what the row says
+    description:
+      text(row.metadata?.description) ??
+      text(row.metadata?.exampleMarkdown) ??
+      text(row.description),
     source: text(row.source),
     trail,
     trailIds,
