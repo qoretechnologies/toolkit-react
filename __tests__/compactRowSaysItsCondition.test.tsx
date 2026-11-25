@@ -68,6 +68,34 @@ describe('a compact row compared by an operator', () => {
     );
   });
 
+  it('says it when the operators come after the form is drawn', async () => {
+    const form = (operators?: unknown) => (
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={emptyFetchContext()}>
+          <FormEngine
+            compact
+            name='search_args'
+            operators={operators as never}
+            options={OPTIONS}
+            value={
+              {
+                status: { type: 'string', value: 'COMPLETE', op: ['=='] },
+                priority: { type: 'int', value: 5, op: ['!', '=='] },
+              } as never
+            }
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const { container, rerender } = render(form());
+    await waitFor(() => expect(rowText(container, 'status')).toBe('COMPLETE'));
+    // as a host that fetches them does: the form first, its operators after
+    rerender(form(OPERATORS));
+    await waitFor(() => expect(rowText(container, 'status')).toBe('equals (==) "COMPLETE"'));
+    expect(rowText(container, 'priority')).toBe('logical not (!) equals (==) 5');
+  });
+
   it('reads as its value alone without operators', async () => {
     const { container } = render(
       <ReqoreUIProvider>

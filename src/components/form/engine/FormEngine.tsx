@@ -2440,6 +2440,15 @@ const FormEngineImpl = ({
     }
   }, [operatorsUrl]);
 
+  /* Operators a host passes after the form is drawn (it fetched them itself): the form takes them, as it takes them
+     on its first draw. They were read once, so a host's late operators never reached the form, and a row compared by
+     one did not say its condition. A form that fetches its own (`operatorsUrl`) keeps what it fetched. */
+  useUpdateEffect(() => {
+    if (!operatorsUrl) {
+      setOperators(operatorsProp);
+    }
+  }, [JSON.stringify(operatorsProp)]);
+
   useUpdateEffect(() => {
     const fixedValue = fixOptions(value, options || {}, undefined, isRendererOnly);
 
