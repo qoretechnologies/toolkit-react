@@ -7,6 +7,20 @@ interface IOperatorName {
   display_name?: string;
 }
 
+/** The operators chosen, outermost first, by the server's names for them: `logical not (!)`, `equals (==)`. */
+export const operatorNames = (
+  operatorKeys: (string | null | undefined)[],
+  operators?: Record<string, IOperatorName | undefined>
+): string[] =>
+  operatorKeys
+    .filter((key): key is string => typeof key === 'string' && key !== '')
+    .map((key) => operators?.[key]?.display_name || operators?.[key]?.name || key);
+
+/** Whether a value reads in quotes after its operators: text (not a template) and lists do; a number, a yes/no or a
+ * field reads as it is. */
+export const operatorValueIsText = (value: unknown): boolean =>
+  (typeof value === 'string' && !isValueTemplate(value)) || Array.isArray(value);
+
 /**
  * What an option compared by an operator says, in names: `Status equals (==) "COMPLETE"`.
  *
@@ -32,10 +46,8 @@ export const operatorSummary = ({
   /** The value as the row reads it (`formatOptionValue`). */
   shown: string;
 }): string => {
-  const named = operatorKeys
-    .filter((key): key is string => typeof key === 'string' && key !== '')
-    .map((key) => operators?.[key]?.display_name || operators?.[key]?.name || key);
-  const isText = (typeof value === 'string' && !isValueTemplate(value)) || Array.isArray(value);
+  const named = operatorNames(operatorKeys, operators);
+  const isText = operatorValueIsText(value);
   const said =
     shown === '' ? ''
     : isText ? `"${shown}"`

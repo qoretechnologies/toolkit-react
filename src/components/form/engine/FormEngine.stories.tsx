@@ -5268,7 +5268,7 @@ export const CompactOperators: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form whose Status option is compared by an operator, as a search form does. Opened, its row shows the operator select reading "equals (==)" above the value, and under it the sentence Status equals (==) "COMPLETE": the option by its name, the operator by the server\'s name for it and the value in quotes.',
+          'Renders a compact form whose Status and Priority options are compared by operators, as a search form does. Closed, each row says its condition in words beside its name: equals (==) "COMPLETE", and logical not (!) equals (==) 5 for a chain, the operators by the server\'s names for them and text in quotes. Opened, the Status row shows the operator select reading "equals (==)" above the value, and under it the sentence Status equals (==) "COMPLETE".',
       },
     },
   },
@@ -5279,17 +5279,28 @@ export const CompactOperators: Story = {
     operators: {
       '==': { name: '==', display_name: 'equals (==)' },
       '!=': { name: '!=', display_name: 'not equals (!=)' },
+      '!': { name: '!', display_name: 'logical not (!)', supports_nesting: true },
     } as never,
     options: {
       status: { type: 'string', ui_type: 'string', display_name: 'Status', preselected: true },
+      priority: { type: 'int', ui_type: 'int', display_name: 'Priority', preselected: true },
     } as IOptionsSchema,
-    value: { status: { type: 'string', value: 'COMPLETE', op: '==' } } as IOptions,
+    value: {
+      status: { type: 'string', value: 'COMPLETE', op: '==' },
+      priority: { type: 'int', value: 5, op: ['!', '=='] },
+    } as IOptions,
   },
   play: async () => {
     await _testsWaitForText('Status');
-    await _testsWaitForText('COMPLETE');
+    // closed, each row says its condition in words: the operators by name, text in quotes, a chain whole
+    const rowValue = (field: string) =>
+      document.querySelector(`[data-field="${field}"] .options-readfirst-valuetext`)?.textContent;
+    await waitFor(() => expect(rowValue('status')).toBe('equals (==) "COMPLETE"'), {
+      timeout: 10000,
+    });
+    await expect(rowValue('priority')).toBe('logical not (!) equals (==) 5');
     // Operator-bearing forms always card-edit (never inline).
-    await _testsClickText('COMPLETE');
+    await _testsClickText('equals (==) "COMPLETE"');
     await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
       timeout: 10000,
     });

@@ -19,6 +19,7 @@ import {
   IQorusFormSchema,
   TQorusForm,
   TQorusFormFieldSchema,
+  TQorusFormOperatorValue,
 } from '@qoretechnologies/ts-toolkit';
 import flatten from 'lodash/flatten';
 import isEqual from 'lodash/isEqual';
@@ -28,7 +29,13 @@ import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/validations';
 import { findTemplate, isValueTemplate } from '../../../helpers/templates';
-import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
+import {
+  fixOperatorValue,
+  getDefaultValue,
+  richtextToSegments,
+  richtextToString,
+} from '../../../helpers/common';
+import { operatorNames, operatorValueIsText } from './operatorSummary';
 import { hasTemplateText, templateTextSegments } from '../../../helpers/templateText';
 import { PendingEditsContext, usePendingEdits } from '../fields/pendingEdit';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
@@ -2251,6 +2258,24 @@ export const CompactRow = memo(
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
+    /* An option compared by an operator (a search's arguments) says its condition in words on its line:
+       `equals (==) "COMPLETE"` beside "Status", the operators by the server's names for them and text in quotes, as
+       the sentence under its editor does (`operatorSummary`). The value alone read as if it were the option's value,
+       and a chain such as `logical not (!) equals (==) 5` lost its "not". */
+    const rowOperatorNames =
+      operators && size(operators) && !empty ?
+        operatorNames(
+          fixOperatorValue((optionField as { op?: TQorusFormOperatorValue }).op),
+          operators as Record<string, { name?: string; display_name?: string }>
+        )
+      : [];
+    const readFormatted =
+      rowOperatorNames.length ?
+        [
+          ...rowOperatorNames,
+          operatorValueIsText(optionField?.value) ? `"${formatted}"` : formatted,
+        ].join(' ')
+      : formatted;
     // A field with no value of its own but a declared default is not simply
     // unanswered: the default is what the server will use, and an em-dash says
     // the opposite. Render the default in its place, through the same formatter
@@ -2809,7 +2834,7 @@ export const CompactRow = memo(
               !showsTemplateText &&
               typeof formatted === 'string'
             ) ?
-              formatted
+              readFormatted
             : undefined
           }
           // A SET value reads at full key brightness so it stands out as the
@@ -2871,7 +2896,7 @@ export const CompactRow = memo(
                 />
               : hidden || empty ?
                 calmRequiredWord || formattedDefault || '—'
-              : renderReadFirstValue(optionField, schema, formatted, readOnly)}
+              : renderReadFirstValue(optionField, schema, readFormatted, readOnly)}
             </span>}
           {readOnlyChoiceDesc ?
             /* What the chosen option means, on its own line: the server writes it in markdown ("Each
