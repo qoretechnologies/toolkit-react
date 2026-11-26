@@ -126,6 +126,8 @@ export interface IExpressionLabels {
   operandNotOfType: (accepted: string | undefined) => string;
   /** An operand's hover where its type fits but Qorus may convert it. */
   operandMayConvert: string;
+  /** Said beside an argument that holds a whole number and is given a fraction, which Qorus drops when it converts it. */
+  fractionDropped: string;
   /** An operand's hover where it needs other types (`accepted`, undefined where the types are not known). */
   operandNeedsType: (accepted: string | undefined) => string;
   /** The dialog that confirms converting operands whose values have other types. */
@@ -233,6 +235,7 @@ export const DEFAULT_EXPRESSION_LABELS: IExpressionLabels = {
   operandNotOfType: (accepted) =>
     `This value is not ${accepted}. Put it inside an expression that converts it`,
   operandMayConvert: 'The type fits; Qorus may convert the value',
+  fractionDropped: 'This value will be converted to a whole number; the fraction is dropped.',
   operandNeedsType: (accepted) =>
     accepted ?
       // the sentence starts with them

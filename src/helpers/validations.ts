@@ -20,6 +20,10 @@ import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate 
 import { allowedValueOf, getUnlistedChoiceReason } from './allowedValues';
 import { storedColorProblem } from '../components/colorValue/colorValue';
 import { asLoneValue } from '../components/form/expressions/loneValue';
+import {
+  asExpressionArgumentEnvelope,
+  isExpressionArgumentMissing,
+} from '../components/form/expressions/argumentPresence';
 import { onReqraftLabelsChange, reqraftLabels } from './reqraftLabels';
 import type { IValidationLabels } from './validationLabels';
 
@@ -1765,10 +1769,11 @@ export const _validateField = (
       });
 
       for (let index = 0; index < args.length; index++) {
-        const argValue: any = args[index];
         const argDefinition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
+        // a raw operand from a parse (`3`, `false`) is read in the envelope the builder writes (`{value, type}`)
+        const argValue: any = asExpressionArgumentEnvelope(args[index], argDefinition?.ui_type);
         /* The argument's name for the message.
         
            `display_name` is what a catalogue MAY carry; the served one carries
@@ -1804,7 +1809,10 @@ export const _validateField = (
           continue;
         }
 
-        if (!argValue?.value && !argDefinition?.required) {
+        /* An operand that is not required and not there is skipped. `0`, `false` and `''` are there: they are
+           values (`isExpressionArgumentMissing`), so they are judged like any other; a falsy test skipped them, and a
+           wrong one in an optional operand was never said. */
+        if (!argDefinition?.required && isExpressionArgumentMissing(argValue)) {
           continue;
         }
 

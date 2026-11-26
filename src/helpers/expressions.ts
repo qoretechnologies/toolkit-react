@@ -11,6 +11,7 @@ import {
   IExpressionValue,
 } from '../components/form/expressions/types';
 import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
+import { typeOfSavedValue } from '../components/form/expressions/argumentTypes';
 import { getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
 import { catalogueTypeName, qorusTypeEntry, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 import { reqraftLabels } from './reqraftLabels';
@@ -31,7 +32,17 @@ export const getArgumentType = (
     return getCachedExpressionType(arg.value as IExpressionValue)?.ui_type ?? 'any';
   }
 
-  return arg?.type || schema?.ui_type;
+  if (arg?.type) {
+    return arg.type;
+  }
+
+  // a value saved without its type is read by what the schema takes (`typeOfSavedValue`): a date saved as text is
+  // a date, "abc" in a whole-number argument is text, and is said to be
+  if (arg && arg.value !== undefined && arg.value !== null) {
+    return typeOfSavedValue(arg.value, schema) ?? schema?.ui_type;
+  }
+
+  return schema?.ui_type;
 };
 
 export const argumentMatchesType = (

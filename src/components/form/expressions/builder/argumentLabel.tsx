@@ -5,6 +5,7 @@ import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Eff
 import { getCalmAttentionColours, getCalmIntentText, useIsCalmForm } from '../../engine/formAppearance';
 import { uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
+import { argumentDropsFraction } from '../argumentTypes';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReadableIntentShade } from '../../../../hooks/useReadableIntentShade';
@@ -99,6 +100,8 @@ export const ExpressionBuilderArgumentLabel = ({
   }
 
   const matchesType = argumentMatchesType(expressions, arg, schema, types.value);
+  // a fraction given an argument that holds a whole number: no mismatch, but Qorus drops the fraction
+  const dropsFraction = argumentDropsFraction(arg, schema);
 
   const argumentType = getArgumentType(expressions, arg, schema);
   const matchesTypeExactly =
@@ -180,6 +183,15 @@ export const ExpressionBuilderArgumentLabel = ({
             style={{ marginLeft: 6 }}
           >
             {types.getTypeDisplayName(argumentType)}
+          </ReqoreSpan>
+        : null}
+        {dropsFraction ?
+          <ReqoreSpan
+            className='expression-argument-fraction-hint'
+            effect={{ color: quiet, weight: 'normal' }}
+            style={{ marginLeft: 6 }}
+          >
+            {words.fractionDropped}
           </ReqoreSpan>
         : null}
         {missing ?
@@ -270,6 +282,15 @@ export const ExpressionBuilderArgumentLabel = ({
       >
         {']'}
       </ReqoreSpan>
+      {dropsFraction ?
+        <ReqoreSpan
+          className='expression-argument-fraction-hint'
+          effect={{ italic: true, weight: 'light', opacity: hintOpacity }}
+          style={{ marginLeft: 6 }}
+        >
+          {words.fractionDropped}
+        </ReqoreSpan>
+      : null}
     </ReqoreP>
   );
 };

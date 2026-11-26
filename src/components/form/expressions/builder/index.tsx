@@ -89,6 +89,10 @@ import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { isExpressionReturnTypeMatching } from './returnTypeMatch';
+import { isEmptyGroupPart } from './emptyGroupPart';
+import { getArgumentTemplates } from '../argumentTemplates';
+import { typeOfSavedValue } from '../argumentTypes';
+
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
 import { RowLabelledContext } from '../../engine/rowLabelled';
@@ -97,6 +101,13 @@ import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
 import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 import { toSentenceCase } from '../../../../helpers/sentenceCase';
+
+/** The type a value saved without one is drawn as (`typeOfSavedValue`); nothing for an expression, a typed value or
+ *  no value. */
+const savedValueType = (arg: IExpression | undefined, schema: IExpressionSchemaArg): string | undefined =>
+  arg && !arg.is_expression && !arg.type && arg.value !== undefined && arg.value !== null ?
+    typeOfSavedValue(arg.value, schema)
+  : undefined;
 
 const noopUseRegisterHintView = (...args: unknown[]): void => {
   void args;
@@ -1341,7 +1352,7 @@ export const Expression = ({
               value={firstArgument?.value}
               isFunction={firstArgument?.is_expression}
               onChange={handleFirstParamChange as any}
-              templates={localTemplates}
+              templates={getArgumentTemplates(localTemplates, firstArgSchema, types.value)}
               allowTemplates
               filterTemplatesByType={false}
               allowCustomValues={
@@ -1446,17 +1457,18 @@ export const Expression = ({
                     // "true or false" — and an empty `any` argument never
                     // qualified for the template-selector default, because
                     // that rule reads `type`, and `type` was undefined.
-                    type={rest[index]?.type ?? arg.ui_type}
+                    type={rest[index]?.type ?? savedValueType(rest[index], arg) ?? arg.ui_type}
                     defaultType={
                       arg.allowed_values || arg.element_allowed_values ?
                         arg.ui_type
-                      : (rest[index]?.type ?? arg.ui_type)
+                      : (rest[index]?.type ?? savedValueType(rest[index], arg) ?? arg.ui_type)
                     }
                     // an argument of a type the catalogue does not list takes what its base type takes
                     returnType={types.getAcceptedTypes(arg.ui_type, arg.base_type) as any}
                     canBeNull={false}
                     value={rest[index]?.value}
-                    templates={localTemplates}
+                    // the templates its type takes (a soft argument every scalar Qorus converts)
+                    templates={getArgumentTemplates(localTemplates, arg, types.value)}
                     allowTemplates={!arg?.allowed_values && !arg?.element_allowed_values}
                     filterTemplatesByType={false}
                     allowCustomValues={
@@ -1588,7 +1600,11 @@ export const Expression = ({
           />
         </>
       : null}
-      {noOperationYet && !readOnly && !nothingChosenYet ?
+      {noOperationYet &&
+      !readOnly &&
+      !nothingChosenYet &&
+      // a part of an AND or an OR is said to check nothing only when it is empty: a value alone is a part
+      (!group || isEmptyGroupPart({ group, readOnly, hasOperation: false, firstValue: firstArgument?.value })) ?
         <>
           <ReqoreVerticalSpacer height={5} />
           <ExpressionNote
