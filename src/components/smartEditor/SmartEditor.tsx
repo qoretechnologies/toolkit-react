@@ -234,38 +234,63 @@ let completionMenuCounter = 0;
 /** The width of the editor's row (Reqore's phone width) at or below which its Details button is its icon alone. */
 const DETAILS_WORD_MIN_ROW_WIDTH = 480;
 
-/* The editor's box carries these while its lines that do not wrap run past an edge of the text (`useScrollFade`),
-   and the text fades out at that edge: a touch screen draws no scrollbar, so the fade is the only sign the text
-   goes on sideways. */
+/* The editor's box carries these while its text runs past an edge (`useScrollFade`): sideways, a line that does not
+   wrap; up and down, text taller than its `maxHeight`. The text fades out at that edge: a touch screen draws no
+   scrollbar, so the fade is the only sign the text goes on. */
 export const SMART_EDITOR_MORE_BEFORE_CLASS = 'reqraft-smart-editor-more-before';
 export const SMART_EDITOR_MORE_AFTER_CLASS = 'reqraft-smart-editor-more-after';
-/** How far into the text its edge fades where a line runs on past it. */
-const SIDEWAYS_FADE_PX = 24;
+export const SMART_EDITOR_MORE_ABOVE_CLASS = 'reqraft-smart-editor-more-above';
+export const SMART_EDITOR_MORE_BELOW_CLASS = 'reqraft-smart-editor-more-below';
+/** How far into the text its edge fades where it runs on past it. */
+const EDGE_FADE_PX = 24;
+
+/** A fade along `axis` ('to right' / 'to bottom'): out at the start, the end, or both. */
+const edgeFade = (direction: 'to right' | 'to bottom', start: boolean, end: boolean) =>
+  `linear-gradient(${direction}, ${start ? `transparent, #000 ${EDGE_FADE_PX}px` : '#000'}, ${
+    end ? `#000 calc(100% - ${EDGE_FADE_PX}px), transparent` : '#000'
+  })`;
+
+const FADE_CLASSES = [
+  SMART_EDITOR_MORE_BEFORE_CLASS,
+  SMART_EDITOR_MORE_AFTER_CLASS,
+  SMART_EDITOR_MORE_ABOVE_CLASS,
+  SMART_EDITOR_MORE_BELOW_CLASS,
+];
 
 /**
  * The box the text is drawn in, as a code editor draws it where asked: lines that do not wrap (`wordWrap: off`),
- * scrolled inside the box, no wider than it, the side with more past it faded; a height the text scrolls within
- * (`maxHeight`); each line's number before it (`lineNumbers`), counted by its paragraph.
+ * scrolled inside the box, no wider than it; a height the text scrolls within (`maxHeight`); each edge with more
+ * text past it faded; each line's number before it (`lineNumbers`), counted by its paragraph.
  */
 const StyledEditorBox = styled.div<{ $wordWrap: 'on' | 'off'; $maxHeight?: string; $lineNumbers: boolean }>`
-  &.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
-    --reqraft-smart-editor-fade: linear-gradient(to right, #000 calc(100% - ${SIDEWAYS_FADE_PX}px), transparent);
+  [data-slate-editor] {
+    --reqraft-smart-editor-fade-x: linear-gradient(#000, #000);
+    --reqraft-smart-editor-fade-y: linear-gradient(#000, #000);
   }
   &.${SMART_EDITOR_MORE_BEFORE_CLASS} [data-slate-editor] {
-    --reqraft-smart-editor-fade: linear-gradient(to left, #000 calc(100% - ${SIDEWAYS_FADE_PX}px), transparent);
+    --reqraft-smart-editor-fade-x: ${edgeFade('to right', true, false)};
+  }
+  &.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-x: ${edgeFade('to right', false, true)};
   }
   &.${SMART_EDITOR_MORE_BEFORE_CLASS}.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
-    --reqraft-smart-editor-fade: linear-gradient(
-      to right,
-      transparent,
-      #000 ${SIDEWAYS_FADE_PX}px,
-      #000 calc(100% - ${SIDEWAYS_FADE_PX}px),
-      transparent
-    );
+    --reqraft-smart-editor-fade-x: ${edgeFade('to right', true, true)};
   }
-  &.${SMART_EDITOR_MORE_BEFORE_CLASS} [data-slate-editor], &.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
-    -webkit-mask-image: var(--reqraft-smart-editor-fade);
-    mask-image: var(--reqraft-smart-editor-fade);
+  &.${SMART_EDITOR_MORE_ABOVE_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-y: ${edgeFade('to bottom', true, false)};
+  }
+  &.${SMART_EDITOR_MORE_BELOW_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-y: ${edgeFade('to bottom', false, true)};
+  }
+  &.${SMART_EDITOR_MORE_ABOVE_CLASS}.${SMART_EDITOR_MORE_BELOW_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-y: ${edgeFade('to bottom', true, true)};
+  }
+  /* both fades at once: the text shows only where neither has faded it */
+  ${FADE_CLASSES.map((className) => `&.${className} [data-slate-editor]`).join(', ')} {
+    -webkit-mask-image: var(--reqraft-smart-editor-fade-x), var(--reqraft-smart-editor-fade-y);
+    -webkit-mask-composite: source-in;
+    mask-image: var(--reqraft-smart-editor-fade-x), var(--reqraft-smart-editor-fade-y);
+    mask-composite: intersect;
   }
   [data-slate-editor] {
     ${({ $wordWrap }) =>
@@ -378,10 +403,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const editorWords = useReqraftLabels().editor;
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
-    // The text that scrolls sideways when its lines do not wrap, read through the box around it: the rich text
-    // editor draws it and gives no handle on it.
+    // The text that scrolls sideways when its lines do not wrap, and up and down within a maxHeight, read through
+    // the box around it: the rich text editor draws it and gives no handle on it.
     const editorBoxRef = useRef<HTMLDivElement>(null);
-    const sidewaysScrollRef = useMemo<React.RefObject<HTMLElement | null>>(
+    const textScrollRef = useMemo<React.RefObject<HTMLElement | null>>(
       () => ({
         get current() {
           return editorBoxRef.current?.querySelector<HTMLElement>('[data-slate-editor]') ?? null;
@@ -390,12 +415,20 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       []
     );
     useScrollFade({
-      scrollRef: sidewaysScrollRef,
+      scrollRef: textScrollRef,
       targetRef: editorBoxRef,
       axis: 'x',
       startClassName: SMART_EDITOR_MORE_BEFORE_CLASS,
       endClassName: SMART_EDITOR_MORE_AFTER_CLASS,
       enabled: wordWrap === 'off',
+    });
+    useScrollFade({
+      scrollRef: textScrollRef,
+      targetRef: editorBoxRef,
+      axis: 'y',
+      startClassName: SMART_EDITOR_MORE_ABOVE_CLASS,
+      endClassName: SMART_EDITOR_MORE_BELOW_CLASS,
+      enabled: !!maxHeight,
     });
     const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
     const lastPlainTextRef = useRef(value);

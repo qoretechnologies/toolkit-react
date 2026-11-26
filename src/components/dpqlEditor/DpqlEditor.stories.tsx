@@ -12,7 +12,12 @@ import {
 import { mockPublishedDiagnostics, mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
 import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
-import { SMART_EDITOR_MORE_AFTER_CLASS, SMART_EDITOR_MORE_BEFORE_CLASS } from '../smartEditor/SmartEditor';
+import {
+  SMART_EDITOR_MORE_ABOVE_CLASS,
+  SMART_EDITOR_MORE_AFTER_CLASS,
+  SMART_EDITOR_MORE_BEFORE_CLASS,
+  SMART_EDITOR_MORE_BELOW_CLASS,
+} from '../smartEditor/SmartEditor';
 import { IDpqlEditorProps, TDpqlFsmContext } from './types';
 import { expectChipFits } from '../../stories/chips';
 import { withCoarsePointer } from '../../stories/coarsePointer';
@@ -2627,7 +2632,8 @@ export const LongLinesDoNotWrap: Story = {
       description: {
         story:
           'Word wrap off, a 160px box and line numbers: the long first line scrolls sideways inside the box, the 13 ' +
-          'lines scroll up and down within it, each numbered; nothing is wider than the box.',
+          'lines scroll up and down within it, each numbered; nothing is wider than the box. The text fades out at ' +
+          'the right and at the bottom, where it runs on.',
       },
     },
   },
@@ -2640,6 +2646,11 @@ export const LongLinesDoNotWrap: Story = {
     });
     const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
     expect(editable.getBoundingClientRect().right).toBeLessThanOrEqual(box.getBoundingClientRect().right + 1);
+    // more to the right and more below: those two edges fade, the two it starts at do not
+    expect(box.classList.contains(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(true);
+    expect(box.classList.contains(SMART_EDITOR_MORE_BELOW_CLASS)).toBe(true);
+    expect(box.classList.contains(SMART_EDITOR_MORE_BEFORE_CLASS)).toBe(false);
+    expect(box.classList.contains(SMART_EDITOR_MORE_ABOVE_CLASS)).toBe(false);
   },
 };
 
@@ -2697,6 +2708,48 @@ export const LongLineFadesWhereItRunsOn: Story = {
       expect(box.classList.contains(SMART_EDITOR_MORE_BEFORE_CLASS)).toBe(false);
       expect(box.classList.contains(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(true);
     });
+  },
+};
+
+/** Text taller than its editor fades out at the edge with more past it, and only while there is more. */
+export const TallTextFadesWhereItRunsOn: Story = {
+  args: {
+    value: Array.from({ length: 14 }, (_, index) => `@age == ${index}`).join(' ||\n'),
+    readOnly: true,
+    maxHeight: '120px',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: `A read-only expression of 14 lines in an editor 120px tall: the text runs on below it, so it fades out at
+          the bottom (a touch screen draws no scrollbar). Scrolled to its end, the bottom is sharp and the top fades
+          instead; halfway, both edges fade.`,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyReadOnlyEditor(canvasElement);
+    const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
+    const has = (className: string) => box.classList.contains(className);
+    await waitFor(() => {
+      expect(editable.scrollHeight).toBeGreaterThan(editable.clientHeight);
+      expect(has(SMART_EDITOR_MORE_BELOW_CLASS)).toBe(true);
+    });
+    expect(has(SMART_EDITOR_MORE_ABOVE_CLASS)).toBe(false);
+    expect(getComputedStyle(editable).maskImage).toContain('gradient');
+    editable.scrollTop = editable.scrollHeight;
+    await waitFor(() => {
+      expect(has(SMART_EDITOR_MORE_BELOW_CLASS)).toBe(false);
+      expect(has(SMART_EDITOR_MORE_ABOVE_CLASS)).toBe(true);
+    });
+    editable.scrollTop = (editable.scrollHeight - editable.clientHeight) / 2;
+    await waitFor(() => {
+      expect(has(SMART_EDITOR_MORE_ABOVE_CLASS)).toBe(true);
+      expect(has(SMART_EDITOR_MORE_BELOW_CLASS)).toBe(true);
+    });
+    // lines that wrap never scroll sideways, so neither side fades
+    expect(has(SMART_EDITOR_MORE_BEFORE_CLASS) || has(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(false);
   },
 };
 
