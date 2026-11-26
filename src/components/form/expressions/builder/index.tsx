@@ -88,6 +88,7 @@ import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
+import { isExpressionReturnTypeMatching } from './returnTypeMatch';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
 import { RowLabelledContext } from '../../engine/rowLabelled';
@@ -774,23 +775,16 @@ export const Expression = ({
   /** The whole expression has nothing chosen yet: its card says so, once (`noOperationYetText`). */
   const nothingChosenYet =
     !selectedExpression && !serverExpression && !firstArgument?.value && level === 0;
-  const isReturnTypeMatching =
-    noOperationYet ||
-    (condition !== 'error' &&
-      (typeNotKnownYet ||
-        expressionReturnType === 'any' ||
-        (isArray(returnType) ?
-          areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType)
-        : returnType === 'auto' ||
-          returnType === 'any' ||
-          returnType === 'context' ||
-          expressionReturnType === 'any' ||
-          // a place of a type the catalogue does not list takes what its base type takes
-          areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType) ||
-          returnType === expressionReturnType ||
-          !returnType) ||
-        // a condition is decided by any result but text, a date or a time
-        (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType))));
+  const isReturnTypeMatching = isExpressionReturnTypeMatching({
+    returnType,
+    returnBaseType,
+    expressionReturnType,
+    noOperationYet,
+    typeNotKnownYet,
+    condition,
+    takesCondition,
+    types: types.value,
+  });
 
   const defaultItems = useMemo(
     () =>
