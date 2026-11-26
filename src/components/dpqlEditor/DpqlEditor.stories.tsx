@@ -12,6 +12,7 @@ import {
 import { mockPublishedDiagnostics, mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
 import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
+import { SMART_EDITOR_MORE_AFTER_CLASS, SMART_EDITOR_MORE_BEFORE_CLASS } from '../smartEditor/SmartEditor';
 import { IDpqlEditorProps, TDpqlFsmContext } from './types';
 import { expectChipFits } from '../../stories/chips';
 import { withCoarsePointer } from '../../stories/coarsePointer';
@@ -2639,6 +2640,86 @@ export const LongLinesDoNotWrap: Story = {
     });
     const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
     expect(editable.getBoundingClientRect().right).toBeLessThanOrEqual(box.getBoundingClientRect().right + 1);
+  },
+};
+
+/** A read-only editor once its server is connected: its text is not a textbox, so it is found as the editor's text. */
+const readyReadOnlyEditor = async (canvasElement: HTMLElement) => {
+  await waitFor(() => expect(canvasElement.textContent).not.toMatch(/Getting ready|Loading schema/), {
+    timeout: 10000,
+  });
+  return canvasElement.querySelector<HTMLElement>('[data-slate-editor]')!;
+};
+
+/** A line that runs past a narrow box fades out at the side with more past it, and only while there is more. */
+export const LongLineFadesWhereItRunsOn: Story = {
+  args: {
+    value:
+      '@name == "a very long value that runs well past the width of the field" && @status == "another long value"',
+    wordWrap: 'off',
+    readOnly: true,
+    onChange: fn(),
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 280 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story: `A read-only expression in a 280px box with word wrap off: its line runs on past the right edge, so the
+          text fades out there (a touch screen draws no scrollbar). Scrolled to its end, the right edge is sharp and the
+          left one fades instead; back at the start, only the right one fades again.`,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyReadOnlyEditor(canvasElement);
+    const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
+    const mask = () => getComputedStyle(editable).maskImage || getComputedStyle(editable).webkitMaskImage;
+    await waitFor(() => {
+      expect(editable.scrollWidth).toBeGreaterThan(editable.clientWidth);
+      expect(box.classList.contains(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(true);
+    });
+    expect(box.classList.contains(SMART_EDITOR_MORE_BEFORE_CLASS)).toBe(false);
+    expect(mask()).toContain('gradient');
+    editable.scrollLeft = editable.scrollWidth;
+    await waitFor(() => {
+      expect(box.classList.contains(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(false);
+      expect(box.classList.contains(SMART_EDITOR_MORE_BEFORE_CLASS)).toBe(true);
+    });
+    expect(mask()).toContain('gradient');
+    editable.scrollLeft = 0;
+    await waitFor(() => {
+      expect(box.classList.contains(SMART_EDITOR_MORE_BEFORE_CLASS)).toBe(false);
+      expect(box.classList.contains(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(true);
+    });
+  },
+};
+
+/** A line that wraps never scrolls sideways, so nothing in it fades. */
+export const WrappedLineDoesNotFade: Story = {
+  args: { ...LongLineFadesWhereItRunsOn.args, wordWrap: 'on', onChange: fn() },
+  decorators: LongLineFadesWhereItRunsOn.decorators,
+  parameters: {
+    docs: {
+      description: {
+        story: `The same long expression in the same 280px box with word wrap on: the line wraps, nothing scrolls
+          sideways, and neither edge fades.`,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyReadOnlyEditor(canvasElement);
+    const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
+    await waitFor(() => expect(editable.textContent).toContain('another long value'));
+    expect(editable.scrollWidth).toBeLessThanOrEqual(editable.clientWidth + 1);
+    expect(box.classList.contains(SMART_EDITOR_MORE_AFTER_CLASS)).toBe(false);
+    expect(box.classList.contains(SMART_EDITOR_MORE_BEFORE_CLASS)).toBe(false);
+    expect(getComputedStyle(editable).maskImage || 'none').toBe('none');
   },
 };
 

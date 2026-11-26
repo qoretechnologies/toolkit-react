@@ -18,6 +18,7 @@ import {
   TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { useScrollFade } from '@qoretechnologies/reqore/dist/hooks/useScrollFade';
 import React, {
   forwardRef,
   memo,
@@ -233,12 +234,39 @@ let completionMenuCounter = 0;
 /** The width of the editor's row (Reqore's phone width) at or below which its Details button is its icon alone. */
 const DETAILS_WORD_MIN_ROW_WIDTH = 480;
 
+/* The editor's box carries these while its lines that do not wrap run past an edge of the text (`useScrollFade`),
+   and the text fades out at that edge: a touch screen draws no scrollbar, so the fade is the only sign the text
+   goes on sideways. */
+export const SMART_EDITOR_MORE_BEFORE_CLASS = 'reqraft-smart-editor-more-before';
+export const SMART_EDITOR_MORE_AFTER_CLASS = 'reqraft-smart-editor-more-after';
+/** How far into the text its edge fades where a line runs on past it. */
+const SIDEWAYS_FADE_PX = 24;
+
 /**
  * The box the text is drawn in, as a code editor draws it where asked: lines that do not wrap (`wordWrap: off`),
- * scrolled inside the box, no wider than it; a height the text scrolls within (`maxHeight`); each line's number
- * before it (`lineNumbers`), counted by its paragraph.
+ * scrolled inside the box, no wider than it, the side with more past it faded; a height the text scrolls within
+ * (`maxHeight`); each line's number before it (`lineNumbers`), counted by its paragraph.
  */
 const StyledEditorBox = styled.div<{ $wordWrap: 'on' | 'off'; $maxHeight?: string; $lineNumbers: boolean }>`
+  &.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade: linear-gradient(to right, #000 calc(100% - ${SIDEWAYS_FADE_PX}px), transparent);
+  }
+  &.${SMART_EDITOR_MORE_BEFORE_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade: linear-gradient(to left, #000 calc(100% - ${SIDEWAYS_FADE_PX}px), transparent);
+  }
+  &.${SMART_EDITOR_MORE_BEFORE_CLASS}.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade: linear-gradient(
+      to right,
+      transparent,
+      #000 ${SIDEWAYS_FADE_PX}px,
+      #000 calc(100% - ${SIDEWAYS_FADE_PX}px),
+      transparent
+    );
+  }
+  &.${SMART_EDITOR_MORE_BEFORE_CLASS} [data-slate-editor], &.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
+    -webkit-mask-image: var(--reqraft-smart-editor-fade);
+    mask-image: var(--reqraft-smart-editor-fade);
+  }
   [data-slate-editor] {
     ${({ $wordWrap }) =>
       $wordWrap === 'off' ? 'white-space: pre !important; overflow-wrap: normal !important; overflow-x: auto;' : ''}
@@ -350,6 +378,25 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const editorWords = useReqraftLabels().editor;
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
+    // The text that scrolls sideways when its lines do not wrap, read through the box around it: the rich text
+    // editor draws it and gives no handle on it.
+    const editorBoxRef = useRef<HTMLDivElement>(null);
+    const sidewaysScrollRef = useMemo<React.RefObject<HTMLElement | null>>(
+      () => ({
+        get current() {
+          return editorBoxRef.current?.querySelector<HTMLElement>('[data-slate-editor]') ?? null;
+        },
+      }),
+      []
+    );
+    useScrollFade({
+      scrollRef: sidewaysScrollRef,
+      targetRef: editorBoxRef,
+      axis: 'x',
+      startClassName: SMART_EDITOR_MORE_BEFORE_CLASS,
+      endClassName: SMART_EDITOR_MORE_AFTER_CLASS,
+      enabled: wordWrap === 'off',
+    });
     const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
     const lastPlainTextRef = useRef(value);
     // what an emptied text opens (set where the picker's roots are known, below)
@@ -1032,6 +1079,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           }
         >
           <StyledEditorBox
+            ref={editorBoxRef}
             style={EDITOR_BOX_STYLE}
             $wordWrap={wordWrap}
             $maxHeight={maxHeight}
