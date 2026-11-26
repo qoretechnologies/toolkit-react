@@ -1665,7 +1665,7 @@ export const ExpressionCanBeWrapped: Story = {
     docs: {
       description: {
         story:
-          'Renders a seeded "Convert to true or false" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand.',
+          'Renders a seeded "Convert to true or false" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand. Its operand still names the template it holds ("Richtext Template").',
       },
     },
   },
@@ -1682,6 +1682,14 @@ export const ExpressionCanBeWrapped: Story = {
     await selectOperation('Wrap', 'Join List Elements', canvasElement.ownerDocument);
     await waitForText('List to join', canvasElement);
     await waitFor(() => expect(expressionCount(canvasElement)).toBe(2), { timeout: 10000 });
+    // the template the operand holds keeps its name, though a text operand does not offer rich-text templates
+    await waitFor(() =>
+      expect(
+        Array.from(canvasElement.querySelectorAll('.reqore-tag')).some((tag) =>
+          tag.textContent?.includes('Richtext Template')
+        )
+      ).toBe(true)
+    );
   },
 };
 

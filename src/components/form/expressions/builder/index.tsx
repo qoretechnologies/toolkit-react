@@ -90,7 +90,7 @@ import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { isExpressionReturnTypeMatching } from './returnTypeMatch';
 import { isEmptyGroupPart } from './emptyGroupPart';
-import { getArgumentTemplates } from '../argumentTemplates';
+import { argumentTemplatesFilter } from '../argumentTemplates';
 import { typeOfSavedValue } from '../argumentTypes';
 
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
@@ -1352,7 +1352,7 @@ export const Expression = ({
               value={firstArgument?.value}
               isFunction={firstArgument?.is_expression}
               onChange={handleFirstParamChange as any}
-              templates={getArgumentTemplates(localTemplates, firstArgSchema, types.value)}
+              templates={localTemplates}
               allowTemplates
               filterTemplatesByType={false}
               allowCustomValues={
@@ -1371,10 +1371,9 @@ export const Expression = ({
                   return serverExpression ? item.metadata?.dataRole === 'record' : true;
                 });
 
-                return {
-                  ...templates,
-                  items: filteredTemplates,
-                };
+                const kept = { ...templates, items: filteredTemplates };
+                // and of those, the ones its type takes; a template the value holds keeps its name regardless
+                return argumentTemplatesFilter(firstArgSchema)?.(kept) ?? kept;
               }}
               fluid={phone}
               fixed={!phone}
@@ -1467,8 +1466,10 @@ export const Expression = ({
                     returnType={types.getAcceptedTypes(arg.ui_type, arg.base_type) as any}
                     canBeNull={false}
                     value={rest[index]?.value}
-                    // the templates its type takes (a soft argument every scalar Qorus converts)
-                    templates={getArgumentTemplates(localTemplates, arg, types.value)}
+                    templates={localTemplates}
+                    // it offers the templates its type takes (a soft argument every scalar Qorus converts); a
+                    // template the value already holds keeps its name from the whole catalogue
+                    filterTemplatesFunc={argumentTemplatesFilter(arg)}
                     allowTemplates={!arg?.allowed_values && !arg?.element_allowed_values}
                     filterTemplatesByType={false}
                     allowCustomValues={

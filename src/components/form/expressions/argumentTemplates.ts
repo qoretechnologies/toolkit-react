@@ -53,3 +53,25 @@ const mergeTemplates = (
     }, []);
   return { ...all, items: keep(all.items as any[]) } as IReqoreFormTemplates;
 };
+
+/* One filter per argument schema, so a template field handed it keeps the same function from one render to the
+   next (it recomputes its list when the function changes). */
+const filters = new WeakMap<IExpressionSchemaArg, (templates: IReqoreFormTemplates) => IReqoreFormTemplates>();
+
+/**
+ * The filter a template field applies to what an argument OFFERS (`filterTemplatesFunc`): the field keeps the whole
+ * catalogue for naming a template the value already holds, so a value of another type keeps its chip's name.
+ */
+export const argumentTemplatesFilter = (
+  schema: IExpressionSchemaArg | undefined
+): ((templates: IReqoreFormTemplates) => IReqoreFormTemplates) | undefined => {
+  if (!schema?.ui_type) {
+    return undefined;
+  }
+  let filter = filters.get(schema);
+  if (!filter) {
+    filter = (templates) => getArgumentTemplates(templates, schema) ?? templates;
+    filters.set(schema, filter);
+  }
+  return filter;
+};
