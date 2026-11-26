@@ -8118,7 +8118,7 @@ export const CompactHelpDialog: Story = {
     docs: {
       description: {
         story:
-          "Renders a compact form and clicks a row's Help action — the help dialog opens with the option's long-form description.",
+          "Renders a compact form and clicks a row's Help action — the help dialog opens with the option's long-form description, drawn as markdown (bold words, code).",
       },
     },
     chromatic: { disable: true },
@@ -8132,7 +8132,7 @@ export const CompactHelpDialog: Story = {
         ui_type: 'string',
         display_name: 'Helped',
         short_desc: 'Short description',
-        desc: 'A longer help description shown in the dialog.',
+        desc: 'A longer **help** description shown in the dialog, with `code` in it.',
         preselected: true,
       },
     } as IOptionsSchema,
@@ -8142,7 +8142,17 @@ export const CompactHelpDialog: Story = {
     await _testsWaitForText('Helped');
     // Clicking the row's help affordance opens the help dialog with the long desc.
     await fireEvent.click(document.querySelector('.options-readfirst-help')!);
-    await _testsWaitForText('A longer help description shown in the dialog.');
+    // the description is markdown, drawn as such: bold words and code, not asterisks and backticks
+    await waitFor(() => {
+      const bold = Array.from(document.querySelectorAll('strong, b')).find(
+        (element) => element.textContent === 'help'
+      );
+      expect(bold).toBeTruthy();
+      expect(
+        Array.from(document.querySelectorAll('code')).some((element) => element.textContent === 'code')
+      ).toBe(true);
+      expect(document.body.textContent).not.toContain('**help**');
+    });
   },
 };
 
@@ -8413,9 +8423,11 @@ export const CompactShowcase: Story = {
     await _testsWaitForText('••••••');
     await _testsWaitForText('This field also carries a warning message.');
     // The unmet auth one-of group (authToken/authCertFile) renders the
-    // "One of the below is required" cluster box.
+    // "One of the below is required" cluster box, saying so in words.
     await waitFor(() =>
-      expect(document.querySelector('.options-readfirst-required-cluster')).toBeTruthy()
+      expect(document.querySelector('.options-readfirst-required-cluster')?.textContent).toContain(
+        'One of the below is required'
+      )
     );
 
     // Schema message panels render inside the value cell of the row itself,
