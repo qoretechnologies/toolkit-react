@@ -28,6 +28,7 @@ import { useIsCalmForm } from '../../engine/formAppearance';
 
 /** The color the anchored list of choices is drawn in. */
 export const ANCHORED_LIST_MAIN = '#010811';
+const CLASSIC_LIST_THEME = { main: ANCHORED_LIST_MAIN } as const;
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
 
@@ -126,7 +127,8 @@ export const SelectFormField = memo(
     /* A chosen value's color where the caller gives none: blue in the classic look; none in the calm one, where blue
        says only "a filter is on" and the value itself says what is chosen (as `useSelectedChoiceIntent` does for a
        field's radios). The expression builder's operation is the case that was reported. */
-    const chosenIntent: TReqoreIntent | undefined = useIsCalmForm() ? undefined : 'info';
+    const calm = useIsCalmForm();
+    const chosenIntent: TReqoreIntent | undefined = calm ? undefined : 'info';
     // the name of an item that cannot be picked is dimmed, as far as it still reads
     const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
@@ -216,7 +218,7 @@ export const SelectFormField = memo(
              The row is made inert by having no handler, as in the collection. */
           labelEffect:
             unavailable ?
-              { opacity: unavailableOpacity(item.intent, ANCHORED_LIST_MAIN) }
+              { opacity: unavailableOpacity(item.intent, calm ? undefined : ANCHORED_LIST_MAIN) }
             : undefined,
           style: unavailable ? { cursor: 'not-allowed' } : undefined,
           onClick: unavailable ? undefined : () => handleSelectClick(item),
@@ -227,6 +229,7 @@ export const SelectFormField = memo(
       value,
       JSON.stringify(markedValue),
       unavailableOpacity,
+      calm,
     ]) as IReqoreDropdownItem[];
 
     const getItemShortDescription = useCallback(
@@ -626,9 +629,8 @@ export const SelectFormField = memo(
             // later — so the same instruction serves both pickers.
             isDefaultOpen={rowAsksForTheChoices}
             items={reqoreItems}
-            listCustomTheme={{
-              main: ANCHORED_LIST_MAIN,
-            }}
+            // Calm: the list takes the app's theme. The classic look keeps its navy one.
+            listCustomTheme={calm ? undefined : CLASSIC_LIST_THEME}
             filterable
             fluid={fluid}
             compact

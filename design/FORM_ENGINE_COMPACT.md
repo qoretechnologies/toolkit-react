@@ -266,6 +266,12 @@ These are rules: every surface that shows help, a hover or a choice follows them
   "Chosen" beside its own badge, and the others' pictures are gray. The plays measure it
   (`src/stories/choiceLayout.ts`: gaps equal within 1px, the ring clear, the name centered within 1px). Stories:
   `AChoiceDrawnByItsPictureSaysWhichIsChosen` (+ `OnAPhone`, `InALightTheme`).
+- **The select dialog takes the app's theme.** In the calm look the select dialog, its collection and its cards
+  carry no theme of their own (the classic look drew them navy, `#010811` and `#08182d`), and the anchored list
+  takes the app's theme too. The chosen card has no intent: blue says only that a filter is on, and the card
+  already says it is chosen with its tick, its "Chosen" badge and its place first. The classic look keeps the navy
+  surfaces and the info-colored chosen card. Stories: `TheChosenCardIsNeutral` (+ `InALightTheme`),
+  `TheChosenCardInTheClassicLook`.
 
 - **An option's name: its help at the column's edge, its asterisk on its line.** In a row's label column the
   (?) is at the column's right edge, the same x in every row of the column (no staircase of

@@ -17,6 +17,7 @@ import { capitalize, isEqual, size } from 'lodash';
 import { useCallback, useMemo, useState } from 'react';
 import type { IFormEngineGroup } from '../../engine/FormEngine';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
+import { useIsCalmForm } from '../../engine/formAppearance';
 import styled from 'styled-components';
 import {
   unavailableValueFallbackReason,
@@ -61,6 +62,10 @@ export const SELECT_DIALOG_MIN_HEIGHT = 180;
  * below, and for a host's own tests and styling.
  */
 export const UNAVAILABLE_ITEM_CLASS = 'reqraft-select-item-unavailable';
+
+/** The classic look's own navy dialog and cards; the calm look takes the app's theme. */
+const CLASSIC_DIALOG_THEME = { main: '#010811' } as const;
+const CLASSIC_CARD_THEME = { main: '#08182d' } as const;
 
 /**
  * The picker's floor, expressed where it survives the reqore we pin.
@@ -488,6 +493,7 @@ export const SelectFieldCollection = ({
   );
   // an item that cannot be picked is dimmed, as far as its name still reads
   const unavailableOpacity = useReadableOpacity(0.55);
+  const calm = useIsCalmForm();
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -519,7 +525,9 @@ export const SelectFieldCollection = ({
       label={fieldWords.selectFromItems}
       badge={size(items)}
       width='700px'
-      customTheme={{ main: '#010811' }}
+      // Calm: no theme of its own, so the dialog sits on the app's dialog surface as every other
+      // dialog does. The classic look keeps its navy one.
+      customTheme={calm ? undefined : CLASSIC_DIALOG_THEME}
     >
       <ReqoreCollection
         filterable
@@ -537,7 +545,7 @@ export const SelectFieldCollection = ({
             clearOnFocus: true,
           },
         }}
-        customTheme={{ main: '#010811' }}
+        customTheme={calm ? undefined : CLASSIC_DIALOG_THEME}
         transparent={false}
         size='tiny'
         showLayoutSwitch={false}
@@ -576,7 +584,7 @@ export const SelectFieldCollection = ({
             searchString: [item.searchString, unavailable?.title, unavailable?.content]
               .filter(Boolean)
               .join(' '),
-            customTheme: { main: '#08182d' },
+            customTheme: calm ? undefined : CLASSIC_CARD_THEME,
             responsiveTitle: false,
             content: (
               <ReqoreControlGroup vertical fluid>
@@ -626,7 +634,9 @@ export const SelectFieldCollection = ({
             flat: false,
             minimal: true,
             selected: isTheChosenOne(item.value),
-            intent: isTheChosenOne(item.value) ? 'info' : item.intent,
+            /* Calm: the chosen card takes no intent. Blue says only that a filter is on, and the card already
+               says it is chosen with its tick, its "Chosen" badge and its place first in the list. */
+            intent: isTheChosenOne(item.value) ? (calm ? undefined : 'info') : item.intent,
             /* Which one is chosen is a tick and a word, not only the color of its card: an item with an icon or a
                picture of its own had no other mark, which a reader who does not tell colors apart could not
                see. */
