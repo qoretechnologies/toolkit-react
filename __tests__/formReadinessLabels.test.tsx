@@ -77,3 +77,13 @@ describe("a form's readiness line in its own words", () => {
     expect(await status()).toBe('Diese Seite braucht mehr');
   });
 });
+
+describe('a required field the value does not hold', () => {
+  it('reads Incomplete and is counted as one to fill in', async () => {
+    form({ title: { type: 'string', value: 'Order intake' } } as never);
+    expect(await status()).toBe('Incomplete');
+    expect(document.querySelector('.options-readfirst-completion')!.textContent).toMatch(
+      /1\/2 set.*1 to fill in/
+    );
+  });
+});

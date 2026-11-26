@@ -1606,7 +1606,10 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * Rows whose editor is always open: the editor is the field's content, not a value to open, change and close (the
    * IDE's test cases). Each is open as soon as the form holds it, and nothing closes it, neither a click on its
    * label, nor Escape, nor another row opening in `expandMode: 'single'`. It draws no Done, no Clear value and no
-   * Cancel, so what it holds is kept: a value is changed in the editor itself. No-op in classic (non-compact) mode.
+   * Cancel, so what it holds is kept: a value is changed in the editor itself. The box holding one is open for it,
+   * the folded Optional box included, and the row opens whether or not the value holds the field yet: an optional
+   * field that is disabled with a message saying why is information, and folded away its reason is never read.
+   * No-op in classic (non-compact) mode.
    */
   alwaysExpandedOptions?: string[];
 
@@ -3493,7 +3496,9 @@ const FormEngineImpl = ({
     if (!alwaysExpandedOptions.length) {
       return;
     }
-    const names = Object.keys(availableOptions);
+    /* A row the value does not hold yet is opened too: an always-open field that is optional and empty (a disabled
+       field with a message saying why) is information, and folded away its reason is never read. */
+    const names = [...Object.keys(availableOptions), ...Object.keys(filteredOptions)];
     const toOpen = alwaysExpandedOptions.filter((name) => names.includes(name));
 
     if (toOpen.length) {
@@ -3503,7 +3508,7 @@ const FormEngineImpl = ({
         return missing.length ? [...prev, ...missing] : prev;
       });
     }
-  }, [alwaysExpandedOptions, availableOptions]);
+  }, [alwaysExpandedOptions, availableOptions, filteredOptions]);
 
   // --- Host-requested rows (opt-in) ----------------------------------------
   // Each new key opens the rows it names; a key already answered is not answered again. Waits, as the starting
@@ -5343,10 +5348,20 @@ const FormEngineImpl = ({
                             (entry) => entry.name === requestedField
                           )
                         );
+                      // and for a row that stays open (`alwaysExpandedOptions`): folded, its editor and the
+                      // message it carries are never seen
+                      const holdsAlwaysOpenField =
+                        !!alwaysExpandedOptions.length &&
+                        groupsInBox.some((groupName) =>
+                          (buckets[box.key][groupName] || []).some((entry) =>
+                            alwaysExpandedOptions.includes(entry.name)
+                          )
+                        );
                       const wouldCollapse =
                         compactCollapsedGroups.includes(box.key) &&
                         !query &&
                         !holdsRequestedField &&
+                        !holdsAlwaysOpenField &&
                         !(box.key === 'optional' && onlyOptionalRows && !collapsedGroupsRequested);
                       // Only a box that was opened SOLELY to reveal a preselected
                       // row splits its body; a box that renders open anyway shows

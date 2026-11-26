@@ -16066,6 +16066,59 @@ export const AFieldThatIsAlwaysOpen: Story = {
   },
 };
 
+/** A host's panel that only reports why it has nothing to show yet: the shape of a processor's field mappings. */
+const AlwaysOpenMappingsStandin = () => (
+  <div className='always-open-mappings' style={{ fontSize: 13, opacity: 0.7 }}>
+    No fields to map yet.
+  </div>
+);
+
+export const AnAlwaysOpenFieldInsideOptional: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story: `A compact form with a required Name and an optional Field mappings panel that is disabled, carries a message saying why, and is named in \`alwaysExpandedOptions\`. The value does not hold Field mappings. The Optional box, folded by default, opens for it, so the panel and its message ("Nothing leads into this processor yet…") are on show from the start instead of behind "Optional 1".`,
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      name: { type: 'string', display_name: 'Name', required: true },
+      mappings: {
+        type: 'hash',
+        ui_type: 'mappings-panel',
+        display_name: 'Field mappings',
+        short_desc: 'How the incoming record becomes the processor input',
+        disabled: true,
+        messages: [
+          {
+            intent: 'info',
+            content: 'Nothing leads into this processor yet. Connect a step to it to map its fields.',
+          },
+        ],
+      },
+    } as unknown as IOptionsSchema,
+    value: { name: { type: 'string', value: 'Normalize orders' } } as unknown as IOptions,
+    componentOverrides: { 'mappings-panel': AlwaysOpenMappingsStandin } as never,
+    cardEditorTypes: ['mappings-panel'],
+    alwaysExpandedOptions: ['mappings'],
+  },
+  play: async () => {
+    await waitFor(
+      () => {
+        expect(document.querySelector('.always-open-mappings'), 'the mappings panel').toBeTruthy();
+        expect(_isRowOpen('mappings')).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+    await expect(
+      document.querySelector('[data-field="mappings"]')?.textContent ?? ''
+    ).toContain('Nothing leads into this processor yet.');
+  },
+};
+
 /** A question asked as a field's name, as a chat asks it, with two answers to choose from or one of your own. */
 const QuestionAsAFieldSchema = {
   answer: {
