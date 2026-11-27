@@ -307,7 +307,7 @@ export const SearchMatchesDescriptions: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     const search = canvasElement.querySelector(
-      'input[placeholder*="Search types"]'
+      'input[placeholder*="Search workflows"]'
     ) as HTMLInputElement;
 
     // "Slack" is only in the notifier's description
@@ -360,7 +360,7 @@ export const SearchKeepsTheSelectedKind: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     const search = canvasElement.querySelector(
-      'input[placeholder*="Search types"]'
+      'input[placeholder*="Search workflows"]'
     ) as HTMLInputElement;
 
     await userEvent.type(search, 'sync');

@@ -262,7 +262,7 @@ export const Sandboxed: Story = {
 };
 
 /**
- * Ported from qorus-ide: the DataSchema name does not match the interface
+ * The DataSchema name does not match the object
  * name — the inline banner flags it and "Sync name" resolves the mismatch.
  */
 export const WithValidationBanner: Story = {

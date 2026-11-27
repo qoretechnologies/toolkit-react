@@ -3561,12 +3561,15 @@ export const ReadonlyRowSaysWhyOnItsLine: Story = {
   parameters: {
     docs: {
       description: {
-        story: `Renders FormEngine with an optional field the form may not change (\`readonly\`) and nothing in it: its short description is its line, under its name, without opening its help, because it is the only thing that says why the row is locked. A readonly field with no short description shows no line.`,
+        story: `Renders FormEngine with an optional field the form may not change (\`readonly\`) and nothing in it, with the optional fields shown: its short description is its line, under its name, without opening its help, because it is the only thing that says why the row is locked. A readonly field with no short description shows no line.`,
       },
     },
   },
   args: {
     minColumnWidth: '300px',
+    compact: true,
+    // the optional fields shown, as after the reader opens them
+    compactCollapsedGroups: [],
     options: {
       name: {
         type: 'string',

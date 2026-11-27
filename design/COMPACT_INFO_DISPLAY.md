@@ -6,6 +6,9 @@ places, both from its schema:
 
 - **`short_desc`** shows under the option's name while the toolbar's ⓘ ("Show all field
   information", `.options-readfirst-descriptions`) is on, and is the name's hover otherwise.
+  A row the form may not change (`readonly` on the field, not a form read as a whole) always
+  shows it: the row cannot be opened, so its short description is the one place that says why
+  it is locked (decided 2026-11-27; story `FormEngine › Readonly Row Says Why On Its Line`).
 - **`desc`** is the `?` beside the name (`.options-readfirst-help`), which opens the help
   dialog — on the read row and in the open editor. Every option with a description (`desc` or
   `short_desc`) or a type in words has the `?`, and its help says both, so a touch screen, which

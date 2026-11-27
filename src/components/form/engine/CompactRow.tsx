@@ -1608,7 +1608,7 @@ export const CompactRow = memo(
     // more step for the one sentence the reader needs. A form read as a whole
     // (`readOnly`) locks nothing, so its rows keep the toggle.
     const lockedByField =
-      !hidden && !readOnly && !!(schema as { readonly?: boolean } | undefined)?.readonly;
+      !readOnly && !!(schema as { readonly?: boolean } | undefined)?.readonly;
     const showLabelDesc =
       !!labelShortDesc && (showAllDescriptions === true || lockedByField);
 

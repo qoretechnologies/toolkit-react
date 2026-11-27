@@ -46,7 +46,7 @@ describe('the schema-definition editor', () => {
     await waitFor(() => expect(text()).toContain('Reference data'));
     expect(text()).toContain('Tables');
     expect(text()).toContain('Migrations');
-    expect(text()).toContain('Schema name does not match the interface name');
+    expect(text()).toContain('Schema name does not match the object name');
     expect(text()).toContain('Building a database schema');
     // the hint reads as one sentence, its parts set apart in bold
     expect(text()).toContain(

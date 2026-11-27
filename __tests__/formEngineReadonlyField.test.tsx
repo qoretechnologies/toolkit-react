@@ -85,6 +85,44 @@ describe('a readonly field is not editable', () => {
   });
 });
 
+describe('a readonly field says why on its line', () => {
+  const desc = (container: HTMLElement, field: string) =>
+    row(container, field)?.querySelector('.options-readfirst-label-desc') ?? null;
+
+  it('shows its short description under its name, without the descriptions toggle', async () => {
+    const { container } = renderForm(true);
+
+    await waitFor(() => expect(row(container, 'testid')).toBeTruthy());
+
+    // The row cannot be opened, so its short description is the only thing on
+    // screen that says why; an editable row's still waits for the toggle.
+    expect(desc(container, 'testid')?.textContent).toBe('Assigned by Qorus when the object is created');
+    expect(desc(container, 'name')).toBeNull();
+  });
+
+  it('shows it on an unset optional row too', async () => {
+    const { container } = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            // the Optional box shown, as after the reader opens it
+            compactCollapsedGroups={[]}
+            name='test'
+            value={{ name: { type: 'string', value: 'a' } } as never}
+            options={SCHEMA}
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+    await waitFor(() => expect(row(container, 'testid')).toBeTruthy());
+
+    expect(desc(container, 'testid')?.textContent).toBe('Assigned by Qorus when the object is created');
+  });
+});
+
 // The classic (non-compact) path takes the same fix — `readonly` is folded into
 // the `disabled` it passes to the control, beside `disabled` and the dependency
 // predicate — but is not asserted here: it renders no row for a field until the
