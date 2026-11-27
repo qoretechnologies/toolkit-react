@@ -20,7 +20,7 @@ const fetchContext = emptyFetchContext();
  * made true or false. The host hands down the same `pos`, now typed `bool`. Since 9cd612cc the form recognises
  * its own report coming back by its values only, so it took that for its own report and kept the field an
  * `int`: opened, the field showed `pos` as text on its Value tab, where a true or false field shows the field it
- * holds on its Expression tab.
+ * holds on its Template tab (on its Expression tab before qorus-ide#375).
  */
 const POS = '$data:pos';
 
@@ -58,7 +58,7 @@ const activeTab = (container: HTMLElement) =>
   container.querySelector<HTMLElement>('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab');
 
 describe('a field whose type the host changes while its value stays the same', () => {
-  it('opens as the type the host gave it: a true or false field holding a field, on its Expression tab', async () => {
+  it('opens as the type the host gave it: a true or false field holding a field, on its Template tab', async () => {
     const { container, rerender } = render(form('int'));
     await waitFor(() => expect(row(container)).toBeTruthy());
 
@@ -66,7 +66,7 @@ describe('a field whose type the host changes while its value stays the same', (
 
     fireEvent.click(row(container) as HTMLElement);
     await waitFor(() => expect(container.querySelector('.value-tab')).toBeTruthy());
-    expect(activeTab(container)).toBe('expression');
+    expect(activeTab(container)).toBe('template');
     expect(container.querySelector('.value-tab-text')).toBeNull();
   });
 

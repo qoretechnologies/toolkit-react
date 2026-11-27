@@ -234,7 +234,7 @@ describe('a saved value', () => {
     );
   });
 
-  it('is a template where it was one: on the Expression tab of a yes / no', async () => {
+  it('is a template where it was one: on the Template tab of a yes / no', async () => {
     const onChange = vi.fn();
     const { container } = show({
       type: 'bool' as never,
@@ -251,13 +251,13 @@ describe('a saved value', () => {
     await waitFor(() =>
       expect(
         container.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
-      ).toBe('expression')
+      ).toBe('template')
     );
     expect(onChange).not.toHaveBeenCalledWith('value', '$record:{pos}', expect.anything(), true);
     await waitFor(() =>
       expect(
         container.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
-      ).toBe('expression')
+      ).toBe('template')
     );
   });
 
