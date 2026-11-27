@@ -1,8 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * Why a value its field's pattern refuses is refused (qorus#646, David on FormEngine · Compact Auto Focus Targets
- * Invalid Filled Field: "we need to tell the user why there's an error - i.e. what doesn't match the pattern - what
- * is the pattern - without this, the user can become frustrated"). It said "Value does not match validation pattern".
+ * Why a value its field's pattern refuses is refused (FormEngine · Compact Auto Focus Targets Invalid Filled Field:
+ * the user is told why there is an error - what does not match the pattern, and what the pattern is - or the user
+ * can become frustrated). It said "Value does not match validation pattern".
  */
 import { describe, expect, it } from 'vitest';
 import { patternMismatchReason, validateFieldWithResult } from '../src/helpers/validations';

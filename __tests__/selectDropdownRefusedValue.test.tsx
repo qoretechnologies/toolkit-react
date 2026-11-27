@@ -3,13 +3,19 @@ import { buildTheme } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { ANCHORED_LIST_MAIN } from '../src/components/form/fields/select/Select';
 import { getUnavailableLabelOpacity } from '../src/components/form/fields/select/unavailableRow';
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
+import {
+  FormAppearanceProvider,
+  type TFormEngineAppearance,
+} from '../src/components/form/engine/formAppearance';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-/* A refused value's name is dimmed, as far as it still reads on the list, drawn in its own color (qorus#646: 0.55
+/* A refused value's name is dimmed, as far as it still reads on the list, drawn in its own color (0.55
    was 4.1:1). Only the name: the reason under it stays as reqore draws a row's description (dimming the whole row
-   took it to 3.1:1). */
-const DIMMED = getUnavailableLabelOpacity(
+   took it to 3.1:1).
+   In the calm look the list is drawn on the app's own surface; the classic look draws it navy (ANCHORED_LIST_MAIN). */
+const DIMMED = getUnavailableLabelOpacity(buildTheme(DEFAULT_THEME as never), undefined, undefined);
+const DIMMED_CLASSIC = getUnavailableLabelOpacity(
   buildTheme(DEFAULT_THEME as never),
   undefined,
   ANCHORED_LIST_MAIN
@@ -42,10 +48,12 @@ const { SelectFormField } = await import('../src/components/form/fields/select/S
  * reqore, which applies `DisabledElement` — `pointer-events: none` — and would
  * have taken the tooltip with it even once there was something to put in one.
  */
-const itemsFor = async (items: unknown[]) => {
+const itemsFor = async (items: unknown[], appearance?: TFormEngineAppearance) => {
+  seen = undefined;
+  const field = <SelectFormField forceDropdown items={items as never} onChange={vi.fn()} />;
   render(
     <ReqoreUIProvider>
-      <SelectFormField forceDropdown items={items as never} onChange={vi.fn()} />
+      {appearance ? <FormAppearanceProvider value={appearance}>{field}</FormAppearanceProvider> : field}
     </ReqoreUIProvider>
   );
   await waitFor(() => expect(seen?.items).toBeTruthy());
@@ -85,5 +93,25 @@ describe('the dropdown the picker falls back to', () => {
     expect(offered.onClick).toBeTypeOf('function');
     expect(offered.effect).toBeUndefined();
     expect(offered.description).toBe('Stores objects in the system schema.');
+  });
+
+  it('dims a refused name for the surface its list is drawn on: the app\'s in calm, the navy in classic', async () => {
+    const refusedItem = {
+      value: 'file',
+      display_name: 'Local Filesystem',
+      disabled: true,
+      messages: [{ intent: 'danger', content: 'This sandbox denies the FILESYSTEM domain.' }],
+    };
+    expect(DIMMED).not.toBe(DIMMED_CLASSIC);
+
+    const calm = await itemsFor([refusedItem]);
+    expect(seen.listCustomTheme).toBeUndefined();
+    expect(calm.find((item) => item.label === 'Local Filesystem').labelEffect).toEqual({ opacity: DIMMED });
+
+    const classic = await itemsFor([refusedItem], 'classic');
+    expect(seen.listCustomTheme).toEqual({ main: ANCHORED_LIST_MAIN });
+    expect(classic.find((item) => item.label === 'Local Filesystem').labelEffect).toEqual({
+      opacity: DIMMED_CLASSIC,
+    });
   });
 });

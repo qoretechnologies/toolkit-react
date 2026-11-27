@@ -1,6 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A condition's verdict is judged by the type the server gives the expression (qoretechnologies/qorus#713,
-// qorus#646).
+// A condition's verdict is judged by the type the server gives the expression.
 //
 // The builder used to work out an expression's type from the catalogue's `ui_return_type`, one level deep,
 // and the condition verdicts (refused for text, a date or a time; a warning for a number, a list or a hash)

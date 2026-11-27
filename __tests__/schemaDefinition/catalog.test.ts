@@ -25,7 +25,7 @@ describe('schemaDefinition/catalog', () => {
   const { definition } = mockSchemaCatalog;
 
   describe('node-kind discrimination', () => {
-    it('classifies the qorus#225 catalogue sections by kind', () => {
+    it('classifies the schema catalogue sections by kind', () => {
       // `schema` is a wrapper group (nested options, no scalar type).
       expect(isCatalogGroup(definition.schema)).toBe(true);
       expect(isCatalogMap(definition.schema)).toBe(false);

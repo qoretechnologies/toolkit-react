@@ -1,6 +1,6 @@
 import { ReqoreControlGroup, useReqoreProperty } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import {
   getLargestExactTimeoutUnit,
   TIMEOUT_UNITS,
@@ -8,10 +8,10 @@ import {
   timeoutUnitToMs,
   TTimeoutUnit,
 } from '../../../../helpers/common';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import NumberFormField from '../number/Number';
 import { SelectFormField } from '../select/Select';
 
-const UNIT_ITEMS = TIMEOUT_UNITS.map(({ value }) => ({ value }));
 
 export interface ITimeoutFormFieldProps {
   /** Integer count of milliseconds — the shape the server stores. */
@@ -37,6 +37,12 @@ export const TimeoutFormField = memo(
   ({ value, onChange, disabled, readOnly, size, abbreviateUnits, ...rest }: ITimeoutFormFieldProps) => {
     const isMobile = useReqoreProperty('isMobile');
     const shortUnits = abbreviateUnits ?? isMobile;
+    // the units in the host's words (`fields.timeoutUnits`); the value each stands for is its key
+    const words = useReqraftLabels().fields;
+    const unitItems = useMemo(
+      () => TIMEOUT_UNITS.map(({ value }) => ({ value, label: words.timeoutUnits[value] ?? value })),
+      [words]
+    );
     // The ms value alone can't say whether 45000 should read "45 seconds" or
     // "45000 ms", so the unit is pinned once the user touches the field.
     // Until then — and whenever the controlled value stops dividing evenly by
@@ -66,10 +72,10 @@ export const TimeoutFormField = memo(
         <SelectFormField
           fixed
           hideItemCount
-          items={UNIT_ITEMS}
+          items={unitItems}
           // Where space is tight only the trigger abbreviates — the open
           // picker keeps the full unit names.
-          valueLabel={shortUnits ? timeoutUnitSymbol(unit) : undefined}
+          valueLabel={shortUnits ? timeoutUnitSymbol(unit) : words.timeoutUnits[unit]}
           value={unit}
           onChange={(next) => {
             setPinnedUnit(next as TTimeoutUnit);

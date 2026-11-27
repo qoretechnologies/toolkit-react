@@ -55,7 +55,7 @@ export interface IVariantRow {
   required: boolean;
   readOnly: boolean;
   status: TVariantStatus;
-  /** Short reason for todo/invalid, e.g. "Text value is empty". */
+  /** Short reason for todo/invalid, e.g. "Value must be text". */
   reason?: string;
   value: IVariantValue;
   typeLabel: string;
@@ -90,8 +90,8 @@ export interface IVariantConfig {
 
 // Default (basic-fixture) invalid set — overridable via config.
 const DEFAULT_INVALID: Record<string, string> = {
-  optionWithInvalidValue: 'Text value is empty',
-  schemaOption: 'Hash arguments are invalid',
+  optionWithInvalidValue: 'Value must be text',
+  schemaOption: '“Schema option 1” needs a value',
 };
 
 function buildValue(field: IQorusFormField | undefined, schema: any): IVariantValue {

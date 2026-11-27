@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A field opened and left untouched reports nothing (qorus#646).
+// A field opened and left untouched reports nothing.
 //
 // The number and binary fields compared what they show ('' for no value) with the value they were handed
 // (undefined), found them different, and reported '' 100 ms after they opened: the form counted itself

@@ -10,7 +10,7 @@ import { ChangeEvent, CSSProperties, Fragment, ReactNode } from 'react';
  * `componentOverrides['code-editor']`, and the form draws a read-only preview with it as well. This draws code as
  * such an editor does - a line per line, numbered, its keywords, strings, comments and numbers in their colours, in
  * the language the field inherits - so a story shows code as the host would, not flattened into a one-line input
- * at 12px (qorus#646, David: "is this meant to be a source code display?"). It is not an editor: no completion and
+ * at 12px, where it did not read as source code. It is not an editor: no completion and
  * no hover, which the host's own has.
  */
 export interface ICodeEditorStandinProps {

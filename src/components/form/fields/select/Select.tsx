@@ -19,12 +19,16 @@ import {
   getSelectItemUnavailability,
   ISelectFieldCollectionItem,
   SelectFieldCollection,
+  TSelectFieldCollectionGroups,
   UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
 import { useUnavailableLabelOpacity } from './unavailableRow';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { useIsCalmForm } from '../../engine/formAppearance';
 
 /** The color the anchored list of choices is drawn in. */
 export const ANCHORED_LIST_MAIN = '#010811';
+const CLASSIC_LIST_THEME = { main: ANCHORED_LIST_MAIN } as const;
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
 
@@ -55,11 +59,17 @@ export interface ISelectFormFieldProps {
   valueLabel?: string;
   /**
    * The value the list marks as held, for a list whose trigger does not draw it: the suggestions beside an editor
-   * that holds the field's value ("Saved & Suggested Values"). The trigger keeps its own name, and the list ticks
-   * the suggestion the field holds, so a pick reads as replacing it (qorus#646, David: "if this option takes a
-   * single value, then selecting another value should replace the one that's there").
+   * that holds the field's value ("Saved & suggested values"). The trigger keeps its own name, and the list ticks
+   * the suggestion the field holds, so a pick reads as replacing it: where the option takes a
+   * single value, selecting another replaces the one that is there.
    */
   markedValue?: unknown;
+  /**
+   * How the groups the items are listed in (`groups` on each item) are drawn: a heading's label and icon, the
+   * groups' order, and which start folded (a folded group opens while a search runs). The full list of choices
+   * (`forceDropdown={false}`) draws them; the anchored list lists the items flat.
+   */
+  groups?: TSelectFieldCollectionGroups;
   showPlaceholder?: boolean;
   showRightIcon?: boolean;
   hideItemCount?: boolean;
@@ -101,6 +111,7 @@ export const SelectFormField = memo(
     canCreateItems,
     valueLabel,
     markedValue,
+    groups,
     showPlaceholder = true,
     showRightIcon = true,
     hideItemCount,
@@ -112,7 +123,13 @@ export const SelectFormField = memo(
     size: componentSize,
     ...rest
   }: ISelectFormFieldProps) => {
-    // the name of an item that cannot be picked is dimmed, as far as it still reads (qorus#646)
+    const fieldWords = useReqraftLabels().fields;
+    /* A chosen value's color where the caller gives none: blue in the classic look; none in the calm one, where blue
+       says only "a filter is on" and the value itself says what is chosen (as `useSelectedChoiceIntent` does for a
+       field's radios). The expression builder's operation is the case that was reported. */
+    const calm = useIsCalmForm();
+    const chosenIntent: TReqoreIntent | undefined = calm ? undefined : 'info';
+    // the name of an item that cannot be picked is dimmed, as far as it still reads
     const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
     const [collectionOpen, setCollectionOpen] = useState(false);
@@ -201,7 +218,7 @@ export const SelectFormField = memo(
              The row is made inert by having no handler, as in the collection. */
           labelEffect:
             unavailable ?
-              { opacity: unavailableOpacity(item.intent, ANCHORED_LIST_MAIN) }
+              { opacity: unavailableOpacity(item.intent, calm ? undefined : ANCHORED_LIST_MAIN) }
             : undefined,
           style: unavailable ? { cursor: 'not-allowed' } : undefined,
           onClick: unavailable ? undefined : () => handleSelectClick(item),
@@ -212,6 +229,7 @@ export const SelectFormField = memo(
       value,
       JSON.stringify(markedValue),
       unavailableOpacity,
+      calm,
     ]) as IReqoreDropdownItem[];
 
     const getItemShortDescription = useCallback(
@@ -240,7 +258,7 @@ export const SelectFormField = memo(
        which makes the list the usual trigger. Opening the collection for every
        row that asked for its choices therefore put a dialog on top of a
        dropdown, both listing the same items, for a single click. Reported on
-       qlip build #212: "Should this really open both the dropdown and the
+       a Qlip review: "Should this really open both the dropdown and the
        modal dialog?" */
     const picksFromTheCollection = !asMenu && hasItemsWithDesc(items) && !forceDropdown;
 
@@ -480,7 +498,7 @@ export const SelectFormField = memo(
             itemHasError ? 'danger'
             : itemHasWarning ?
               'warning'
-            : (intent ?? 'info')
+            : (intent ?? chosenIntent)
           }
           disabled={false}
         />
@@ -492,7 +510,7 @@ export const SelectFormField = memo(
         <ReqoreTag
           {...(rest as any)}
           intent='muted'
-          label='No data available'
+          label={fieldWords.noDataAvailable}
           icon='ForbidLine'
           fixed
           size={componentSize}
@@ -514,6 +532,7 @@ export const SelectFormField = memo(
             <SelectFieldCollection
               items={filteredItems}
               filters={filters}
+              groups={groups}
               value={value ?? markedValue}
               onItemSelect={handleSelectClick}
               onClose={() => setCollectionOpen(false)}
@@ -567,7 +586,7 @@ export const SelectFormField = memo(
               : hasWarning(items, value) ?
                 'warning'
               : value ?
-                (intent ?? 'info')
+                (intent ?? chosenIntent)
               : intent
             }
             fluid={fluid}
@@ -595,7 +614,7 @@ export const SelectFormField = memo(
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || fieldWords.pleaseSelect
             : undefined}
           </ReqoreButton>
         : <ReqoreDropdown
@@ -610,9 +629,8 @@ export const SelectFormField = memo(
             // later — so the same instruction serves both pickers.
             isDefaultOpen={rowAsksForTheChoices}
             items={reqoreItems}
-            listCustomTheme={{
-              main: ANCHORED_LIST_MAIN,
-            }}
+            // Calm: the list takes the app's theme. The classic look keeps its navy one.
+            listCustomTheme={calm ? undefined : CLASSIC_LIST_THEME}
             filterable
             fluid={fluid}
             compact
@@ -633,14 +651,14 @@ export const SelectFormField = memo(
             intent={
               hasError(items, value) ? 'danger'
               : value ?
-                (intent ?? 'info')
+                (intent ?? chosenIntent)
               : intent
             }
           >
             {value ?
               (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
-              placeholder || 'Please select'
+              placeholder || fieldWords.pleaseSelect
             : undefined}
           </ReqoreDropdown>
         }

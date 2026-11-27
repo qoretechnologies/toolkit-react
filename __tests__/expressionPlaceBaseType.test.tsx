@@ -6,7 +6,7 @@
 // builder judged an expression against the place's type alone: a field of a user type whose values are text
 // (qoretechnologies/order-ref) refused an expression that gives text ("This expression gives text, which this
 // field does not take"), and an argument of such a type took nothing at all, its accepted types being looked
-// up without its base type (qorus#646).
+// up without its base type.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -65,7 +65,7 @@ const FIND_ORDER = {
   ],
 };
 
-const MISMATCH = /This expression gives .*(but this field takes|which this field does not take)/;
+const MISMATCH = /This expression gives .*(but the value here must be|which cannot be used here)/;
 
 const renderExpression = (value: unknown, returnType: string, returnBaseType?: string) =>
   render(

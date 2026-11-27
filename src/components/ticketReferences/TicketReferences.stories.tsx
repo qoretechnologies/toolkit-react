@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
 import { storyMinutesAgo as ago } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
+import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import { IInterfaceReference } from '../supportTicket/meta';
 import { ITicketReferenceAttachment, TicketReferences } from './TicketReferences';
 
@@ -72,7 +73,7 @@ export const Populated: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Linked interfaces')).toBeInTheDocument();
+    await expect(canvas.getByText('References')).toBeInTheDocument();
     await expect(canvas.getByText('Screenshots')).toBeInTheDocument();
     await expect(canvas.getByText('Files')).toBeInTheDocument();
     // references render as rows carrying their kind as metadata
@@ -135,7 +136,7 @@ export const Filtering: Story = {
     await userEvent.click(await within(document.body).findByText(/^Screenshots \(3\)$/));
     await waitFor(() => {
       expect(canvas.queryByText('Files')).toBeNull();
-      expect(canvas.queryByText('Linked interfaces')).toBeNull();
+      expect(canvas.queryByText('References')).toBeNull();
       expect(canvasElement.querySelector('button[title="stack-trace.png"]')).not.toBeNull();
     });
   },
@@ -213,6 +214,31 @@ export const NoPreview: Story = {
     });
     await expect(tile.querySelector('img')).toBeNull();
     await expect(tile.textContent).not.toContain('…');
+  },
+};
+
+/** A fetch that answers with bytes that are not a picture reads like a failed fetch. */
+export const PreviewThatDoesNotLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the references view where one screenshot\'s bytes are not an image the browser can draw: that tile shows its file name, like a screenshot with no preview, while the others keep their thumbnails.',
+      },
+    },
+  },
+  args: {
+    fetchAttachmentUrl: (id: string) =>
+      Promise.resolve(id === 'img-1' ? STORY_BROKEN_IMAGE : IMG_URLS[id] ?? svgUrl(id, '#555555')),
+  },
+  play: async ({ canvasElement }) => {
+    const tile = (name: string) =>
+      canvasElement.querySelector<HTMLElement>(`button[title="${name}"]`);
+    // the screenshots that load are thumbnails …
+    await waitFor(() => expect(tile('pool-metrics.png')?.querySelector('img')).not.toBeNull());
+    // … and the one that does not is its file name, never a broken picture
+    await waitFor(() => expect(tile('error-screenshot.png')?.textContent).not.toContain('…'));
+    await expect(tile('error-screenshot.png')?.querySelector('img')).toBeNull();
   },
 };
 
@@ -325,7 +351,7 @@ export const MixedLinkability: Story = {
     docs: {
       description: {
         story:
-          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover (qorus#693).',
+          'Renders the linked-interface rows with two refusals: those rows have no Open action and carry the reason in their metadata line after the kind, visible without hover.',
       },
     },
   },
@@ -338,7 +364,7 @@ export const MixedLinkability: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Linked interfaces')).toBeInTheDocument();
+    await expect(canvas.getByText('References')).toBeInTheDocument();
     // the reason is in the row's text, not only a tooltip
     await expect(canvas.getAllByText('workflow · moved to another group')).toHaveLength(2);
     // the refused rows have no Open action; the three others do

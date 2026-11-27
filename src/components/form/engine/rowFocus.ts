@@ -32,11 +32,14 @@ const NOT_TYPED_INPUT_TYPES = [
   'color',
 ];
 
-/** Controls the reader types into. */
+/** Controls the reader types into. `role="textbox"` is how an editor that is neither
+ *  an input nor contenteditable says so: Monaco's edit area is a focusable div with that
+ *  role (its own `<textarea>` is an `aria-hidden` IME helper). */
 const TEXT_ENTRY_SELECTOR = [
   `input${NOT_TYPED_INPUT_TYPES.map((type) => `:not([type="${type}"])`).join('')}:not([disabled])`,
   'textarea:not([disabled])',
   '[contenteditable="true"]',
+  '[role="textbox"]:not([aria-disabled="true"])',
 ].join(', ');
 
 /** Whether `element` is a control the reader types into: the focus there is theirs, not to be moved. */
@@ -82,17 +85,64 @@ const firstMatch = (container: HTMLElement, selector: string): HTMLElement | und
  * a read-only preview, or an editor that has not mounted yet (see the caller,
  * which watches for it to arrive).
  *
+ * `textEntryOnly` is for a field that opens as a CARD (a long text, a list, source
+ * code). A card is a form in its own right, so its first button is one of several —
+ * a toolbar's "fullscreen", a list's "add" — and nobody asked for it; a caret there
+ * turns the next space typed into a press. A card takes the caret only where text
+ * goes, and waits for it when its editor mounts late (a code editor does).
+ *
  * @param container the row's value cell
  */
 export const findRowFocusTarget = (
+  container: HTMLElement | null | undefined,
+  { textEntryOnly = false }: { textEntryOnly?: boolean } = {}
+): HTMLElement | undefined => {
+  if (!container) {
+    return undefined;
+  }
+  const textEntry = firstMatch(container, TEXT_ENTRY_SELECTOR);
+  if (textEntry || textEntryOnly) {
+    return textEntry;
+  }
+  return firstMatch(container, OTHER_CONTROL_SELECTOR);
+};
+
+/** A pick-one's choices: native since reqore 0.78 (a radio or a checkbox), or a control that says it is one. */
+const CHOICE_SELECTOR =
+  'input[type="radio"]:not([disabled]), input[type="checkbox"]:not([disabled]), [role="radio"]:not([aria-disabled="true"]), [role="checkbox"]:not([aria-disabled="true"])';
+
+const isCheckedChoice = (element: HTMLElement): boolean =>
+  (element as HTMLInputElement).checked === true || element.getAttribute('aria-checked') === 'true';
+
+/**
+ * The control a field the HOST named (`focusFieldRequest`) hands the caret to, when it opens as a card.
+ *
+ * A card takes the caret only where text goes (`textEntryOnly` above), so that nobody's next space presses a
+ * toolbar button they never asked for. A field asked for by name was asked for, and a card that takes no text (a
+ * pick-one of a few values) still has to take the caret, or it lands on the page. So: where text goes, if
+ * anywhere; else the checked choice of a pick-one, else its first choice; else a picker's trigger. Never the
+ * card's chrome (a fullscreen toggle, a list's "add").
+ *
+ * @param container the row's value cell
+ */
+export const findAskedFieldFocusTarget = (
   container: HTMLElement | null | undefined
 ): HTMLElement | undefined => {
   if (!container) {
     return undefined;
   }
-  return (
-    firstMatch(container, TEXT_ENTRY_SELECTOR) ?? firstMatch(container, OTHER_CONTROL_SELECTOR)
+  const textEntry = firstMatch(container, TEXT_ENTRY_SELECTOR);
+  if (textEntry) {
+    return textEntry;
+  }
+  const choices = Array.from(container.querySelectorAll<HTMLElement>(CHOICE_SELECTOR)).filter(
+    (element) =>
+      belongsToTheFieldsOwnEditor(container, element) && !element.closest('[aria-hidden="true"]')
   );
+  if (choices.length) {
+    return choices.find(isCheckedChoice) ?? choices[0];
+  }
+  return firstMatch(container, PICKER_TRIGGER_SELECTOR);
 };
 
 /**

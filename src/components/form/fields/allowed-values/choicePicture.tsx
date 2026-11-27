@@ -9,8 +9,8 @@ import {
 export const CHOICE_PICTURE_CLASS = 'choice-picture';
 
 /**
- * The gap on either side of a choice's picture: radio to picture, and picture to name, the same (qorus#646, David:
- * "the spacing between the circle and the icon needs to be the same as between the icon and the name"). Wide
+ * The gap on either side of a choice's picture: radio to picture, and picture to name, the same (the spacing
+ * between the circle and the icon is the same as between the icon and the name). Wide
  * enough that the radio's focus ring, drawn 2px out from it and 2px wide, keeps clear of the picture.
  */
 export const CHOICE_PICTURE_GAP = 10;
@@ -23,7 +23,7 @@ export type TChoicePictureState = 'chosen' | 'other' | 'none';
  *
  * Reqore draws a choice given an `image` with the picture in place of its radio or box, chosen in color and the
  * others gray, so color alone said which was chosen: hard to see, and not seen at all by a reader who does not
- * tell colors apart (qorus#646, David: "the radio buttons are missing"). The picture goes beside the name, and the
+ * tell colors apart (the radio buttons looked missing). The picture goes beside the name, and the
  * choice keeps the mark that says it is chosen - a filled radio, a ticked box - which is a shape, not a color.
  * Once one is chosen the others' pictures are gray, the chosen one's in color: a second sign, the shape the first.
  *

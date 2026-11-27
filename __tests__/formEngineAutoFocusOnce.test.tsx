@@ -10,7 +10,7 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * `autoFocusFirstRequired` puts the caret in the first row that needs an answer, once (qorus#646).
+ * `autoFocusFirstRequired` puts the caret in the first row that needs an answer, once.
  *
  * A form opened from a button - a drawer - mounts while that button still holds the focus, so the scan waits
  * for the focus to be free. It waited past the user: they opened a row and typed, and the first moment the

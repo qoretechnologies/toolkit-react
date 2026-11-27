@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The one model of what a field can refer to (qorus#646): a Qog field's templates as Qorus serves them
+ * The one model of what a field can refer to: a Qog field's templates as Qorus serves them
  * (`getContextData`, `getStateData`) and a DPQL field's record fields, as a tree; what typing a reference reaches;
  * what a search box finds; how a chip names a long path.
  */
@@ -35,7 +35,8 @@ const labels = (nodes: { label: string }[]) => nodes.map((node) => node.label);
 describe('templateTree', () => {
   it('lists the groups as the catalogue has them, with the record fields as a group of their own', () => {
     expect(labels(tree())).toEqual([
-      'Context Data',
+      // the server's own context, in sentence case; a state's name is kept as written
+      'Context data',
       'Look up customer',
       'Receive order',
       RECORD_FIELDS_LABEL,
@@ -50,7 +51,7 @@ describe('templateTree', () => {
   });
 
   it('gives a group of unrelated templates no reference', () => {
-    const context = tree().find((node) => node.label === 'Context Data');
+    const context = tree().find((node) => node.label === 'Context data');
     expect(context?.reference).toBeUndefined();
     expect(context?.kind).toBe('group');
   });
@@ -328,7 +329,7 @@ describe('allTemplateNodes', () => {
   });
 });
 
-describe('taking a record whole (qorus#646, David: "if a user wants to choose the entire Receive order")', () => {
+describe('taking a record whole (a user can choose the entire Receive order)', () => {
   const stateOf = (roots: ReturnType<typeof templateTree>) =>
     roots.find((node) => node.label === 'Receive order')!;
 
@@ -370,8 +371,8 @@ describe('taking a record whole (qorus#646, David: "if a user wants to choose th
   });
 });
 
-/* qorus#646, David's review: a reference that names none of the field's templates is said to, where the catalogue
-   lists every template of its context. */
+/* A reference that names none of the field's templates is said to, where the catalogue lists every template of
+   its context. */
 describe('referenceNamesNothing', () => {
   const roots = templateTree(QOG_TEMPLATES, { wholeRecords: true });
 

@@ -1,18 +1,26 @@
 import { reqraftLabels } from '../../../helpers/reqraftLabels';
-import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
+import {
+  ReqoreControlGroup,
+  ReqoreP,
+  ReqoreTag,
+  ReqoreVerticalSpacer,
+  useReqoreTheme,
+} from '@qoretechnologies/reqore';
+import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import {
   IQorusAllowedValue,
   IQorusFormField,
   IQorusFormSchema,
   TQorusForm,
 } from '@qoretechnologies/ts-toolkit';
-import { isArray, size } from 'lodash';
+import { isArray, omit, size } from 'lodash';
 import { useMemo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import {
-  UNAVAILABLE_VALUE_FALLBACK_REASON,
+  unavailableValueFallbackReason,
   getRefusalMessage,
   getRequiredOptionMessage,
 } from '../../../helpers/options';
@@ -26,6 +34,7 @@ import {
   unsatisfiedRequiredGroups,
 } from '../../../helpers/validations';
 import { OptionsContext } from './optionsContext';
+import { getCalmIntentText, useIsCalmForm } from './formAppearance';
 
 /** A `messages` entry that appears only for certain values of its siblings. */
 export interface IConditionalFieldMessage {
@@ -120,7 +129,7 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
 
   const label = `"${dependencySchema.display_name || name}"`;
   /* The value is named as the reader sees it in that field: an allowed value by its display name
-     ("Other"), not by the value it stands for (`__other__`, qorus#646). A value with no display name is
+     ("Other"), not by the value it stands for (`__other__`). A value with no display name is
      quoted as it is. */
   const allowed = (dependencySchema.allowed_values as IQorusAllowedValue[] | undefined)?.find(
     (entry) => String(allowedValueOf(entry)) === value
@@ -284,7 +293,7 @@ export const getAllowedValueAvailability = (
       // A refusal with no message at all still has to say something: silence
       // over a value that will not respond is the defect this whole mechanism
       // exists to remove.
-      reason: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+      reason: explanation?.content || unavailableValueFallbackReason(),
     };
   }
 
@@ -367,6 +376,40 @@ export interface IOptionFieldMessagesProps {
    * reqraft's built-in editors are known.
    */
   isRendererOnly?: (type?: any) => boolean;
+  /**
+   * The calm appearance says an empty required field the calm way: an amber
+   * `calmRequired` ("Required · add a value"; read-only, `calmRequiredRead`,
+   * "Required · not set") rather than a red `required` ("This field is
+   * required"), each in the host's words (`setReqraftLabels`). Waiting for a
+   * person is amber; red is for something that failed.
+   */
+  calm?: boolean;
+  /** Read-only: the reader cannot add a value, so the calm wording only states it. */
+  readOnly?: boolean;
+  /**
+   * Nobody has been to this field yet. The requirement is still stated, but with no
+   * intent: a new form is not already wrong, and saying what is required is not saying
+   * something failed. It takes its colour once the person has opened the field and left
+   * it empty (`FormEngine`'s `visitedOptions` / `revealRequired`).
+   */
+  requirementPending?: boolean;
+}
+
+/**
+ * A message about an option, as a tag's props, and what it is about where code has to know: never told by its words,
+ * which are the host's (`setReqraftLabels`) and may be in any language.
+ */
+export interface IOptionFieldMessage extends IReqoreTagProps {
+  /**
+   * It says the field is required and has no value. A row that says so in its value column already (the calm
+   * appearance's amber words, `CompactRow`) leaves it out of its reasons, so the requirement is said once.
+   */
+  requirement?: boolean;
+  /**
+   * It says the field is one of a required group (`required_groups`) none of whose members is set. A calm row says
+   * that once for the group, in its value column, and not under each member.
+   */
+  requiredGroup?: boolean;
 }
 
 /**
@@ -381,22 +424,25 @@ export const getOptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
-}: IOptionFieldMessagesProps): IReqoreTagProps[] => {
+  calm,
+  readOnly,
+  requirementPending,
+}: IOptionFieldMessagesProps): IOptionFieldMessage[] => {
   const feWords = reqraftLabels().formEngine;
   const optionSchema = schema[name];
-  const result: IReqoreTagProps[] = [];
+  const result: IOptionFieldMessage[] = [];
   const locked =
     !!optionSchema?.depends_on &&
     !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema);
 
   /* The host's own words for what is wrong with this field (`invalid_reason`) are said in place of the
-     field's own reason and its "This field is required": a host that has a sentence of its own, in the
-     user's language, showed it beside the field's generic one, two messages for one problem (qorus#646).
+     field's own reason and its "A value is required": a host that has a sentence of its own, in the
+     user's language, showed it beside the field's generic one, two messages for one problem.
      Required groups and dependencies still say what they say. */
   const hostReason = (optionSchema as { invalid_reason?: string } | undefined)?.invalid_reason;
   /* An empty list is not a value: the form counts it as not set (an optional one is not saved, a required one
      needs attention), so a required one is said to be required. Counted as a value, being truthy, it was
-     validated as one and passed, and nothing said why its row needed attention (qorus#646). */
+     validated as one and passed, and nothing said why its row needed attention. */
   const hasValue =
     (option.value || option.value === false || option.value === 0 || option.value === null) &&
     !(isArray(option.value) && option.value.length === 0);
@@ -431,8 +477,13 @@ export const getOptionFieldMessages = ({
       }
     );
     if (!validationData.isValid) {
+      const reason = validationData.reason || feWords.valueNotValid;
+      /* A value that is not one of the choices says what to do about it where the author can: an
+         editable form adds "pick one from the list"; a read view only states it. Told by the result's
+         flag, never by comparing its words, which are the host's. */
+      const isUnlistedChoice = !readOnly && !!validationData.unlistedChoice;
       result.push({
-        label: validationData.reason || feWords.valueNotValid,
+        label: isUnlistedChoice ? feWords.unlistedChoice(reason) : reason,
         intent: 'danger',
       });
     }
@@ -441,7 +492,17 @@ export const getOptionFieldMessages = ({
     // locked field is not asked for: the dependency message below says what
     // unlocks it, and until then there is nothing to fill in.
     if (optionSchema?.required && !locked) {
-      result.push({ label: feWords.required, intent: 'danger' });
+      const message: IOptionFieldMessage =
+        calm ?
+          {
+            label: readOnly ? feWords.calmRequiredRead : feWords.calmRequired,
+            intent: 'warning',
+            requirement: true,
+          }
+        : { label: feWords.required, intent: 'danger', requirement: true };
+      result.push(
+        requirementPending ? { label: message.label, requirement: true } : message
+      );
     }
   }
 
@@ -460,6 +521,7 @@ export const getOptionFieldMessages = ({
       result.push({
         label: requiredOptionsMessage,
         intent: 'warning',
+        requiredGroup: true,
       });
     }
   }
@@ -489,8 +551,11 @@ export const OptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
+  requirementPending,
 }: IOptionFieldMessagesProps) => {
-  const messages: IReqoreTagProps[] = useMemo(
+  const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
+  const messages: IOptionFieldMessage[] = useMemo(
     () =>
       getOptionFieldMessages({
         schema,
@@ -499,6 +564,8 @@ export const OptionFieldMessages = ({
         allOptions,
         getType,
         isRendererOnly,
+        calm,
+        requirementPending,
       }),
     [
       JSON.stringify(schema),
@@ -506,6 +573,8 @@ export const OptionFieldMessages = ({
       JSON.stringify(allOptions),
       name,
       isRendererOnly,
+      calm,
+      requirementPending,
     ]
   );
 
@@ -513,12 +582,52 @@ export const OptionFieldMessages = ({
     return null;
   }
 
+  // Calm: each message is a line of text in its own colour under the editor —
+  // a word, not a tinted chip with a warning glyph.
+  if (calm) {
+    return (
+      <ReqoreControlGroup
+        className='options-field-messages'
+        vertical
+        gapSize='tiny'
+        style={{ marginTop: 6 }}
+      >
+        {messages.map((message, index) => (
+          <ReqoreP
+            key={index}
+            size='small'
+            // Its meaning's colour as a word that reads (`getCalmIntentText`), never
+            // the theme's fill: Reqore's danger red as a small line on a near-black
+            // form reads at about 2.3:1. A requirement nobody has been asked about yet
+            // carries no intent: it is said in the same faint colour as the row's
+            // pending word, not in full text.
+            effect={{
+              color: (message.intent ?
+                getCalmIntentText(theme, message.intent)
+              : `${getReadableColor(theme, undefined, undefined, true)}a6`) as TReqoreEffectColor,
+            }}
+            className='options-field-message'
+          >
+            {message.label}
+          </ReqoreP>
+        ))}
+      </ReqoreControlGroup>
+    );
+  }
+
   return (
     <>
       <ReqoreVerticalSpacer height={5} />
       <ReqoreControlGroup size='tiny' wrap>
+        {/* what a message is about is for code, not a tag's prop */}
         {messages.map((message, index) => (
-          <ReqoreTag wrap minimal icon='ErrorWarningLine' key={index} {...message} />
+          <ReqoreTag
+            wrap
+            minimal
+            icon='ErrorWarningLine'
+            key={index}
+            {...omit(message, ['requirement', 'requiredGroup'])}
+          />
         ))}
       </ReqoreControlGroup>
     </>

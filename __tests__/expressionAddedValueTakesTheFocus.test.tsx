@@ -17,11 +17,11 @@ import { emptyFetchContext } from './support/fetchContext';
 const fetchContext = emptyFetchContext();
 
 /**
- * A value added with the "Add value" slot takes the focus, and opens nothing (qorus#646).
+ * A value added with the "Add value" slot takes the focus, and opens nothing.
  *
  * A new operand has no type yet, so it has no text box: its first control is its template picker, a list that
  * opens when it is focused. The builder gave that picker the focus, and since reqore 0.78 a list focused as it
- * mounts opens at once, so adding a value opened the list of templates over the form. David: adding a value is
+ * mounts opens at once, so adding a value opened the list of templates over the form. Adding a value is
  * not asking for that list. The operand itself takes the focus; its picker opens when the user goes to it.
  */
 const Host = ({ initial, type }: { initial: IExpression; type: string }) => {

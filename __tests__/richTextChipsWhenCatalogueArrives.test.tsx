@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A reference a string holds is drawn as a chip as soon as something can name it, even when the catalogue
-// that names it arrives after the editor's first render (qorus#646).
+// that names it arrives after the editor's first render.
 //
 // A reference neither grammar matches — a DPQL `@create`, say — is recognised only by the catalogue that
 // NAMES it. The catalogue is fetched, so it is often not in hand at the first render. The editor built its

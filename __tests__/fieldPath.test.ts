@@ -4,7 +4,7 @@ import { fieldPathOf, fieldPathTemplate } from '../src/components/form/expressio
 import { IExpression } from '../src/components/form/expressions/types';
 
 /*
- * A field path written with accessors is read as the path it is (qorus#646): the server reads `@orders[*].id` and
+ * A field path written with accessors is read as the path it is: the server reads `@orders[*].id` and
  * `$record:{orders[*].id}` into accessor operations over record fields, and those are drawn as the path, not as an
  * operation with a source and a body.
  */

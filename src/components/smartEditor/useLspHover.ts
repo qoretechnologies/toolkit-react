@@ -88,13 +88,13 @@ function mousePositionToSlatePoint(
   /* The caret position nearest the point is the boundary between two characters: past the middle of a character
      it is after it. A hover is of the character under the pointer, so where the point is on the character before
      the caret, that is the one: resting on the right half of a `+` asked the server about the space after it, and
-     showed nothing (qorus#646).
+     showed nothing.
 
      And only of a character under the pointer: the nearest caret position is found for a point anywhere, beside
      the text or above it too, and a pointer that was on no character asked about the nearest one. A pointer event
      at the page's corner - the one a scripted click sends - opened the hover of the first word, anchored in that
-     corner over the text being typed (qorus#646, Foxhoundn: "artifact text `field` and `@orders` on the top left
-     of the chip"). Where the layout cannot be measured (no boxes), the caret position stands. */
+     corner over the text being typed (stray `field` and `@orders` text at the top left of the chip). Where the
+     layout cannot be measured (no boxes), the caret position stands. */
   let container: globalThis.Node = domRange.startContainer;
   let offset = domRange.startOffset;
   /* A caret position in an element, not in a text, is where no line is: beside the lines or under them. The
@@ -224,8 +224,7 @@ function chipAtCaret(
 /**
  * The hover of a chip: what the server says at each part of the text it replaces (`converter.hoverOffsetsOf`), in
  * one hover - each said once, in order, a rule between them. A chip has no caret position of its own, so a mouse
- * resting on it was mapped to none and showed nothing (qorus#646, David: "there are no mouseover / hovers ... on the
- * chips").
+ * resting on it was mapped to none and showed nothing.
  */
 async function chipHover(
   client: { getHover(line: number, character: number): Promise<ILspMarkupContent | null> },

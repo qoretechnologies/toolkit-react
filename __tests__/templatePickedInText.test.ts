@@ -8,8 +8,8 @@ import type { ISlateElement } from '../src/components/smartEditor/types';
 import { getTemplateTagStyle } from '../src/helpers/templates';
 
 /**
- * qorus#646, David's review (the IDE's Qonsole › Sheet Contract Review › Added Whole Number With Text Around A
- * Field): in a value's text, `@` typed opens the list of the fields and templates, and Enter picks one - but the `@`
+ * Seen in the IDE's Qonsole › Sheet Contract Review › Added Whole Number With Text Around A Field: in a value's
+ * text, `@` typed opens the list of the fields and templates, and Enter picks one - but the `@`
  * stayed in front of the chip, and on the Expression tab the chip was gray where the Value tab drew it blue.
  */
 
@@ -114,8 +114,8 @@ describe('a template chip in an expression', () => {
     }
   });
 
-  it('is blue (info) for a field of the row, as on the Value tab', () => {
-    expect(makeDpqlTagRenderer({})(tag('$record:{pos}'))).toMatchObject({ intent: 'info' });
+  it('is the plain chip for a field of the row, as on the Value tab (blue means only that a filter is on)', () => {
+    expect(makeDpqlTagRenderer({})(tag('$record:{pos}'))).not.toHaveProperty('intent');
   });
 
   it('keeps the per-prefix palette only where asked to', () => {

@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A color, read: a swatch beside the color written out - the one read-only rendering of a stored color,
-// drawn by a compact form row and by any page that shows one (qorus#646).
+// drawn by a compact form row and by any page that shows one.
 
 import { useReqoreTheme } from '@qoretechnologies/reqore';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
@@ -9,7 +9,8 @@ import { CSSProperties, HTMLAttributes, memo } from 'react';
 import styled, { css } from 'styled-components';
 import { htmlElementProps } from '../../helpers/domProps';
 import { describeColorValue } from './colorValue';
-import { DEFAULT_COLOR_VALUE_LABELS, IReqraftColorValueLabels } from './labels';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
+import { IReqraftColorValueLabels } from './labels';
 
 export {
   colorToCss,
@@ -98,7 +99,9 @@ export const ReqraftColorValue = memo(
     ...rest
   }: IReqraftColorValueProps) => {
     const theme = useReqoreTheme();
-    const words = { ...DEFAULT_COLOR_VALUE_LABELS, ...labels };
+    // the host's words (`setReqraftLabels`), and over them any this one value is given
+    const hostWords = useReqraftLabels().colorValue;
+    const words = { ...hostWords, ...labels };
     const description = describeColorValue(value);
     // a control group hands its own size (small, big, ...) to what it holds: any size but compact is normal
     const size: TReqraftColorValueSize = (askedSize as string) === 'compact' ? 'compact' : 'normal';

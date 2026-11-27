@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The rich-text field's edit that waits for its pause belongs to the editor that closes it (qorus#646): the
+// The rich-text field's edit that waits for its pause belongs to the editor that closes it: the
 // read-first row's Done sends it before the row closes, Cancel and Escape drop it - sent on the way out, it was
 // committed by the very keys meant to throw it away - and a value from outside replaces it.
 import { act, render } from '@testing-library/react';

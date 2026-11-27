@@ -28,7 +28,7 @@ export interface IHostEditorValue {
  * `''` and then, once the form had stored it, as `undefined`. A host editor that takes any value it is handed
  * for a change from outside put that in place of what had been typed since: in the Qorus IDE a test case's
  * Value lost the `1` typed after a reference was erased, and Slate, its caret left past the end of the
- * emptied text, threw "Cannot resolve a DOM point" (qorus#646).
+ * emptied text, threw "Cannot resolve a DOM point".
  *
  * So the value coming down is compared with what the host editor reported. Its last report, or one still on
  * its way back, is handed down as the host editor reported it - the same value, the same object - and a host

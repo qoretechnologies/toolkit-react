@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// What a DPQL editor's one completion list offers, and what it says (qorus#646, David's decision): the server's
+// What a DPQL editor's one completion list offers, and what it says: the server's
 // completion at the caret, with the field's templates merged in where a value can be written - opened by a click,
 // a tap or Tab as by typing - and the server's diagnostics in the words the editor owes the author.
 import { DEFAULT_REQRAFT_LABELS, reqraftLabels } from '../../helpers/reqraftLabels';
@@ -56,13 +56,13 @@ const NO_VALUE_KINDS = new Set([14, 24]);
 /** An `@` and the field name typed after it, at the end of a text. */
 const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
 
-/** Why the templates beside the text cannot be used: a value at its end would follow another (qorus#646). */
+/** Why the templates beside the text cannot be used: a value at its end would follow another. */
 export const NO_VALUE_AT_THE_END = DEFAULT_REQRAFT_LABELS.editor.noValueAtTheEnd;
 
 /**
  * The text with `template` put in at its end, where a template chosen from the picker beside the text goes - the
  * editor keeps no caret its host can reach - in place of a reference being written there (a `$` typed to ask for
- * one), as a template picked in the text goes (qorus#646, David's review: `pos + 1 + $pos`). Undefined where no
+ * one), as a template picked in the text goes (not `pos + 1 + $pos`). Undefined where no
  * value can be written at the end (`dpqlExpectsValue`): after `12`, one would be refused.
  */
 export const dpqlTextWithTemplateAtTheEnd = (text: string, template: string): string | undefined => {
@@ -118,7 +118,7 @@ const asksForAField = (textBefore: string): boolean => !!fieldTyped(textBefore);
 
 /**
  * What the list offers at the caret: the server's answer, and the field's templates and fields that what is typed
- * reaches (qorus#646, David's review): after `$d` or `$data` the states, after `$data:` the states, after
+ * reaches: after `$d` or `$data` the states, after `$data:` the states, after
  * `$data:receive_order.` that state's data, after `@` the record's fields - a group a row that opens the picker at
  * its members. Nothing that does not go on from what is typed: a template list of everything, under whatever was
  * typed, read as if all of it fitted. Where a value can be written and nothing is typed, the field's templates are
@@ -179,8 +179,8 @@ export const dpqlCompletionsWith =
   (roots: ITemplateNode[] = [], typeLabel?: TTypeLabel) =>
   ({ plainText, offset, serverItems, typedInText }: ICompletionContext): ILspCompletionItem[] => {
     /* The server's completions are offered as it offers them - a template's context (`$data:`) among them, which a
-       pick writes and goes on from, listing what is in it (qorus#646, David: "typing '$dat' or '@nam' does not
-       result in any LSP completion support, but it should") - ranked by how well they fit what is typed. */
+       pick writes and goes on from, listing what is in it (typing `$dat` or
+       `@nam` is completed too) - ranked by how well they fit what is typed. */
     const before = plainText.slice(0, offset);
     /* What is typed, where a value can be written: the server says so by offering values (a whole reference before
        the caret - a chip - is a value already, and the server offers operators after it), or, where it offers
@@ -207,16 +207,16 @@ export const dpqlCompletionsWith =
     ).filter(
       (item) =>
         !(item.kind === FIELD_KIND && serverReferences.has(fieldAsWritten(item.insertText ?? ''))) &&
-        // after a `$` only a template can follow: a record field is written with an `@` (qorus#646, David's review)
+        // after a `$` only a template can follow: a record field is written with an `@`
         !(typed.startsWith('$') && isRecordField(item))
     );
     const browse = valueHere && roots.length ? [browseAllTemplatesItem()] : [];
-    /* What the server says of a context or a value (the contract a Qorus agent is building, qorus#646 round 4): a
+    /* What the server says of a context or a value (the contract a Qorus agent is building): a
        container is gone on into, its reference written as text, and taken whole (`$ctx:*`) where it can be. */
     const marked = server.map(markedServerItem);
     if (!ours.length) {
       /* a context written that nothing is listed in: the list says what to write next (`unlistedContextMessage`),
-         with Browse all templates, to put a working reference in its place (qorus#646, David's review) */
+         with Browse all templates, to put a working reference in its place */
       if (!marked.length && unlistedContextMessage(typed || written)) {
         return roots.length ? [browseAllTemplatesItem()] : [];
       }
@@ -278,7 +278,7 @@ export const dpqlCompletionsWith =
   };
 
 /**
- * What the list says where it offers nothing at the caret (qorus#646): after an `@`, that there is no record; after
+ * What the list says where it offers nothing at the caret: after an `@`, that there is no record; after
  * a `$`, that there are no templates here.
  */
 export { unlistedContextMessage };
@@ -310,7 +310,7 @@ export const UNFINISHED_PARTS_MESSAGE =
 /**
  * The server's diagnostics as a DPQL editor says them. The Text view writes an unfinished expression with a
  * placeholder for each part not chosen yet (`… > …`), and the server refuses each: "'…' can't be used here",
- * twice, of text the author did not write (qorus#646, David's decision). Those are said once, as what to do; what
+ * twice, of text the author did not write. Those are said once, as what to do; what
  * the server says of anything else is said as it says it.
  */
 export const presentDpqlDiagnostics = (

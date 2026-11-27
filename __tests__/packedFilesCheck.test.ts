@@ -1,5 +1,5 @@
 /**
- * The npm package ships what consumers load (qorus#646).
+ * The npm package ships what consumers load.
  *
  * The package had no `files` field, so everything outside .npmignore was published: agent notes (.claude,
  * .tasks), design docs, configs and the sources (1242 files, 8 MB). It now ships an allowlist, and

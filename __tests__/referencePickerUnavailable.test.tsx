@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ReferencePicker } from '../src/components/supportTicket/ReferencePicker';
 
 /**
- * A kind the user may not list is said to be unavailable, with the reason in words (qorus#646).
+ * A kind the user may not list is said to be unavailable, with the reason in words.
  *
  * The picker knew one way a kind could have no list: its fetch failed. A permission refused (the Qorus IDE's
  * collections without AI-COLLECTION-READ) was drawn the same way - a red "Couldn't load collections" with a

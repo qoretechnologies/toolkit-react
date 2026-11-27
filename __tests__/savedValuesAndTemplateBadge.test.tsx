@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Saved values and a template's badge (qorus#646): host seams of the template field - values the host keeps for
+// Saved values and a template's badge: host seams of the template field - values the host keeps for
 // reuse, offered in the field's ⋮, and where a template comes from, shown in the template picker.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';

@@ -6,6 +6,7 @@ import {
   ReqoreModal,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components/Collection';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
@@ -13,14 +14,17 @@ import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { capitalize, isEqual, size } from 'lodash';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import type { IFormEngineGroup } from '../../engine/FormEngine';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
+import { useIsCalmForm } from '../../engine/formAppearance';
 import styled from 'styled-components';
 import {
-  UNAVAILABLE_VALUE_FALLBACK_REASON,
+  unavailableValueFallbackReason,
   getRefusalMessage,
 } from '../../../../helpers/options';
 import { Description } from '../../../Description';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 /**
  * The size the picker cannot be dragged below, measured on its own content.
@@ -58,6 +62,10 @@ export const SELECT_DIALOG_MIN_HEIGHT = 180;
  * below, and for a host's own tests and styling.
  */
 export const UNAVAILABLE_ITEM_CLASS = 'reqraft-select-item-unavailable';
+
+/** The classic look's own navy dialog and cards; the calm look takes the app's theme. */
+const CLASSIC_DIALOG_THEME = { main: '#010811' } as const;
+const CLASSIC_CARD_THEME = { main: '#08182d' } as const;
 
 /**
  * The picker's floor, expressed where it survives the reqore we pin.
@@ -176,6 +184,10 @@ export interface ISelectFieldCollectionItem {
   badge?: TReqoreBadge;
   intent?: TReqoreIntent;
   disabled?: boolean;
+  /**
+   * The groups the item is listed in, by name: under a heading of each, in the full list of choices (not the
+   * anchored one, which lists them flat). How a group is drawn is the field's `allowed_values_groups`.
+   */
   groups?: string[];
   /**
    * Affordances rendered in the row's BODY, stacked under the description.
@@ -228,12 +240,50 @@ export interface ISelectFieldCollectionItem {
   [key: string]: unknown;
 }
 
+/**
+ * How one group of a select's choices is drawn, in the words the form engine uses for its own groups
+ * (`IFormEngineGroup`): the heading's `label` (the group's name where none is given) and `icon`, its place among the
+ * groups (`sort`, lowest first; a group with none is at 0), and whether it starts folded (`collapsed`). A folded
+ * group opens while a search runs, so a match inside it is shown, and folds again when the search is cleared.
+ */
+export interface ISelectFieldCollectionGroup extends Pick<IFormEngineGroup, 'label' | 'icon' | 'sort'> {
+  collapsed?: boolean;
+}
+
+/** A select's group settings, by the group names its items carry in `groups` (a field's `allowed_values_groups`). */
+export type TSelectFieldCollectionGroups = Record<string, ISelectFieldCollectionGroup>;
+
+/**
+ * A select's group settings as the collection's own `groups`: `sort` is the group's `order`, and a `collapsed` group
+ * is a folding one, folded while nothing is searched. Reqore draws the order from 0.79 on; an older Reqore orders the
+ * groups by name.
+ */
+export const getSelectCollectionGroups = (
+  groups: TSelectFieldCollectionGroups | undefined,
+  searching: boolean
+): IReqoreCollectionProps['groups'] =>
+  groups ?
+    Object.fromEntries(
+      Object.entries(groups).map(([name, { label, icon, sort, collapsed }]) => [
+        name,
+        {
+          ...(label ? { label } : {}),
+          ...(icon ? { icon } : {}),
+          ...(sort === undefined ? {} : { order: sort }),
+          ...(collapsed ? { collapsible: true, isCollapsed: !searching } : {}),
+        },
+      ])
+    )
+  : undefined;
+
 export interface ISelectFieldCollectionProps {
   onClose: () => void;
   items: ISelectFieldCollectionItem[];
   value?: unknown;
   onItemSelect: (item: ISelectFieldCollectionItem) => void;
   filters?: string[];
+  /** How the groups the items are listed in are drawn — see {@link ISelectFieldCollectionGroup}. */
+  groups?: TSelectFieldCollectionGroups;
 }
 
 const normalizeSelectItemDescription = (value: unknown): string | undefined => {
@@ -327,7 +377,7 @@ export const getSelectItemUnavailability = (
   return {
     intent: explanation?.intent || 'warning',
     title: explanation?.title,
-    content: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+    content: explanation?.content || unavailableValueFallbackReason(),
   };
 };
 
@@ -414,7 +464,13 @@ export const buildSelectItemTooltip = (
 };
 
 /** The mark of the item a field holds, beside its own badge: a tick and a word. */
-export const CHOSEN_BADGE = { icon: 'CheckLine', label: 'Chosen' } as const;
+export const CHOSEN_BADGE: { readonly icon: 'CheckLine'; readonly label: string } = {
+  icon: 'CheckLine',
+  // in the host's words, when it is drawn
+  get label() {
+    return reqraftLabels().fields.chosen;
+  },
+};
 
 export const SelectFieldCollection = ({
   onClose,
@@ -422,10 +478,22 @@ export const SelectFieldCollection = ({
   value,
   onItemSelect,
   filters,
+  groups,
 }: ISelectFieldCollectionProps) => {
+  const fieldWords = useReqraftLabels().fields;
   const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
-  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  // a folded group opens while a search runs: a match inside it is what the search is for
+  const [searching, setSearching] = useState(false);
+  const handleQueryChange = useCallback((query: string | number) => {
+    setSearching(String(query ?? '') !== '');
+  }, []);
+  const collectionGroups = useMemo(
+    () => getSelectCollectionGroups(groups, searching),
+    [groups, searching]
+  );
+  // an item that cannot be picked is dimmed, as far as its name still reads
   const unavailableOpacity = useReadableOpacity(0.55);
+  const calm = useIsCalmForm();
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -454,10 +522,12 @@ export const SelectFieldCollection = ({
       className='reqraft-select-dialog'
       icon='ListOrdered'
       onClose={onClose}
-      label='Select from items'
+      label={fieldWords.selectFromItems}
       badge={size(items)}
       width='700px'
-      customTheme={{ main: '#010811' }}
+      // Calm: no theme of its own, so the dialog sits on the app's dialog surface as every other
+      // dialog does. The classic look keeps its navy one.
+      customTheme={calm ? undefined : CLASSIC_DIALOG_THEME}
     >
       <ReqoreCollection
         filterable
@@ -475,10 +545,12 @@ export const SelectFieldCollection = ({
             clearOnFocus: true,
           },
         }}
-        customTheme={{ main: '#010811' }}
+        customTheme={calm ? undefined : CLASSIC_DIALOG_THEME}
         transparent={false}
         size='tiny'
         showLayoutSwitch={false}
+        groups={collectionGroups}
+        onQueryChange={handleQueryChange}
         items={filteredItems.map((item): IReqoreCollectionItemProps => {
           const { longDescription, shortDescription } = getSelectItemDescriptionProps(item);
           const unavailable = getSelectItemUnavailability(item);
@@ -512,7 +584,7 @@ export const SelectFieldCollection = ({
             searchString: [item.searchString, unavailable?.title, unavailable?.content]
               .filter(Boolean)
               .join(' '),
-            customTheme: { main: '#08182d' },
+            customTheme: calm ? undefined : CLASSIC_CARD_THEME,
             responsiveTitle: false,
             content: (
               <ReqoreControlGroup vertical fluid>
@@ -562,10 +634,12 @@ export const SelectFieldCollection = ({
             flat: false,
             minimal: true,
             selected: isTheChosenOne(item.value),
-            intent: isTheChosenOne(item.value) ? 'info' : item.intent,
+            /* Calm: the chosen card takes no intent. Blue says only that a filter is on, and the card already
+               says it is chosen with its tick, its "Chosen" badge and its place first in the list. */
+            intent: isTheChosenOne(item.value) ? (calm ? undefined : 'info') : item.intent,
             /* Which one is chosen is a tick and a word, not only the color of its card: an item with an icon or a
-               picture of its own had no other mark (qorus#646, David: "impossible to see for people with issues
-               recognizing colors"). */
+               picture of its own had no other mark, which a reader who does not tell colors apart could not
+               see. */
             badge:
               isTheChosenOne(item.value) ?
                 [...(item.badge === undefined ? [] : [item.badge].flat()), CHOSEN_BADGE]

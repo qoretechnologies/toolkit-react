@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * qorus#646 (React's warning, found by the story run's warning gate): a menu given no `defaultQuery` drew its
+ * React's warning, found by the story run's warning gate: a menu given no `defaultQuery` drew its
  * filter with no value, and the first key typed gave it one - React warned "A component is changing an
  * uncontrolled input to be controlled". The filter holds text from the start, empty when there is no query.
  */

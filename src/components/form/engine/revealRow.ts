@@ -11,14 +11,18 @@
  * drawn over it (405).
  *
  * The visible area is the scrollport minus the pinned chrome above the row:
- * the form's sticky toolbar and the sticky header of every status box the row
- * sits in. Both are read from the DOM when the reveal runs, so a host's own
+ * the form's sticky toolbar, the sticky header of every status box the row
+ * sits in, and the header of an open field's card that pins while its long
+ * body is read (`cardHeaderPin.ts`). Both are read from the DOM when the reveal runs, so a host's own
  * offset, a toolbar that wraps, or a header that is not pinned at all are all
  * accounted for without the caller knowing about them.
  */
 
 /** Selectors of the elements whose header may be pinned above a row. */
-const PINNED_HEADER_OWNERS = '.options-readfirst-group, .options-readfirst-scroll > .reqore-panel';
+const PINNED_HEADER_OWNERS =
+  '.options-readfirst-group, .options-readfirst-scroll > .reqore-panel, .options-readfirst-card';
+/** An owner's own header: a panel's title bar, or a card's heading. */
+const PINNED_HEADER = ':scope > .reqore-panel-title, :scope > .options-readfirst-card-header';
 
 const isScrollable = (element: HTMLElement): boolean => {
   const { overflowY } = getComputedStyle(element);
@@ -44,16 +48,18 @@ export const findScrollContainer = (element: HTMLElement): HTMLElement | undefin
 /**
  * How far below the top of the scrollport the pinned chrome above `element`
  * reaches: the largest `top + height` of any sticky header of an enclosing
- * status box or form toolbar. Zero when nothing above it is pinned.
+ * status box, form toolbar or card. `floor` (zero by default) when nothing
+ * above it is pinned: a sticky `top` that puts something at the scrollport's
+ * visible edge is less than zero in a padded scrollport.
  */
-export const getPinnedChromeHeight = (element: HTMLElement): number => {
-  let clearance = 0;
+export const getPinnedChromeHeight = (element: HTMLElement, floor = 0): number => {
+  let clearance = floor;
   for (
     let owner = element.parentElement?.closest<HTMLElement>(PINNED_HEADER_OWNERS);
     owner;
     owner = owner.parentElement?.closest<HTMLElement>(PINNED_HEADER_OWNERS)
   ) {
-    const header = owner.querySelector<HTMLElement>(':scope > .reqore-panel-title');
+    const header = owner.querySelector<HTMLElement>(PINNED_HEADER);
     if (!header || header.contains(element)) {
       continue;
     }
@@ -95,6 +101,33 @@ export const isRowInView = (element: HTMLElement, clearance: number): boolean =>
     : window.innerHeight || document.documentElement.clientHeight;
   const rect = element.getBoundingClientRect();
   return rect.top >= viewTop + clearance && rect.bottom <= viewBottom;
+};
+
+/** How much of a control has to show for its caret to be seen: one line of text. */
+export const CARET_LINE_HEIGHT = 32;
+
+/**
+ * Whether the line a caret lands on — the top of `control`, one line of it — is on screen
+ * below the pinned chrome. That is what a row opened with the caret in it has to show.
+ *
+ * Not the whole row: a row is measured the moment its control appears, and an editor still
+ * laying out can be several times its final height for that moment. Judged on the whole row,
+ * the Name field of a new workflow (513-887px, then 432-559px) read as out of view, and the
+ * reveal scrolled a phone's editor 71px — taking the form's readiness line off the top, where
+ * a phone does not pin it.
+ */
+export const isCaretLineInView = (control: HTMLElement, clearance: number): boolean => {
+  const container = findScrollContainer(control);
+  const viewTop = container ? container.getBoundingClientRect().top + container.clientTop : 0;
+  const viewBottom =
+    container ?
+      viewTop + container.clientHeight
+    : window.innerHeight || document.documentElement.clientHeight;
+  const rect = control.getBoundingClientRect();
+  return (
+    rect.top >= viewTop + clearance &&
+    rect.top + Math.min(rect.height, CARET_LINE_HEIGHT) <= viewBottom
+  );
 };
 
 /**

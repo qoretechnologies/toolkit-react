@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The stories' stand-in servers answer a hover as the live Qorus `/lsp` does (qorus#646, David: "there are no
-// mouseover / hovers on the functions or on the chips"). Checked against the live server's answers at every
-// character of four DPQL texts, captured from professor's `/lsp` (liveDpqlHovers.json says how).
+// The stories' stand-in servers answer a hover as the live Qorus `/lsp` does: the functions and the chips have
+// hovers. Checked against the live server's answers at every character of four DPQL texts, captured from a live
+// Qorus server's `/lsp` (liveDpqlHovers.json says how).
 import { mockHoverDpql } from '../../src/components/dpqlEditor/__fixtures__/dpqlMockHover';
 import LIVE from './liveDpqlHovers.json';
 

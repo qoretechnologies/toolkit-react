@@ -4,7 +4,7 @@
 
 Issue: [toolkit-react#116](https://github.com/qoretechnologies/toolkit-react/issues/116).
 Design: [`design/IDE_INTEGRATION.md`](../design/IDE_INTEGRATION.md) (seam table; revised 2026-09-07 in this task).
-Consumer that surfaced it: qorus-ide [PR #275](https://github.com/qoretechnologies/qorus-ide/pull/275) — the IDE swapped its
+Consumer that surfaced it: the Qorus IDE — the IDE swapped its
 legacy builder for `ExpressionField` and its AI-assist button vanished from every expression card.
 
 ## Why
@@ -23,7 +23,7 @@ hands the merged catalogue down (an earlier draft of #116 claimed otherwise; cor
 |---|---|
 | `src/components/form/expressions/ExpressionField.tsx` | declare `extraActions?: IExpressionBuilderProps['extraActions']`, forward to the builder mount |
 | `src/components/form/fields/template/TemplateField.tsx` | declare + destructure `extraActions` (so it never rides `rest` into a leaf input); forward to both editors expression mode renders |
-| `src/components/form/expressions/builder/index.tsx` | pass `extraActions` into both operand `TemplateField` mounts; rest-argument mount takes the catalogue's declared `ui_type` when the argument is empty (qlip #189 rejection) |
+| `src/components/form/expressions/builder/index.tsx` | pass `extraActions` into both operand `TemplateField` mounts; rest-argument mount takes the catalogue's declared `ui_type` when the argument is empty (a Qlip review rejection) |
 | `src/components/form/fields/select/SelectCollection.tsx` | `className='reqraft-select-dialog'` on the picker modal — a library-owned hook for hosts' tests |
 | `src/components/form/expressions/ExpressionField.stories.tsx` | `NestedOperandKeepsInjectedActions` — shell hop + operand hop, assertion scoped to the nested card; the injected action is the IDE's `AiButton` presentation verbatim (`ReqoreButton` + the resolved `SynthColorEffect`), click stubbed |
 | `design/IDE_INTEGRATION.md` | AI-assist row revised; dead `BRANCH_REMEDIATION.md` reference removed; "the shell is the host's component" note |
@@ -53,7 +53,7 @@ hands the merged catalogue down (an earlier draft of #116 claimed otherwise; cor
 - [x] commit `f5fb2ee` (no attribution trailer), pushed
 - [ ] open the PR (CI + qlip build only run on a pull request), `ci-monitor`, qlip review
 
-### 5 — qlip #189 rejection (Foxhoundn)
+### 5 — a Qlip review rejection
 - [x] empty rest argument rendered as untyped `auto` under a "true or false" label; empty `any` never reached the template-selector default → declared-type fallback in the rest-argument mount; both expression story files 30/30; verified in the browser on `NestedOperandKeepsInjectedActions`, `WithComplexValue`, and `DefaultBoolean` → Logical Equals
 - [x] design note in `design/EXPRESSION_BUILDER_REPORT_STRATEGY.md` (Revised 2026-09-08)
 - [ ] rejection table shown to the user → push → CI → qlip re-review

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * qorus#646: code-like text is written in reqore's mono stack (`ReqoreFonts.mono`: ui-monospace, SFMono-Regular,
+ * Code-like text is written in reqore's mono stack (`ReqoreFonts.mono`: ui-monospace, SFMono-Regular,
  * Menlo, …), never in the bare generic `monospace`. The generic keyword is the browser's default fixed-width font -
  * Courier in Chrome on macOS unless the user changed it - so the expression editor wrote "202" larger than the
  * field's Value tab beside it, in a face no other text in the IDE uses.

@@ -318,3 +318,43 @@ export const _testsWithViewport = async (
     await resize?.(was.width, was.height);
   }
 };
+
+/* -------------------------------------------------------------------------- */
+
+const rgbChannels = (color: string): number[] => (color.match(/[\d.]+/g) || []).map(Number);
+
+/** WCAG relative luminance of an `rgb()` / `rgba()` colour, as computed styles give them. */
+const relativeLuminance = (color: string): number => {
+  const [r, g, b] = rgbChannels(color)
+    .slice(0, 3)
+    .map((channel) => {
+      const c = channel / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/** The colour an element is drawn on: its own, else the first ancestor that paints one. */
+export const _testsBackgroundOf = (element: HTMLElement): string => {
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const background = getComputedStyle(node).backgroundColor;
+    const [, , , alpha = 1] = rgbChannels(background);
+    if (alpha > 0.5) {
+      return background;
+    }
+  }
+  return 'rgb(0, 0, 0)';
+};
+
+/**
+ * The element's text reads against what it is drawn on: WCAG AA (4.5:1) by
+ * default. A colour that means something (a failure, a fault) is only worth
+ * showing if it can be read — a theme's intent FILL used as text cannot.
+ */
+export const _testsExpectReadable = (element: HTMLElement, min: number = 4.5) => {
+  const [light, dark] = [
+    relativeLuminance(getComputedStyle(element).color),
+    relativeLuminance(_testsBackgroundOf(element)),
+  ].sort((a, b) => b - a);
+  expect((light + 0.05) / (dark + 0.05)).toBeGreaterThanOrEqual(min);
+};

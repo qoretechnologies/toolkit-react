@@ -4,8 +4,8 @@
 (uncommitted) — server rebuilt/restarted by the user 2026-06-10 and
 **verified live end-to-end** (probe + real-browser run of `LiveExplain`
 against :8012: preview AND Explain show `"test".startsWith("t", true)`
-served over `dpql/renderExpression`; the hq accidental run proved the
-`-32601` fallback path too). Awaiting user browser verification.
+served over `dpql/renderExpression`; an accidental run against a server
+without the method proved the `-32601` fallback path too). Awaiting user browser verification.
 **STOP — no commits until the user verifies.**
 
 Design: `design/RENDER_EXPRESSION_TRANSPORT.md` (locked 2026-06-10).
@@ -87,11 +87,11 @@ Server ask history: `/tmp/render-expression-exposure.md`.
 - [x] Agent end-to-end check: real chromium on the `LiveExplain` story at
       :6011 (storybook pointed at :8012) — WS frames confirmed
       `dpql/renderExpression` over the shared socket; preview AND Explain
-      show `"test".startsWith("t", true)`. The earlier hq-pointed run
-      doubled as the fallback proof (`-32601` → client-side rendering).
+      show `"test".startsWith("t", true)`. The earlier run against the shared
+      server doubled as the fallback proof (`-32601` → client-side rendering).
       Found+fixed en route: `.storybook/main.ts` never forwarded
       `REACT_APP_QORUS_INSTANCE`/`_TOKEN` from the shell, so the documented
-      live-story flow silently fell back to hq.
+      live-story flow silently fell back to the shared server.
 - [x] **Styled Explain (2026-06-10, after user feedback):** the builder's
       Explain now renders the server's `richtext` (template refs as chips,
       via `richtextResponseToSlate` → `RichTextFormField`) — IDE parity;
@@ -138,8 +138,8 @@ Server ask history: `/tmp/render-expression-exposure.md`.
       Text editor in `LiveExplain` until fixed.
       **FILED + FIXED (2026-06-11):** issue
       https://github.com/qoretechnologies/qore/issues/5348; fix on qore
-      branch `bugfix/5348-dpql-infix-word-operator-case` (uncommitted,
-      Nick reinstalls qore himself): lowercased `symbol_to_name` keys +
+      branch `bugfix/5348-dpql-infix-word-operator-case` (uncommitted;
+      qore is reinstalled by hand): lowercased `symbol_to_name` keys +
       case-insensitive lookup in `resolveExpressionName()`. Validated
       against pure source (the repo qlib carries a stale compiled
       `DataProvider.qmod` that qore prefers over source — moved aside for
@@ -147,8 +147,8 @@ Server ask history: `/tmp/render-expression-exposure.md`.
       install works): infix `startsWith`/`STARTSWITH` parse to
       `starts-with`, function form + `like` unregressed, full
       serialize→parse round-trip green.
-      **DEPLOYED locally 2026-06-11** (Nick reinstalled qore + restarted
-      core): live `dpql/parse('"test" startsWith "t"')` → success, zero
+      **DEPLOYED locally 2026-06-11** (qore reinstalled + core
+      restarted): live `dpql/parse('"test" startsWith "t"')` → success, zero
       diagnostics; LiveExplain seeded editor clean (no banner/squiggles),
       Explain still server-rendered. The qore branch stays uncommitted;
       issue #5348 open until the fix is committed/PR'd upstream.

@@ -20,8 +20,10 @@ import {
 import { withTouchScreen } from '../../../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
+import qorusAppLogo from '../../../../stories/Data/qorusAppLogo.svg';
 import {
   CONTEXT_DATA_PAYLOAD,
+  GROUPED_TEMPLATE_PAYLOAD,
   QOG_FIELD_TEMPLATES,
   RECORD_FIELDS,
 } from './__fixtures__/qogTemplatePayloads';
@@ -75,7 +77,7 @@ export const QogTemplates: Story = {
     docs: {
       description: {
         story:
-          "The picker at the top of a Qog field's templates: Context Data, Look up customer, Receive order and " +
+          "The picker at the top of a Qog field's templates: Context data, Look up customer, Receive order and " +
           'Record fields, each a group that opens into its members; a state says it is State data.',
       },
     },
@@ -83,7 +85,7 @@ export const QogTemplates: Story = {
   play: async () => {
     await waitFor(() =>
       expect(pickerLabels()).toEqual([
-        'Context Data',
+        'Context data',
         'Look up customer',
         'Receive order',
         'Record fields',
@@ -92,7 +94,7 @@ export const QogTemplates: Story = {
     expect((await pickerRow('Receive order')).textContent).toContain('State data');
     await userEvent.click(await pickerRow('Receive order'));
     await pickerRow('Customer');
-    // every row fits the picker: its name whole, its badges and description inside it (qorus#646, David's review)
+    // every row fits the picker: its name whole, its badges and description inside it
     expectRowsFit(
       Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row'))
     );
@@ -122,7 +124,83 @@ export const DrillDownAndBack: Story = {
       (crumb) => crumb.textContent === 'Templates'
     )!;
     await userEvent.click(top);
-    await waitFor(() => expect(pickerLabels()).toContain('Context Data'));
+    await waitFor(() => expect(pickerLabels()).toContain('Context data'));
+  },
+};
+
+/** How far a computed color is from a grey: the spread of its channels (0 for a grey). */
+const colorfulness = (color: string): number => {
+  const [r = 0, g = 0, b = 0, a = 1] = (color.match(/[\d.]+/g) || []).map(Number);
+  return a === 0 ? 0 : Math.max(r, g, b) - Math.min(r, g, b);
+};
+
+/**
+ * In the calm look a row's kind chip (Context, State data, Field) carries no color of its own: its word says what the
+ * row is, blue is for a filter that is on, and purple only for an AI or Qonsole action. Context data's rows were
+ * tagged "Context" in purple inside the neutral list.
+ */
+export const KindChipsCarryNoColor: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard; the list is pictured by the stories around it.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Opens Context data and Receive order: each row\'s kind chip ("Context", "State data") is drawn neutral, ' +
+          'with no purple or blue of its own, as the rest of the calm list is.',
+      },
+    },
+  },
+  play: async () => {
+    const kindChips = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker-row .reqore-tag'));
+    for (const group of ['Context data', 'Receive order']) {
+      await userEvent.click(await pickerRow(group));
+      await waitFor(() => expect(kindChips().length).toBeGreaterThan(0));
+      for (const chip of kindChips()) {
+        await expect(colorfulness(getComputedStyle(chip).backgroundColor)).toBeLessThanOrEqual(12);
+        await expect(colorfulness(getComputedStyle(chip).color)).toBeLessThanOrEqual(24);
+      }
+      await userEvent.click(document.querySelector<HTMLElement>('.template-picker-back')!);
+      await waitFor(() => expect(pickerLabels()).toContain(group));
+    }
+  },
+};
+
+/**
+ * A value's type is said in words under its name, never as its badge: "Epoch Seconds" read "int" in a chip beside
+ * it. The type stays the value's, what a field matches it by.
+ */
+export const AValuesTypeIsSaidInWords: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens Context data. "Epoch Seconds" ends what it says under its name with "Whole number", and no chip on any row names a ' +
+          'type: the chips say what a row is ("Context"), never "int" or "Whole number". A type tag was a machine ' +
+          'word in front of a reader choosing "the order\'s date".',
+      },
+    },
+  },
+  play: async () => {
+    await userEvent.click(await pickerRow('Context data'));
+    const epoch = await pickerRow('Epoch Seconds');
+    // at the end of what the row says, on its line
+    await waitFor(() =>
+      expect(epoch.querySelector('.template-picker-row-type')?.textContent?.trim()).toMatch(/Whole number$/)
+    );
+    const what = epoch.querySelector<HTMLElement>('.template-picker-row-what');
+    if (what) expect(what.contains(epoch.querySelector('.template-picker-row-type'))).toBe(true);
+    const chips = Array.from(
+      document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row .reqore-tag')
+    ).map((chip) => chip.textContent?.trim());
+    expect(chips.length).toBeGreaterThan(0);
+    for (const word of ['int', 'Whole number', 'date', 'Date', 'bool', 'Yes or no', 'any']) {
+      expect(chips).not.toContain(word);
+    }
+    expectRowsFit(
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row'))
+    );
   },
 };
 
@@ -197,7 +275,7 @@ export const KeyboardOnly: Story = {
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowRight}');
     await waitFor(() => expect(pickerCrumbs()).toContain('Receive order'));
     await userEvent.keyboard('{ArrowLeft}');
-    await waitFor(() => expect(pickerFocused()).toBe('Context Data'));
+    await waitFor(() => expect(pickerFocused()).toBe('Context data'));
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowRight}{ArrowDown}{Enter}');
     await waitFor(() =>
       expect(args.onPick).toHaveBeenLastCalledWith('$data:{receive_order.event_type}')
@@ -289,7 +367,7 @@ export const MembersLoadedWhenOpened: Story = {
   },
 };
 
-/** A group whose members cannot be loaded says which, says why and offers Retry; the picker around it stays usable. */
+/** A group whose members cannot be loaded says which, says why and offers Try again; the picker around it stays usable. */
 export const MembersThatCannotBeLoaded: Story = {
   args: {
     templates: {
@@ -308,7 +386,7 @@ export const MembersThatCannotBeLoaded: Story = {
       description: {
         story:
           'Opens Order data, whose members cannot be loaded: the picker says it could not load them and why, with ' +
-          'Retry, and its way back and search box stay usable. Back returns to the other groups.',
+          'Try again, and its way back and search box stay usable. Back returns to the other groups.',
       },
     },
   },
@@ -331,7 +409,7 @@ export const MembersThatCannotBeLoaded: Story = {
 
 let cameOnRetry = 0;
 
-/** Retry asks again: the members that come are listed, and what failed is no longer said. */
+/** Try again asks again: the members that come are listed, and what failed is no longer said. */
 export const RetryLoadsTheMembers: Story = {
   args: {
     templates: {
@@ -356,7 +434,7 @@ export const RetryLoadsTheMembers: Story = {
     docs: {
       description: {
         story:
-          'Opens Order data, whose first load fails, and clicks Retry: Order ID is listed and the failure is gone.',
+          'Opens Order data, whose first load fails, and clicks Try again: Order ID is listed and the failure is gone.',
       },
     },
   },
@@ -402,5 +480,88 @@ export const OnAPhone: Story = {
       await touch.tap(row);
     });
     await waitFor(() => expect(args.onPick).toHaveBeenLastCalledWith('$local:auth_enabled'));
+  },
+};
+
+/** A server's values in the groups it puts them in, in its order, and the values for tests last. */
+export const GroupedByTheServersGroups: Story = {
+  args: { templates: buildTemplates(GROUPED_TEMPLATE_PAYLOAD), fields: undefined, onPick: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A Qog field's templates from a server that groups its values: The event that started the Qog, Earlier steps " +
+          '(a list per step), Dates and times, This run, Data it keeps while it runs, Variables, Settings, and Values ' +
+          'for tests last, closed. Inside Dates and times the values keep the server order, Unix time last.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() =>
+      expect(pickerLabels()).toEqual([
+        'The event that started the Qog',
+        'Earlier steps',
+        'Dates and times',
+        'This run',
+        'Data it keeps while it runs',
+        'Variables',
+        'Settings',
+        'Values for tests',
+      ])
+    );
+    await userEvent.click(await pickerRow('Dates and times'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['Now', 'Start of today', 'Unix time']));
+    await userEvent.click(document.querySelector<HTMLElement>('.template-picker-back')!);
+    await userEvent.click(await pickerRow('Earlier steps'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['Look up customer']));
+  },
+};
+
+
+/** A group from an app shows the app's logo, and an example is said as written. */
+export const AGroupShowsItsAppsLogo: Story = {
+  args: {
+    templates: buildTemplates({
+      choice: {
+        display_name: 'Pick a reply',
+        app: 'Qorus',
+        logo: qorusAppLogo,
+        items: [
+          {
+            display_name: 'Reply',
+            value: '$data:{choice.reply}',
+            type: 'string',
+            example_value: '__other__',
+          },
+        ],
+      },
+      // a group from no app: a folder
+      kept: {
+        display_name: 'Kept values',
+        items: [{ display_name: 'Count', value: '$data:{kept.count}', type: 'int' }],
+      },
+    }),
+    fields: undefined,
+    onPick: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Two groups of templates: Pick a reply, from an app, drawn with the app's logo, and Kept values, from none, " +
+          'drawn as a folder. Opened, Reply says Example value: __other__ as written, never as bold text.',
+      },
+    },
+  },
+  play: async () => {
+    const group = await pickerRow('Pick a reply');
+    await waitFor(() =>
+      expect(group.querySelector('img')?.getAttribute('src')).toBe(qorusAppLogo)
+    );
+    expect((await pickerRow('Kept values')).querySelector('img')).toBeNull();
+    await userEvent.click(group);
+    const reply = await pickerRow('Reply');
+    await waitFor(() => expect(reply.textContent).toContain('Example value: __other__'));
+    expect(reply.querySelector('strong, b')).toBeNull();
   },
 };

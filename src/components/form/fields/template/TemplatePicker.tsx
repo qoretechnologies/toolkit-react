@@ -36,7 +36,12 @@ import {
   templateNodeFor,
   unbracedReference,
 } from '../../../../helpers/templateTree';
-import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME } from '../../../smartEditor/completionStyle';
+import {
+  COMPLETION_ITEM_STYLE,
+  listKindIntent,
+  useCompletionListTheme,
+} from '../../../smartEditor/completionStyle';
+import { useIsCalmForm } from '../../engine/formAppearance';
 import { SMART_EDITOR_OVERLAY_EFFECT } from '../../../smartEditor/styling';
 import { useTypeLabel } from '../../typeSentenceForm';
 import {
@@ -46,7 +51,7 @@ import {
 import { markdownToProse } from '../../../../helpers/markdownText';
 
 /*
- * The one picker a field's templates are chosen in (qorus#646, David's decisions): a rich-text field's, a DPQL
+ * The one picker a field's templates are chosen in: a rich-text field's, a DPQL
  * field's and a template control's alike, at the caret or from a button. A catalogue is browsed level by level -
  * a Qog state, a record in it - with the way back above the rows ("Templates › Receive order › Customer"); a
  * search finds a template at any depth by its name, or by its reference as it is typed (`$data:receive_order.`),
@@ -92,8 +97,14 @@ export interface ITemplatePickerProps {
    */
   arrowsFromPage?: boolean;
   /**
+   * With `keysFromPage`: told in the commit the picker starts hearing the page's keys. A picker is drawn some
+   * commits after it is asked for (a popover opens once it is mounted); whoever opened it hears the keys until
+   * then, and hands them on now (`useLspAutocomplete`'s `pickerHears`), so a key pressed in between is not lost.
+   */
+  onKeysHeard?: () => void;
+  /**
    * Fills the surface it is drawn in (a dropdown's popover, as wide as its field within the popover's bounds)
-   * instead of keeping its own width, which left the popover's far side empty (qorus#646, David's review).
+   * instead of keeping its own width, which left the popover's far side empty.
    */
   fill?: boolean;
   /** The listbox's id, for the control that drives it (`aria-controls`). */
@@ -126,47 +137,59 @@ const isDeadEnd = (node: ITemplateNode) =>
 const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
 
 /**
- * A row's badges: what it is (State data, Context, Field...) and its type, named; a group's app, as its catalogue
- * badges it (the app it comes from, never a type: qorus#646, 8909de2f).
+ * A row's badges: what it is (State data, Context, Field...); a group's app, as its catalogue badges it (the app it
+ * comes from, never a type). Never its type: that is said in words under its name
+ * (`RowDescription`), and stays the value's to be matched by (`node.type`).
  */
-const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel): TReqoreBadge[] => {
+const rowBadges = (node: ITemplateNode, calm: boolean): TReqoreBadge[] => {
   const kind = templateNodeKindLabel(node.kind);
-  const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
   const app = !node.row?.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
   return [
     ...(app ? [{ label: app, minimal: true, size: 'small' as const }] : []),
     ...(kind ?
-      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`)
-      [{ label: kind, minimal: true, size: 'small' as const, intent: templateNodeIntent(node) }]
+      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`); none in the calm look (`listKindIntent`)
+      [
+        {
+          label: kind,
+          minimal: true,
+          size: 'small' as const,
+          intent: listKindIntent(templateNodeIntent(node), calm),
+        },
+      ]
     : []),
-    ...(type ? [{ label: type, minimal: true, size: 'small' as const }] : []),
   ] as TReqoreBadge[];
 };
 
 /**
  * What a row says under its name: where it is, when it is found by a search ("in Receive order › Customer"), and
- * what it is, in its own words; where it comes from, as its host says, after that. Where it is and what it is are
- * drawn apart, so that a group's name is never read as a description of the row (qorus#646, David's review: each
+ * what it is, in its own words, ending with what kind of value it is ("… · Whole number", never "int", and never a
+ * chip) as the other lists end with it; where it comes from, as its host says, after that. A row
+ * that says nothing else says its kind of value on a line of its own. Where it is and what it is are
+ * drawn apart, so that a group's name is never read as a description of the row (each
  * state's data said "Receive order" as if it were what it is).
  */
 const RowDescription = ({
   node,
   showWhere,
   renderMarkdown,
+  typeLabel,
 }: {
   node: ITemplateNode;
   showWhere: boolean;
   renderMarkdown?: TMarkdownRenderer;
+  typeLabel: TTypeLabel;
 }) => {
+  const editorWords = useReqraftLabels().editor;
   const where = showWhere && node.trail.length ? node.trail.join(' › ') : undefined;
-  if (!where && !node.description && !node.source) {
+  const typeWords = node.type ? typeLabel(node.type, node.baseType) : undefined;
+  if (!where && !typeWords && !node.description && !node.source) {
     return null;
   }
   return (
     <span className='template-picker-row-description' style={{ display: 'block' }}>
       {where ?
         <span className='template-picker-row-where' style={{ display: 'block', opacity: 0.7 }}>
-          in {where}
+          {editorWords.inTrail(where)}
         </span>
       : null}
       {node.description ?
@@ -175,11 +198,23 @@ const RowDescription = ({
           {renderMarkdown ?
             renderMarkdown({ value: node.description, compact: true })
           : markdownToProse(node.description)}
+          {/* its type, at the end of what it says, as the other lists say it: a line of its own made every row a
+              line taller, and a picker showed a row fewer */}
+          {typeWords ?
+            <span className='template-picker-row-type' style={ROW_TYPE_STYLE}>
+              {` · ${typeWords}`}
+            </span>
+          : null}
         </span>
       : null}
       {node.source ?
         <span className='template-picker-row-source' style={{ display: 'block', opacity: 0.7 }}>
-          from {node.source}
+          {editorWords.fromSource(node.source)}
+        </span>
+      : null}
+      {typeWords && !node.description ?
+        <span className='template-picker-row-type' style={{ display: 'block', opacity: 0.7 }}>
+          {typeWords}
         </span>
       : null}
     </span>
@@ -187,7 +222,7 @@ const RowDescription = ({
 };
 
 /**
- * "Use" beside a group's ">" (qorus#646, David's review): set apart from the ">" that opens the group by a divider,
+ * "Use" beside a group's ">": set apart from the ">" that opens the group by a divider,
  * and saying on hover that it takes the group whole.
  */
 export const USE_WHOLE_STYLE: React.CSSProperties = {
@@ -197,6 +232,9 @@ export const USE_WHOLE_STYLE: React.CSSProperties = {
 
 /** What "Use" beside a group says on hover. */
 export const useWholeSays = (label: string) => reqraftLabels().templateBrowser.useWhole(label);
+
+/** A value's type at the end of what its row says: quieter than the words before it. */
+const ROW_TYPE_STYLE: React.CSSProperties = { opacity: 0.7 };
 
 /** What a row says it is: up to three lines, wrapped, never past the row (the reqraft row rule). */
 const ROW_WHAT_STYLE: React.CSSProperties = {
@@ -255,12 +293,16 @@ export const TemplatePicker = memo(
     focusFilter,
     keysFromPage,
     arrowsFromPage,
+    onKeysHeard,
     fill,
     id,
     typeLabel: givenTypeLabel,
     labels,
   }: ITemplatePickerProps) => {
     const browserWords = useReqraftLabels().templateBrowser;
+    // the list's own color in the look in force: neutral in the calm one (`useCompletionListTheme`)
+    const listTheme = useCompletionListTheme();
+    const calm = useIsCalmForm();
     const coarse = useCoarsePointer();
     const formTypeLabel = useTypeLabel();
     const typeLabel = givenTypeLabel ?? formTypeLabel;
@@ -275,7 +317,7 @@ export const TemplatePicker = memo(
     // a host's members come when they are asked for: the rows are drawn again when they have come
     const [, membersCame] = useReducer((count: number) => count + 1, 0);
     const [loading, setLoading] = useState<string | null>(null);
-    // the group whose members could not be loaded, and why: said where they would be, with Retry
+    // the group whose members could not be loaded, and why: said where they would be, with Try again
     const [loadFailure, setLoadFailure] = useState<{ node: ITemplateNode; reason?: string } | null>(
       null
     );
@@ -294,7 +336,7 @@ export const TemplatePicker = memo(
     /* Opened at another group (a chip of another state replaced): that group. The same picker given more of the
        field's templates as they come (its catalogue, its language server's completions) stays where it is browsed
        to, the row it is on still the row it is on: put back at the top, the keys pressed while they came went to
-       other rows than the ones the user saw (qorus#646). */
+       other rows than the ones the user saw. */
     const levelIdRef = useRef(levelId);
     useEffect(() => {
       setLevels((current) => {
@@ -391,8 +433,10 @@ export const TemplatePicker = memo(
     );
     const visible = rows.slice(0, shown);
 
-    // a new level or search starts at its top, or at the value already chosen
-    useEffect(() => {
+    /* a new level or search starts at its top, or at the value already chosen - in the commit that draws it, before
+       the page's keys are heard (below): a passive effect ran after the keys heard on the picker's first commit, and
+       put the keyboard's row back at the top under an arrow already pressed */
+    useLayoutEffect(() => {
       setShown(TEMPLATE_PICKER_PAGE);
       const chosen = selectedValue ? templateNodeFor(visible, selectedValue) : undefined;
       const at = chosen ? visible.indexOf(chosen) : -1;
@@ -499,7 +543,7 @@ export const TemplatePicker = memo(
             return true;
           case 'Tab': {
             /* From the text it was opened in, Tab takes the row the keyboard is on, as Enter does (a code editor's
-               key): the text keeps the focus (qorus#646, David's review: Tab left the half-typed reference as it
+               key): the text keeps the focus (Tab used to leave the half-typed reference as it
                was). From its own search box the focus moves on, and nothing is chosen. */
             if (fromText && !keyFor) {
               const node = visible[focused];
@@ -534,10 +578,12 @@ export const TemplatePicker = memo(
     // heard from the page while the text the picker was opened from keeps the focus
     const handleKeyRef = useRef(handleKey);
     handleKeyRef.current = handleKey;
-    /* A layout effect: the picker hears the page's keys from the commit that puts it in the page. The editor hears
-       an Escape while no picker is in the page (`useLspAutocomplete`); a passive effect left a moment between the two
-       in which the picker was drawn and deaf, and an Escape then was lost (CI, DpqlEditor › An Emptied Field Opens
-       The Picker). */
+    const onKeysHeardRef = useRef(onKeysHeard);
+    onKeysHeardRef.current = onKeysHeard;
+    /* Heard from the commit that draws the picker, not after it is painted: a passive effect left a window in which
+       the rows were on the page and a key was not heard - an Escape pressed then left the picker open. Before that
+       commit, whoever opened the picker hears its keys and hands them on now (`onKeysHeard`; CI, DpqlEditor › An
+       Emptied Field Opens The Picker). */
     useLayoutEffect(() => {
       if (!keysFromPage) return undefined;
       const listener = (event: KeyboardEvent) => {
@@ -552,6 +598,8 @@ export const TemplatePicker = memo(
         }
       };
       document.addEventListener('keydown', listener, true);
+      // heard from now on: whoever opened the picker hands on what it heard until now
+      onKeysHeardRef.current?.();
       return () => document.removeEventListener('keydown', listener, true);
     }, [keysFromPage, arrowsFromPage]);
 
@@ -570,7 +618,7 @@ export const TemplatePicker = memo(
       loadFailure && (level?.id === loadFailure.node.id || isReference) ? loadFailure : null;
     const optionId = (index: number) => `${id}-option-${index}`;
 
-    /* The list's height ends at a row's end, never through a row (qorus-ide #301: the last row was drawn cut
+    /* The list's height ends at a row's end, never through a row (the last row was drawn cut
        through its description). Measured after every draw, as a row's height follows what it says. */
     const [listHeight, setListHeight] = useState(TEMPLATE_PICKER_LIST_CAP);
     useLayoutEffect(() => {
@@ -585,11 +633,11 @@ export const TemplatePicker = memo(
         ref={rootRef}
         className='template-picker'
         // the list's own color under all of it - its way back and search box too: the popover it opens in is
-        // transparent, so without it the page shows through around the rows (Foxhoundn on qlip #425)
+        // transparent, so without it the page shows through around the rows
         style={{
           width: fill ? '100%' : TEMPLATE_PICKER_WIDTH,
           maxWidth: '100%',
-          background: COMPLETION_LIST_THEME.main as string,
+          background: listTheme.main as string,
           borderRadius: 6,
         }}
         onKeyDown={(event) => {
@@ -605,7 +653,7 @@ export const TemplatePicker = memo(
             keepTheFocus(event);
         }}
       >
-        <ReqoreControlGroup vertical fluid size='small' customTheme={COMPLETION_LIST_THEME}>
+        <ReqoreControlGroup vertical fluid size='small' customTheme={listTheme}>
           <ReqoreControlGroup
             fluid
             wrap
@@ -785,7 +833,7 @@ export const TemplatePicker = memo(
           maxHeight={`${listHeight}px`}
           width='100%'
           effect={SMART_EDITOR_OVERLAY_EFFECT}
-          customTheme={COMPLETION_LIST_THEME}
+          customTheme={listTheme}
         >
           {!visible.length && !shownFailure ?
             <ReqoreMenuItem
@@ -826,9 +874,10 @@ export const TemplatePicker = memo(
                     node={node}
                     showWhere={!!query.trim()}
                     renderMarkdown={renderMarkdown}
+                    typeLabel={typeLabel}
                   />
                 }
-                badge={rowBadges(node, typeLabel) as any}
+                badge={rowBadges(node, calm) as any}
                 /* a group opens; a context only the server knows goes on into what is in it as it is typed. One whose
                    catalogue lists nothing in it is no submenu: what follows it is written (`$rest:`) */
                 rightIcon={group || (node.continues && !node.catalogue) ? 'ArrowRightSLine' : undefined}
@@ -873,7 +922,11 @@ export const TemplatePicker = memo(
                     } as any)
                   : undefined
                 }
-                style={{ ...COMPLETION_ITEM_STYLE, ...(coarse ? { minHeight: 44 } : {}) }}
+                // a template is drawn as what it writes (the code font); a group's name and what it says are words
+                style={{
+                  ...(group ? {} : COMPLETION_ITEM_STYLE),
+                  ...(coarse ? { minHeight: 44 } : {}),
+                }}
               />
             );
           })}

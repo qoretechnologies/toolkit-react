@@ -105,7 +105,7 @@ export function useLspSignatureHelp(
       /* The caret as it was when the text changed (`at`), not as it is when the request goes: a tap that put the
          caret in a call's arguments after the editor had loaded was read by the request the load had started, if
          it came within the debounce, and the signature showed; a tap later than that showed none, so a story's
-         frame had the pill or not from run to run (qorus#646, DpqlEditor · Details On A Chip On A Touch Screen).
+         frame had the pill or not from run to run (DpqlEditor · Details On A Chip On A Touch Screen).
          The signature follows what is typed; a caret moved alone does not ask for it.
 
          If the editor doesn't have a focused selection (e.g. fresh

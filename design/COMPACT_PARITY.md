@@ -1,7 +1,7 @@
 # Compact mode — options-schema parity matrix
 
-Answers the call's requirement: *"we have to make sure that we support everything that the
-options support"* (Filip, 2026-06-10). Capability list is taken from the authoritative schema
+Answers the requirement that compact mode supports everything that the options support
+(2026-06-10). Capability list is taken from the authoritative schema
 type (`@qoretechnologies/ts-toolkit` `forms.d.ts` — `TQorusFormFieldSchema`) plus engine-level
 props; IDE usage was verified by grepping `qorus-ide` (file counts in brackets where relevant).
 
@@ -49,8 +49,8 @@ Legend: ✅ works + covered · 🟡 works, coverage thin/indirect · 🔴 gap (n
 | `supports_templates` / `$config:` | raw template shown in read row; toggle inline | ✅ `CompactBasic` (`$local:test`) |
 | `supports_custom_values` | passed through to editor | 🟡 indirect |
 | `sensitive` [21 IDE files] | read row + hover title mask `••••••` (leak fixed 2026-06-10). Known behaviour: the TemplateField *editor* reveals the value while editing (textarea path — same as the IDE; a `password`-input treatment would be a TemplateField change). Nested sensitive inside the structured hash preview NOT masked (ReqoreDataView has no sensitive concept — upstream candidate) | 🟡 `CompactSensitive` asserts the read-row mask + no page-text leak; the edit-state reveal and the hover-title mask are not asserted (+ unit tests) |
-| `is_expression` values | read row shows "Expression" | 🟡 unit test; expression *editing* story still pending (transport live, deferred by Nick) |
-| `supports_expressions` / `expressions_url` / `server_expression_handling` / `default_view` | passed to editor | 🔴 untested in compact (needs expression transport — now live per Nick) |
+| `is_expression` values | read row shows "Expression" | 🟡 unit test; expression *editing* story still pending (transport live, deferred) |
+| `supports_expressions` / `expressions_url` / `server_expression_handling` / `default_view` | passed to editor | 🔴 untested in compact (needs expression transport — now live) |
 | `op` / operators | ✅ **`operators` prop wired** (2026-06-10 — was a dead internal `useState(undefined)`, unreachable in classic AND compact); operator-bearing fields always card-edit | ✅ `CompactOperators` (selector + the comparison in names: `Status equals (==) "COMPLETE"`, `operatorSummary`) |
 | `app` / `action` (custom template menu for `any`) | `getCustomMenuTemplateItems` wired. **Empty-`any` affordance fixed** (2026-06-11, found via `CompactFieldTypesEditingAllRequired`): `allowCustomValues` is hard-false for `any` (the value's TYPE is picked from the template menu first), so an empty `any` card used to render only a bare ⋮ — read as broken. `TemplateField` now renders the menu trigger as a labelled **"Set value"** button whenever the menu is the field's only control (`hasInputAffordance`); valued fields keep the icon-only ⋮. Toolkit is canonical — the IDE inherits this at adoption. | ✅ `CompactFieldTypesEditingAllRequired` (Set value → Set Custom Value → Text → richtext editor mounts), `CompactAnyType` (valued: card opens) |
 
@@ -74,7 +74,7 @@ Closed in the batch: `rules` wiring (+ the `OptionFieldMessages` field-vs-map sp
 on compact cards (feature + story), multi-select editing story, `sort` assert.
 
 Still open:
-1. **Expression-editing story** — transport is live (localhost:8012); deferred by Nick.
+1. **Expression-editing story** — transport is live (localhost:8012); deferred.
 2. **Nested `sensitive` in the structured hash preview** — `ReqoreDataView` has no sensitive
    concept; upstream candidate. Related: the TemplateField editor reveals sensitive values while
    editing (IDE-parity behaviour; a password-input treatment would be a TemplateField change).

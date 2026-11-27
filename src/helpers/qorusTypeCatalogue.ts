@@ -1,35 +1,49 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The Qorus server's type catalogue as reqraft keeps it (qorus#646): what each type is called as a label (its
+// The Qorus server's type catalogue as reqraft keeps it: what each type is called as a label (its
 // display name) and inside a sentence (its sentence form). No React here: the form's validation names types too,
 // and the hook (`useQorusTypes`) that answers with the server's catalogue builds on it.
-import { reqraftLabels } from './reqraftLabels';
-import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { TQorusType } from '@qoretechnologies/ts-toolkit';
+import { IReqraftLabels, reqraftLabels } from './reqraftLabels';
+import { defaultQorusTypes, IQorusTypeObject } from './qorusTypeData';
 
-export interface IQorusTypeObject {
-  /** The type's name as a label: in a picker, a form, a list ("Whole number"). */
-  display_name: string;
-  /**
-   * The type's name inside a sentence ("a whole number": "The expression gives a whole number"). A server before
-   * qorus c6b3fb97c gives none; see `qorusTypeSentenceForm`.
-   */
-  sentence_form?: string;
-  name: TQorusType | string;
-  desc?: string;
-  short_desc?: string;
-  icon?: IReqoreIconName;
-  types_accepted: (TQorusType | string)[];
-  exact_match?: (TQorusType | string)[];
-  /**
-   * Whether a picker that lists every type offers it as a choice. A type that is not offered (the string format
-   * types, a file) names a field or an option whose UI type it is, and says what values it takes, but nobody
-   * chooses it for a value; see `offeredQorusTypes`. A server before qorus 974643455 says nothing: offered.
-   */
-  offered?: boolean;
-}
+export type { IQorusTypeObject } from './qorusTypeData';
+
+/* The built-in catalogue in the host's words, and the words it was worded with: worded again when they change. */
+let wordedWith: IReqraftLabels | undefined;
+let worded: IQorusTypeObject[] = defaultQorusTypes;
 
 /**
- * The types a value's own type menu offers ("Set Custom Value"), in the order it lists them: text first. The menu
+ * reqraft's copy of the server's catalogue (`defaultQorusTypes`) in the host's words (`setReqraftLabels`,
+ * `qorusTypes`): each type's names and descriptions as the host gives them, English where it gives none. What
+ * names types until the server answers, and where no form has the server's catalogue. The server's own answer is
+ * in the language it was asked for, and is used as it comes.
+ */
+export const builtInQorusTypes = (): IQorusTypeObject[] => {
+  const labels = reqraftLabels();
+  if (labels !== wordedWith) {
+    wordedWith = labels;
+    const words = labels.qorusTypes;
+    const wordedTypes = defaultQorusTypes.map((type) => ({
+      ...type,
+      display_name: words.names[type.name] ?? type.display_name,
+      sentence_form: words.sentenceForms[type.name] ?? type.sentence_form,
+      short_desc: words.shortDescriptions[type.name] ?? type.short_desc,
+      desc: words.descriptions[type.name] ?? type.desc,
+    }));
+    // in English it is the copy itself, as it always was
+    const same = wordedTypes.every(
+      (type, index) =>
+        type.display_name === defaultQorusTypes[index].display_name &&
+        type.sentence_form === defaultQorusTypes[index].sentence_form &&
+        type.short_desc === defaultQorusTypes[index].short_desc &&
+        type.desc === defaultQorusTypes[index].desc
+    );
+    worded = same ? defaultQorusTypes : wordedTypes;
+  }
+  return worded;
+};
+
+/**
+ * The types a value's own type menu offers ("Set custom value"), in the order it lists them: text first. The menu
  * follows this order, not the catalogue's, so the server moving a type in its catalogue does not move it in the menu
  * (richtext, which follows the Qorus object types in the catalogue since qorus ed0f9ba62).
  */
@@ -39,320 +53,7 @@ export const compactTypesList = ['richtext', 'float', 'bool', 'date', 'binary', 
 export const compactQorusTypes = (types: IQorusTypeObject[] | undefined): IQorusTypeObject[] =>
   compactTypesList.flatMap((name) => types?.find((type) => type.name === name) ?? []);
 
-/**
- * reqraft's copy of the server's type catalogue (GET /system/qorus-type-info), used until the server answers: the
- * same types, in the same order, with the same fields. __tests__/qorusTypeCatalogue.test.ts compares it with a
- * recorded response (__tests__/fixtures/qorusTypeInfo.json), so a copy that drifts from the server fails.
- */
-export const defaultQorusTypes: IQorusTypeObject[] = [
-  {
-    name: 'any',
-    display_name: 'Any',
-    sentence_form: 'any value',
-    short_desc: 'Any data type',
-    desc: 'Any data type',
-    types_accepted: ['any'],
-    exact_match: ['any'],
-    offered: true,
-  },
-  {
-    name: 'context',
-    display_name: 'Context',
-    sentence_form: "a value of the context's type",
-    short_desc: 'The data type is determined by the context value chosen',
-    desc: 'The data type is determined by the context value chosen',
-    types_accepted: ['any'],
-    exact_match: ['any'],
-    offered: true,
-  },
-  {
-    name: 'string',
-    display_name: 'Text',
-    sentence_form: 'text',
-    short_desc: 'Text',
-    desc: 'Text',
-    types_accepted: ['any'],
-    exact_match: ['string', 'richtext'],
-    offered: true,
-  },
-  {
-    name: 'int',
-    display_name: 'Whole number',
-    sentence_form: 'a whole number',
-    short_desc: 'A whole number (64-bit)',
-    desc: 'A whole number (64-bit)',
-    types_accepted: ['int', 'float', 'number'],
-    exact_match: ['int', 'float', 'number'],
-    offered: true,
-  },
-  {
-    name: 'float',
-    display_name: 'Number',
-    sentence_form: 'a number',
-    short_desc: 'A number with a fractional part (double precision)',
-    desc: 'A number with a fractional part (double precision)',
-    types_accepted: ['float', 'int', 'number'],
-    exact_match: ['float', 'int', 'number'],
-    offered: true,
-  },
-  {
-    name: 'number',
-    display_name: 'Exact number',
-    sentence_form: 'an exact number',
-    short_desc: 'A decimal number kept exactly',
-    desc: 'A decimal number kept exactly',
-    types_accepted: ['number', 'float', 'int'],
-    exact_match: ['number', 'float', 'int'],
-    offered: true,
-  },
-  {
-    name: 'bool',
-    display_name: 'True or false',
-    sentence_form: 'true or false',
-    short_desc: 'True or false',
-    desc: 'True or false',
-    types_accepted: ['bool'],
-    exact_match: ['bool'],
-    offered: true,
-  },
-  {
-    name: 'date',
-    display_name: 'Date',
-    sentence_form: 'a date and time',
-    short_desc: 'A date and time',
-    desc: 'A date and time',
-    types_accepted: ['date'],
-    exact_match: ['date'],
-    offered: true,
-  },
-  {
-    name: 'time',
-    display_name: 'Time',
-    sentence_form: 'a time of day',
-    short_desc: 'A time of day',
-    desc: 'A time of day',
-    types_accepted: ['date'],
-    exact_match: ['date'],
-    offered: true,
-  },
-  {
-    name: 'binary',
-    display_name: 'Binary data',
-    sentence_form: 'binary data',
-    short_desc: 'Binary data',
-    desc: 'Binary data',
-    types_accepted: ['binary'],
-    exact_match: ['binary'],
-    offered: true,
-  },
-  {
-    name: 'data',
-    display_name: 'Text or binary data',
-    sentence_form: 'text or binary data',
-    short_desc: 'Text or binary data',
-    desc: 'Text or binary data',
-    // a value of a string format type is text
-    types_accepted: [
-      'string',
-      'richtext',
-      'binary',
-      'data',
-      'email',
-      'uri',
-      'uuid',
-      'hostname',
-      'ipv4',
-      'ipv6',
-      'phone',
-    ],
-    exact_match: ['string', 'richtext', 'binary', 'data'],
-    offered: true,
-  },
-  {
-    name: 'hash',
-    display_name: 'Key-value pairs (hash)',
-    sentence_form: 'key-value pairs (a hash)',
-    short_desc: 'Key-value pairs (hash)',
-    desc: 'Key-value pairs (a hash): each value is stored under a named key',
-    // a file is a hash
-    types_accepted: ['hash', 'file'],
-    exact_match: ['hash'],
-    offered: true,
-  },
-  {
-    name: 'list',
-    display_name: 'List',
-    sentence_form: 'a list',
-    short_desc: 'List',
-    desc: 'List',
-    types_accepted: ['list'],
-    exact_match: ['list'],
-    offered: true,
-  },
-  {
-    name: 'rgbcolor',
-    display_name: 'Color',
-    sentence_form: 'a color',
-    short_desc: 'A color: red, green and blue from 0 to 255 and an opacity from 0 to 1',
-    desc: 'A color, stored as a hash: r, g and b are integers from 0 to 255, and a is the opacity, from 0 (transparent) to 1 (opaque); a missing or null a is opaque. A hex code such as #ff0000 is not a stored color.',
-    types_accepted: ['rgbcolor'],
-    exact_match: ['rgbcolor'],
-    offered: true,
-  },
-  {
-    name: 'workflow',
-    display_name: 'Workflow',
-    sentence_form: 'a workflow',
-    short_desc: 'Qorus workflow',
-    desc: 'Qorus workflow',
-    types_accepted: ['workflow', 'string', 'richtext'],
-    exact_match: ['workflow', 'string', 'richtext'],
-    offered: true,
-  },
-  {
-    name: 'service',
-    display_name: 'Service',
-    sentence_form: 'a service',
-    short_desc: 'Qorus service',
-    desc: 'Qorus service',
-    types_accepted: ['service', 'string', 'richtext'],
-    exact_match: ['service', 'string', 'richtext'],
-    offered: true,
-  },
-  {
-    name: 'job',
-    display_name: 'Job',
-    sentence_form: 'a job',
-    short_desc: 'Qorus job',
-    desc: 'Qorus job',
-    types_accepted: ['job', 'string', 'richtext'],
-    exact_match: ['job', 'string', 'richtext'],
-    offered: true,
-  },
-  {
-    name: 'mapper',
-    display_name: 'Mapper',
-    sentence_form: 'a mapper',
-    short_desc: 'Qorus mapper',
-    desc: 'Qorus mapper',
-    types_accepted: ['mapper', 'string', 'richtext'],
-    exact_match: ['mapper', 'string', 'richtext'],
-    offered: true,
-  },
-  {
-    name: 'data-provider',
-    display_name: 'Data provider',
-    sentence_form: 'a data provider',
-    short_desc: 'Qorus data provider',
-    desc: 'Qorus data provider',
-    types_accepted: ['data-provider'],
-    exact_match: ['data-provider'],
-    offered: true,
-  },
-  {
-    name: 'connection',
-    display_name: 'Connection',
-    sentence_form: 'a connection',
-    short_desc: 'Qorus connection',
-    desc: 'Qorus connection',
-    types_accepted: ['connection', 'string', 'richtext'],
-    exact_match: ['connection', 'string', 'richtext'],
-    offered: true,
-  },
-  /* Not offered: a type the server gives a field or an option as its UI type, and so names and converts, but that a
-     person choosing a type for a value does not choose - the DataProvider module's string format types, which are
-     text, and its file type, which is a hash (qorus 974643455). */
-  {
-    name: 'richtext',
-    display_name: 'Text',
-    sentence_form: 'text',
-    short_desc: 'Text that can hold templates',
-    desc: 'Text that can hold templates',
-    types_accepted: ['any'],
-    exact_match: ['string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'email',
-    display_name: 'Email address',
-    sentence_form: 'an email address',
-    short_desc: 'An email address',
-    desc: 'An email address, such as user@example.com',
-    types_accepted: ['email', 'string', 'richtext'],
-    exact_match: ['email', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'uri',
-    display_name: 'Address (URI)',
-    sentence_form: 'an address (a URI)',
-    short_desc: 'An address that starts with its scheme (a URI)',
-    desc: 'An address that starts with its scheme (a URI), such as https://example.com/',
-    types_accepted: ['uri', 'string', 'richtext'],
-    exact_match: ['uri', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'uuid',
-    display_name: 'Unique identifier (UUID)',
-    sentence_form: 'a unique identifier (a UUID)',
-    short_desc: 'A universally unique identifier (a UUID)',
-    desc: 'A universally unique identifier (a UUID): 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, such as 123e4567-e89b-12d3-a456-426614174000',
-    types_accepted: ['uuid', 'string', 'richtext'],
-    exact_match: ['uuid', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'hostname',
-    display_name: 'Host name',
-    sentence_form: 'a host name',
-    short_desc: 'A host or domain name',
-    desc: 'A host or domain name, such as example.com',
-    types_accepted: ['hostname', 'string', 'richtext'],
-    exact_match: ['hostname', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'ipv4',
-    display_name: 'IPv4 address',
-    sentence_form: 'an IPv4 address',
-    short_desc: 'An IPv4 address',
-    desc: 'An IPv4 address, such as 192.0.2.1',
-    types_accepted: ['ipv4', 'string', 'richtext'],
-    exact_match: ['ipv4', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'ipv6',
-    display_name: 'IPv6 address',
-    sentence_form: 'an IPv6 address',
-    short_desc: 'An IPv6 address',
-    desc: 'An IPv6 address, such as 2001:db8::1',
-    types_accepted: ['ipv6', 'string', 'richtext'],
-    exact_match: ['ipv6', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'phone',
-    display_name: 'Phone number',
-    sentence_form: 'a phone number',
-    short_desc: 'A telephone number',
-    desc: 'A telephone number, such as +1 555 0100',
-    types_accepted: ['phone', 'string', 'richtext'],
-    exact_match: ['phone', 'string', 'richtext'],
-    offered: false,
-  },
-  {
-    name: 'file',
-    display_name: 'File',
-    sentence_form: 'a file',
-    short_desc: 'A file: its name, its content and its MIME type',
-    desc: 'A file, stored as a hash: its name, its content (raw or base64-encoded) and its MIME type',
-    types_accepted: ['file', 'hash'],
-    exact_match: ['file', 'hash'],
-    offered: false,
-  },
-];
+export { defaultQorusTypes } from './qorusTypeData';
 
 /* The catalogue the server answered GET /system/qorus-type-info with, once a `useQorusTypes` has it. */
 let serverQorusTypes: IQorusTypeObject[] | undefined;
@@ -360,10 +61,10 @@ let serverQorusTypes: IQorusTypeObject[] | undefined;
 /**
  * The type catalogue for code outside a component: the server's answer once a `useQorusTypes` has it, reqraft's
  * copy (`defaultQorusTypes`) until then. It gave reqraft's copy always, so a type or a conversion only the server
- * knows was never seen by the checks that decide which values and templates fit a field (qorus#646). A component
+ * knows was never seen by the checks that decide which values and templates fit a field. A component
  * gives the checks `useQorusTypes().value` instead, so that it draws again when the answer comes.
  */
-export const getQorusTypes = (): IQorusTypeObject[] => serverQorusTypes ?? defaultQorusTypes;
+export const getQorusTypes = (): IQorusTypeObject[] => serverQorusTypes ?? builtInQorusTypes();
 
 /**
  * The types a picker that lists every type offers: the ones the catalogue offers (`offered` is not false), and the
@@ -388,7 +89,7 @@ export const setServerQorusTypes = (types: IQorusTypeObject[] | undefined): void
 /** Forgets the server's answer, so that a test or a story starts without one. */
 export const _resetServerQorusTypesForTests = (): void => setServerQorusTypes(undefined);
 
-/** Qore's other names for a type the catalogue lists under its own (qorus#646). */
+/** Qore's other names for a type the catalogue lists under its own. */
 const QORE_TYPE_ALIASES: Record<string, string> = { boolean: 'bool', integer: 'int' };
 
 /**
@@ -434,18 +135,22 @@ export const qorusTypeEntry = (
   return named(typeName) ?? (baseType ? named(baseType) : undefined);
 };
 
-/** The name of a type no catalogue entry names: a user type by its path, anything else as unknown. */
+/**
+ * The English name of a type no catalogue entry names.
+ * @deprecated A type no catalogue names is called in the host's words: `reqraftLabels().qorusTypes.unknownType`.
+ */
 export const UNKNOWN_TYPE_NAME = 'Unknown type';
+/** The name of a type no catalogue entry names: a user type by its path, anything else as unknown. */
 const unlistedTypeName = (typeName: string): string =>
-  typeName.includes('/') ? typeName : UNKNOWN_TYPE_NAME;
+  typeName.includes('/') ? typeName : reqraftLabels().qorusTypes.unknownType;
 
 /**
  * What a type is called as a label ("Whole number"), by the type catalogue, or by its `baseType` where the
  * catalogue lists it under no name (see `qorusTypeEntry`). A type named by neither is never named by its code: a
- * user type is named by its path, anything else is "Unknown type" (qorus#646).
+ * user type is named by its path, anything else is "Unknown type".
  *
  * No type (`undefined` or an empty name: a place whose type is not known yet) has no name: `undefined`, and the
- * caller draws or words its text without one (qorus#646).
+ * caller draws or words its text without one.
  */
 export const qorusTypeDisplayName = (
   types: IQorusTypeObject[] | undefined,
@@ -458,7 +163,7 @@ export const qorusTypeDisplayName = (
 
 /**
  * What a type is called inside a sentence ("a whole number": "The expression gives a whole number"), by the type
- * catalogue - its sentence form, which the server gives in the language it is asked for (qorus#646, c6b3fb97c).
+ * catalogue - its sentence form, which the server gives in the language it is asked for (Qorus c6b3fb97c).
  *
  * A catalogue with no sentence form for it (a server before c6b3fb97c) gives a wording that needs no article -
  * "a value of type Whole number" - with its display name. An English article is never built from a display name:
@@ -467,7 +172,7 @@ export const qorusTypeDisplayName = (
  *
  * No type (`undefined` or an empty name) has no sentence form: `undefined`, and the caller words its sentence
  * without a type ("This expression gives nothing", "Converted to a whole number") rather than "a value of type
- * undefined" (qorus#646).
+ * undefined".
  */
 export const qorusTypeSentenceForm = (
   types: IQorusTypeObject[] | undefined,
@@ -478,10 +183,11 @@ export const qorusTypeSentenceForm = (
     return undefined;
   }
   const entry = qorusTypeEntry(types, typeName, baseType);
+  const words = reqraftLabels().qorusTypes;
   if (entry) {
-    return entry.sentence_form || `a value of type ${entry.display_name}`;
+    return entry.sentence_form || words.valueOfType(entry.display_name);
   }
-  return typeName.includes('/') ? `a value of type ${typeName}` : 'a value of an unknown type';
+  return typeName.includes('/') ? words.valueOfType(typeName) : words.valueOfAnUnknownType;
 };
 
 /** The types that are text. */
@@ -524,12 +230,12 @@ export type TTypeSentenceForm = (
 
 /** The built-in catalogue's sentence form of a type, for a surface no form has given the server's catalogue to. */
 export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName, baseType) =>
-  qorusTypeSentenceForm(defaultQorusTypes, typeName, baseType);
+  qorusTypeSentenceForm(builtInQorusTypes(), typeName, baseType);
 
 /**
  * A type's name as a label - its display name ("Whole number") - only where the catalogue lists it, else
  * undefined: a type it does not list is not named by its code (`<string>`), which is no word for a reader
- * (qorus#646, IDE rule: no raw data).
+ * (a reader is never shown raw data).
  */
 export const qorusTypeKnownName = (
   types: IQorusTypeObject[] | undefined,
@@ -542,7 +248,7 @@ export type TTypeName = (typeName: string | undefined, baseType?: string) => str
 
 /** The built-in catalogue's name for a type, for a surface no form has given the server's catalogue to. */
 export const builtInTypeName: TTypeName = (typeName, baseType) =>
-  qorusTypeKnownName(defaultQorusTypes, typeName, baseType);
+  qorusTypeKnownName(builtInQorusTypes(), typeName, baseType);
 
 /**
  * A type's name as a label that is never its code (`qorusTypeDisplayName`): what a list of templates badges a
@@ -552,12 +258,17 @@ export type TTypeLabel = (typeName: string | undefined, baseType?: string) => st
 
 /** The built-in catalogue's label for a type, for a list no form has given the server's catalogue to. */
 export const builtInTypeLabel: TTypeLabel = (typeName, baseType) =>
-  qorusTypeDisplayName(defaultQorusTypes, typeName, baseType);
+  qorusTypeDisplayName(builtInQorusTypes(), typeName, baseType);
+
+/** A type's name inside words, in sentence case: "Email address" → "email address"; an acronym stays ("JSON"). */
+const typeNameInWords = (name: string): string =>
+  /^[A-Z][a-z]/.test(name) ? name[0].toLowerCase() + name.slice(1) : name;
 
 /**
  * What kind of value an option takes, in words: its kind of control's name where the catalogue names it (a
- * color), else its type's ("Whole number"), with what a list holds after it ("List (Text)"). Undefined where the
- * catalogue names neither: nothing is said rather than the type's code.
+ * color), else its type's ("Whole number"), with what a list holds after it, in sentence case ("List (text)",
+ * "List (email address)"). Undefined where the catalogue names neither: nothing is said rather than the type's
+ * code.
  */
 export const optionTypeWords = (
   schema:
@@ -579,7 +290,7 @@ export const optionTypeWords = (
   // a type no catalogue entry names is the kind of value its base type is; a list's elements, theirs
   const kind = named(schema?.ui_type) ?? named(schema?.type, baseType);
   const element = named(schema?.ui_element_type, elementBaseType);
-  return kind && element ? `${kind} (${element})` : kind;
+  return kind && element ? `${kind} (${typeNameInWords(element)})` : kind;
 };
 
 /**
@@ -602,8 +313,8 @@ export const optionTypeSentence = (
 
 /**
  * Whether a place of type `typeName` (its base type `baseType`) takes a record whole - a hash, a Qog state's data:
- * where the catalogue lists it as a hash, or as taking a hash in its own right (qorus#646, David's review: "Any or
- * hash yes, scalar no"). Text, which converts any value, is not a place for a record; a place of any type is
+ * where the catalogue lists it as a hash, or as taking a hash in its own right: any or
+ * hash yes, scalar no. Text, which converts any value, is not a place for a record; a place of any type is
  * judged by its caller (`isUntypedOptionType`), as the catalogue names no such type.
  */
 export const qorusTypeTakesRecords = (

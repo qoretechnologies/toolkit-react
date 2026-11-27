@@ -418,8 +418,8 @@ export const TemplateTappedOnAPhone: Story = {
 
 /**
  * A click in an empty rich-text field opens the template picker at the top of its templates, browsed as they nest -
- * a Qog state, a record in it, a record in that (qorus#646, David: templates in a rich-text field are offered as a
- * hierarchy, and every value is reached).
+ * a Qog state, a record in it, a record in that (templates in a rich-text field are offered as a hierarchy, and
+ * every value is reached).
  */
 export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
@@ -430,7 +430,7 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
     docs: {
       description: {
         story:
-          'Clicks in the empty field: the template picker opens at the top - Context Data, Look up customer, ' +
+          'Clicks in the empty field: the template picker opens at the top - Context data, Look up customer, ' +
           'Receive order and the template contexts. Receive order, then Customer, then Address open level by level, the way back above the ' +
           'rows reading Templates › Receive order › Customer › Address; City picked there is written as one chip, ' +
           'Receive order › … › Address › City, and the value is $data:{receive_order.customer.address.city}.',
@@ -440,9 +440,9 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
   play: async ({ canvasElement, args }) => {
     const editable = within(canvasElement).getByRole('textbox');
     await userEvent.click(editable);
-    // the template contexts too, each taken whole or gone into (qorus#646, David: every container has Use)
+    // the template contexts too, each taken whole or gone into (every container has Use)
     await waitFor(() =>
-      expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order', 'Template contexts'])
+      expect(pickerLabels()).toEqual(['Context data', 'Look up customer', 'Receive order', 'Template contexts'])
     );
     await userEvent.click(await pickerRow('Receive order'));
     await userEvent.click(await pickerRow('Customer'));
@@ -453,6 +453,36 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
       expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.customer.address.city}')
     );
     await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › … › Address › City']));
+  },
+};
+
+/** The font a picker row's name is drawn in. */
+const fontOf = (row: HTMLElement) => getComputedStyle(row).fontFamily;
+
+/** The picker's groups are words; a template is drawn as what it writes. */
+export const ItsGroupsAreWords: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty field: the template picker opens on its groups (Context data, Look up customer, ' +
+          'Receive order, the template contexts), drawn in the body font with what they say, as words. Context data ' +
+          'opened, a template in it (Interface Name) is drawn in the code font, as what it writes; back at the groups, ' +
+          'the picture shows them.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('textbox'));
+    const group = await pickerRow('Context data');
+    await expect(fontOf(group)).not.toMatch(/mono/i);
+    await userEvent.click(group);
+    const template = await pickerRow('Interface Name');
+    await expect(fontOf(template)).toMatch(/mono/i);
+    // back to the groups, which the picture shows
+    await userEvent.click(within(document.querySelector<HTMLElement>('.template-picker')!).getByText('Templates'));
+    await expect(fontOf(await pickerRow('Look up customer'))).not.toMatch(/mono/i);
   },
 };
 
@@ -483,7 +513,7 @@ export const ARecordIsTakenWhole: Story = {
 };
 
 /**
- * Typing a `$` reference narrows the rows to what it reaches, in the same popover (qorus#646, David's review): the
+ * Typing a `$` reference narrows the rows to what it reaches, in the same popover: the
  * states for `$data:`, a state's data after `$data:receive_order.`; a state's row opens the picker at its data.
  */
 export const TypingAReferenceNarrowsTheRows: Story = {
@@ -553,8 +583,8 @@ export const AChipIsReplacedFromItsGroup: Story = {
 };
 
 /**
- * A pick from the picker a click opened goes in at the caret and deletes nothing (qorus#646, the IDE's Sheet
- * Contract Review): it took the word before the caret, and "SUP-" and a field picked read as the field alone.
+ * A pick from the picker a click opened goes in at the caret and deletes nothing (seen in the IDE's Sheet Contract
+ * Review): it took the word before the caret, and "SUP-" and a field picked read as the field alone.
  */
 export const APickKeepsTheWordBeforeIt: Story = {
   args: { value: 'SUP-', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
@@ -660,7 +690,7 @@ export const ThePickerOnAPhone: Story = {
 
 /**
  * Where the value takes a record (a field of any type, a hash), a Qog state's data and a record are taken whole from
- * the picker as well as opened (qorus#646, David's review).
+ * the picker as well as opened.
  */
 export const AStateIsTakenWholeWhereTheValueTakesRecords: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES, wholeRecords: true },
@@ -712,8 +742,8 @@ export const AScalarValueTakesNoRecordWhole: Story = {
 
 /**
  * A reference typed key by key in a rich-text value is completed at every level from the field's templates, as the
- * DPQL editor completes it with its language server (qorus#646, David: completion at every step, in every field
- * that takes templates): Tab takes the row the keyboard is on; a context, a state or a record goes on; a whole
+ * DPQL editor completes it with its language server (completion at every step, in every field that takes
+ * templates): Tab takes the row the keyboard is on; a context, a state or a record goes on; a whole
  * reference is its chip.
  */
 export const TypingCompletesEachLevel: Story = {
@@ -767,7 +797,7 @@ export const TypingCompletesEachLevel: Story = {
 
 /**
  * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
- * Enter or Tab takes it, or the field is left, as a picked one is (qorus#646, David: it stayed text).
+ * Enter or Tab takes it, or the field is left, as a picked one is (it used to stay text).
  */
 export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
@@ -810,8 +840,8 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
 };
 
 /**
- * A context with known keys lists them, and is used whole, `$local:*` (qorus#646, David: "clicking on '$local:'
- * just gives the text '$local: ' - the value inserted is unusable"): picked with the mouse, it goes on to its keys.
+ * A context with known keys lists them, and is used whole, `$local:*` (a click on `$local:` used to insert just
+ * the text `$local: `, a value that is unusable): picked with the mouse, it goes on to its keys.
  * A workflow's static data with a declared type lists its keys; dynamic data, of free keys, is used whole. The
  * field's catalogue is Qorus's, for a workflow that declares a static data type (its fixture).
  */
@@ -875,8 +905,8 @@ const usedWhole = (label: string) =>
   document.querySelector<HTMLElement>(`.template-picker [aria-label="Use ${label}"]`);
 
 /**
- * Every container of a field's catalogue is used whole from the picker, and only those Qorus reads whole (qorus#646,
- * David's review: "every container row gets the divider plus Use"): `$info:` gives `$info:*`; a context of values
+ * Every container of a field's catalogue is used whole from the picker, and only those Qorus reads whole (every
+ * container row gets the divider plus Use): `$info:` gives `$info:*`; a context of values
  * (`$timestamp:`), order keys (`$keys:*` reads nothing) and a formatted argument (`$sensitive:`) have no Use. A
  * context the field cannot use - a Qog's variables in a workflow - is not there at all.
  */
@@ -912,7 +942,7 @@ export const EveryContainerIsUsedWhole: Story = {
     for (const container of ['$local:', '$static:', '$info:', '$env:']) {
       expect(usedWhole(container), `Use beside ${container}`).toBeTruthy();
     }
-    // no key to choose: the row is the whole value (David's review: no submenu, no Use)
+    // no key to choose: the row is the whole value (no submenu, no Use)
     for (const whole of ['$dynamic:*', '$temp:*', '$pstate:*']) {
       const row = await pickerRow(whole);
       expect(row.classList.contains('template-picker-group'), `${whole} is no submenu`).toBe(false);
@@ -930,8 +960,8 @@ export const EveryContainerIsUsedWhole: Story = {
 };
 
 /**
- * A Qog state's field offers the variables declared where it is and the loops around it (qorus#646, David: "list
- * the defined variables"; "the same for `$for:`/`$foreach:`"): `$transient:` lists the global variable, `$foreach:`
+ * A Qog state's field offers the variables declared where it is and the loops around it (the defined variables,
+ * and the same for `$for:`/`$foreach:`): `$transient:` lists the global variable, `$foreach:`
  * is used whole, `$for:` - only its value - is not.
  */
 export const AQogStatesVariablesAndLoops: Story = {
@@ -976,7 +1006,7 @@ export const AQogStatesVariablesAndLoops: Story = {
       expect(seenCompletionLabels()).toEqual(['$foreach:', '$for:', 'Browse all templates'])
     );
     const foreach = await completionRow('$foreach:');
-    // a context that needs a value after it reads so: `$foreach:` and an italic "…" (David's review), drawn only
+    // a context that needs a value after it reads so: `$foreach:` and an italic "…", drawn only
     const needsValue = foreach.querySelector<HTMLElement>('.template-context-needs-value');
     expect(needsValue?.textContent, 'the "…" after $foreach:').toBe('…');
     expect(getComputedStyle(needsValue!).fontStyle).toBe('italic');
@@ -994,8 +1024,8 @@ export const AQogStatesVariablesAndLoops: Story = {
 /**
  * A reference left unfinished - a context of free keys, `$dynamic:` - completed where it is: a click at its end
  * lists the whole of it and Browse all templates under what to write next, the help read in full; Browse all puts
- * a working reference in its place (qorus#646, David: the help was cut off, and a click at the end showed the
- * picker's top silently).
+ * a working reference in its place (the help used to be cut off, and a click at the end showed the picker's top
+ * silently).
  */
 export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
   args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
@@ -1008,7 +1038,7 @@ export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
         story:
           'Types `$dynamic:` and puts the list away; a click at its end lists $dynamic:* and Browse all templates ' +
           'under "Write what $dynamic: refers to after the \':\', or pick from the list" - in full, not cut off. ' +
-          'Browse all templates, then Context Data and Interface Name: the chip Interface Name takes the place of ' +
+          'Browse all templates, then Context data and Interface Name: the chip Interface Name takes the place of ' +
           '$dynamic:.',
       },
     },
@@ -1033,7 +1063,7 @@ export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
     const label = note.querySelector<HTMLElement>('.reqore-button-text-content') ?? note;
     expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
     await userEvent.click(await completionRow('Browse all templates'));
-    await userEvent.click(await pickerRow('Context Data'));
+    await userEvent.click(await pickerRow('Context data'));
     await userEvent.click(await pickerRow('Interface Name'));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$local:name'));
     await waitFor(() => expect(chipsOf(editable)).toEqual(['Interface Name']));
@@ -1049,15 +1079,15 @@ export const WhereOnlyBrowseAllIsLeftThePickerOpens: Story = {
     docs: {
       description: {
         story:
-          'Where the list would hold nothing but Browse all templates, the picker opens in its place (Foxhoundn on ' +
-          'qlip #425). `Dear $zq` typed key by key, a `$` that goes on to nothing: the picker at its top; Escape ' +
+          'Where the list would hold nothing but Browse all templates, the picker opens in its place. ' +
+          '`Dear $zq` typed key by key, a `$` that goes on to nothing: the picker at its top; Escape ' +
           'puts it away, the keys staying in the text. The text cleared with Ctrl+A and Backspace: the picker again.',
       },
     },
   },
   play: async ({ canvasElement }) => {
     const editable = within(canvasElement).getByRole('textbox');
-    const top = ['Context Data', 'Look up customer', 'Receive order', 'Template contexts'];
+    const top = ['Context data', 'Look up customer', 'Receive order', 'Template contexts'];
     const expectTop = async () => {
       await waitFor(() => expect(pickerLabels()).toEqual(top), { timeout: 30000 });
       expect(completionLabels()).toEqual([]);

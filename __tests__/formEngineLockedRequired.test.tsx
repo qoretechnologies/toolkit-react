@@ -13,7 +13,7 @@ const fetchContext = emptyFetchContext();
  * listed under "Needs attention" anyway — the form counted a required empty field as needing attention whether or
  * not it applied — which is how a guided check in qorus-ide came to ask for its Path, Minimum, Maximum and
  * Expected value before the author had even picked what kind of check it was. Then it was shown locked, waiting,
- * with what unlocks it; now (qorus#646, David) it is not shown at all until it applies.
+ * with what unlocks it; now it is not shown at all until it applies.
  *
  * What does need attention is the field that unlocks it, when that one is itself
  * required; and the field the moment its dependency holds and it is still empty.
@@ -57,7 +57,11 @@ const box = (container: HTMLElement, title: string) =>
     (group.textContent || '').startsWith(title)
   );
 
-const attentionBox = (container: HTMLElement) => box(container, 'Needs attention');
+// The first box: "To fill in" while nothing in it is a fault yet (a form nobody has been
+// to), "Needs attention" once something is. These tests are about which box a field is
+// in, not about its name.
+const attentionBox = (container: HTMLElement) =>
+  box(container, 'Needs attention') ?? box(container, 'To fill in');
 
 const row = (container: HTMLElement, field: string) =>
   container.querySelector(`[data-field="${field}"]`);
@@ -75,6 +79,7 @@ describe('a required field locked by its dependency does not need attention', ()
     // Nothing the author can act on, so there is no Needs attention box at all.
     expect(attentionBox(container)).toBeUndefined();
     expect(container.textContent).not.toContain('Needs attention');
+    expect(container.textContent).not.toContain('To fill in');
   });
 
   it('shows it nowhere, not among the optional ones either, and says nothing of it while it holds nothing', async () => {
@@ -204,6 +209,7 @@ describe('a locked required field and the completeness status', () => {
     expect(text).toContain('Ready');
     expect(text).not.toContain('Incomplete');
     expect(text).not.toContain('need attention');
+    expect(text).not.toContain('to fill in');
     await waitFor(() => expect(onValidityChange).toHaveBeenLastCalledWith(true, expect.anything()));
   });
 
@@ -261,7 +267,7 @@ describe('a locked required field and the completeness status', () => {
 
   it('keeps a value a hidden field holds, does not let it hold the form back, and says it is not valid', async () => {
     // The field does not apply, and is not in the form, so nothing in it can be fixed there: it does not make
-    // the form invalid. Its value is kept, and the form's note says it is not valid (qorus#646).
+    // the form invalid. Its value is kept, and the form's note says it is not valid.
     const onValidityChange = vi.fn();
     const { container } = render(
       <ReqoreUIProvider>
@@ -301,13 +307,13 @@ describe("a locked required field's messages", () => {
 
   it('says what unlocks it, not that it is required', () => {
     const labels = messages({ kind: { type: 'string' } });
-    expect(labels).not.toContain('This field is required');
-    expect(labels.some((l) => l.startsWith('This field is disabled because'))).toBe(true);
+    expect(labels).not.toContain('A value is required');
+    expect(labels.some((l) => l.startsWith('Not available yet'))).toBe(true);
   });
 
   it('says it is required once it applies', () => {
     const labels = messages({ kind: { type: 'string', value: 'equals' } });
-    expect(labels).toContain('This field is required');
-    expect(labels.some((l) => l.startsWith('This field is disabled because'))).toBe(false);
+    expect(labels).toContain('A value is required');
+    expect(labels.some((l) => l.startsWith('Not available yet'))).toBe(false);
   });
 });

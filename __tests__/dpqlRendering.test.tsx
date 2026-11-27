@@ -58,7 +58,7 @@ describe('DpqlRendering', () => {
     });
   });
 
-  it('says what a word is on hover, as the editor does (qorus#646, David: "trim" said nothing when read)', () => {
+  it('says what a word is on hover, as the editor does ("trim" said nothing when read)', () => {
     mount(<DpqlRendering text='trim(" a ")' />);
 
     expect(editorProps[0].enableHover).not.toBe(false);
@@ -86,7 +86,7 @@ describe('ExpressionRendering', () => {
     settle(null);
 
     await waitFor(() =>
-      expect(container.textContent).toContain('This expression could not be rendered.')
+      expect(container.textContent).toContain('This expression could not be put in words.')
     );
     expect(container.querySelector('.dpql-rendering')).toBeNull();
     expect(container.textContent).not.toContain('Approximate');

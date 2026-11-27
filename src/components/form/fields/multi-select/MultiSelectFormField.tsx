@@ -33,7 +33,7 @@ export interface IMultiSelectFormFieldProps {
  */
 export const MultiSelectFormField = memo(
   ({ value = [], items, onChange, disabled, size, canCreateItems }: IMultiSelectFormFieldProps) => {
-    // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+    // an item that cannot be picked is dimmed, as far as its name still reads
     const unavailableOpacity = useReadableOpacity(0.55);
     const selectedValues = useMemo<string[]>(
       () => (value as unknown[]).map(String),

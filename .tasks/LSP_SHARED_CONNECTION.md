@@ -4,8 +4,8 @@
 
 ## Why
 
-Filip's call question (2026-06-10): with 20 expression builders open, "would
-it have different connections or how would you associate the message?"
+The question: with 20 expression builders open, would each have its own
+connection, and if not, how is a message matched to its builder?
 Research findings:
 - The server is BUILT for multiplexing: `QorusLspWebSocketHandler.qc:531`
   keeps `uriToDpqlSession` — a per-connection map of URI → DPQL session
@@ -35,7 +35,7 @@ Research findings:
   (`${languageId}://session/${counter}` in `useLspSession`) — collision-safe.
 - Test hook `_resetSharedLspConnectionsForTests()` (mirrors the websocket
   manager reset in jest).
-- Answer to Filip, in one line: **one connection per endpoint, sessions
+- The answer, in one line: **one connection per endpoint, sessions
   multiplexed by URI; requests correlate by JSON-RPC id, diagnostics by uri —
   matching the server's design and the IDE's request_id pattern.**
 

@@ -54,13 +54,12 @@ const themed = (node: ReactNode) => (
 
 const refs = (
   <InterfaceReferenceTags
-    customTheme={{ main: 'custom1' }}
     references={[{ interface_kind: 'connection', interface_name: 'sftp-partner' }]}
   />
 );
 
 /**
- * Staff view — the thread with `viewerRole='staff'` (internal notes show, amber)
+ * Staff view — the thread with `viewerRole='staff'` (internal notes show, on the same neutral card as a reply)
  * above the staff composer with the split send.
  */
 export const StaffConversation: Story = {
@@ -68,7 +67,7 @@ export const StaffConversation: Story = {
     docs: {
       description: {
         story:
-          "Renders the staff view — the thread with viewerRole='staff' (internal notes visible, amber) stacked above the staff composer with its split send.",
+          "Renders the staff view — the thread with viewerRole='staff' (internal notes visible, said by their words and their eye-off avatar, on the same neutral card as a reply) stacked above the staff composer with its split send.",
       },
     },
   },

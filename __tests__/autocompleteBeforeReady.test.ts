@@ -127,8 +127,8 @@ describe('the template picker opened before the session is ready', () => {
 
 /**
  * The picker is drawn at a fixed point of the window, measured when it opens. When the window's width changed, the
- * button it was opened from moved with the layout and the picker did not (Foxhoundn on qlip #456: "Why is the popover
- * rendered so far to the right"). It follows what it was opened from.
+ * button it was opened from moved with the layout and the picker did not, and was drawn far off to the right. It
+ * follows what it was opened from.
  */
 describe('the template picker when the window is resized', () => {
   const boxAt = (left: number, bottom: number) => ({ left, bottom, top: bottom - 10, right: left + 10 });
@@ -223,7 +223,7 @@ describe('the template picker when the window is resized', () => {
   });
 
   /* A click in the text opens the picker at the caret, with nothing it was opened from: it was left at the point of the
-     window it opened at while the window's width moved the text away (qorus-ide #301, qlip #370). */
+     window it opened at while the window's width moved the text away. */
   it('opened at the caret, stays where it was opened in the text as the text moves', () => {
     const { hook } = setup(true);
     const text = document.createElement('div');
@@ -306,9 +306,7 @@ describe('the template picker before it is drawn', () => {
   it('is left to the picker once it is drawn, which hears its own Escape', () => {
     const { hook } = setup(true);
     const text = document.createElement('div');
-    const picker = document.createElement('div');
-    picker.className = 'template-picker';
-    document.body.append(text, picker);
+    document.body.append(text);
     const drawn = vi.spyOn(ReactEditor, 'toDOMNode').mockReturnValue(text);
     try {
       act(() =>
@@ -317,6 +315,8 @@ describe('the template picker before it is drawn', () => {
           caret: { path: [0, 0], offset: 5 },
         } as never)
       );
+      // the picker is drawn and says it hears the page's keys (`TemplatePicker.onKeysHeard`)
+      act(() => hook.result.current.pickerHears(hook.result.current.popoverKey));
       act(() => {
         text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       });
@@ -325,7 +325,6 @@ describe('the template picker before it is drawn', () => {
     } finally {
       drawn.mockRestore();
       text.remove();
-      picker.remove();
     }
   });
 });

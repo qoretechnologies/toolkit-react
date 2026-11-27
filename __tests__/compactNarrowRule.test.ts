@@ -11,7 +11,7 @@ import {
 } from '../src/components/form/engine/compactRowStyles';
 
 /**
- * The narrow-row rule (qorus#646, David): a compact form stacks its rows where a value would have under 320px beside
+ * The narrow-row rule: a compact form stacks its rows where a value would have under 320px beside
  * the label column it is laid out with, not at one form width whatever its labels. The FormEngine stories (A Row
  * Stacks Where Its Value Would Be Narrow, and those after it) measure the layout; these hold the rule's edges.
  */
@@ -33,7 +33,7 @@ describe('a compact form stacks its rows', () => {
     expect(isCompactNarrow(560, narrowestColumn)).toBe(false);
     expect(isCompactNarrow(440, narrowestColumn)).toBe(true);
     expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeGreaterThan(580);
-    // the widest column holds the help button at its real width, 26px (qlip #392), which moved the edge from 606
+    // the widest column holds the help button at its real width, 26px, which moved the edge from 606
     expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(630);
     expect(besideTheLabel(narrowestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeGreaterThan(480);
     expect(besideTheLabel(narrowestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(520);

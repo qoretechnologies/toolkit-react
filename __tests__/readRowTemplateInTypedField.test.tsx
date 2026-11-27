@@ -8,7 +8,7 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qorus#646: a yes/no value holding the field pos read "Yes" in its collapsed row. The row's yes/no branch
+ * A yes/no value holding the field pos read "Yes" in its collapsed row. The row's yes/no branch
  * came before its template branch, and the summary called any value that is not empty "Yes": a template
  * is not true, it is the field it names, and reads as that field, as it does in every other type.
  */

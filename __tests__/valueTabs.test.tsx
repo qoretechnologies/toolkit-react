@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Value · Expression · Visual (qorus#646, David): a form option's value is entered on tabs - one value, three
+// Value · Expression · Visual: a form option's value is entered on tabs - one value, three
 // views - or on Value · Template where the option takes templates only.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
@@ -200,7 +200,7 @@ describe('the tabs a form option offers', () => {
   });
 
   it('are none where it takes templates only and its value is text, which takes the templates', async () => {
-    // a Template tab beside it was a second way to do the one thing (qorus#646, David's decision)
+    // a Template tab beside it was a second way to do the one thing
     const { container } = show({ type: 'int' as never, initial: 12, allowFunctions: false });
     await waitFor(() =>
       expect(container.querySelector('.value-tabs-field.value-only .value-tab-text')).not.toBeNull()
@@ -221,10 +221,10 @@ describe('the tabs a form option offers', () => {
     // the field has published its menu
     await waitFor(() => expect(Object.keys(published)).toHaveLength(1));
     for (const mode of [
-      'Use Template',
-      'Use Expression',
-      'Use Custom Value',
-      'Use Template / Expression',
+      'Use template',
+      'Use expression',
+      'Use custom value',
+      'Use template / expression',
     ]) {
       expect(menuLabels()).not.toContain(mode);
     }
@@ -477,7 +477,7 @@ describe('one value, three views', () => {
   });
 
   /* Typed on the Expression tab and the Value tab opened straight away, before the text has been read: what was
-     typed is read first, not lost (qorus#646, found clicking through the review in the IDE). */
+     typed is read first, not lost (found clicking through the IDE). */
   it('what was typed on the Expression tab is kept when the Value tab is opened straight after', async () => {
     const onChange = vi.fn();
     const { container, getByTestId } = show({ type: 'int' as never, initial: 12, onChange });
@@ -599,7 +599,7 @@ describe('the Expression tab without a language server', () => {
 });
 
 describe('what the Value tab writes as text', () => {
-  /* qorus#646 (David): text, untyped values, whole numbers and numbers - templates as chips, expressions
+  /* Text, untyped values, whole numbers and numbers - templates as chips, expressions
      detected; a yes / no, a date and fixed choices keep their own control. */
   it('is text, untyped values, whole numbers and numbers - not a yes / no or a date', () => {
     expect(

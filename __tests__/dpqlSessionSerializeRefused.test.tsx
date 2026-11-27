@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A value the server refuses to write as DPQL is said to be refused, not answered with no text (qorus#646).
+// A value the server refuses to write as DPQL is said to be refused, not answered with no text.
 //
 // `dpql/serialize` raises DPQL-SERIALIZE-ERROR for an expression it cannot write - a two-argument operator
 // stored with more arguments. The session answered '' for that, as it does while it has no client, and the

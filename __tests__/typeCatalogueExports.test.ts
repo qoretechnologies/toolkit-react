@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * The type catalogue's lookups are the package's public surface (qorus#646): a host such as the Qorus IDE names a
+ * The type catalogue's lookups are the package's public surface: a host such as the Qorus IDE names a
  * type, and finds what it takes, with reqraft's `qorusTypeEntry` - by its name, an optional, soft or complex form of
  * one, or its base type - rather than keeping a copy of its own that drifts from it. From the package, not from a
  * deep import of `dist/…`, which is a dependency on the file layout.

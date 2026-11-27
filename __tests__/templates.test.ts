@@ -393,7 +393,29 @@ describe('helpers/templates', () => {
       expect(group?.badge).toBe('qorus');
       expect(group?.description).toBe('Context values');
       expect(group?.leftIconProps?.image).toBe('logo.png');
+      // the logo where the template picker draws a group's, in place of a folder
+      expect(group?.metadata?.image).toBe('logo.png');
       expect(group?.metadata?.dataRole).toBe('input');
+    });
+
+    it('says an example as written, plain for a list and in a code span for the picker', () => {
+      const list = buildTemplates({
+        data: {
+          display_name: 'Data',
+          items: [
+            { display_name: 'Choice', value: '$local:choice', example_value: '__other__' },
+            { display_name: 'Ticked', value: '$local:ticked', example_value: 'a `b` c' },
+          ],
+        },
+      });
+      const named = (label: string) =>
+        list?.items?.[0].items?.find((item) => item.label === label);
+      // a list draws its description as it is
+      expect(named('Choice')?.description).toBe('Example value: __other__');
+      // the picker draws markdown: `__other__` stays itself, never bold
+      expect(named('Choice')?.metadata?.exampleMarkdown).toBe('Example value: `__other__`');
+      // a backtick in the value: a longer fence, so the span holds it
+      expect(named('Ticked')?.metadata?.exampleMarkdown).toBe('Example value: ``a `b` c``');
     });
 
     // Selected BY NAME, not by position: the picker orders its entries
@@ -402,11 +424,13 @@ describe('helpers/templates', () => {
     const leafNamed = (label: string) =>
       buildTemplates(payload)?.items?.[0].items?.find((item) => item.label === label);
 
-    it('maps leaves with type badge and example-value description', () => {
+    it('maps leaves with their type as a typed member, no badge, and an example-value description', () => {
       const leaf = leafNamed('Interface ID');
       expect(leaf?.label).toBe('Interface ID');
       expect(leaf?.value).toBe('$local:id');
-      expect(leaf?.badge).toBe('string');
+      // the type is the template's (`templateType`), said in words by a list, never its badge
+      expect(leaf?.badge).toBeUndefined();
+      expect(leaf?.metadata?.type).toBe('string');
       expect(leaf?.description).toBe('Example value: 42');
       expect(leaf?.leftAction).toBeUndefined();
       // Group-level data_role is inherited by items without their own.
@@ -457,7 +481,8 @@ describe('helpers/templates', () => {
 
       it('caps past the DOM ceiling and injects the full-value rightAction', () => {
         const leaf = buildTemplates(longPayload)?.items?.[0].items?.[0];
-        expect(leaf?.description).toBe(`Example value: ${`"${'x'.repeat(200)}`.slice(0, 150)}…`);
+        // text as it is written, not in JSON's quotes
+        expect(leaf?.description).toBe(`Example value: ${'x'.repeat(150)}…`);
         expect(leaf?.description).not.toContain('THE_END');
         expect(leaf?.rightAction?.icon).toBe('QuestionLine');
         // The visual truncation is the single-line ellipsis, cut at the
@@ -467,7 +492,7 @@ describe('helpers/templates', () => {
 
       it('leaves short examples whole, wrapping, and affordance-free', () => {
         const leaf = buildTemplates(longPayload)?.items?.[0].items?.[1];
-        expect(leaf?.description).toBe('Example value: "invoice.pdf"');
+        expect(leaf?.description).toBe('Example value: invoice.pdf');
         expect(leaf?.rightAction).toBeUndefined();
         // No ellipsis without the "?" to reveal what it hides.
         expect(leaf?.descriptionEffect).toBeUndefined();

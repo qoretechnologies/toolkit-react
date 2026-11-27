@@ -53,7 +53,7 @@ const renderField = (type: string, value?: unknown) =>
    else. Matched with `queryAll` because Reqore renders a button's label twice
    (an active and an inactive span for its animation), and the single-match
    query THROWS on that rather than reporting the control is there. */
-const hasPickOnlyDropdown = () => screen.queryAllByText('Select Template').length > 0;
+const hasPickOnlyDropdown = () => screen.queryAllByText('Select template').length > 0;
 /** Anything that takes a keystroke. */
 const typableControl = () => document.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]');
 

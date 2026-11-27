@@ -62,7 +62,7 @@ describe('templateTextToNodes', () => {
     ]);
   });
 
-  /* qorus#646, David's review: `$static:order.id` was cut at its dot - the chip "static: order" and the text ".id".
+  /* `$static:order.id` was cut at its dot - the chip "static: order" and the text ".id".
      Qorus reads a plain key as words and the dots between them (UserApi `_priv_get_template_arg`). */
   it('reads a key with dots as one reference, and a dot that ends it as text', () => {
     const [paragraph] = templateTextToNodes('$static:order.id and $data:receive_order.', TEMPLATES);

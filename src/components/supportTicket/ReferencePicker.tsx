@@ -4,11 +4,16 @@ import {
   ReqoreMenuItem,
   ReqoreModal,
   ReqoreSpinner,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { useScrollFade } from '@qoretechnologies/reqore/dist/hooks/useScrollFade';
+import { rgba } from 'polished';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
+import { useReqraftLabels } from '../../helpers/reqraftLabels';
 import { usePhoneViewport } from '../../hooks/usePhoneViewport';
 import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 import { READABLE_ICON } from '../../helpers/readableColors';
@@ -25,7 +30,7 @@ import { useLoadedImages } from './useLoadedImages';
 /*
  * The interface browser: kinds on one side, the selected kind's interfaces on the
  * other, and one search field that scopes both. Sits above a ticket composer, toggled
- * by the composer's "Reference interfaces" action.
+ * by the composer's "Reference workflows, services and more" action.
  *
  * The host owns the data. Which kinds exist and what lives under one are questions only
  * the surrounding app can answer — the IDE lists them off the customer's live instance,
@@ -72,32 +77,83 @@ const BUTTON_ICON_ALPHA = 0.7;
  */
 const PICKED_CLASS = 'reqore-reference-picker-picked';
 
+/* A pane with rows out of view at an edge carries these, and fades that edge (`useScrollFade`). */
+export const REFERENCE_PICKER_MORE_ABOVE_CLASS = 'reqraft-reference-picker-more-above';
+export const REFERENCE_PICKER_MORE_BELOW_CLASS = 'reqraft-reference-picker-more-below';
+/** How far into a pane its edge fades where more rows are out of view. */
+const EDGE_FADE_PX = 24;
+
 /*
  * A scroll pane with the thin, unobtrusive scrollbar the Qonsole surfaces use
  * (transparent track, translucent rounded thumb) rather than the raw browser one.
  * webkit-only, like those surfaces: setting `scrollbar-width` as well would let
  * Chromium override this custom 6px with its own, wider, "thin".
+ *
+ * An edge with rows out of view fades out: the kinds pane ended on a row cut through
+ * its words ("Value maps") with nothing saying the list went on below it.
  */
-const Pane = styled.div<{ $right?: boolean; $maxHeight: string }>`
-  ${({ $right }) =>
-    $right
-      ? 'flex: 1; min-width: 0;'
-      : `width: ${KIND_PANE_WIDTH}px; flex: none; border-right: 1px solid ${BORDER};`}
+const StyledPane = styled.div<{ $right?: boolean; $stack?: boolean; $maxHeight: string }>`
+  ${({ $right, $stack }) =>
+    $stack ? ''
+    : $right ? 'flex: 1; min-width: 0;'
+    : `width: ${KIND_PANE_WIDTH}px; flex: none; border-right: 1px solid ${BORDER};`}
   max-height: ${({ $maxHeight }) => $maxHeight};
   overflow-y: auto;
   padding: 4px;
 
   ${thinScrollbar}
+
+  &.${REFERENCE_PICKER_MORE_BELOW_CLASS} {
+    --reference-picker-fade: linear-gradient(
+      to bottom,
+      #000 calc(100% - ${EDGE_FADE_PX}px),
+      transparent
+    );
+  }
+  &.${REFERENCE_PICKER_MORE_ABOVE_CLASS} {
+    --reference-picker-fade: linear-gradient(to top, #000 calc(100% - ${EDGE_FADE_PX}px), transparent);
+  }
+  &.${REFERENCE_PICKER_MORE_ABOVE_CLASS}.${REFERENCE_PICKER_MORE_BELOW_CLASS} {
+    --reference-picker-fade: linear-gradient(
+      to bottom,
+      transparent,
+      #000 ${EDGE_FADE_PX}px,
+      #000 calc(100% - ${EDGE_FADE_PX}px),
+      transparent
+    );
+  }
+  &.${REFERENCE_PICKER_MORE_ABOVE_CLASS}, &.${REFERENCE_PICKER_MORE_BELOW_CLASS} {
+    -webkit-mask-image: var(--reference-picker-fade);
+    mask-image: var(--reference-picker-fade);
+  }
 `;
 
-/** The stacked counterpart of `Pane` — one column, so one scroll region. */
-const Stack = styled.div<{ $maxHeight: string }>`
-  max-height: ${({ $maxHeight }) => $maxHeight};
-  overflow-y: auto;
-  padding: 4px;
-
-  ${thinScrollbar}
-`;
+/**
+ * A pane that scrolls, faded at an edge with rows out of view. Its own component, so the
+ * fade follows the pane it measures when the layout switches between columns and one stack.
+ */
+const Pane = ({
+  children,
+  ...props
+}: {
+  children: ReactNode;
+  $right?: boolean;
+  $stack?: boolean;
+  $maxHeight: string;
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useScrollFade({
+    scrollRef: ref,
+    axis: 'y',
+    startClassName: REFERENCE_PICKER_MORE_ABOVE_CLASS,
+    endClassName: REFERENCE_PICKER_MORE_BELOW_CLASS,
+  });
+  return (
+    <StyledPane ref={ref} {...props}>
+      {children}
+    </StyledPane>
+  );
+};
 
 /*
  * The selected kind's interfaces once the panes have collapsed. The indent and the
@@ -134,21 +190,22 @@ const Panes = styled.div`
  * instead keeps a focus cue without the box. The selector is scoped under this wrapper,
  * so it outranks Reqore's without `!important`.
  *
- * `$active` (the field has a query) holds the underline at full accent, so a filtered
- * list is legible as filtered at a glance — the same signal `intent='info'` carries on
- * a plain filter control, spoken in this surface's own accent.
+ * The line is the theme's neutral hairline, a step brighter on focus. Only `$active` (the
+ * field has a query) colours it, in `$accent` — blue by default, the same signal
+ * `intent='info'` carries on a plain filter control: blue says a filter is narrowing the
+ * list, and nothing else (a color has one job). It is never the product's purple, which a
+ * support surface does not wear.
  */
-const Search = styled.div<{ $accent: string; $active?: boolean }>`
+const Search = styled.div<{ $accent: string; $line: string; $focus: string; $active?: boolean }>`
   padding: 6px 4px 4px;
-  border-bottom: 1px solid
-    ${({ $accent, $active }) => ($active ? $accent : `${$accent}80`)};
+  border-bottom: 1px solid ${({ $accent, $line, $active }) => ($active ? $accent : $line)};
   transition: border-color 0.15s ease-out;
 
   .reqore-control-wrapper:focus-within {
     outline: none;
   }
   &:focus-within {
-    border-bottom-color: ${({ $accent }) => $accent};
+    border-bottom-color: ${({ $accent, $focus, $active }) => ($active ? $accent : $focus)};
   }
 `;
 
@@ -158,27 +215,13 @@ const Note = styled.div<{ $opacity: number }>`
   font-size: 12px;
 `;
 
-const DEFAULT_ACCENT = '#762f7e';
-
 /*
- * How a picked row reads: `info`, tinted rather than filled.
- *
- * Two Reqore details make this less obvious than `selected` + `intent`:
- *
- * - `selected` becomes `active` on the button, and the active branch paints a solid
- *   background from the intent while ignoring `minimal` and `transparent` outright.
- *   So `selected` can't be softened — it has to go, and `minimal` carries the state.
- * - `ReqoreMenuItem` sets `transparent` on every row, and `transparent` short-circuits
- *   `minimal`'s tint to nothing. Turning it off for picked rows is what lets the tint
- *   land, and it's only spread when the row IS picked — a `transparent: undefined` on
- *   the others would override the menu item's own default and flatten them all.
- *
- * The point of the tint: a solid blue bar is too much weight for "this one's already
- * in your list". The rows still up for choosing are what the user is reading, and they
- * should stay the loudest thing in the pane.
+ * How a picked row reads: a chosen value, as every chosen value reads - Reqore's
+ * neutral chosen look (a selected row's surface a step lighter, with no intent) and its
+ * tick. It was tinted blue, and blue says only that a filter narrows a list. The rows
+ * still up for choosing keep their quiet look, so they stay what the reader reads.
  */
-const pickedItemProps = (isPicked: boolean) =>
-  isPicked ? ({ intent: 'info', minimal: true, transparent: false } as const) : {};
+const pickedItemProps = (isPicked: boolean) => (isPicked ? ({ selected: true } as const) : {});
 
 /**
  * One interface in the list. A bare string is the name and nothing else — the common
@@ -254,7 +297,8 @@ export interface IReferencePickerProps {
    * vocabulary.
    */
   resolveKindLabel?: (kind: string) => string;
-  /** the underline / selected-kind color. Defaults to the support surfaces' violet. */
+  /** the search underline's colour while the list is filtered. Defaults to the theme's
+   *  `info` blue — the colour that says a filter is narrowing a list. */
   accent?: string;
   /** shown above the panes — the composer's picked-reference chips, typically */
   header?: ReactNode;
@@ -316,16 +360,25 @@ export const ReferencePicker = ({
   onRemove,
   disabled,
   resolveInterfaceIcon = defaultInterfaceIcon,
-  resolveKindLabel = defaultInterfaceKindLabel,
-  accent = DEFAULT_ACCENT,
+  resolveKindLabel: resolveKindLabelProp,
+  accent,
   header,
   onClose,
-  title = 'Reference interfaces',
+  title,
   layout = 'auto',
   presentation = 'auto',
 }: IReferencePickerProps) => {
+  const theme = useReqoreTheme();
+  const words = useReqraftLabels().supportTicket;
+  /* The built-in reading names are the host's words (`defaultInterfaceKindLabel` reads them), so the default is
+     made again when they change: the kinds are matched and listed by what is drawn. */
+  const resolveKindLabel = useMemo(
+    () => resolveKindLabelProp ?? ((candidate: string) => defaultInterfaceKindLabel(candidate)),
+    [resolveKindLabelProp, words]
+  );
+  const readable = getReadableColor(theme);
   const [query, setQuery] = useState<string>('');
-  // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1; qorus#646)
+  // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1)
   const noteOpacity = useReadableOpacity(0.4);
   /* a kind the search doesn't match, dimmed as far as its name still reads and its icon - which reqore draws at
      70% - still stands out (0.35 left the icon at 2.0:1) */
@@ -420,12 +473,12 @@ export const ReferencePicker = ({
 
   const emptyNote = () => {
     if (!needle) {
-      return `No ${label.toLowerCase()} on this instance`;
+      return words.noneOfKind(label);
     }
 
-    return otherKindsMatch
-      ? `No ${label.toLowerCase()} match “${query.trim()}” — other types do`
-      : `Nothing matches “${query.trim()}”`;
+    return otherKindsMatch ?
+        words.noneOfKindMatch(label, query.trim())
+      : words.nothingMatches(query.trim());
   };
 
   /* Both panes are `ReqoreMenu`s of `ReqoreMenuItem`s — a vertical selectable list is
@@ -487,7 +540,7 @@ export const ReferencePicker = ({
             icon='ErrorWarningLine'
             rightIcon={onRetry ? 'RefreshLine' : undefined}
             intent='danger'
-            label={`Couldn't load ${label.toLowerCase()}`}
+            label={words.couldNotLoadKind(label)}
             /* the specific failure is the tooltip — the pane states the outcome */
             tooltip={error}
             onClick={onRetry}
@@ -499,7 +552,7 @@ export const ReferencePicker = ({
     if (loading) {
       return (
         <ReqoreSpinner iconColor='info' size='small' centered>
-          Loading {label.toLowerCase()}…
+          {words.loadingKind(label)}
         </ReqoreSpinner>
       );
     }
@@ -525,11 +578,10 @@ export const ReferencePicker = ({
               badge={badge}
               disabled={disabled}
               tooltip={
-                isPicked
-                  ? removable
-                    ? `Remove “${name}”`
-                    : `“${name}” is already referenced`
-                  : `Reference “${name}”`
+                isPicked ?
+                  removable ? words.removePicked(name)
+                  : words.alreadyReferenced(name)
+                : words.referenceItem(name)
               }
               onClick={!isPicked || removable ? () => toggle(name) : undefined}
               {...pickedItemProps(isPicked)}
@@ -555,11 +607,16 @@ export const ReferencePicker = ({
   const body = (
     <Frame ref={frameRef} $bare={asModal} $dimmedOpacity={dimmedOpacity}>
       {header}
-      <Search $accent={accent} $active={!!needle}>
+      <Search
+        $accent={accent ?? theme.intents?.info ?? readable}
+        $line={rgba(readable, 0.2)}
+        $focus={rgba(readable, 0.5)}
+        $active={!!needle}
+      >
         <ReqoreInput
           value={query}
           onChange={(event) => setQuery((event.target as HTMLInputElement).value)}
-          placeholder='Search types and interfaces…'
+          placeholder={words.searchKindsAndInterfaces}
           icon='SearchLine'
           minimal
           flat
@@ -570,7 +627,7 @@ export const ReferencePicker = ({
         />
       </Search>
       {stacked ? (
-        <Stack $maxHeight={maxHeight}>
+        <Pane $stack $maxHeight={maxHeight}>
           <ReqoreMenu transparent flat padded={false} width='100%' size='small'>
             {kindItems.slice(0, splitAt)}
           </ReqoreMenu>
@@ -580,7 +637,7 @@ export const ReferencePicker = ({
               {kindItems.slice(splitAt)}
             </ReqoreMenu>
           ) : null}
-        </Stack>
+        </Pane>
       ) : (
         <Panes>
           <Pane $maxHeight={maxHeight}>
@@ -601,7 +658,14 @@ export const ReferencePicker = ({
   }
 
   return (
-    <ReqoreModal isOpen icon='LinksLine' label={title} width='100%' blur={3} onClose={onClose}>
+    <ReqoreModal
+      isOpen
+      icon='LinksLine'
+      label={title ?? words.referenceInterfaces}
+      width='100%'
+      blur={3}
+      onClose={onClose}
+    >
       {body}
     </ReqoreModal>
   );

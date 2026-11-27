@@ -134,7 +134,7 @@ export const shouldMarkAsExpression = (
  * Left as no opinion, the flag was kept only while the field still held an expression
  * (`shouldMarkAsExpression`). An expression put back over a field that had been cleared, or replaced with a
  * value, came back without it: its AST was stored as a literal hash, and its row read "2 fields", `exp` and
- * `args` (qorus#646).
+ * `args`.
  */
 export const restoredFieldChange = (field?: {
   value?: unknown;
@@ -162,17 +162,43 @@ export const restoredFieldChange = (field?: {
 /**
  * An argument slot with nothing in it yet: the catalogue's default when it has
  * one, otherwise an envelope typed for the editors that need a type to mount.
- * `false`, `0` and `''` are defaults too — a truthiness test dropped them.
+ * `false`, `0` and `''` are defaults too — a truthiness test dropped them. A
+ * default that is an expression (the server's typed `ui_default_value`, or a
+ * `default_value` written as an expression) stays an expression.
  */
-const emptyArgumentSlot = (arg: any): any =>
-  arg?.default_value != null ?
-    { value: arg.default_value, type: arg.ui_type }
-  : {
-      type:
-        arg?.ui_type === 'richtext' || arg?.ui_type === 'number' || arg?.ui_type === 'bool' ?
-          arg.ui_type
-        : undefined,
-    };
+const emptyArgumentSlot = (arg: any): any => {
+  const typed = arg?.ui_default_value;
+  if (typed?.is_expression) {
+    return { ...typed };
+  }
+  if (looksLikeExpressionAst(arg?.default_value)) {
+    return { is_expression: true, value: arg.default_value };
+  }
+  if (typed && typed.value !== undefined && typed.value !== null) {
+    return { value: typed.value, type: typed.type ?? arg.ui_type };
+  }
+  return arg?.default_value != null ?
+      { value: arg.default_value, type: arg.ui_type }
+    : {
+        type:
+          arg?.ui_type === 'richtext' || arg?.ui_type === 'number' || arg?.ui_type === 'bool' ?
+            arg.ui_type
+          : undefined,
+      };
+};
+
+/**
+ * An argument the author has given a type but no value yet: it is theirs, so nothing fills it in. An envelope that
+ * carries a schema key (`required`) is an argument DEFINITION saved where a value belonged, not the author's choice,
+ * and is still repaired.
+ */
+const isTypedButEmpty = (arg: unknown): boolean =>
+  !!arg &&
+  typeof arg === 'object' &&
+  typeof (arg as { type?: unknown }).type === 'string' &&
+  (arg as { value?: unknown }).value === undefined &&
+  !(arg as { is_expression?: unknown }).is_expression &&
+  !('required' in (arg as object));
 
 export const addMissingExpressionArgs = (
   expressions: any[] | undefined,
@@ -221,7 +247,8 @@ export const addMissingExpressionArgs = (
     /* "Missing" already means "carries no value", so an argument waiting for
        its catalogue default is simply a missing one — it needs no separate
        test. */
-    if (!isExpressionArgumentMissing(newArgs[index])) {
+    // an argument that gives its type is never changed: the author chose the type, the value is still to come
+    if (!isExpressionArgumentMissing(newArgs[index]) || isTypedButEmpty(newArgs[index])) {
       return;
     }
 

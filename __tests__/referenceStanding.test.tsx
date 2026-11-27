@@ -1,9 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A reference its catalogue does not list says so, and one its host knows wears the host's name (qorus#646, David
- * on FormEngine · A Host Grammar Survives The Editor The Row Opens: "has a chip with a display name and one with
- * the technical form ("$._case.attempt"); the chips / templates / etc were meant to abstract the technical format
- * from our users").
+ * A reference its catalogue does not list says so, and one its host knows wears the host's name (on FormEngine · A Host
+ * Grammar Survives The Editor The Row Opens, one chip had a display name and one the technical form
+ * ("$._case.attempt"); chips and templates are there to keep the technical format away from users).
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
@@ -74,13 +73,36 @@ describe('what names a reference', () => {
     expect(referenceStanding({ items: [] }, '$._case.attempt')).toEqual({ unlisted: false });
   });
 
-  it("says so in the host's words, or in its own", () => {
+  it("says so with a warning mark, in the host's words or in its own", () => {
     expect(unlistedReferenceChipProps({}).tooltip).toBe(DEFAULT_UNLISTED_REFERENCE_HINT);
+    // never a chip filled with the warning: its source's look, and the warning on a mark after its name
     expect(unlistedReferenceChipProps({ unlistedHint: 'Not a value this case captures' })).toEqual({
-      intent: 'warning',
+      rightIcon: 'ErrorWarningLine',
+      rightIconProps: { intent: 'warning' },
       tooltip: 'Not a value this case captures',
       className: UNLISTED_REFERENCE_CLASS,
     });
+  });
+
+  it('is drawn in the look of the values of its context', () => {
+    const local = {
+      items: [
+        { label: 'Started', value: '$local:{started}', metadata: { builtIn: true } },
+        { label: 'Order', value: '$data:{order}', metadata: { isEventTrigger: true } },
+        { label: 'Total', value: '$static:{total}' },
+      ],
+    };
+    for (const [reference, intent] of [
+      ['$local:{test}', 'custom1'],
+      ['$data:{other}', 'success'],
+      ['$static:{other}', undefined],
+    ] as const) {
+      const standing = referenceStanding(local, reference);
+      expect(standing.unlisted).toBe(true);
+      const props = unlistedReferenceChipProps({}, standing);
+      expect(props.intent).toBe(intent);
+      expect(props.rightIconProps).toEqual({ intent: 'warning' });
+    }
   });
 });
 

@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A record field reference in DPQL text - `@pos`, `@"create.order-id"`, `@orders[*].id` - read as the `$record:{…}`
-// template it stands for (qorus#646). Qorus reads `$record:{<path>}` as a test path (`QorusRecordPath`), and its DPQL
+// template it stands for. Qorus reads `$record:{<path>}` as a test path (`QorusRecordPath`), and its DPQL
 // serializer writes the same path after `@` (qore#5480: dots separate the parts of a name, quoted or bare, and a dot
 // that is part of a key is `\.`). A field written in DPQL and the template a value holds are one record field, so they
 // are drawn as one chip; and the stories' stand-in for the server reads the reference back to the template with this.

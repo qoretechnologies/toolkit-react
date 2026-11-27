@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// The support-ticket vocabulary qorus#693 adds: audit actions with a fallback, interface
+// The support-ticket vocabulary for support access: audit actions with a fallback, interface
 // reference identity across kind spellings, and the delegated-access thread events.
 //
 // The portal's audit tab used to index TICKET_AUDIT_ACTION_META directly, so the first
@@ -13,6 +13,7 @@ import {
   interfaceReferenceKey,
   normalizeInterfaceKind,
   TICKET_AUDIT_ACTION_META,
+  TICKET_CATEGORY_META,
   TICKET_SYSTEM_EVENT_META,
   ticketAuditActionMeta,
   ticketSystemEventMeta,
@@ -43,20 +44,21 @@ describe('ticketAuditActionMeta', () => {
       const meta = TICKET_AUDIT_ACTION_META[action];
       expect(meta.label).toBeTruthy();
       expect(meta.icon).toBeTruthy();
-      expect(meta.intent).toBeTruthy();
+      // a record, not a verdict: said by its word and icon, with no color
+      expect('intent' in meta).toBe(false);
     });
   });
 
-  it('renders an unknown action as a muted generic row that still names it', () => {
+  it('renders an unknown action as a generic row that still names it', () => {
     const meta = ticketAuditActionMeta('escalated_to_engineering');
-    expect(meta.intent).toBe(UNKNOWN_TICKET_AUDIT_ACTION_META.intent);
+    expect('intent' in meta).toBe(false);
     expect(meta.icon).toBe(UNKNOWN_TICKET_AUDIT_ACTION_META.icon);
     expect(meta.label).toBe('Escalated to engineering');
   });
 
   it('never throws, whatever string the server sends', () => {
     expect(() => ticketAuditActionMeta('')).not.toThrow();
-    expect(ticketAuditActionMeta('').intent).toBe('muted');
+    expect(ticketAuditActionMeta('').icon).toBe(UNKNOWN_TICKET_AUDIT_ACTION_META.icon);
   });
 });
 
@@ -107,5 +109,15 @@ describe('ticketSystemEventMeta', () => {
   it('falls back to the plain informational line for no event or an unknown one', () => {
     expect(ticketSystemEventMeta(undefined)).toBe(DEFAULT_TICKET_SYSTEM_EVENT_META);
     expect(ticketSystemEventMeta('billing.invoice_paid')).toBe(DEFAULT_TICKET_SYSTEM_EVENT_META);
+  });
+});
+
+describe('a ticket category', () => {
+  it('is said by its word and its icon, with no color: a category is not a verdict', () => {
+    Object.values(TICKET_CATEGORY_META).forEach((meta) => {
+      expect(meta.label).toBeTruthy();
+      expect(meta.icon).toBeTruthy();
+      expect('intent' in meta).toBe(false);
+    });
   });
 });

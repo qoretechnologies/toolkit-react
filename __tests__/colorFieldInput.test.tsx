@@ -10,7 +10,7 @@ import {
 import type { TColorFormFieldInput as TPackageColorInput } from '../src/index';
 
 /**
- * qorus#646: the color field reads a value stored as a hex code, bare or as `{ hex }`, and a color with a field beside
+ * The color field reads a value stored as a hex code, bare or as `{ hex }`, and a color with a field beside
  * its own, so it can show it and store it right - but its `value` was typed as the stored hash only. A host had to
  * convert the value before passing it (the IDE did), and then the field could not see the value was stored the
  * wrong way: an edit that left the color as it was stored nothing, and the hex code stayed. The `value` is typed as

@@ -6,7 +6,7 @@ import { ImageLightbox } from '../src/components/imageLightbox/ImageLightbox';
 import { AttachmentChips } from '../src/components/supportTicket/AttachmentChips';
 
 /**
- * qorus#646 (React's act warning, found by the story run's warning gate): a staged file's rename input and the
+ * React's act warning, found by the story run's warning gate: a staged file's rename input and the
  * lightbox's were closed by taking them off the page while they had the focus. The focus then left them while
  * React removed them, in the middle of React's work - the stories' act ended early, and React reported the updates
  * after it as not wrapped in act - and their blur, which commits, ran then: Enter committed the name twice, and

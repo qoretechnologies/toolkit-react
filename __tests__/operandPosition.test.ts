@@ -5,12 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { validateFieldWithResult } from '../src/helpers/validations';
 
 /**
- * qlip build 20261008-083118 (Foxhoundn, ExpressionBuilder Add Value Slot / Addition Picked Fresh / Variable
- * Arguments Can Be Added): "the old version, which provided the argument index / position is a better UX for
- * the user to understand which "value" is the message mentioning". Every operand of a call that takes any
- * number of them is named "Value", so the name alone does not say which one. Where another operand of the
- * call has the same name, or the call can take more of them, the message says which by its position too; a
- * name that says which is enough.
+ * a Qlip review (ExpressionBuilder Add Value Slot / Addition Picked Fresh / Variable Arguments Can
+ * Be Added): a message that gives the argument's position tells the user which "value" it means. Every operand
+ * of a call that takes any number of them is named "Value", so the name alone does not say which one. Where
+ * another operand of the call has the same name, or the call can take more of them, the message says which by
+ * its position too; a name that says which is enough.
  */
 describe('an operand named like another', () => {
   const concat = [
@@ -55,7 +54,7 @@ describe('an operand named like another', () => {
     expect(result.reason ?? '').toMatch(/^The expression in the 2nd "Value" has an error/);
   });
 
-  /* David (qorus#646): a lone operand of a call that can take more - it has an "Add value" slot - says its
+  /* A lone operand of a call that can take more - it has an "Add value" slot - says its
      position too, as the operands that will join it will. */
   it('says the position of a lone operand of a call that can take more', () => {
     expect(call('concat', [s()]).reason).toBe('Enter the 1st "Value"');

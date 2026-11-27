@@ -18,8 +18,8 @@ export const OptionsHelpDialog = ({ option, onClose }: IOptionsHelpDialogProps) 
   if (!option) {
     return null;
   }
-  /* What the option takes, beside its description (qorus#646, David's review): the type is said here and in the
-     name's hover, not by default beside the name. Its short description stands in for a description it lacks. */
+  /* What the option takes, beside its description: the type is said here and in the name's hover, not by
+     default beside the name. Its short description stands in for a description it lacks. */
   const takes = optionTypeSentence(option, typeName, typeSentenceForm);
   const description = option.desc || option.short_desc;
 
@@ -42,7 +42,7 @@ export const OptionsHelpDialog = ({ option, onClose }: IOptionsHelpDialogProps) 
       : null}
       {description ?
         <Description longDescription={description} longDescriptionOnly />
-      : /* why there is none, never a blank (qorus#646) */
+      : /* why there is none, never a blank */
         <ReqoreP className='options-help-no-description' size='small'>
           {feWords.noDescription}
         </ReqoreP>

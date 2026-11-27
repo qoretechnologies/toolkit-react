@@ -1,7 +1,7 @@
 /**
  * Contextual suggestions for the schema editor's reference fields.
  *
- * The qorus#225 catalogue declares fields like a primary-key's `columns`
+ * The server's schema catalogue (`GET /schemas?action=options`) declares fields like a primary-key's `columns`
  * or a foreign-constraint's `table` / `target_columns` as plain
  * `string` / `list<string>` — no `allowed_values`. The catalogue
  * *can't* enumerate them: a foreign constraint may legitimately target

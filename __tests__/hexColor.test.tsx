@@ -11,7 +11,7 @@ import {
 import { ColorFormField, colorToRgba } from '../src/components/form/fields/color/Color';
 
 /**
- * qorus#646: reqraft has one hex reader, and every hex path reads with it - the color field (what it shows, and
+ * Reqraft has one hex reader, and every hex path reads with it - the color field (what it shows, and
  * what it stores from a hex code), `colorToRgba` (what a host stores when it turns a hex code into a color, as the
  * IDE does), `formatColorValue`, `colorToCss` and `ReqraftColorValue`.
  *

@@ -15,8 +15,8 @@ const meta = {
         status: 200,
         response: {
           provider: 'local',
-          username: 'david',
-          name: 'David Nichols',
+          username: 'jdoe',
+          name: 'Jane Doe',
           has_default: true,
           roles: ['admin'],
           permissions: ['USER-CONTROL'],
@@ -68,7 +68,7 @@ export const CurrentUserCanBeLoaded: Story = {
     },
   },
   play: async () => {
-    await testsWaitForText('"David Nichols"');
+    await testsWaitForText('"Jane Doe"');
   },
 };
 

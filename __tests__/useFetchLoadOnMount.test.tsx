@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // What `useFetch({ loadOnMount: true })` asks for, and what becomes of a load that throws.
 //
-// Found in qorus-ide's unit tests (board f61, 17 Nov): `useQorusTypes` mounts
+// Found in the Qorus IDE's unit tests: `useQorusTypes` mounts
 // `useFetch({ url: '/system/qorus-type-info', loadOnMount: true })`. The hook already
 // rendered the answer from the query cache, but its load-on-mount effect still asked the
 // `FetchContext` for it. With no reqraft provider above it, the default context throws

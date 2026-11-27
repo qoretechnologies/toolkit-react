@@ -11,7 +11,7 @@ const fetchContext = emptyFetchContext();
  * A required field that arrives with the schema is the row the first-required scan opens, though the form
  * adds it to its value only one render after the schema (the rebuild for a new schema is an effect).
  *
- * The Qorus IDE's pipeline processor form (qorus#646): the value holds the processor, the schema arrives
+ * The Qorus IDE's pipeline processor form: the value holds the processor, the schema arrives
  * after the form mounts and makes a field mapping required; the scan ran on the value as it was before the
  * rebuild, found nothing to open, and was spent - the mappings row stayed closed, its "Field mappings
  * required" panel never shown.

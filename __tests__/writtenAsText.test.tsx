@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A field written as text (qorus#646): a template chosen into it is a chip, text is written around it,
+ * A field written as text: a template chosen into it is a chip, text is written around it,
  * and the field's value is read from the text.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
@@ -115,7 +115,7 @@ describe('an empty date field with templates on offer', () => {
 });
 
 /**
- * qorus#646 (David): an untyped field holding null showed an empty text field - the same as a field
+ * An untyped field holding null showed an empty text field - the same as a field
  * holding nothing - so the author could not tell the two apart. null is written `null`, and `null`
  * written in an untyped field is null; an empty field is no value at all.
  */
@@ -146,7 +146,7 @@ describe('null in an untyped field', () => {
 });
 
 /**
- * qorus#646 (David): in a yes/no field, a chip of the whole-number field pos read "record: pos", where every
+ * In a yes/no field, a chip of the whole-number field pos read "record: pos", where every
  * other field's chip reads "pos". The text field named its chips from the list it offers, which a typed
  * field filters to its own type: pos is not on a yes/no field's list, so its chip fell back to the
  * reference's path. A chip is named from the whole catalogue; only the list offered is filtered.
@@ -164,7 +164,7 @@ describe("a chip of a field not of the value's type", () => {
 });
 
 /**
- * qorus#646 (David): "Clear value" on an added yes/no holding the field pos had no effect - the draft was
+ * "Clear value" on an added yes/no holding the field pos had no effect - the draft was
  * cleared, the field still showed pos. The text field keeps its own copy of the text, and nothing set it
  * when the value was emptied from outside the editor (the card's "Clear value", an undo, a host reset).
  */

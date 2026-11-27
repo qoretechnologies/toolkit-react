@@ -6,6 +6,17 @@ import { createContext } from 'use-context-selector';
  * group, with schema order as the stable tiebreaker. */
 export type TCompactSort = 'schema' | 'alpha' | 'alpha-desc' | 'unset' | 'invalid';
 
+/**
+ * A form's own words for its readiness line's state (`FormEngine readinessLabels`), in place of the app-wide "Ready" and
+ * "Incomplete": the first page of a form that goes on to a second is set, not ready ("This page is set").
+ */
+export interface IFormReadinessLabels {
+  /** Said when nothing in the form needs anything. Default: the labels' `formEngine.ready` ("Ready"). */
+  complete?: string;
+  /** Said while something does. Default: the labels' `formEngine.incomplete` ("Incomplete"). */
+  incomplete?: string;
+}
+
 /** A not-yet-selected optional field offered in the compact "Fields" menu. */
 export interface ICompactToolbarOptionalField {
   value: string;
@@ -35,7 +46,17 @@ export interface ICompactToolbarContext {
   // Completion meter
   invalidCount: number;
   attentionCount: number;
-  completion: { set: number; done: number; total: number; pct: number };
+  /** How many of `attentionCount` are faults (invalid, or a required field the person
+   *  has been to and left empty). Zero on a fresh form: the rest are only to fill in. */
+  attentionFaultCount: number;
+  /** Faults the host found outside the form's fields (`outsideAttention`): said on the
+   *  readiness line, not drawn on the meter, which measures the fields. */
+  outsideAttentionCount?: number;
+  /** Takes the reader to those, when no field needs anything. */
+  onRevealOutside?: () => void;
+  /** The form's own words for the line's state, where the host gives them. */
+  readinessLabels?: IFormReadinessLabels;
+  completion: { set: number; done: number; total: number; pct: number; shown?: number };
   // Invalid-fields banner (pinned in the sticky header)
   showInvalidOnly: boolean;
   onToggleInvalidOnly: () => void;

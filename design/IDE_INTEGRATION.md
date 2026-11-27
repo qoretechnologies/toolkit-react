@@ -34,7 +34,7 @@ checklist the IDE-integration PR ticks off so that can't happen.
   `undefined` read as one empty value (`null` is a value of its own); anything else is a change from outside
   and is handed down as it is. Its `onChange` is one function for the life of the field. A host editor that
   replaces what it holds with any value it is handed that differs - the IDE's rich text does - otherwise lost
-  what was typed after an emptied value came back a second way (qorus#646; story *Components/Form/Auto ›
+  what was typed after an emptied value came back a second way (story *Components/Form/Auto ›
   Host Editor Keeps What Is Typed When Its Report Comes Back*).
 - A host's own debounced field tracks its reports as reqraft's fields do: `EmittedValues` / `useEmittedValues`
   (and the `TEmittedValuesEquals` type) are exported from the package root. `record` each report, ask
@@ -48,7 +48,7 @@ checklist the IDE-integration PR ticks off so that can't happen.
   from outside replaces it; `send` is called with what is held, and decides itself whether it is still a
   change. A read-first row's Done (and closing the row by its label) sends it before the row closes, Cancel
   and Escape drop it, and any other way out sends it as the field goes away. Without it, a value typed and Done
-  pressed inside the field's pause was lost: the pause's timer died with the field (qorus#646; story
+  pressed inside the field's pause was lost: the pause's timer died with the field (story
   _Form/Engine/FormEngine › Done Straight After Typing Keeps The Edit_).
 - A `value` the host changes while the form holds edits of its own is merged with them: a field the form
   changed and the host did not keeps the form's value, and every other field takes the host's (a field both
@@ -56,13 +56,13 @@ checklist the IDE-integration PR ticks off so that can't happen.
   an edit to the old record still on its way is merged into the new one: it remounts the form with a React
   `key` (which also closes its open rows), or passes the record's id as `valueKey`, after which the form
   takes the new `value` as it is. Before this, a host change landing in the same commit as an edit made the
-  form and the host trade the two values forever (qorus#646; the OPC UA node editor's namespace).
+  form and the host trade the two values forever (the OPC UA node editor's namespace).
 - `ReferencePicker` says why a kind has no list. `error` (with `onRetry`) is a fetch that failed: a red
   "Couldn't load <kind>" with a retry, the failure in its tooltip. `unavailable` (a string) is a kind the
   user may not list - a refused permission, e.g. a missing AI-COLLECTION-READ: one muted item with a lock and
   the reason as its words (and its accessible name), no danger color, nothing to retry. It wins over
   `error` and `loading`, and like them it is about the selected `kind`: a host sets it when the kind is
-  selected (qorus#646; story _Components/ReferencePicker › Kind Unavailable_).
+  selected (story _Components/ReferencePicker › Kind Unavailable_).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in
@@ -101,11 +101,11 @@ checklist the IDE-integration PR ticks off so that can't happen.
 
 ## A host's language
 
-`setReqraftLabels()` gives Reqraft's words in the host's language: the template list (`buildTemplates`), tree and picker, a template field's controls and value tabs, the editors (DPQL and the rest) and FormEngine. What it gives is merged over `DEFAULT_REQRAFT_LABELS`, part by part and word by word, so a host that gives nothing has the English it always had; each call replaces what the last one gave.
+`setReqraftLabels()` gives Reqraft's words in the host's language: the template list (`buildTemplates`), tree and picker, a template field's controls and value tabs, the editors (DPQL and the rest), FormEngine and the field editors it draws (`fields`), the expression field and builder (`expressions`), why a value is refused (`validation`), the schema-definition editor, the log and menu, the support ticket and its composer, and the A/B test card and overlay (`abTest`). Every word a person reads is one of them: a part's file next to what it draws (`labels.ts`) declares it, with its English. What it gives is merged over `DEFAULT_REQRAFT_LABELS`, part by part and word by word, so a host that gives nothing has the English it always had; each call replaces what the last one gave.
 
-It is one setting for the page, not a prop, because the words are read where no component is: the trees and completions built outside React, and lists kept between forms. A component reads `useReqraftLabels()` and is drawn again when a host gives others; code outside a component reads `reqraftLabels()`, and a hook that memoizes what it builds lists the words among its dependencies. A list kept in `TemplatesCache` is built again from what the server said, without asking again.
+It is one setting for the page, not a prop, because the words are read where no component is: the trees and completions built outside React, and lists kept between forms. A component reads `useReqraftLabels()` and is drawn again when a host gives others; code outside a component reads `reqraftLabels()` when it is called, never at module scope, and a hook that memoizes what it builds lists the words among its dependencies. A list kept in `TemplatesCache` is built again from what the server said, without asking again; a memoized result worded outside React (`validateFieldWithResult`) is dropped when the words change (`onReqraftLabelsChange`). A module-level map a host may read (the ticket vocabularies in `supportTicket/meta.ts`) reads its words through getters, so it says the words given now.
 
-A word a component or provider is given itself (`buildTemplates`' `labels`, `TemplatePicker`'s `labels`, `TemplateCatalogueProvider`'s `pickerLabels`, `valueTabsLabels`, `compactBoxLabels`) comes before the host's. Code does not compare a word to decide what to do: a row says what it is with a flag (`isTemplateContext`), and the label is only drawn.
+A word a component or provider is given itself (`buildTemplates`' `labels`, `TemplatePicker`'s `labels`, `TemplateCatalogueProvider`'s `pickerLabels`, `valueTabsLabels`, `compactBoxLabels`) comes before the host's. Code does not compare a word to decide what to do: a row says what it is with a flag (`isTemplateContext`), a message that a field is required says so with `requirement`, a refusal for a value that is not one of the choices with `unlistedChoice`, and the label is only drawn.
 
 ## Opening a row of a drawn form
 

@@ -201,7 +201,7 @@ describe('NumberFormField and the echo of its own emit', () => {
 describe('NumberFormField and an edit undone while its emit is in flight', () => {
   it('reports the number it went back to', async () => {
     // "50" is emitted at 100 ms and handed back at 220 ms; the "0" is deleted at 110 ms. Compared with the 5 it
-    // was given, the field took "5" for no change and sent nothing, and the parent kept 50 (qorus#646).
+    // was given, the field took "5" for no change and sent nothing, and the parent kept 50.
     const reported: unknown[] = [];
     const Parent = () => {
       const [value, setValue] = useState<number | string | undefined>(5);
@@ -228,7 +228,7 @@ describe('NumberFormField and an edit undone while its emit is in flight', () =>
 });
 
 describe('NumberFormField takes whatever is typed', () => {
-  // A typed field is typed freely (David's review of qorus#646): a `number` input dropped every character that
+  // A typed field is typed freely: a `number` input dropped every character that
   // is not part of a number, so a template (`$local:x`) or an expression (`@qty * 2`) could not be typed into a
   // whole-number field, and parseInt quietly cut `12abc` to 12.
   const emitted: unknown[] = [];

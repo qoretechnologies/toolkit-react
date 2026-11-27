@@ -10,6 +10,7 @@ import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Moda
 import { memo } from 'react';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface IConfirmUnsupportedTypeModalProps extends IReqoreModalProps {
   acceptedTypes: string[];
@@ -25,6 +26,7 @@ export const ConfirmUnsupportedTypeModal = memo(
     ...rest
   }: IConfirmUnsupportedTypeModalProps) => {
     const types = useQorusTypes();
+    const words = useReqraftLabels().expressions;
     const [doNotShowTypeConfirmation, setDoNotShowTypeConfirmation] = useReqraftStorage<boolean>(
       'doNotShowTypeExpressionConfirmation',
       false,
@@ -36,7 +38,7 @@ export const ConfirmUnsupportedTypeModal = memo(
         isOpen
         intent='warning'
         icon='ErrorWarningLine'
-        label='Confirm type selection'
+        label={words.confirmTypeTitle}
         {...rest}
         customZIndex={1000000}
       >
@@ -45,15 +47,15 @@ export const ConfirmUnsupportedTypeModal = memo(
         ) : (
           // read from the left, as a dialog's text is (the mismatched-types dialog reads the same)
           <ReqoreControlGroup vertical fluid gapSize='big'>
-            <ReqoreP>This value needs one of these types:</ReqoreP>
+            <ReqoreP>{words.needsOneOfTypes}</ReqoreP>
             <ReqoreTagGroup size='small'>
               {acceptedTypes?.map((t) => (
                 <ReqoreTag key={t} label={types.getTypeDisplayName(t)} />
               ))}
             </ReqoreTagGroup>
-            <ReqoreP>Use this type anyway?</ReqoreP>
+            <ReqoreP>{words.useTypeAnyway}</ReqoreP>
             <ReqoreCheckbox
-              label="Don't show again"
+              label={words.dontShowAgain}
               size='small'
               asSwitch
               intent={doNotShowTypeConfirmation ? 'info' : undefined}

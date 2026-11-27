@@ -26,7 +26,7 @@ import { useExpressions } from '../src/components/form/expressions/useExpression
 
 describe('the expression catalogue', () => {
   it('is empty when the answer is an object rather than a list', () => {
-    fetched.data = { 'instance-key': 'hq', supports_ai: true };
+    fetched.data = { 'instance-key': 'my-instance', supports_ai: true };
 
     const { result } = renderHook(() => useExpressions());
 

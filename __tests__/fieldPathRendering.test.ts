@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A field path reads as the path wherever an expression is shown, as the Visual tab draws it (qorus#646, David):
+// A field path reads as the path wherever an expression is shown, as the Visual tab draws it:
 // the row summary, the Text view's text of an unfinished expression, and the server's rendering (Explain, the
 // Preview, the read view).
 import { renderHook } from '@testing-library/react';

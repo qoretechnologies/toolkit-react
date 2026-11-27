@@ -21,7 +21,7 @@ import { OptionsContext } from '../src/components/form/engine/optionsContext';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
-/* A refused value's name is dimmed, as far as it still reads in the theme (qorus#646): 0.55 was 4.1:1. */
+/* A refused value's name is dimmed, as far as it still reads in the theme: 0.55 was 4.1:1. */
 const DIMMED = getReadableTextOpacity(buildTheme(DEFAULT_THEME as never), 0.55);
 
 /**

@@ -62,9 +62,9 @@ const IMMEDIATE_TYPE_NAMES = [
   'Binary data',
   'Number',
   'List',
-  'Key/Value {}',
+  'Key/value {}',
   'Whole number',
-  'RGB Color',
+  'RGB color',
 ];
 
 /**
@@ -314,7 +314,7 @@ export const NoSoftTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Number, List, Key/Value {}, Whole number, RGB Color) and no soft type, and shows no item count.',
+          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Number, List, Key/value {}, Whole number, RGB color) and no soft type, and shows no item count.',
       },
     },
   },
@@ -373,7 +373,7 @@ export const ViaFormEngine: Story = {
 };
 
 /**
- * The ⋮ on that same field holds one group — "Set Custom Value" and the data
+ * The ⋮ on that same field holds one group — "Set custom value" and the data
  * types under it — and opens it, rather than asking for a click to reach the
  * only thing on offer.
  */
@@ -382,7 +382,7 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
     docs: {
       description: {
         story:
-          'The untyped field\'s ⋮ holds nothing but the "Set Custom Value" section, so that section is already open: the data types are one click from the menu, not two. Where a menu holds more than one group the sections stay shut, because there the click is the choice.',
+          'The untyped field\'s ⋮ holds nothing but the "Set custom value" section, so that section is already open: the data types are one click from the menu, not two. Where a menu holds more than one group the sections stay shut, because there the click is the choice.',
       },
     },
   },
@@ -422,7 +422,7 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
 
     // The section still names its rows...
     await waitFor(
-      () => expect(document.body.textContent).toContain('Set Custom Value'),
+      () => expect(document.body.textContent).toContain('Set custom value'),
       { timeout: 10000 }
     );
     // ...and the rows are there to click, with no header click in between: each type with the description the
@@ -921,7 +921,7 @@ export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
     docs: {
       description: {
         story:
-          'Renders a field drawn by a host editor (`componentOverrides`) that, as the Qorus IDE\'s rich text does, keeps what is typed, reports it after a pause and takes any other value it is handed for a change from outside. The field is emptied - it reports "" - and the form, as a form engine does once it has stored it, hands the empty value back again as undefined, after a 1 is typed and before it is reported. The 1 stays and is then reported: the field hands a host editor its own report back as it reported it, so an empty value stored a second way is no change. It was taken for one, and the 1 was wiped (the IDE\'s test-case Value, under load, qorus#646).',
+          'Renders a field drawn by a host editor (`componentOverrides`) that, as the Qorus IDE\'s rich text does, keeps what is typed, reports it after a pause and takes any other value it is handed for a change from outside. The field is emptied - it reports "" - and the form, as a form engine does once it has stored it, hands the empty value back again as undefined, after a 1 is typed and before it is reported. The 1 stays and is then reported: the field hands a host editor its own report back as it reported it, so an empty value stored a second way is no change. It was taken for one, and the 1 was wiped (the IDE\'s test-case Value, under load).',
       },
     },
   },
@@ -949,7 +949,7 @@ export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
 /**
  * A DPQL field is given its templates as every other field of the form is (its context data): a click in its empty
  * text opens the template picker with them, and the template button beside the text opens it too. They were left
- * out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review).
+ * out, so a DPQL field offered no template until a `$` was typed.
  */
 export const DpqlFieldOffersItsTemplates: Story = {
   args: {
@@ -973,19 +973,19 @@ export const DpqlFieldOffersItsTemplates: Story = {
       () => {
         const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
         expect(text, 'the DPQL text').toBeTruthy();
-        expect(canvasElement.textContent).not.toMatch(/Connecting to language server/);
+        expect(canvasElement.textContent).not.toMatch(/Getting ready/);
         return text!;
       },
       { timeout: 30000 }
     );
     expect(canvasElement.querySelector('.smart-editor-template-button'), 'the template button').toBeTruthy();
     await userEvent.click(editable);
-    // its templates under their group, beside what the language server completes (qorus#646)
+    // its templates under their group, beside what the language server completes
     await waitFor(
-      () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Context Data', 'Template contexts'])),
+      () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Context data', 'Template contexts'])),
       { timeout: 30000 }
     );
-    await userEvent.click(await pickerRow('Context Data'));
+    await userEvent.click(await pickerRow('Context data'));
     await waitFor(() => expect(pickerLabels()).toContain('Interface Name'));
     expect(pickerLabels()).toContain('Current Timestamp');
   },

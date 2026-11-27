@@ -10,7 +10,7 @@ committing the baseline first, 2026-06-10). Full storybook suite
 Continuation of the field-stack re-faithful-ization started in
 [EXPRESSION_BUILDER_REPORT](./EXPRESSION_BUILDER_REPORT.md) Phase A.
 Design rationale: `design/EXPRESSION_BUILDER_REPORT_STRATEGY.md`
-(Filip's method: copy IDE components **and their tests** verbatim →
+(the method: copy IDE components **and their tests** verbatim →
 1:1 + green → then improve). reqraft's `TemplateField` and
 `AutoFormField` are from-scratch reimplementations — the operand layer
 under the ported ExpressionBuilder — and this task replaces them with

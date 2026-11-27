@@ -4,7 +4,7 @@ import { makeDpqlTagRenderer } from '../src/components/dpqlEditor/dpqlTags';
 import { recordTemplateOfReference } from '../src/helpers/recordFieldReference';
 
 /**
- * One chip for one record field (qorus#646, David). A field written in DPQL - `@orders[*].id`, as the server writes
+ * One chip for one record field. A field written in DPQL - `@orders[*].id`, as the server writes
  * a record field on the Expression tab - and the template a value holds - `$record:{orders[*].id}`, as the Visual
  * tab draws it - are the same field, and are drawn as the same chip: the template chip's color, icon and label
  * (`record: orders[*].id`, or the catalogue's name for it). The field was a light blue chip with black text,
@@ -31,8 +31,9 @@ describe('a record field written in DPQL', () => {
     expect(field).toMatchObject({
       label: 'record: orders[*].id',
       icon: 'ExchangeDollarLine',
-      intent: 'info',
     });
+    // an output's chip is the plain one: blue means only that a filter is on
+    expect(field).not.toHaveProperty('intent');
     // the same color and icon; the template's chip is labeled by its element, with the label the field's says
     const { tooltip: _fieldTooltip, label: fieldLabel, ...fieldLook } = field;
     const { tooltip: _templateTooltip, ...templateLook } = template;

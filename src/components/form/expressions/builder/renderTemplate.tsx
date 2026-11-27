@@ -9,6 +9,7 @@
 import { ReqoreMessage } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { validateField } from '../../../../helpers/validations';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ExpressionRendering } from '../DpqlRendering';
 import { IExpression, IExpressionSchema } from '../types';
 
@@ -24,10 +25,11 @@ export const ExpressionRenderTemplate = ({
   expressions,
   templates,
 }: IExpressionRenderTemplateProps) => {
+  const words = useReqraftLabels().expressions;
   if (!validateField('expression', exp, { expressions })) {
     return (
       <ReqoreMessage size='small' intent='muted' flat opaque={false}>
-        Expression is invalid, unable to render summary
+        {words.notExplained}
       </ReqoreMessage>
     );
   }

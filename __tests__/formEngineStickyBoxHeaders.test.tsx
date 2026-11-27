@@ -92,11 +92,20 @@ describe('compact status boxes pin their headers', () => {
   });
 
   it('never pins inside a nested sub-form, which owns no scroll context', async () => {
-    const { container } = renderForm({ compactNested: true });
+    // The classic look keeps its status boxes in a nested sub-form; the calm one
+    // draws none there (below).
+    const { container } = renderForm({ compactNested: true, appearance: 'classic' });
     await waitFor(() => expect(boxHeaders(container).length).toBeGreaterThan(0));
     for (const header of boxHeaders(container)) {
       expect(getComputedStyle(header).position).not.toBe('sticky');
     }
+  });
+
+  it('draws no status box at all in a calm nested sub-form: the item it sits in is the card', async () => {
+    const { container } = renderForm({ compactNested: true });
+    await waitFor(() => expect(container.querySelector('.readfirst-nested-list')).toBeTruthy());
+    expect(boxHeaders(container)).toHaveLength(0);
+    expect(container.querySelector('.options-readfirst-toolbar')).toBeNull();
   });
 
   it('stops the panel body being a scroll container, which would swallow the pin', async () => {
@@ -111,5 +120,41 @@ describe('compact status boxes pin their headers', () => {
        the horizontal guard without CSS coercing this one back to `auto`. */
     expect(body!.style.overflowY).toBe('visible');
     expect(body!.style.overflowX).toBe('clip');
+  });
+
+  it('offsets box headers by the toolbar once the toolbar says it pins, and not before', async () => {
+    /* A Reqore that pins a header only while its panel is clearly taller than its scroller
+       (reqore#715) decides after it has measured, and says so in `data-pins-header`:
+       the toolbar was not sticky yet when the form first read it, its size never changed after,
+       and the box headers pinned at 0, over the toolbar. */
+    const TOOLBAR = '.options-readfirst-scroll > .reqore-panel > .reqore-panel-title';
+    const rect = HTMLElement.prototype.getBoundingClientRect;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        const real = rect.call(this);
+        if (!this.matches(TOOLBAR)) {
+          return real;
+        }
+        const { x, y, width, top, left } = real;
+        return { x, y, width, top, left, right: left + width, bottom: top + 100, height: 100, toJSON: () => ({}) } as DOMRect;
+      });
+    try {
+      const { container } = renderForm();
+      await waitFor(() => expect(boxHeaders(container).length).toBeGreaterThan(0));
+      const bar = toolbar(container)!;
+
+      bar.setAttribute('data-pins-header', 'false');
+      await waitFor(() =>
+        boxHeaders(container).forEach((header) => expect(getComputedStyle(header).top).toBe('0px'))
+      );
+
+      bar.setAttribute('data-pins-header', 'true');
+      await waitFor(() =>
+        boxHeaders(container).forEach((header) => expect(getComputedStyle(header).top).toBe('100px'))
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

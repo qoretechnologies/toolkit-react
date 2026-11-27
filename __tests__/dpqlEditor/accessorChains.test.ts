@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A field with accessors is one chip (qorus#646, David): the server writes a reference with a selector back as
+// A field with accessors is one chip: the server writes a reference with a selector back as
 // `@create.items[*].id`, and the editor drew the chip `create.items` followed by the plain text `[*].id`.
 import {
   dpqlFieldName,

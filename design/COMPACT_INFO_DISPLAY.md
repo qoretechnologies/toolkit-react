@@ -6,20 +6,23 @@ places, both from its schema:
 
 - **`short_desc`** shows under the option's name while the toolbar's ⓘ ("Show all field
   information", `.options-readfirst-descriptions`) is on, and is the name's hover otherwise.
+  A row the form may not change (`readonly` on the field, not a form read as a whole) always
+  shows it: the row cannot be opened, so its short description is the one place that says why
+  it is locked (decided 2026-11-27; story `FormEngine › Readonly Row Says Why On Its Line`).
 - **`desc`** is the `?` beside the name (`.options-readfirst-help`), which opens the help
   dialog — on the read row and in the open editor. Every option with a description (`desc` or
   `short_desc`) or a type in words has the `?`, and its help says both, so a touch screen, which
-  has no hover, reaches what the option takes (David's decision, 2026-10-22). An option with
+  has no hover, reaches what the option takes (decided 2026-10-22). An option with
   neither has no `?`: a `?` that opens an empty dialog is worse than none.
 - Messages still show without interaction: the intent stripe and the strips under the row.
 
-The `?` is a button (David's decision, 2026-10-22): in the tab order with a focus ring,
+The `?` is a button (decided 2026-10-22): in the tab order with a focus ring,
 reqore's `small` on a touch screen and `tiny` with a mouse, opening the help on a click, Enter
 or Space - not the row it is in. It was a 12 px icon outside the tab order.
 
-- **The option's type**, in words from the type catalogue (David's review, 2026-10-22: "type
-  information should be shown on hover or after clicking the Show all field information control
-  rather than by default"): in the name's hover ("Takes a whole number.", under the short
+- **The option's type**, in words from the type catalogue (2026-10-22: type information is shown
+  on hover or after clicking the Show all field information control, not by default): in the
+  name's hover ("Takes a whole number.", under the short
   description) and in the help, above the description - so every option the catalogue can say
   the type of has a `?`, a description or not. Beside the name, as a muted tag ("Whole number",
   "List (Text)"; `optionTypeWords`), only while "Show all field information" or "Show field

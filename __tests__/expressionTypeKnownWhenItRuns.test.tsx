@@ -60,7 +60,7 @@ const ADD_DAYS = {
 };
 
 const MISMATCH =
-  /This expression gives|which this field does not take|must evaluate to true or false/;
+  /This expression gives|which cannot be used here|must evaluate to true or false/;
 
 const renderExpression = (value: unknown, returnType: string) =>
   render(

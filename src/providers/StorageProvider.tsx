@@ -32,7 +32,7 @@ export const applyStorageWrite = (
  * `storage_writable: false` for an identity whose storage is not its own to keep — a
  * staff member in an interactive support session reads a customer's workspace as the
  * workspace's reader principal, and a preference they flip must not land in that
- * principal's storage (qorus#693). A write for such a user is applied in memory only,
+ * principal's storage. A write for such a user is applied in memory only,
  * so the page behaves as it always does, and nothing is sent. A user the flag is
  * absent for is writable: that is every server from before the flag existed.
  */

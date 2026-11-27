@@ -1,7 +1,8 @@
 import { IQorusFormSchema, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { isValidCron } from 'cron-validator';
 import jsyaml from 'js-yaml';
-import { isBoolean, isNull, isString, isUndefined, memoize, omit, upperFirst } from 'lodash';
+import { isBoolean, isNull, isString, isUndefined, memoize, omit } from 'lodash';
+import type { MemoizedFunction } from 'lodash';
 import every from 'lodash/every';
 import isArray from 'lodash/isArray';
 import isDate from 'lodash/isDate';
@@ -9,7 +10,7 @@ import isNaN from 'lodash/isNaN';
 import isNumber from 'lodash/isNumber';
 import isObject from 'lodash/isPlainObject';
 import size from 'lodash/size';
-import { defaultQorusTypes, qorusTypeSentenceForm } from './qorusTypeCatalogue';
+import { builtInQorusTypes, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 import uniqWith from 'lodash/uniqWith';
 import { fixOperatorValue, getAddress, getProtocol, splitByteSize } from './common';
 import { isOptionInterfaceUiType } from './optionUiTypes';
@@ -19,14 +20,22 @@ import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate 
 import { allowedValueOf, getUnlistedChoiceReason } from './allowedValues';
 import { storedColorProblem } from '../components/colorValue/colorValue';
 import { asLoneValue } from '../components/form/expressions/loneValue';
+import {
+  asExpressionArgumentEnvelope,
+  isExpressionArgumentMissing,
+} from '../components/form/expressions/argumentPresence';
+import { onReqraftLabelsChange, reqraftLabels } from './reqraftLabels';
+import type { IValidationLabels } from './validationLabels';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
-const CRON_FIELDS: [string, string][] = [
+// each part of a schedule under each name a caller may give it; a Qorus job's `job-schedule` hash names the weekday
+// `dayofweek`
+const CRON_FIELDS: string[][] = [
   ['minutes', 'minute'],
   ['hours', 'hour'],
   ['days', 'day'],
   ['months', 'month'],
-  ['dow', 'weekday'],
+  ['dow', 'weekday', 'dayofweek'],
 ];
 
 /**
@@ -52,15 +61,15 @@ export const cronExpressionFromValue = (value: unknown): string | undefined => {
   }
 
   const hash = value as Record<string, unknown>;
-  const parts = CRON_FIELDS.map(([plural, singular]) => {
-    const field = hash[plural] ?? hash[singular];
+  const parts = CRON_FIELDS.map((names) => {
+    const field = names.map((name) => hash[name]).find((value) => value !== undefined && value !== null);
     return field === undefined || field === null || field === '' ? '*' : String(field);
   });
 
   // An object with none of the five keys is not a schedule — every part
   // defaulting to `*` would otherwise turn any object at all into "* * * * *"
   return parts.every((part) => part === '*') &&
-    !CRON_FIELDS.some(([plural, singular]) => plural in hash || singular in hash)
+    !CRON_FIELDS.some((names) => names.some((name) => name in hash))
     ? undefined
     : parts.join(' ');
 };
@@ -69,6 +78,16 @@ export interface IValidationResult {
   isValid: boolean;
   reason?: string;
   reasons: string[];
+  /**
+   * The value is refused because it is not one of the field's fixed choices (`getUnlistedChoiceReason`): said so by
+   * this flag, not by the words of `reason`, which are the host's and may be in any language.
+   */
+  unlistedChoice?: boolean;
+  /**
+   * The value is an expression with a required operand not filled in yet (`enterOperand`): a calm builder says so on
+   * the operand, in the calm form's words, and not again under the expression.
+   */
+  missingOperand?: boolean;
 }
 
 interface IFieldValidationProps {
@@ -166,35 +185,36 @@ const SEMANTIC_FORMAT_PATTERNS: Record<string, RegExp> = {
   phone: /^\+?[0-9 ().-]{3,}$/,
 };
 
+/** The words a reason is said in, read when it is said: a host that gives others is answered in them. */
+const words = (): IValidationLabels => reqraftLabels().validation;
+
 const validResult = (): IValidationResult => ({ isValid: true, reasons: [] });
 
 /**
  * Why a value its field's pattern refuses is refused, in words the author can act on: what the pattern accepts,
  * as the server says it ("Must be a host name and a port."); else the form a value must have, by the field's
- * example; the pattern itself last, as a detail (qorus#646, David: "we need to tell the user why there's an error -
- * i.e. what doesn't match the pattern - what is the pattern"). It said "Value does not match validation pattern".
+ * example; the pattern itself last, as a detail: the author is told why there is an error, what does not match
+ * and what the pattern is. It said "Value does not match validation pattern".
  */
 export const patternMismatchReason = (field?: {
   validation_regex?: string;
   validation_regex_desc?: string;
   example_value?: unknown;
 }): string => {
-  const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
   const desc =
     typeof field?.validation_regex_desc === 'string' ? field.validation_regex_desc.trim() : '';
   if (desc) {
-    return sentence(`Must be ${desc}`);
+    return words().mustBe(desc);
   }
   const example = field?.example_value;
   const exampleText =
     typeof example === 'string' ? example.trim()
     : typeof example === 'number' || typeof example === 'boolean' ? String(example)
     : '';
-  const main =
-    exampleText ?
-      `Must match the expected form, for example ${exampleText}.`
-    : 'Must match the expected form.';
-  return field?.validation_regex ? `${main} Pattern: ${field.validation_regex}` : main;
+  return words().mustMatchExpectedForm(
+    exampleText || undefined,
+    field?.validation_regex || undefined
+  );
 };
 
 const invalidResult = (
@@ -218,13 +238,18 @@ const withContext = (result: IValidationResult, context?: string): IValidationRe
     return result;
   }
 
+  const checked: string = context;
   const reasons =
-    result.reasons.length > 0 ? result.reasons.map((reason) => `${context}: ${reason}`) : [context];
+    result.reasons.length > 0 ?
+      result.reasons.map((reason) => words().inContext(checked, reason))
+    : [checked];
 
   return {
     isValid: false,
     reason: reasons[0],
     reasons,
+    // what is wrong inside is only an operand not filled in yet: so is what is said of it here
+    ...(result.missingOperand ? { missingOperand: true } : {}),
   };
 };
 
@@ -258,10 +283,10 @@ const checkNumericBounds = (value: any, field?: IFieldValidationProps): IValidat
   const max = field?.max_value;
 
   if (typeof min === 'number' && Number.isFinite(min) && num < min) {
-    return invalidResult(`Value must be ${min} or more`);
+    return invalidResult(words().atLeast(min));
   }
   if (typeof max === 'number' && Number.isFinite(max) && num > max) {
-    return invalidResult(`Value must be ${max} or less`);
+    return invalidResult(words().atMost(max));
   }
   return validResult();
 };
@@ -298,16 +323,13 @@ const isValueDefined = (type: string, value: any): boolean => {
 
 /**
  * A type named inside a sentence: its sentence form in the server's type catalogue ("a whole number"), as reqraft
- * keeps it - the form's own words, said before and without any server (qorus#646).
+ * keeps it - the form's own words, said before and without any server.
  */
 const typeInSentence = (type: string): string | undefined =>
-  qorusTypeSentenceForm(defaultQorusTypes, type);
+  qorusTypeSentenceForm(builtInQorusTypes(), type);
 
-/** What is said of a value that is not of its field's type, the type named where there is one (qorus#646). */
-const valueMustBe = (type: string): string => {
-  const named = typeInSentence(type);
-  return named ? `Value must be ${named}` : "Value must be of this field's type";
-};
+/** What is said of a value that is not of its field's type, the type named where there is one. */
+const valueMustBe = (type: string): string => words().valueMustBe(typeInSentence(type));
 
 /** The types a value is written as text in, where text around a template makes it text and not one of them. */
 const NOT_TEXT_WITH_A_TEMPLATE = new Set([
@@ -327,32 +349,22 @@ const NOT_TEXT_WITH_A_TEMPLATE = new Set([
 
 /**
  * What is said of a value of a type that is not text, written with text around a template: what makes it
- * text, and what to do about it (qlip build 20261008-083118: "How does the user fix this? Why has this
+ * text, and what to do about it ("How does the user fix this? Why has this
  * happened?"). `undefined` where the type is text, or the value is not text around a template.
  */
 const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
-  const notA = NOT_TEXT_WITH_A_TEMPLATE.has(type)
-    ? (typeInSentence(type) ?? "of this field's type")
-    : undefined;
-  const around = notA ? textAroundATemplate(value) : undefined;
+  const around = NOT_TEXT_WITH_A_TEMPLATE.has(type) ? textAroundATemplate(value) : undefined;
   if (!around) {
     return undefined;
   }
+  // the type as the catalogue names it inside a sentence; the words say it of the field's type where it has no name
+  const named = typeInSentence(type);
   if (around.templates > 1) {
     return around.text.length
-      ? `Text and more than one template make this text, not ${notA}. Keep one template alone.`
-      : `Templates side by side make this text, not ${notA}. Keep one of them alone.`;
+      ? words().textAndTemplatesMakeText(named)
+      : words().templatesSideBySide(named);
   }
-  return `"${around.text.join(' … ')}" makes this text, not ${notA}. Delete it to keep the template alone.`;
-};
-
-/** 1st, 2nd, 3rd, 4th, … 11th, 12th, 13th, … 21st: a position as it is written. */
-const ordinal = (n: number): string => {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 13) {
-    return `${n}th`;
-  }
-  return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`;
+  return words().textAroundTemplate(around.text, named);
 };
 
 export const _validateField = (
@@ -363,10 +375,10 @@ export const _validateField = (
 ): IValidationResult => {
   if (!type) {
     if (value === undefined || value === null) {
-      return invalidResult('Missing value');
+      return invalidResult(words().missingValue);
     }
 
-    return invalidResult('Missing type');
+    return invalidResult(words().missingType);
   }
 
   // Check if the type starts with a * to indicate it can be null
@@ -385,7 +397,7 @@ export const _validateField = (
   }
   /* A value whose type is not text, written with text around a template, is not of that type: a whole
      number written as "$record:{pos} Stk." passed as a template - anything starting with `$` and holding
-     a `:` did - and the form could be saved with a value its type cannot hold (qorus#646). A template
+     a `:` did - and the form could be saved with a value its type cannot hold. A template
      alone, a literal and an expression are judged as before. */
   const textAroundReason = textAroundATemplateReason(type, value);
   if (textAroundReason) {
@@ -396,7 +408,7 @@ export const _validateField = (
     const hasKey = !!getTemplateKey(value);
     const hasValue = !!getTemplateValue(value);
 
-    return resultFromBoolean(hasKey && hasValue, 'Template must include key and value');
+    return resultFromBoolean(hasKey && hasValue, words().templateNeedsKeyAndValue);
   }
   // Expression values (`is_expression`) carry the AST `{ exp, args }` instead of
   // a typed literal, so the declared type says nothing about them — validate
@@ -441,7 +453,7 @@ export const _validateField = (
   const unlistedChoiceReason =
     type === 'expression' ? undefined : getUnlistedChoiceReason(value, field);
   if (unlistedChoiceReason) {
-    return invalidResult(unlistedChoiceReason);
+    return { ...invalidResult(unlistedChoiceReason), unlistedChoice: true };
   }
 
   // An interface type names another Qorus object by its name, so a non-empty
@@ -453,16 +465,21 @@ export const _validateField = (
 
   switch (type) {
     case 'richtext': {
-      if (!value || !size(value)) {
-        return invalidResult('Text value is empty');
+      if (value === undefined || value === null || value === '') {
+        return invalidResult(words().textEmpty);
       }
 
       if (typeof value === 'string') {
         return validResult();
       }
 
-      if (isRichTextWithoutValue(value)) {
-        return invalidResult('Text value is empty');
+      // A number or a yes / no is not empty text: it is not text (it said "Text value is empty" of 123).
+      if (typeof value !== 'object') {
+        return invalidResult(valueMustBe('string'));
+      }
+
+      if (!size(value) || isRichTextWithoutValue(value)) {
+        return invalidResult(words().textEmpty);
       }
 
       return validResult();
@@ -477,7 +494,7 @@ export const _validateField = (
       );
     case 'connection': {
       if (!value) {
-        return invalidResult('Connection value is missing');
+        return invalidResult(words().connectionMissing);
       }
 
       if (field?.allowed_values) {
@@ -486,21 +503,21 @@ export const _validateField = (
         );
 
         if (!allowedValue) {
-          return invalidResult('Connection is not allowed');
+          return invalidResult(words().connectionNotAllowed);
         }
 
         if (allowedValue.disabled || allowedValue.metadata?.needs_auth) {
-          return invalidResult('Connection is disabled or not authenticated');
+          return invalidResult(words().connectionDisabled);
         }
       }
 
       if (field?.disabled || field?.metadata?.needs_auth) {
-        return invalidResult('Connection is disabled or not authenticated');
+        return invalidResult(words().connectionDisabled);
       }
 
       return withContext(
         validateFieldWithResult('string', value, field),
-        'Connection string validation failed'
+        words().connectionTextInvalid
       );
     }
     // semantic string formats — permissive patterns mirror the qore DataProvider
@@ -513,25 +530,25 @@ export const _validateField = (
     case 'ipv6':
     case 'phone': {
       if (value === undefined || value === null || value === '' || typeof value !== 'string') {
-        return invalidResult('Value must be a non-empty text');
+        return invalidResult(words().nonEmptyText);
       }
       if (field?.validation_regex && !value.match(field.validation_regex)) {
         return invalidResult(patternMismatchReason(field));
       }
       return resultFromBoolean(
         SEMANTIC_FORMAT_PATTERNS[type].test(value),
-        `Value is not a valid ${type}`
+        words().notValidFormat(type)
       );
     }
     case 'binary': {
       if (typeof value !== 'string') {
-        return invalidResult('Binary value must be a string');
+        return invalidResult(words().binaryNotText);
       }
 
       const trimmed = value.trim();
 
       if (trimmed.length === 0) {
-        return invalidResult('Binary value is empty');
+        return invalidResult(words().binaryEmpty);
       }
 
       // the canonical wire form is base64 (matching the server decode); a "data:<mime>;base64,..." URL
@@ -544,13 +561,13 @@ export const _validateField = (
         const hex = trimmed.replace(/^0x/i, '');
         return resultFromBoolean(
           hex.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(hex),
-          'Binary hex value is invalid'
+          words().binaryHexInvalid
         );
       }
 
       return resultFromBoolean(
         /^[A-Za-z0-9+/]+={0,2}$/.test(trimmed),
-        'Binary value must be base64, a data: URL, or 0x-prefixed hex'
+        words().binaryForm
       );
     }
     case 'string':
@@ -566,8 +583,13 @@ export const _validateField = (
     case 'method-name':
     case 'code-editor':
     case 'data': {
-      if (value === undefined || value === null || value === '' || typeof value !== 'string') {
-        return invalidResult('Value must be a non-empty text');
+      if (value === undefined || value === null || value === '') {
+        return invalidResult(words().nonEmptyText);
+      }
+
+      // A value of another type is not empty: it is not text.
+      if (typeof value !== 'string') {
+        return invalidResult(valueMustBe('string'));
       }
 
       const reasons: string[] = [];
@@ -584,13 +606,13 @@ export const _validateField = (
         (Array.isArray(field?.rules) && field.rules.includes('valid_identifier'))
       ) {
         if (value.match(/^[0-9]|\W/)) {
-          reasons.push('Value is not a valid identifier');
+          reasons.push(words().notIdentifier);
         }
       }
 
       if (field?.has_to_have_value) {
         if (value === '' || value.length === 0) {
-          reasons.push('Value is required');
+          reasons.push(words().required);
         }
       }
 
@@ -631,10 +653,10 @@ export const _validateField = (
       // masked the content result entirely, so the form could only ever surface
       // one problem at a time.
       const reasons = [
-        ...(nameResult.isValid ? [] : withContext(nameResult, 'File name is invalid').reasons),
+        ...(nameResult.isValid ? [] : withContext(nameResult, words().fileNameInvalid).reasons),
         ...(contentResult.isValid
           ? []
-          : withContext(contentResult, 'File content is invalid').reasons),
+          : withContext(contentResult, words().fileContentInvalid).reasons),
       ];
 
       return reasons.length ? invalidResult(reasons) : validResult();
@@ -654,25 +676,22 @@ export const _validateField = (
         return validResult();
       }
       if (!Array.isArray(value)) {
-        return invalidResult('Value must be a list of documents');
+        return invalidResult(words().documentsNotList);
       }
       const reasons: string[] = [];
       value.forEach((row: any, idx: number) => {
         if (!row || typeof row !== 'object') {
-          reasons.push(`Row ${idx + 1} is not an object`);
+          reasons.push(words().documentRowNotObject(idx + 1));
           return;
         }
         if (typeof row.name !== 'string' || !row.name) {
-          reasons.push(`Row ${idx + 1} is missing a name`);
+          reasons.push(words().documentRowNoName(idx + 1));
           return;
         }
         const hasServerId = typeof row.ai_documentid === 'number';
         const hasContent = typeof row.content === 'string' && !!row.content;
         if (!hasServerId && !hasContent) {
-          reasons.push(
-            `Row ${idx + 1} ("${row.name}") has neither uploaded ` +
-              `content nor a server document id`
-          );
+          reasons.push(words().documentRowNoContent(idx + 1, row.name));
         }
       });
       return reasons.length ? invalidResult(undefined, reasons) : validResult();
@@ -683,7 +702,7 @@ export const _validateField = (
       // Check if every pair has key & value
       // assigned properly
       if (!Array.isArray(value)) {
-        return invalidResult('Value must be a list');
+        return invalidResult(words().notList);
       }
       if (
         !value?.every(
@@ -692,7 +711,7 @@ export const _validateField = (
         )
       ) {
         valid = false;
-        reasons.push('All pairs must include both fields');
+        reasons.push(words().pairsNeedBothFields);
       }
       // Get a list of unique values
       const uniqueValues: any[] = uniqWith(
@@ -702,14 +721,14 @@ export const _validateField = (
       // Check if there are any duplicates
       if (size(uniqueValues) !== size(value)) {
         valid = false;
-        reasons.push('Pairs must use unique keys');
+        reasons.push(words().pairsUniqueKeys);
       }
 
       return valid ? validResult() : invalidResult(undefined, reasons);
     }
     case 'class-connectors': {
       if (!Array.isArray(value) || value.length === 0) {
-        return invalidResult('At least one connector is required');
+        return invalidResult(words().connectorRequired);
       }
       let valid = true;
       const reasons: string[] = [];
@@ -722,14 +741,14 @@ export const _validateField = (
         )
       ) {
         valid = false;
-        reasons.push('Each connector must have a name and method');
+        reasons.push(words().connectorNameAndMethod);
       }
       // Get a list of unique values
       const uniqueValues: any[] = uniqWith(value, (cur, prev) => cur.name === prev.name);
       // Check if there are any duplicates
       if (size(uniqueValues) !== size(value)) {
         valid = false;
-        reasons.push('Connector names must be unique');
+        reasons.push(words().connectorNamesUnique);
       }
 
       return valid ? validResult() : invalidResult(undefined, reasons);
@@ -737,7 +756,7 @@ export const _validateField = (
     // Classes check
     case 'class-array': {
       if (!(Array.isArray(value) && value.length > 0)) {
-        return invalidResult('At least one class must be provided');
+        return invalidResult(words().classRequired);
       }
       let valid = true;
       const reasons: string[] = [];
@@ -746,7 +765,7 @@ export const _validateField = (
         !value?.every((pair: { [key: string]: string }): boolean => !!pair.name && pair.name !== '')
       ) {
         valid = false;
-        reasons.push('Each class must have a name');
+        reasons.push(words().classNeedsName);
       }
       // Get a list of unique values
       const uniqueValues: any[] = uniqWith(
@@ -756,7 +775,7 @@ export const _validateField = (
       // Check if there are any duplicates
       if (size(uniqueValues) !== size(value)) {
         valid = false;
-        reasons.push('Class names must be unique');
+        reasons.push(words().classNamesUnique);
       }
 
       return valid ? validResult() : invalidResult(undefined, reasons);
@@ -781,10 +800,10 @@ export const _validateField = (
     case 'multi-select':
     case 'array':
     case 'file-tree':
-      return resultFromBoolean(value && value.length > 0, 'At least one value is required');
+      return resultFromBoolean(value && value.length > 0, words().atLeastOneValue);
     case 'cron': {
       if (!value) {
-        return invalidResult('Cron value is required');
+        return invalidResult(words().cronRequired);
       }
       const expression = cronExpressionFromValue(value);
       // A value that is neither a cron string nor a schedule hash is INVALID,
@@ -792,11 +811,11 @@ export const _validateField = (
       // passing it a hash threw a TypeError out of validation and took the
       // whole form down through the host's error boundary.
       if (expression === undefined) {
-        return invalidResult('Cron expression is invalid');
+        return invalidResult(words().cronInvalid);
       }
       return resultFromBoolean(
         isValidCron(expression, { alias: true }),
-        'Cron expression is invalid'
+        words().cronInvalid
       );
     }
     case 'date':
@@ -805,33 +824,42 @@ export const _validateField = (
           value !== null &&
           value !== '' &&
           new Date(value).toString() !== 'Invalid Date',
-        'Date is invalid'
+        words().dateInvalid
       );
     case 'hash':
     case 'free-hash': {
       const parsedValue: any = typeof value === 'object' ? value : maybeParseYaml(value);
 
       if (field?.arg_schema) {
-        const result = every(
-          field.arg_schema,
-          (fieldData: TQorusFormFieldSchema, argName: string) => {
-            const argValue = readArgValue(parsedValue?.[argName]);
+        // The first argument that is wrong, named, and what is wrong with it: "Hash arguments are invalid" named
+        // nothing, and the author had to find the argument and guess why.
+        for (const [argName, fieldData] of Object.entries(
+          field.arg_schema as Record<string, TQorusFormFieldSchema>
+        )) {
+          const argValue = readArgValue(parsedValue?.[argName]);
+          const argLabel = (fieldData.display_name as string | undefined) || argName;
 
-            // Absent and present-but-empty are the same answer to the only
-            // question the schema asks here: was the arg supplied?
-            if (argValue === undefined) {
-              return !fieldData.required;
+          // Absent and present-but-empty are the same answer to the only
+          // question the schema asks here: was the arg supplied?
+          if (argValue === undefined) {
+            if (fieldData.required) {
+              return invalidResult(words().hashArgumentRequired(argLabel));
             }
-
-            return validateFieldWithResult(
-              (fieldData.ui_type as string) || (fieldData.type as string),
-              argValue,
-              fieldData as unknown as IFieldValidationProps
-            ).isValid;
+            continue;
           }
-        );
 
-        return resultFromBoolean(result, 'Hash arguments are invalid');
+          const argResult = validateFieldWithResult(
+            (fieldData.ui_type as string) || (fieldData.type as string),
+            argValue,
+            fieldData as unknown as IFieldValidationProps
+          );
+
+          if (!argResult.isValid) {
+            return invalidResult(words().hashArgumentInvalid(argLabel, argResult.reason));
+          }
+        }
+
+        return validResult();
       }
 
       if (!parsedValue || !isObject(parsedValue)) {
@@ -841,7 +869,7 @@ export const _validateField = (
       return validResult();
     }
     case 'rgbcolor': {
-      // the hash { r, g, b, a? } (qorus#646, David): a hex code, bare or as { hex }, is shown but not stored
+      // the hash { r, g, b, a? }: a hex code, bare or as { hex }, is shown but not stored
       const problem = storedColorProblem(value);
 
       return problem ? invalidResult(problem) : validResult();
@@ -858,7 +886,7 @@ export const _validateField = (
       }
 
       if (!isArray(parsedValue)) {
-        return invalidResult('Value must be a list');
+        return invalidResult(words().notList);
       }
 
       if (field?.ui_element_type || field?.element_type) {
@@ -876,7 +904,7 @@ export const _validateField = (
           );
 
           if (!itemResult.isValid) {
-            return withContext(itemResult, `List item ${i} is invalid`);
+            return withContext(itemResult, words().listItemInvalid(i));
           }
         }
       }
@@ -887,20 +915,20 @@ export const _validateField = (
       const parsedValue: any = maybeParseYaml(value);
 
       if (!parsedValue || !isArray(parsedValue)) {
-        return invalidResult('Value must be a list of hashes');
+        return invalidResult(words().notListOfHashes);
       }
 
       for (let i = 0; i < parsedValue.length; i++) {
         const item = parsedValue[i];
 
         if (!size(item)) {
-          return invalidResult(`Hash at index ${i} must not be empty`);
+          return invalidResult(words().hashEmptyAt(i));
         }
 
         const itemResult = validateFieldWithResult('hash', item);
 
         if (!itemResult.isValid) {
-          return withContext(itemResult, `Hash at index ${i} is invalid`);
+          return withContext(itemResult, words().hashInvalidAt(i));
         }
       }
 
@@ -908,7 +936,7 @@ export const _validateField = (
     }
     case 'mapper-code': {
       if (!value) {
-        return invalidResult('Mapper code is required');
+        return invalidResult(words().mapperCodeRequired);
       }
       // Split the value
       const [code, method] = value.split('::');
@@ -916,13 +944,13 @@ export const _validateField = (
       const codeResult = validateFieldWithResult('string', code);
 
       if (!codeResult.isValid) {
-        return withContext(codeResult, 'Mapper code is invalid');
+        return withContext(codeResult, words().mapperCodeInvalid);
       }
 
       const methodResult = validateFieldWithResult('string', method);
 
       if (!methodResult.isValid) {
-        return withContext(methodResult, 'Mapper method is invalid');
+        return withContext(methodResult, words().mapperMethodInvalid);
       }
 
       return validResult();
@@ -935,7 +963,7 @@ export const _validateField = (
         varAction?.var_type !== 'globalvar' &&
         varAction?.var_type !== 'autovar'
       ) {
-        return invalidResult('Variable type is invalid');
+        return invalidResult(words().variableTypeInvalid);
       }
 
       const nameResult = validateFieldWithResult('string', varAction.var_name, {
@@ -943,7 +971,7 @@ export const _validateField = (
       });
 
       if (!nameResult.isValid) {
-        return withContext(nameResult, 'Variable name is invalid');
+        return withContext(nameResult, words().variableNameInvalid);
       }
 
       const actionResult = validateFieldWithResult('string', varAction.action_type, {
@@ -951,7 +979,7 @@ export const _validateField = (
       });
 
       if (!actionResult.isValid) {
-        return withContext(actionResult, 'Variable action type is invalid');
+        return withContext(actionResult, words().variableActionTypeInvalid);
       }
 
       // If the action type is transaction, the transaction_action needs to be set
@@ -961,7 +989,7 @@ export const _validateField = (
         });
 
         if (!transactionResult.isValid) {
-          return withContext(transactionResult, 'Transaction action is invalid');
+          return withContext(transactionResult, words().transactionActionInvalid);
         }
 
         return validResult();
@@ -969,7 +997,7 @@ export const _validateField = (
 
       // If the variable data is missing
       if (!field?.variableData?.value) {
-        return invalidResult('Variable data is missing');
+        return invalidResult(words().variableDataMissing);
       }
 
       // Get the variable data
@@ -980,7 +1008,7 @@ export const _validateField = (
 
       return withContext(
         validateFieldWithResult(varAction.action_type, variableData, field),
-        'Variable action is invalid'
+        words().variableActionInvalid
       );
     }
     case 'type-selector':
@@ -995,12 +1023,12 @@ export const _validateField = (
       const newValue: IProviderType | null = maybeBuildOptionProvider(value);
 
       if (!newValue) {
-        return invalidResult('Provider value is invalid');
+        return invalidResult(words().providerInvalid);
       }
 
       // Api call only supports  requests / response
       if (type === 'api-call' && !value.supports_request) {
-        return invalidResult('API call must support requests');
+        return invalidResult(words().apiCallNeedsRequests);
       }
 
       // If the provider is from FSM variables, it needs pass this
@@ -1016,7 +1044,7 @@ export const _validateField = (
           newValue.transaction_management
         )
       ) {
-        return invalidResult('Variable provider must support at least one action');
+        return invalidResult(words().variableProviderNeedsAction);
       }
 
       // Send message only supports messages
@@ -1024,18 +1052,18 @@ export const _validateField = (
         type === 'send-message' &&
         (!newValue.supports_messages || !newValue.message_id || !newValue.message)
       ) {
-        return invalidResult('Send message provider must include message id and content');
+        return invalidResult(words().sendMessageProviderIncomplete);
       }
 
       if (newValue.message_id) {
         const messageIdResult = validateFieldWithResult('string', newValue.message_id);
 
         if (!messageIdResult.isValid) {
-          return withContext(messageIdResult, 'Message id is invalid');
+          return withContext(messageIdResult, words().messageIdInvalid);
         }
 
         if (!newValue.message) {
-          return invalidResult('Message content is missing');
+          return invalidResult(words().messageContentMissing);
         }
 
         const messageResult = validateFieldWithResult(
@@ -1044,14 +1072,14 @@ export const _validateField = (
         );
 
         if (!messageResult.isValid) {
-          return withContext(messageResult, 'Message content is invalid');
+          return withContext(messageResult, words().messageContentInvalid);
         }
       }
 
       if (newValue.use_args) {
         if (newValue.args?.type !== 'nothing') {
           if (!newValue.args) {
-            return invalidResult('Arguments are missing');
+            return invalidResult(words().argumentsMissing);
           }
 
           const argsResult = validateFieldWithResult(
@@ -1060,7 +1088,7 @@ export const _validateField = (
           );
 
           if (!argsResult.isValid) {
-            return withContext(argsResult, 'Arguments are invalid');
+            return withContext(argsResult, words().argumentsInvalid);
           }
         }
       }
@@ -1070,7 +1098,7 @@ export const _validateField = (
         size(newValue.search_args) !== 0 &&
         !validateFieldWithResult('system-options-with-operators', newValue.search_args).isValid
       ) {
-        return invalidResult('Search arguments are invalid');
+        return invalidResult(words().searchArgumentsInvalid);
       }
 
       const isUpdateOrCreate = type === 'update' || type === 'create';
@@ -1087,17 +1115,17 @@ export const _validateField = (
             !validateFieldWithResult('list-of-hashes', newValue[`${type}_args_freeform`]).isValid);
 
         if (`${type}_args` in newValue && areNormalArgsInvalid && areFreeFormArgsInvalid) {
-          return invalidResult('Update/create arguments are invalid');
+          return invalidResult(words().updateCreateArgumentsInvalid);
         }
 
         if (`${type}_args_freeform` in newValue && areFreeFormArgsInvalid && areNormalArgsInvalid) {
-          return invalidResult('Update/create arguments are invalid');
+          return invalidResult(words().updateCreateArgumentsInvalid);
         }
       }
 
       if (newValue?.type === 'factory') {
         if (newValue.optionsChanged) {
-          return invalidResult('Factory options are not saved');
+          return invalidResult(words().factoryOptionsNotSaved);
         }
 
         let options = true;
@@ -1109,24 +1137,24 @@ export const _validateField = (
         // Type path and name are required
         return resultFromBoolean(
           !!(newValue.type && newValue.name && options),
-          'Factory provider is incomplete'
+          words().factoryIncomplete
         );
       }
 
       if (newValue.record_requires_search_options && newValue.searchOptionsChanged) {
-        return invalidResult('Search options must be saved');
+        return invalidResult(words().searchOptionsNotSaved);
       }
 
       if (
         newValue.search_options &&
         !validateFieldWithResult('system-options', newValue.search_options).isValid
       ) {
-        return invalidResult('Search options are invalid');
+        return invalidResult(words().searchOptionsInvalid);
       }
 
       return resultFromBoolean(
         !!(newValue.type && newValue.name),
-        'Provider type and name required'
+        words().providerTypeAndName
       );
     }
     case 'context-selector': {
@@ -1135,27 +1163,27 @@ export const _validateField = (
         const contextResult = validateFieldWithResult('string', cont[0]);
 
         if (!contextResult.isValid) {
-          return withContext(contextResult, 'Context selector prefix is invalid');
+          return withContext(contextResult, words().contextPrefixInvalid);
         }
 
         const nameResult = validateFieldWithResult('string', cont[1]);
 
         if (!nameResult.isValid) {
-          return withContext(nameResult, 'Context selector name is invalid');
+          return withContext(nameResult, words().contextNameInvalid);
         }
 
         return validResult();
       }
       return resultFromBoolean(
         !!value?.iface_kind && !!value?.name,
-        'Context selector requires iface_kind and name'
+        words().contextSelectorIncomplete
       );
     }
     case 'service-event': {
       const typeResult = validateFieldWithResult('type-selector', value);
 
       if (!typeResult.isValid) {
-        return withContext(typeResult, 'Service event type is invalid');
+        return withContext(typeResult, words().serviceEventTypeInvalid);
       }
 
       if (
@@ -1165,21 +1193,21 @@ export const _validateField = (
           (handler: any) => (handler.type === 'fsm' || handler.type === 'method') && handler.value
         )
       ) {
-        return invalidResult('Service event handlers are invalid');
+        return invalidResult(words().serviceEventHandlersInvalid);
       }
 
       return validResult();
     }
     case 'service-events': {
       if (!isArray(value) || !size(value)) {
-        return invalidResult('At least one service event is required');
+        return invalidResult(words().serviceEventRequired);
       }
 
       for (let i = 0; i < value.length; i++) {
         const serviceEventResult = validateFieldWithResult('service-event', value[i]);
 
         if (!serviceEventResult.isValid) {
-          return withContext(serviceEventResult, `Service event ${i} is invalid`);
+          return withContext(serviceEventResult, words().serviceEventInvalid(i));
         }
       }
 
@@ -1191,18 +1219,18 @@ export const _validateField = (
         !validateFieldWithResult('string', value?.['rest-method']).isValid ||
         !validateFieldWithResult('string', value?.auth).isValid
       ) {
-        return invalidResult('Webhook name, method and auth are required');
+        return invalidResult(words().webhookIncomplete);
       }
 
       if (value.handler) {
         if (value.handler.type !== 'fsm' && value.handler.type !== 'method') {
-          return invalidResult('Webhook handler type is invalid');
+          return invalidResult(words().webhookHandlerTypeInvalid);
         }
 
         const handlerResult = validateFieldWithResult('string', value.handler.value);
 
         if (!handlerResult.isValid) {
-          return withContext(handlerResult, 'Webhook handler value is invalid');
+          return withContext(handlerResult, words().webhookHandlerValueInvalid);
         }
       }
 
@@ -1210,14 +1238,14 @@ export const _validateField = (
     }
     case 'service-webhooks': {
       if (!isArray(value) || !size(value)) {
-        return invalidResult('At least one webhook is required');
+        return invalidResult(words().webhookRequired);
       }
 
       for (let i = 0; i < value.length; i++) {
         const webhookResult = validateFieldWithResult('service-webhook', value[i]);
 
         if (!webhookResult.isValid) {
-          return withContext(webhookResult, `Service webhook ${i} is invalid`);
+          return withContext(webhookResult, words().serviceWebhookInvalid(i));
         }
       }
 
@@ -1245,7 +1273,7 @@ export const _validateField = (
         try {
           parsedData = jsyaml.load(value);
         } catch (e) {
-          return invalidResult('Value is not valid YAML');
+          return invalidResult(words().notYaml);
         }
       }
 
@@ -1264,7 +1292,7 @@ export const _validateField = (
          because that is the rule for a REQUIRED text field — a different
          question from whether an untyped field may hold a blank string. */
       if (parsedData === undefined) {
-        return invalidResult('Value is empty');
+        return invalidResult(words().valueEmpty);
       }
 
       if (parsedData === null || parsedData === '') {
@@ -1280,12 +1308,12 @@ export const _validateField = (
          typed. */
       return withContext(
         validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
-        'Auto-detected type is invalid'
+        words().autoTypeInvalid
       );
     }
     case 'processor': {
       if (!value || !value['processor-input-type'] || !value['processor-output-type']) {
-        return invalidResult('Processor input and output types are required');
+        return invalidResult(words().processorTypesRequired);
       }
       // Validate the input and output types
       if (value?.['processor-input-type']) {
@@ -1295,7 +1323,7 @@ export const _validateField = (
         );
 
         if (!inputResult.isValid) {
-          return withContext(inputResult, 'Processor input type is invalid');
+          return withContext(inputResult, words().processorInputInvalid);
         }
       }
 
@@ -1306,7 +1334,7 @@ export const _validateField = (
         );
 
         if (!outputResult.isValid) {
-          return withContext(outputResult, 'Processor output type is invalid');
+          return withContext(outputResult, words().processorOutputInvalid);
         }
       }
 
@@ -1317,21 +1345,21 @@ export const _validateField = (
       // Each mapping must have an outputPath (the target field being mapped)
       // and either an inputPath (source field) or options configured
       if (!isArray(value)) {
-        return canBeNull ? validResult() : invalidResult('Processor mappings must be a list');
+        return canBeNull ? validResult() : invalidResult(words().processorMappingsNotList);
       }
 
       for (let i = 0; i < value.length; i++) {
         const mapping = value[i];
 
         if (!mapping || !isObject(mapping)) {
-          return invalidResult(`Mapping at index ${i} is invalid`);
+          return invalidResult(words().mappingInvalidAt(i));
         }
 
         // outputPath is always required - it identifies which output field is being mapped
         const outputPathResult = validateFieldWithResult('string', mapping.outputPath);
 
         if (!outputPathResult.isValid) {
-          return withContext(outputPathResult, `Mapping ${i} output path is invalid`);
+          return withContext(outputPathResult, words().mappingOutputPathInvalid(i));
         }
 
         // A mapping must have either an inputPath or options (or both)
@@ -1339,9 +1367,7 @@ export const _validateField = (
         const hasOptions = mapping.options && size(mapping.options) > 0;
 
         if (!hasInputPath && !hasOptions) {
-          return invalidResult(
-            `Mapping for "${mapping.outputPath}" must have an input path or options configured`
-          );
+          return invalidResult(words().mappingNeedsInput(String(mapping.outputPath)));
         }
       }
 
@@ -1355,13 +1381,13 @@ export const _validateField = (
       //   "<connection>"              — all tools from a connection
       //   "<connection>/<tool>"       — a specific tool from a connection
       if (!isArray(value)) {
-        return canBeNull ? validResult() : invalidResult('Tool catalog must be a list');
+        return canBeNull ? validResult() : invalidResult(words().toolCatalogNotList);
       }
 
       for (let i = 0; i < value.length; i++) {
         const selector = value[i];
         if (typeof selector !== 'string' || selector.length === 0) {
-          return invalidResult(`Tool selector at index ${i} must be a non-empty string`);
+          return invalidResult(words().toolSelectorAt(i));
         }
       }
 
@@ -1370,14 +1396,14 @@ export const _validateField = (
     case 'fsm-list': {
       // users call FSMs Qogs: this is said to them
       if (!isArray(value)) {
-        return invalidResult('Qog list must be an array');
+        return invalidResult(words().qogListNotArray);
       }
 
       for (let i = 0; i < value.length; i++) {
         const itemResult = validateFieldWithResult('string', value[i]?.name);
 
         if (!itemResult.isValid) {
-          return withContext(itemResult, `Qog entry ${i} name is invalid`);
+          return withContext(itemResult, words().qogEntryNameInvalid(i));
         }
       }
 
@@ -1385,33 +1411,33 @@ export const _validateField = (
     }
     case 'api-manager': {
       if (!value) {
-        return invalidResult('API manager value is missing');
+        return invalidResult(words().apiManagerMissing);
       }
 
       const factoryResult = validateFieldWithResult('string', value.factory);
 
       if (!factoryResult.isValid) {
-        return withContext(factoryResult, 'API manager factory is invalid');
+        return withContext(factoryResult, words().apiManagerFactoryInvalid);
       }
 
       const endpointsResult = validateFieldWithResult('api-endpoints', value.endpoints);
 
       if (!endpointsResult.isValid) {
-        return withContext(endpointsResult, 'API manager endpoints are invalid');
+        return withContext(endpointsResult, words().apiManagerEndpointsInvalid);
       }
 
       return validResult();
     }
     case 'api-endpoints': {
       if (!isArray(value) || !size(value)) {
-        return invalidResult('At least one API endpoint is required');
+        return invalidResult(words().apiEndpointRequired);
       }
 
       for (let i = 0; i < value.length; i++) {
         const endpointResult = validateFieldWithResult('string', value[i]?.value);
 
         if (!endpointResult.isValid) {
-          return withContext(endpointResult, `Endpoint ${i} value is invalid`);
+          return withContext(endpointResult, words().endpointValueInvalid(i));
         }
 
         const authorizationResult = validateFieldWithResult(
@@ -1422,7 +1448,7 @@ export const _validateField = (
         );
 
         if (!authorizationResult.isValid) {
-          return withContext(authorizationResult, `Endpoint ${i} authorization is invalid`);
+          return withContext(authorizationResult, words().endpointAuthorizationInvalid(i));
         }
       }
 
@@ -1430,31 +1456,31 @@ export const _validateField = (
     }
     case 'api-endpoint-authorization': {
       if (!value) {
-        return canBeNull ? validResult() : invalidResult('Authorization override is missing');
+        return canBeNull ? validResult() : invalidResult(words().authorizationMissing);
       }
 
       if (typeof value !== 'object' || isArray(value)) {
-        return invalidResult('Authorization override must be an object');
+        return invalidResult(words().authorizationNotObject);
       }
 
       if (value.mode !== undefined && !['merge', 'replace'].includes(value.mode)) {
-        return invalidResult('Authorization mode must be merge or replace');
+        return invalidResult(words().authorizationMode);
       }
 
       if (value.allow_anonymous !== undefined && typeof value.allow_anonymous !== 'boolean') {
-        return invalidResult('Authorization allow_anonymous must be a boolean');
+        return invalidResult(words().authorizationAllowAnonymous);
       }
 
       if (value.roles !== undefined) {
         if (!isArray(value.roles)) {
-          return invalidResult('Authorization roles must be a list');
+          return invalidResult(words().authorizationRolesNotList);
         }
 
         for (let i = 0; i < value.roles.length; i++) {
           const roleResult = validateFieldWithResult('string', value.roles[i]);
 
           if (!roleResult.isValid) {
-            return withContext(roleResult, `Authorization role ${i} is invalid`);
+            return withContext(roleResult, words().authorizationRoleInvalid(i));
           }
         }
       }
@@ -1471,7 +1497,7 @@ export const _validateField = (
       ): IValidationResult => {
         if (!options || size(options) === 0) {
           if (!canBeNull) {
-            return invalidResult('Options are required');
+            return invalidResult(words().optionsRequired);
           }
 
           return validResult();
@@ -1484,7 +1510,7 @@ export const _validateField = (
           return unresolvedRequiredOption.validation
             ? withContext(
                 unresolvedRequiredOption.validation,
-                `Option ${unresolvedRequiredOption.name} is invalid`
+                words().optionInvalid(unresolvedRequiredOption.name)
               )
             : invalidResult(
                 getUnresolvedRequiredOptionReason(unresolvedRequiredOption, optionSchema)
@@ -1544,7 +1570,7 @@ export const _validateField = (
                 });
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option ${option} is invalid`);
+            return withContext(optionResult, words().optionInvalid(option));
           }
         }
 
@@ -1556,7 +1582,7 @@ export const _validateField = (
           const optionResult = getIsValid(value[i], field?.optionSchema);
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option set ${i} is invalid`);
+            return withContext(optionResult, words().optionSetInvalid(i));
           }
         }
 
@@ -1572,7 +1598,7 @@ export const _validateField = (
             return validResult();
           }
 
-          return invalidResult('Options with operators are required');
+          return invalidResult(words().optionsWithOperatorsRequired);
         }
 
         for (const option of Object.keys(val)) {
@@ -1583,7 +1609,7 @@ export const _validateField = (
               : validateFieldWithResult(optionData.type, optionData.value);
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option ${option} is invalid`);
+            return withContext(optionResult, words().optionInvalid(option));
           }
 
           if (
@@ -1592,7 +1618,7 @@ export const _validateField = (
               (operator) => validateFieldWithResult('string', operator).isValid
             )
           ) {
-            return invalidResult(`Operators for option ${option} are invalid`);
+            return invalidResult(words().operatorsInvalid(option));
           }
         }
 
@@ -1604,7 +1630,7 @@ export const _validateField = (
           const optionResult = isValid(value[i]);
 
           if (!optionResult.isValid) {
-            return withContext(optionResult, `Option set ${i} is invalid`);
+            return withContext(optionResult, words().optionSetInvalid(i));
           }
         }
 
@@ -1614,20 +1640,20 @@ export const _validateField = (
       return isValid(value);
     }
     case 'byte-size': {
-      if (typeof value !== 'string') return invalidResult('Byte size must be a string');
+      if (typeof value !== 'string') return invalidResult(words().byteSizeNotText);
 
       const [bytes, sizeUnit] = splitByteSize(value);
 
       const bytesResult = validateFieldWithResult('number', bytes);
 
       if (!bytesResult.isValid) {
-        return withContext(bytesResult, 'Byte size numeric part is invalid');
+        return withContext(bytesResult, words().byteSizeNumberInvalid);
       }
 
       const sizeResult = validateFieldWithResult('string', sizeUnit);
 
       if (!sizeResult.isValid) {
-        return withContext(sizeResult, 'Byte size unit is invalid');
+        return withContext(sizeResult, words().byteSizeUnitInvalid);
       }
 
       return validResult();
@@ -1638,7 +1664,7 @@ export const _validateField = (
       const msResult = validateFieldWithResult('int', value);
 
       if (!msResult.isValid) {
-        return withContext(msResult, 'Timeout must be a whole number of milliseconds');
+        return withContext(msResult, words().timeoutMilliseconds);
       }
 
       return validResult();
@@ -1648,13 +1674,13 @@ export const _validateField = (
       const protocolResult = validateFieldWithResult('string', getProtocol(value));
 
       if (!protocolResult.isValid) {
-        return withContext(protocolResult, 'URL protocol is invalid');
+        return withContext(protocolResult, words().urlProtocolInvalid);
       }
 
       const addressResult = validateFieldWithResult('string', getAddress(value));
 
       if (!addressResult.isValid) {
-        return withContext(addressResult, 'URL address is invalid');
+        return withContext(addressResult, words().urlAddressInvalid);
       }
 
       return validResult();
@@ -1663,10 +1689,10 @@ export const _validateField = (
       // The minimal NEW_FIELD.md shape check, so malformed definitions can't
       // silently save through FormEngine.
       if (!isObject(value)) {
-        return invalidResult('Schema definition must be an object');
+        return invalidResult(words().schemaDefinitionNotObject);
       }
       if (!isObject((value as { schema?: unknown }).schema)) {
-        return invalidResult('Schema definition must contain a `schema` section');
+        return invalidResult(words().schemaDefinitionNoSchema);
       }
       return validResult();
     }
@@ -1694,11 +1720,11 @@ export const _validateField = (
       // the field's own "show invalid only" filter listed a different set of
       // rows on a fast machine than on a slow one.
       if (!castedValue) {
-        return invalidResult('Fill in this expression.');
+        return invalidResult(words().expressionEmpty);
       }
 
       if (!castedValue.value?.exp) {
-        return invalidResult('Choose what this expression does.');
+        return invalidResult(reqraftLabels().expressions.noOperationYet(false));
       }
 
       // Everything past this point needs the expression's definition, which
@@ -1715,7 +1741,7 @@ export const _validateField = (
       );
 
       if (!expressionDefinition) {
-        return invalidResult(`Qorus has no operation ${String(castedValue.value?.exp)}.`);
+        return invalidResult(words().noSuchOperation(String(castedValue.value?.exp)));
       }
 
       // If the expression has no required args, we can consider it valid
@@ -1728,7 +1754,7 @@ export const _validateField = (
       // If there are no args provided but the expression requires some (normal expressions require at least 1 arg
       // because we checked for required args earlier), or min_args is set
       if (size(castedValue.value?.args || []) < (expressionDefinition.min_args || 1)) {
-        return invalidResult('Not enough arguments provided');
+        return invalidResult(words().notEnoughArguments);
       }
 
       // Now we need to validate each argument, either as a normal value or as a sub-expression
@@ -1739,14 +1765,15 @@ export const _validateField = (
         const definition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
-        return definition?.display_name ?? definition?.name ?? `argument ${index + 1}`;
+        return definition?.display_name ?? definition?.name ?? words().unnamedOperand(index + 1);
       });
 
       for (let index = 0; index < args.length; index++) {
-        const argValue: any = args[index];
         const argDefinition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
+        // a raw operand from a parse (`3`, `false`) is read in the envelope the builder writes (`{value, type}`)
+        const argValue: any = asExpressionArgumentEnvelope(args[index], argDefinition?.ui_type);
         /* The argument's name for the message.
         
            `display_name` is what a catalogue MAY carry; the served one carries
@@ -1754,13 +1781,14 @@ export const _validateField = (
            ("undefined") is invalid" and named a field that does not exist. */
         const argLabel = argLabels[index];
         /* Which operand, where its name alone does not say: every operand of a call taking any number of
-           them is "Value" (qlip build 20261008-083118: "which "value" is the message mentioning"). Said by
+           them is "Value" ("which "value" is the message mentioning"). Said by
            its position too, as the editor shows them, left to right - and so is a lone operand of a call that
-           can take more (David, qorus#646), as the operands that join it will be. */
-        const operand =
+           can take more, as the operands that join it will be. The words say the position
+           their own way ("the 2nd"); it is given only where it is said. */
+        const position =
           expressionDefinition.varargs ||
           argLabels.some((label, other) => other !== index && label === argLabel)
-            ? `the ${ordinal(index + 1)} "${argLabel}"`
+            ? index + 1
             : undefined;
 
         /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
@@ -1781,7 +1809,10 @@ export const _validateField = (
           continue;
         }
 
-        if (!argValue?.value && !argDefinition?.required) {
+        /* An operand that is not required and not there is skipped. `0`, `false` and `''` are there: they are
+           values (`isExpressionArgumentMissing`), so they are judged like any other; a falsy test skipped them, and a
+           wrong one in an optional operand was never said. */
+        if (!argDefinition?.required && isExpressionArgumentMissing(argValue)) {
           continue;
         }
 
@@ -1793,7 +1824,7 @@ export const _validateField = (
 
           if (!result.isValid) {
             // said by the operand's name, as the editor shows it - not by its position in the call
-            return withContext(result, `The expression in ${operand ?? `"${argLabel}"`} has an error`);
+            return withContext(result, words().operandExpressionHasError(argLabel, position));
           }
 
           continue;
@@ -1817,19 +1848,19 @@ export const _validateField = (
         });
 
         if (!result.isValid) {
-          // an operand not filled in yet says what to do; one that is wrong says which and why (David's
-          // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
+          // an operand not filled in yet says what to do; one that is wrong says which and why (it said
+          // "Value for argument 1 ("Value") is invalid: Missing value" while building)
           if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
-            return invalidResult(operand ? `Enter ${operand}` : `Enter a value for "${argLabel}"`);
+            return { ...invalidResult(words().enterOperand(argLabel, position)), missingOperand: true };
           }
-          return withContext(result, operand ? `${upperFirst(operand)} is invalid` : `"${argLabel}" is invalid`);
+          return withContext(result, words().operandInvalid(argLabel, position));
         }
       }
 
       return validResult();
     }
     case 'nothing':
-      return invalidResult('Nothing is not a valid value');
+      return invalidResult(words().nothingNotValid);
     default:
       return validResult();
   }
@@ -1854,17 +1885,23 @@ export const _validateField = (
 export const readArgValue = (arg: any): any =>
   isObject(arg) && 'value' in (arg as object) ? (arg as { value: unknown }).value : arg;
 
-// Memoized version
-export const validateFieldWithResult: (
+type TValidateFieldWithResult = (
   type: string,
   value?: any,
   field?: IFieldValidationProps,
   canBeNull?: boolean
-) => IValidationResult = memoize(
+) => IValidationResult;
+
+// Memoized version
+export const validateFieldWithResult: TValidateFieldWithResult & MemoizedFunction = memoize(
   _validateField,
   (type, value, field, canBeNull) =>
     `${type}-${JSON.stringify(value)}-${JSON.stringify(field)}-${canBeNull}`
 );
+
+/* A reason kept is worded as it was when it was first asked for: when the host gives other words, the kept reasons
+   are dropped, and the next asking words them again. */
+onReqraftLabelsChange(() => validateFieldWithResult.cache.clear?.());
 
 export const validateField: (
   type: string,
@@ -2011,13 +2048,13 @@ export const getUnresolvedRequiredOptionReason = (
 ): string => {
   switch (reason) {
     case 'dependency':
-      return `Option ${name} dependencies are not fulfilled`;
+      return words().optionDependenciesNotFulfilled(name);
     case 'invalid':
-      return `Option ${name} is invalid`;
+      return words().optionInvalid(name);
     default:
       return (optionSchema?.[name] as TQorusFormFieldSchema)?.required
-        ? `Option ${name} is required`
-        : `Option ${name} requires a value`;
+        ? words().optionRequired(name)
+        : words().optionRequiresValue(name);
   }
 };
 

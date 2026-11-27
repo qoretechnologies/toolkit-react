@@ -41,7 +41,7 @@ export const Rich: Story = {
 
 /**
  * The `plain` variant — a `ReqoreTextarea`, used where a simple text field is
- * enough (and for deterministic tests). Typing enables Send; clicking it calls
+ * enough (and for deterministic tests). Send is always pressable; with text,
  * `onSend` with the plain body and the staged files.
  */
 export const Plain: Story = {
@@ -49,7 +49,7 @@ export const Plain: Story = {
     docs: {
       description: {
         story:
-          'Renders the plain textarea variant, where typing enables Send and clicking it calls onSend with the plain body and the staged files.',
+          'Renders the plain textarea variant: after typing, clicking Send calls onSend with the plain body and the staged files.',
       },
     },
   },
@@ -67,6 +67,33 @@ export const Plain: Story = {
         expect.objectContaining({ files: [] })
       )
     );
+  },
+};
+
+/**
+ * A send that did not go through keeps what was written: `onSend` resolves `false`,
+ * and the text stays in the box instead of being cleared.
+ */
+export const FailedSendKeepsTheText: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the plain composer whose send fails — onSend resolves false — so the typed text stays in the box rather than being cleared, and the reader can send it again.',
+      },
+    },
+  },
+  args: { editor: 'plain', onSend: fn(async () => false) },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    const textarea = canvasElement.querySelector('textarea');
+    await expect(textarea).not.toBeNull();
+
+    await userEvent.type(textarea!, 'please keep me');
+    await userEvent.click(canvas.getByText('Send'));
+    await waitFor(() => expect(args.onSend).toHaveBeenCalled());
+    // the reply did not go through: it is still there
+    await expect(textarea!).toHaveValue('please keep me');
   },
 };
 
@@ -236,3 +263,34 @@ export const Disabled: Story = {
     await expect(canvasElement.querySelector('textarea')).toBeNull();
   },
 };
+
+/**
+ * Send is never disabled (BRAND_DESIGN "The Submit says what is left before it is pressed"): pressed
+ * with nothing written, it sends nothing, turns the composer's edge amber, says why under it and puts
+ * the caret in it. The line goes as soon as something is written.
+ */
+export const NothingWrittenSaysWhy: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the plain composer after Send was pressed with nothing written: nothing was sent, the composer's edge is amber, 'Write a message first' sits under it and the caret is in the field. Send stays pressable throughout.",
+      },
+    },
+  },
+  args: { editor: 'plain' },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    const send = canvas.getByText('Send').closest('button')!;
+
+    await expect(send).not.toBeDisabled();
+    await userEvent.click(send);
+
+    const line = await canvas.findByRole('alert');
+    await expect(line).toHaveTextContent('Write a message first');
+    await expect(line.hasAttribute('data-field-problem')).toBe(true);
+    await expect(args.onSend).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(canvasElement.querySelector('textarea')));
+  },
+};
+

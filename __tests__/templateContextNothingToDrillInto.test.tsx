@@ -13,10 +13,9 @@ import {
 import { ITemplateNode, referenceNamesNothing, templateTree } from '../src/helpers/templateTree';
 
 /**
- * A row of the template picker does what it shows (David's review of DPQL's Template contexts: "if there are no
- * choices in the submenu, then it should not be presented as a submenu, and there should be no 'Use' control; it
- * should be presented as '$fsminput:*', and clicking gets the value"). A context with nothing to drill into is
- * taken whole, where Qorus reads it whole (`use_whole` and `whole_template` in its catalogue).
+ * A row of the template picker does what it shows (DPQL's Template contexts): a context with no choices in it is
+ * not presented as a submenu and has no Use control; it is presented as `$fsminput:*`, and a click takes the
+ * value. A context with nothing to drill into is taken whole, where Qorus reads it whole (`use_whole` and `whole_template` in its catalogue).
  */
 
 const context = (
@@ -260,7 +259,7 @@ describe('a group whose members cannot be loaded', () => {
     expect(onPick).not.toHaveBeenCalled();
   });
 
-  it('asks again with Retry, and lists the members that come', async () => {
+  it('asks again with Try again, and lists the members that come', async () => {
     const load = vi
       .fn<() => Promise<ITemplateNode[]>>()
       .mockRejectedValueOnce(new Error('The server did not answer'))
@@ -282,7 +281,7 @@ describe('a group whose members cannot be loaded', () => {
     expect(container.querySelector('.template-picker-load-failed')).toBeNull();
   });
 
-  it('says so again when Retry fails too', async () => {
+  it('says so again when Try again fails too', async () => {
     const load = vi.fn(() => Promise.reject(new Error('Still down')));
     const { container } = renderPicker(failing(load), 'lazy');
     const retry = await waitFor(() => {
@@ -325,7 +324,7 @@ describe('a group whose members cannot be loaded', () => {
 
 describe('typed completion of such a context', () => {
   /* Typing goes on from it, so no accepted row is a dead end: the row writes `$fsminput:`, its key is typed next and
-     the list says so, and Use takes it whole (David's reviews, qorus#646: `$dyn`, Tab, `order.id`). */
+     the list says so, and Use takes it whole (`$dyn`, Tab, `order.id`). */
   it('is written on from, and taken whole with Use', () => {
     const [row] = templateSearchItems(rootsOfCatalogue(), '$fsm', undefined, true);
     expect(row).toMatchObject({ label: '$fsminput:', insertText: '$fsminput:' });

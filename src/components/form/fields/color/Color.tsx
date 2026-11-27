@@ -19,10 +19,13 @@ import {
   useState,
 } from 'react';
 import styled, { css } from 'styled-components';
+import { getFocusRingColor } from '../../../../helpers/readableColors';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { hexGivesOpacity, isStoredColor, readHexColor } from '../../../colorValue/colorValue';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { defaultMarkdownRenderer } from '../markdown/MarkdownView';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
+import { IColorFormFieldLabels } from './labels';
 
 /** The color an `rgbcolor` field stores: red, green and blue from 0 to 255, alpha from 0 to 1. */
 export interface IColorFormFieldValue {
@@ -33,7 +36,7 @@ export interface IColorFormFieldValue {
 }
 
 /**
- * What the color field reads as a color (qorus#646): a stored color, `{ r, g, b, a? }`, or a value stored the wrong
+ * What the color field reads as a color: a stored color, `{ r, g, b, a? }`, or a value stored the wrong
  * way, which it still reads so it can show it and store it right - a hex code (3, 4, 6 or 8 digits, with or without
  * its `#`), `{ hex }` (with an opacity beside it), or a color with fields beside its own (react-color stored a
  * `hex`). Only the first is a stored color (`isStoredColor`); the field stores that shape whenever it edits any of
@@ -48,94 +51,8 @@ export type TColorFormFieldInput =
 /** A color offered as a swatch: a hex color, or one with a name to read it by. */
 export type TColorPreset = string | { color: string; title?: string };
 
-/**
- * The words of the color field. A host that translates its interface passes its own; English where it
- * does not. A text that holds a value is a function of it, so a host keeps its language's word order.
- */
-export interface IColorFormFieldLabels {
-  hex: string;
-  red: string;
-  green: string;
-  blue: string;
-  opacity: string;
-  /** The square in which the color's strength and brightness are chosen. */
-  area: string;
-  hue: string;
-  /** What the preview says of the color, for a screen reader. */
-  preview: (hex: string, opacityPercent: number) => string;
-  /** What the preview says when the field holds no color yet. */
-  noColor: string;
-  /** The button that shows and hides what the controls mean. */
-  help: string;
-  /*
-   * The help and the messages below are markdown: a value in them is a code span (`6495ED`), drawn in the
-   * data style by the host's markdown renderer, or reqraft's own where the host has none.
-   */
-  helpArea: string;
-  helpHex: string;
-  helpChannels: string;
-  helpOpacity: string;
-  /** A swatch's name, for a screen reader: the color it picks. */
-  swatch: (title: string) => string;
-  /** Characters typed into a hex code that cannot be in one. */
-  notHex: (characters: string) => string;
-  /** Characters typed into a number that cannot be in one. */
-  notDigits: (characters: string, field: string) => string;
-  /** A hex code too long to be one. */
-  hexTooLong: string;
-  /** A hex code of the wrong length. */
-  hexLength: (text: string) => string;
-  /** A hex code left empty. */
-  hexEmpty: string;
-  /** A number past its field's range. */
-  outOfRange: (field: string, max: number) => string;
-  /** A number field left empty. */
-  empty: (field: string, max: number) => string;
-}
-
-/** Text as a markdown code span, whatever backticks it holds: drawn in the data style. */
-const code = (text: string): string => {
-  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
-  const fence = '`'.repeat(longest + 1);
-  return longest ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`;
-};
-
-const characters = (chars: string): string =>
-  Array.from(new Set(chars.split('')))
-    .map((char) => (char === ' ' ? 'a space' : code(char)))
-    .join(', ');
-
-export const DEFAULT_COLOR_FORM_FIELD_LABELS: IColorFormFieldLabels = {
-  hex: 'Hex code',
-  red: 'Red',
-  green: 'Green',
-  blue: 'Blue',
-  opacity: 'Opacity %',
-  area: 'Strength and brightness',
-  hue: 'Color',
-  preview: (hex, opacity) =>
-    opacity === 100 ? `Chosen color: ${hex}` : `Chosen color: ${hex}, ${opacity}% opaque`,
-  noColor: 'No color chosen yet',
-  help: 'What do these mean?',
-  helpArea:
-    'The square sets how strong the color is (left to right) and how bright (bottom to top); the rainbow bar under it sets the color itself.',
-  helpHex:
-    'Hex code: the whole color as six characters, each 0–9 or A–F, two each for red, green and blue: `6495ED` is cornflower blue. Three characters are short for six: `F80` is `FF8800`.',
-  helpChannels:
-    'Red, Green, Blue: how much red, green and blue light make the color, each from `0` (none) to `255` (all). `0, 0, 0` is black and `255, 255, 255` is white.',
-  helpOpacity:
-    'Opacity: how solid the color is, from `0%` (you see through it) to `100%` (solid). The squares behind the preview show through a color that is not solid.',
-  swatch: (title) => `Use ${title}`,
-  notHex: (chars) =>
-    `${characters(chars)} cannot be in a hex code: use the digits 0–9 and the letters A–F.`,
-  notDigits: (chars, field) => `${characters(chars)} cannot be in ${field}: type a whole number.`,
-  hexTooLong: 'A hex code has six characters.',
-  hexLength: (text) =>
-    `${code(text)} is not a color: a hex code has six characters (or three, short for six).`,
-  hexEmpty: 'Type a hex code: six characters, each 0–9 or A–F.',
-  outOfRange: (field, max) => `${field} goes from \`0\` to \`${max}\`.`,
-  empty: (field, max) => `${field} needs a whole number from \`0\` to \`${max}\`.`,
-};
+export { DEFAULT_COLOR_FORM_FIELD_LABELS } from './labels';
+export type { IColorFormFieldLabels } from './labels';
 
 /** The colors offered as swatches when a host offers none of its own. */
 export const DEFAULT_COLOR_PRESETS: TColorPreset[] = [
@@ -167,7 +84,10 @@ export interface IColorFormFieldProps {
   /** The swatches offered, or `false` for none. */
   presetColors?: false | TColorPreset[];
   className?: string;
-  /** The field's words, for a host that translates them. */
+  /**
+   * This field's own words, over the host's (`setReqraftLabels`, `fields.color`): a host that translates its
+   * interface gives them there once, for every color field.
+   */
   labels?: Partial<IColorFormFieldLabels>;
 }
 
@@ -297,7 +217,7 @@ export const StyledColorField = styled.div<IStyledColorFieldProps>`
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'auto')};
 `;
 
-const StyledArea = styled.div<{ $height: number; $text: string }>`
+const StyledArea = styled.div<{ $height: number; $text: string; $ring: string }>`
   position: relative;
   width: 100%;
   height: ${({ $height }) => $height}px;
@@ -306,7 +226,7 @@ const StyledArea = styled.div<{ $height: number; $text: string }>`
   box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.2)};
 
   .w-color-saturation:focus-visible {
-    outline: 2px solid ${({ $text }) => $text};
+    outline: 2px solid ${({ $ring }) => $ring};
     outline-offset: -2px;
   }
 `;
@@ -379,7 +299,7 @@ const sliderStyles = (track: number, reach: number) => ({
 /**
  * Where a thumb travels: its bar or area, less the half of the thumb - and its ring - that would reach past an end.
  * A thumb at an end (the area's corner for black or white, the opacity bar's end for an opaque color) was cut by the
- * area, or by whatever is around the field (qorus#646). Laid out by class, not by an inline style, so the thumb is
+ * area, or by whatever is around the field. Laid out by class, not by an inline style, so the thumb is
  * still the one element with a `left`.
  */
 const StyledThumbTrack = styled.div<{ $x: number; $y: number }>`
@@ -479,8 +399,7 @@ const StyledHelp = styled.div<{ $text: string; $coarse: boolean }>`
 /**
  * How far a swatch draws past its edge: its picked ring (2px) and, focused, its outline (2px, 2px off it). The
  * swatches keep that much room on every side, so a swatch at an edge is drawn whole even where something around the
- * field cuts off what reaches past it - a picked swatch's ring was cut on its left and bottom in a host's form
- * (qorus#646).
+ * field cuts off what reaches past it - a picked swatch's ring was cut on its left and bottom in a host's form.
  */
 const SWATCH_REACH = 4;
 
@@ -492,7 +411,7 @@ const StyledSwatches = styled.div<{ $text: string }>`
   border-top: 1px solid ${({ $text }) => rgba($text, 0.15)};
 `;
 
-const StyledSwatch = styled.button<{ $size: number; $color: string; $text: string }>`
+const StyledSwatch = styled.button<{ $size: number; $color: string; $text: string; $ring: string }>`
   width: ${({ $size }) => $size}px;
   height: ${({ $size }) => $size}px;
   padding: 0;
@@ -509,7 +428,7 @@ const StyledSwatch = styled.button<{ $size: number; $color: string; $text: strin
   }
 
   &:focus-visible {
-    outline: 2px solid ${({ $text }) => $text};
+    outline: 2px solid ${({ $ring }) => $ring};
     outline-offset: 2px;
   }
 `;
@@ -547,9 +466,13 @@ export const ColorFormField = ({
 }: IColorFormFieldProps) => {
   const theme = useReqoreTheme();
   const text = getReadableColor(theme);
+  // The keyboard's ring in the one ring color every focus ring is drawn in, not the full text color.
+  const ring = useMemo(() => getFocusRingColor(theme), [theme]);
   const coarse = useCoarsePointer();
   const sizes = sizesFor(coarse);
-  const words = useMemo(() => ({ ...DEFAULT_COLOR_FORM_FIELD_LABELS, ...labels }), [labels]);
+  // the host's words (`setReqraftLabels`, `fields.color`), and over them any this field is given
+  const hostWords = useReqraftLabels().fields.color;
+  const words = useMemo(() => ({ ...hostWords, ...labels }), [hostWords, labels]);
   // the help's and the messages' markdown: the host's renderer, or reqraft's own (this is the field's own text)
   const renderMarkdown = useMarkdownRenderer() ?? defaultMarkdownRenderer;
   const id = useId();
@@ -622,7 +545,7 @@ export const ColorFormField = ({
       }
       setPicked({ rgba: color, hsva: { ...showAs, a: color.a } });
       // A hue moved on a grey is the same color: nothing to store - unless the value is not stored as a color
-      // is (a hex code, `{ hex }`, a channel past its range): an edit stores it as one (qorus#646, David).
+      // is (a hex code, `{ hex }`, a channel past its range): an edit stores it as one.
       if (stored && sameRgba(stored, color) && isStoredColor(value)) {
         return;
       }
@@ -825,7 +748,7 @@ export const ColorFormField = ({
       $disabled={!!disabled}
       $text={text}
     >
-      <StyledArea $height={sizes.area} $text={text}>
+      <StyledArea $height={sizes.area} $text={text} $ring={ring}>
         <Saturation
           hsva={shown}
           onChange={pickerMoved}
@@ -960,6 +883,7 @@ export const ColorFormField = ({
                 $size={sizes.swatch}
                 $color={color}
                 $text={text}
+                $ring={ring}
                 onClick={() => {
                   if (rgbaColor) {
                     setDrafts({});

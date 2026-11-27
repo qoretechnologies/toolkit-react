@@ -28,9 +28,9 @@ const lastLineBefore = (element: HTMLElement, before: Node): DOMRect | undefined
 /**
  * Every compact row under `root` draws its name's chrome in place:
  * - its help (?) at the label column's right edge, the same x in every row of the column, not a step after each
- *   name (Foxhoundn, qlip #392: "please right align the question mark to get rid of the stair-case look");
+ *   name, so the marks make no staircase;
  * - its required asterisk on the name's line, right after its last word, never on a line of its own under it
- *   (Foxhoundn, qlip #392: "keep it on the same line as the field name").
+ *   (on the same line as the field's name).
  */
 export const expectLabelChromeInPlace = (root: ParentNode = document) => {
   const rows = Array.from(root.querySelectorAll<HTMLElement>('.readfirst-row'));

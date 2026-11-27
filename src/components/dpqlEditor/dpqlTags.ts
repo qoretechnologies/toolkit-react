@@ -2,7 +2,7 @@
 // DPQL tag rendering — colors per template prefix, field-meta tooltips,
 // `getTagProps` callback for ReqoreRichTextEditor.
 
-import { NO_FIELD_DESCRIPTION } from '../../helpers/noDescription';
+import { noFieldDescription } from '../../helpers/noDescription';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
@@ -62,9 +62,9 @@ export const getTemplatePrefixColor = (value: string): string => {
 export interface IDpqlTagRendererOptions {
   /**
    * Draw a template (`$…`) chip as every other template chip is drawn - in a value's text, a template field, a
-   * read row (`getTemplateTagStyle`): `info`, or the catalogue entry's built-in (`custom1`) or event-trigger
-   * (`success`) intent. The default (qorus#646, David's review: a template picked on a value's Value tab was blue
-   * there and gray on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
+   * read row (`getTemplateTagStyle`): the plain chip, or the catalogue entry's built-in (`custom1`) or
+   * event-trigger (`success`) intent. The default (a template picked on a value's Value tab was one color
+   * there and another on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
    * prefix it did not list (`$record:`) gray.
    */
   templateTagsUseIntent?: boolean;
@@ -137,20 +137,20 @@ export function makeDpqlTagRenderer(
 
     /* A field, `@name`, quoted `@"order-id"` or with its accessors `@orders[*].id`, is a field of the record: the
        same record field a value holds as `$record:{orders[*].id}`, and drawn as that chip - its color, its icon
-       and its label, `record: orders[*].id` (qorus#646, David: one chip for one record field). The record's own
+       and its label, `record: orders[*].id` (one chip for one record field). The record's own
        description of the field is its hover where the catalogue does not describe it. */
     const fieldName = dpqlFieldName(tagValue);
     if (fieldName !== undefined) {
       const meta = fieldMeta[fieldName];
       /* the field's name heads the card, and under it what kind of value it is, in words, and its description:
-         its type was said raw, "Order ID (int)" (qorus#646) */
+         its type was said raw, "Order ID (int)" */
       const typeSentenceForm = options.typeSentenceForm ?? builtInTypeSentenceForm;
       const tooltip =
         meta ?
           descriptionTooltip(
-            // what the field is, or why nothing says so (qorus#646)
+            // what the field is, or why nothing says so
             describedWithType(
-              meta.short_desc?.trim() ? meta.short_desc : NO_FIELD_DESCRIPTION,
+              meta.short_desc?.trim() ? meta.short_desc : noFieldDescription(),
               typeSentenceForm(meta.type?.name)
             ),
             options.descriptions ?? {},

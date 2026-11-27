@@ -61,7 +61,7 @@ export interface IPendingEdit<T> {
  * The pause's timer dies with the field, and a field goes away the moment its editor closes: a read-first
  * row's Done closes the row, so a value typed and Done pressed inside the pause never reached the form - the
  * row read as it had before, a required field still said "This field is required", and the host never heard
- * of the edit (qorus#646).
+ * of the edit.
  *
  * So the field says what it holds (`hold`) and when nothing is held any more (`release`), and the edit is
  * sent with `send` (the latest one given):

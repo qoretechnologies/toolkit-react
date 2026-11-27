@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A field path written with accessors (qorus#646): `@orders[*].id`, `@prices{*}.amount`, `@items[0].id`. The
+// A field path written with accessors: `@orders[*].id`, `@prices{*}.amount`, `@items[0].id`. The
 // server reads one into accessor operations - `list_wildcard`, `hash_wildcard`, `wildcard_item`, `index` and `key` -
 // over record fields, and an expression made only of those is drawn as the path it is, not as an operation with
 // operands: the `@value` in `hash_wildcard(prices, value)` is the item's value, not a record field, and drawn as an

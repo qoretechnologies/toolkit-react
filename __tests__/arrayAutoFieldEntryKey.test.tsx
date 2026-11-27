@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ArrayAutoField } from '../src/components/form/fields/array/ArrayAutoField';
 
 /**
- * qorus#646 (React's warning, found by the story run's warning gate): a list's entry input was given the key that
+ * React's warning, found by the story run's warning gate: a list's entry input was given the key that
  * remounts it inside the props it is drawn from, and the field spreads those props into JSX - React warned "A
  * props object containing a "key" prop is being spread into JSX". The key goes on an element around the entry; the
  * entry is still drawn afresh, empty, once its value is added.

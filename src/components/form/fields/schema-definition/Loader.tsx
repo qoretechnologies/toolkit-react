@@ -5,16 +5,20 @@
  */
 import { ReqoreSpinner } from '@qoretechnologies/reqore';
 import { IReqoreSpinnerProps } from '@qoretechnologies/reqore/dist/components/Spinner';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 export interface ILoaderProps extends Partial<IReqoreSpinnerProps> {
   text?: string;
   inline?: boolean;
 }
 
-const Loader = ({ text = 'Loading…', inline, ...rest }: ILoaderProps) => (
-  <ReqoreSpinner type={5} iconColor='info' size='huge' centered={!inline} {...rest}>
-    {text}
-  </ReqoreSpinner>
-);
+const Loader = ({ text, inline, ...rest }: ILoaderProps) => {
+  const words = useReqraftLabels().schemaDefinition;
+  return (
+    <ReqoreSpinner type={5} iconColor='info' size='huge' centered={!inline} {...rest}>
+      {text ?? words.loading}
+    </ReqoreSpinner>
+  );
+};
 
 export default Loader;

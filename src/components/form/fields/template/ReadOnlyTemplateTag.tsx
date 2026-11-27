@@ -47,7 +47,7 @@ export const ReadOnlyTemplateTag = memo(
     // a reference nothing names says so; one the host knows wears its name (`referenceStanding`)
     const names = useTemplateReferenceNames();
     const standing = referenceStanding(templates, value, names);
-    const unlisted = standing.unlisted ? unlistedReferenceChipProps(names) : undefined;
+    const unlisted = standing.unlisted ? unlistedReferenceChipProps(names, standing) : undefined;
     const label = givenLabel ?? standing.label ?? described;
     const metadata = item?.metadata as TTemplateMeta | undefined;
     const descriptions = useDescriptionTooltips();
@@ -73,7 +73,13 @@ export const ReadOnlyTemplateTag = memo(
           }
           {...REFERENCE_CHIP_PROPS}
           {...getTemplateTagStyle(metadata)}
-          {...(unlisted ? { intent: unlisted.intent } : {})}
+          {...(unlisted ?
+            {
+              intent: unlisted.intent,
+              rightIcon: unlisted.rightIcon,
+              rightIconProps: unlisted.rightIconProps,
+            }
+          : {})}
         />
       </ReqoreTagGroup>
     );

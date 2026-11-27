@@ -114,7 +114,7 @@ export const getFocusDemoOptions = (): IQorusFormSchema =>
   }) as unknown as IQorusFormSchema;
 
 export const focusDemoValue: Record<string, IQorusFormField> = {
-  url: { type: 'string', value: 'pgsql://hq.qoretechnologies.com:5432/omq' },
+  url: { type: 'string', value: 'pgsql://db.example.com:5432/omq' },
   // database: intentionally unset → required to-do
   // auth group: intentionally none set → one-of unsatisfied → attention
   options: {

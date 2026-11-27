@@ -23,7 +23,8 @@ import { IStoryClipboard, stubClipboard } from '../src/stories/clipboard';
  * none gets the English it always had.
  */
 
-const LONG = `"${'x'.repeat(200)}"`;
+// a text example is shown as it is written, without JSON's quotes
+const LONG = 'x'.repeat(200);
 const payload: ITemplatesPayload = {
   ctx: {
     display_name: 'Context Data',
@@ -51,6 +52,7 @@ const PSEUDO: IReqraftTemplateListLabels = {
   copy: '[Çöpy]',
   copied: '[Çöpîéd]',
   copyFailed: '[Nöt çöpîéd]',
+  valueGroups: { variables: { label: '[Väríäblés]' } },
 };
 
 const items = (labels?: Partial<IReqraftTemplateListLabels>) =>
@@ -90,14 +92,14 @@ afterEach(() => {
 describe('the words of a list of templates', () => {
   it('are English when the host passes none, as they always were', () => {
     const list = items();
-    expect(named(list, 'Name').description).toBe('Example value: "invoice.pdf"');
+    expect(named(list, 'Name').description).toBe('Example value: invoice.pdf');
     expect(named(list, 'Body').description).toBe(`Example value: ${LONG.slice(0, 150)}…`);
     expect(named(list, 'Body').rightAction?.tooltip).toBe('Show the full example value');
     expect(named(list, 'Author').leftAction?.tooltip).toBe('Select this item');
 
     expect(windowOf(named(list, 'Body'))).toEqual({
       label: 'Body',
-      value: JSON.stringify('x'.repeat(200)),
+      value: 'x'.repeat(200),
       copyLabel: 'Copy',
       copyNotificationContent: 'Example value copied to clipboard',
       copyFailedNotificationContent:
@@ -115,7 +117,7 @@ describe('the words of a list of templates', () => {
 
   it("are the host's in every place the list and its window show them", () => {
     const list = items(PSEUDO);
-    expect(named(list, 'Name').description).toBe('[Ëxämplé → "invoice.pdf"]');
+    expect(named(list, 'Name').description).toBe('[Ëxämplé → invoice.pdf]');
     // the value is cut before the host's words are put round it
     expect(named(list, 'Body').description).toBe(`[Ëxämplé → ${LONG.slice(0, 150)}…]`);
     expect(named(list, 'Body').rightAction?.tooltip).toBe('[Šhöw ît äll]');
@@ -123,7 +125,7 @@ describe('the words of a list of templates', () => {
 
     expect(windowOf(named(list, 'Body'))).toEqual({
       label: 'Body',
-      value: JSON.stringify('x'.repeat(200)),
+      value: 'x'.repeat(200),
       copyLabel: '[Çöpy]',
       copyNotificationContent: '[Çöpîéd]',
       copyFailedNotificationContent: '[Nöt çöpîéd]',
@@ -138,7 +140,7 @@ describe('the words of a list of templates', () => {
   it('keep the English for each word the host leaves out', () => {
     const list = items({ selectItem: '[Pîçk thîs]', copyFailed: '[Nöt çöpîéd]' });
     expect(named(list, 'Author').leftAction?.tooltip).toBe('[Pîçk thîs]');
-    expect(named(list, 'Name').description).toBe('Example value: "invoice.pdf"');
+    expect(named(list, 'Name').description).toBe('Example value: invoice.pdf');
     expect(named(list, 'Body').rightAction?.tooltip).toBe('Show the full example value');
     const window = windowOf(named(list, 'Body'));
     expect(window.copyLabel).toBe('Copy');
@@ -165,7 +167,8 @@ describe('the words of a list of templates', () => {
       Array.from(document.querySelectorAll('.reqore-notification')).map((n) => n.textContent || '');
     await waitFor(() => expect(notices()).toEqual([expect.stringContaining('[Nöt çöpîéd]')]));
     // the Clipboard API was asked first, and refused
-    expect(writeText).toHaveBeenCalledWith(JSON.stringify('x'.repeat(200)));
+    // the text as it is written
+    expect(writeText).toHaveBeenCalledWith('x'.repeat(200));
     await expect(writeText.mock.results[0].value).rejects.toMatchObject({
       name: 'NotAllowedError',
     });

@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A field's template catalogue, as Qorus gives it, is the "Template contexts" group of its templates (qorus#646,
- * David's review, round 4): every container is used whole (`$ctx:*`) where Qorus reads it whole, a context lists
+ * A field's template catalogue, as Qorus gives it, is the "Template contexts" group of its templates: every
+ * container is used whole (`$ctx:*`) where Qorus reads it whole, a context lists
  * its keys, nested, a context left out by the catalogue is never offered, and typing offers what the picker does.
  */
 import { describe, expect, it } from 'vitest';

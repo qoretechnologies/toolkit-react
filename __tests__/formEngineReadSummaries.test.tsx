@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A collapsed row says what its editor reports, where its host draws that (qorus#646).
+// A collapsed row says what its editor reports, where its host draws that.
 //
 // A Qog pipeline processor's field mappings were drawn by their editor with a status - "Field mappings
 // incomplete", "… required". Collapsed in a read-first form, the row said "2 items", and the status was not seen

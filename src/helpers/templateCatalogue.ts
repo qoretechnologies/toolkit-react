@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A field's template catalogue, as Qorus gives it (qorus#646; Qorus `design/template-strings.md` §8): the template
+ * A field's template catalogue, as Qorus gives it (Qorus `design/template-strings.md` §8): the template
  * contexts the field can really use where it is used - none that would fail there or always read nothing - each
  * with what it is (a container of keys, a set of values, a formatted or an expression argument), whether it can be
  * used whole (`$ctx:*`) and its known keys, nested, each with the exact template that reads it.
@@ -161,8 +161,8 @@ export const catalogueContextNode = (
   );
   const whole = wholeRecords !== false && !!context.use_whole && !!context.whole_template;
   const keyed = !!children?.length;
-  /* A row does what it shows (David's review: "if there are no choices in the submenu, then it should not be
-     presented as a submenu, and there should be no 'Use' control"). With no key to choose:
+  /* A row does what it shows: with no choices in it, it is not a submenu, and it has no Use control. With no key
+     to choose:
      - where Qorus reads it whole (`use_whole`, for a value that takes a record), it is the whole value, `$fsminput:*`;
      - with free keys or an argument of its own format (`$rest:`), what follows the `:` is written;
      - otherwise (a fixed set of keys, none of them here; a whole value this field cannot take) nothing can be
@@ -191,7 +191,7 @@ export const catalogueContextNode = (
 };
 
 /**
- * A field's templates with its catalogue's contexts as the "Template contexts" group (qorus#646, David's review:
+ * A field's templates with its catalogue's contexts as the "Template contexts" group (so that
  * every container that can be used has Use, and the picker offers what typing offers): each context the field can
  * use, in the catalogue's order, with its keys. It replaces a "Template contexts" group read from the field's own
  * templates, which could only guess what Qorus reads.
@@ -208,6 +208,7 @@ export const withTemplateCatalogue = (
     id: TEMPLATE_CONTEXTS_GROUP_ID,
     label: reqraftLabels().templateTree.templateContexts,
     kind: 'context',
+    group: 'templateContexts',
     description: reqraftLabels().templateTree.templateContextsDescription,
     trail: [],
     trailIds: [],

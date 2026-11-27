@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // The catalogue entries for DPQL's accessor wildcards, as the server serves them (Qore DataProvider 3.10,
 // `GET system?action=expressions&context=ui`), and `size`, which a wildcard is typically counted with. A fixture
-// for the stories and tests of a field path (qorus#646); not a catalogue a form is given.
+// for the stories and tests of a field path; not a catalogue a form is given.
 import { IExpressionSchema } from './types';
 
 const anyArg = (display_name: string, short_desc: string) => ({

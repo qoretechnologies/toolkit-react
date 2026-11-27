@@ -19,8 +19,8 @@ export const COMPACT_VALUE_LEFT = COMPACT_ROW_PAD_X + COMPACT_LABEL_COL + COMPAC
 // The surface starts a touch left of the value text, for inner left padding.
 export const COMPACT_PANEL_LEFT = COMPACT_VALUE_LEFT - 10;
 /**
- * The least room a row's value has beside its label (qorus#646, David: "on a narrow screen... put the wide output
- * on a line below the header, slightly indented"). A form where the value column would be narrower stacks its rows:
+ * The least room a row's value has beside its label: on a narrow screen a wide value goes on a line below the
+ * label, slightly indented. A form where the value column would be narrower stacks its rows:
  * the label and the row's actions on the first line, the value under them, indented by
  * `COMPACT_STACKED_VALUE_INDENT`.
  */
@@ -34,10 +34,35 @@ export const COMPACT_STACKED_VALUE_INDENT = 12;
  */
 export const isCompactNarrow = (width: number, labelColumn: number): boolean =>
   width - (labelColumn + COMPACT_ROW_GAP + 2 * COMPACT_ROW_PAD_X) < COMPACT_MIN_VALUE_WIDTH;
+/**
+ * Below this width a stacked form is cramped: an open row's label and its actions (Done, Clear, its menu: about
+ * 110px) no longer share a line, or a long label beside them is left a word's width (a 190px form gave a question 42px,
+ * a word a line). Its label then takes the whole first line, and its actions a line of their own after the editor.
+ */
+export const COMPACT_CRAMPED_WIDTH = 300;
+/** Whether a form `width` wide is cramped (`COMPACT_CRAMPED_WIDTH`). */
+export const isCompactCramped = (width: number): boolean => width < COMPACT_CRAMPED_WIDTH;
 // Left offset for the group sub-labels / cluster header, kept equal to the row's
 // own horizontal padding so the labels line up flush with the field labels below
 // them (no extra gutter — the spine/rail that used a fluid indent are gone).
 export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
+/**
+ * Calm appearance: the inset of everything inside a section — rows, group
+ * headings, the one-of sentence — so all of them start on one left edge. In a
+ * status box that edge is Reqore's (it pads the box's title and its content by
+ * one amount), and the box's body takes this inset back (`$boxCorners`).
+ */
+export const CALM_SECTION_INSET = 16;
+/**
+ * The calm inset as the rows draw it: CALM_SECTION_INSET, or, inside a status box, the box's own
+ * content inset. Reqore pads a panel's content by its size's padding or by as much as clears its
+ * corner (13px for a small panel under a 14px radius), and says how much in
+ * `--reqore-panel-inset-x`; the box's body (`$boxCorners`) takes that inset back and its rows
+ * start on it, so the rows reach the box's edges and their text sits on the title's edge. A fixed
+ * 16 ran the rows 3px past both sides of a 13px box (admin portal, OAuth2 client drawer). A Reqore
+ * that does not say keeps 16.
+ */
+export const CALM_INSET = `var(--readfirst-inset, ${CALM_SECTION_INSET}px)`;
 
 // Measured label column (GLOBAL). The label column sizes to the WIDEST field
 // label across the whole form, its text clamped to MAX, and is never narrower
@@ -59,7 +84,7 @@ export const LABEL_ASTERISK_SIZE = 10;
 export const LABEL_ASTERISK_WIDTH = LABEL_ASTERISK_SIZE + 2;
 /**
  * The help button beside a name: reqore's `tiny` button (26px), or `small` (32px) for a finger. It is a button in the
- * tab order (qorus#646), so the room it takes is its own width, not the 12px of the icon it once was.
+ * tab order, so the room it takes is its own width, not the 12px of the icon it once was.
  */
 export const LABEL_HELP_WIDTH = SIZE_TO_PX.tiny;
 export const LABEL_HELP_WIDTH_TOUCH = SIZE_TO_PX.small;
@@ -71,8 +96,7 @@ export const LABEL_HELP_WIDTH_TOUCH = SIZE_TO_PX.small;
  * with the asterisk on its last line, after its last word, and the help at the column's right edge.
  *
  * It counted the help as the 12px icon it was before it became a button (26px): every name within 14px of the
- * column's width put its asterisk on a line of its own under it (Foxhoundn, qlip #392: "The required asterisk on a
- * new line is not good, keep it on the same line as the field name").
+ * column's width put its asterisk on a line of its own under it. The required asterisk stays on the name's line.
  *
  * The 4px of slack is not padding for its own sake: the measurement rounds (an off-DOM `offsetWidth` is an integer)
  * while the rendered text width is fractional, so a column sized to the exact sum still wraps. Measured on an auth
@@ -98,11 +122,16 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   /** True when the toolbar renders no search row (hidden via `compactToolbar`,
    *  self-hidden on a single-option form, or no toolbar at all). */
   $tightHeader?: boolean;
-  /** True when the status boxes inside pin their headers. */
+  /** True when the form pins something itself: a status box's header, or an open card's heading. */
   $stickyBoxes?: boolean;
+  /** True when nothing in the form may be clipped vertically (every form but a nested one): see below. */
+  $letPin?: boolean;
   /** True when a narrow form's header carries a consumer's label, icon or
    *  actions beside the toolbar, which then has to take a line of its own. */
   $stackHeader?: boolean;
+  /** Calm appearance: the panel is transparent, so the pinned toolbar paints
+   *  `$headerBg` itself (see below). */
+  $calm?: boolean;
 }>`
   /* The wrapper must not clip, or nothing INSIDE it can pin.
   
@@ -118,11 +147,21 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
      The clip is the panel's rounded corners, and this panel is transparent and
      border-less — \`flat raised minimal\`, no background of its own — so there
      is nothing for it to clip. */
-  ${({ $stickyBoxes }) =>
+  ${({ $stickyBoxes, $letPin }) =>
     $stickyBoxes ?
       css`
         &&& {
           overflow: visible;
+        }
+      `
+    : $letPin ?
+      /* With no pins of its own the form still lets a host editor's own band pin (the IDE's open test case pins
+         one in the Cases field), so the wrapper is no scrollport either way; \`clip\` keeps the horizontal guard
+         the \`hidden\` gave. */
+      css`
+        &&& {
+          overflow-y: visible;
+          overflow-x: clip;
         }
       `
     : ''}
@@ -173,6 +212,12 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
        meter. One step higher and it slides under the toolbar's blur
        instead. Nested sub-forms pin nothing, so they keep the default. */
     ${({ $nested }) => ($nested ? '' : 'z-index: 3;')}
+    /* The glass itself. A classic panel paints its own surface behind the
+       header; a calm one is transparent, so without this the pinned toolbar
+       had nothing behind it at all and the rows — and a box header leaving its
+       box — scrolled through the meter and the search in full contrast. */
+    ${({ $calm, $nested, $headerBg }) =>
+      $calm && !$nested ? `background-color: ${$headerBg};` : ''}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
     /* A header with a SEARCH ROW keeps the \`big\` gap below it — a tall
        interactive control earns separation from the content it filters. A
@@ -180,7 +225,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
        a single-option form, or no toolbar at all) is a thin strip, and at
        \`big\` its padding stacked onto the panel content's own 8px into a 26px
        dead band between the completion meter and the first status box —
-       rejected on build #140 as "unnecessarily big". \`normal\` lands it at
+       rejected in a Qlip review as "unnecessarily big". \`normal\` lands it at
        the boxes' own 10px rhythm, and scoping the change here keeps every
        search-bearing form pixel-identical. */
     padding-bottom: ${({ $tightHeader }) =>
@@ -236,10 +281,15 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
 
 // Compact group header laid out as the panel's `label`: the group name, a
 // hairline that fades toward the status chip, and the chip pinned at the end.
-export const StyledGroupHeader = styled.div`
+export const StyledGroupHeader = styled.div<{ $calm?: boolean }>`
   display: flex;
   align-items: center;
-  gap: 12px;
+  /* Calm: the label, its quiet count and (on Needs attention) the one amber
+     dot read as a single phrase, so they sit closer than the default's
+     label-and-chip pair. */
+  gap: ${({ $calm }) => ($calm ? 8 : 12)}px;
+  /* No inset of its own: Reqore places the title where it places the box's content, and the rows start there
+     (the status box's \`contentStyle\`, StyledGroupBody's \`$boxCorners\`). */
   flex: 1;
   min-width: 0;
 `;
@@ -259,14 +309,43 @@ export const StyledStatusBox = styled(ReqorePanel)<{
   $bg?: string;
   /** The page's own background, for the PINNED header — see below. */
   $surface?: string;
+  /**
+   * Calm appearance: the box is an ordinary panel — Reqore paints the theme's
+   * panel surface and its one neutral hairline — so no tint, no accent edge
+   * and no recessed Optional box are drawn over it.
+   */
+  $calm?: boolean;
+  /**
+   * The box's own header does not pin, but what is inside it may: an open card's heading, or a host editor's own
+   * band (the IDE's open test case). Reqore clips the wrapper of a panel whose header does not pin, and a clipping
+   * box is the scrollport a sticky element inside it pins to, so the wrapper stays unclipped vertically; `clip`
+   * keeps the horizontal guard the `hidden` gave. Nothing in a box reaches past its corners for the clip to cut.
+   */
+  $letPin?: boolean;
 }>`
-  &&& {
-    border: 1px solid ${({ $accent }) => `${$accent}33`};
-    /* $bg lets the muted "Optional" box opt into a darker, recessed surface
-       instead of the faint accent tint the colored boxes use. */
-    background: ${({ $accent, $bg }) => $bg || `${$accent}1f`};
-    border-radius: 10px;
-  }
+  ${({ $letPin }) =>
+    $letPin ?
+      css`
+        &&& {
+          overflow-y: visible;
+          overflow-x: clip;
+        }
+      `
+    : ''}
+  /* The corner is the theme's, and the title's inset with it, both Reqore's: a box that drew a 10px corner of its
+     own kept a title padded for the panel's radius, under the curve (admin portal review #44: "the panel label is
+     too close to the border radius"; Reqore #715 pads a title clear of its corner). */
+  ${({ $calm, $accent, $bg }) =>
+    $calm ?
+      ''
+    : css`
+        &&& {
+          border: 1px solid ${`${$accent}33`};
+          /* $bg lets the muted "Optional" box opt into a darker, recessed surface
+             instead of the faint accent tint the colored boxes use. */
+          background: ${$bg || `${$accent}1f`};
+        }
+      `}
 
   /* A PINNED header needs a surface of its own.
   
@@ -282,13 +361,16 @@ export const StyledStatusBox = styled(ReqorePanel)<{
      Optional box already carries an opaque \`$bg\`, so that is used as-is.
   
      Only when \`$surface\` is supplied — i.e. only on a form that pins at all —
-     so an unpinned box is pixel-identical to before. */
-  ${({ $surface, $accent, $bg }) =>
+     so an unpinned box is pixel-identical to before.
+
+     Calm boxes carry no tint, so the pinned header is just the panel surface
+     the caller passes as \`$surface\`. */
+  ${({ $surface, $accent, $bg, $calm }) =>
     $surface ?
       css`
         &&& > .reqore-panel-title {
           background-color: ${$bg || $surface};
-          ${$bg ? '' : `background-image: linear-gradient(${$accent}1f, ${$accent}1f);`}
+          ${$bg || $calm ? '' : `background-image: linear-gradient(${$accent}1f, ${$accent}1f);`}
         }
       `
     : ''}
@@ -298,49 +380,83 @@ export const StyledStatusBox = styled(ReqorePanel)<{
 // one-of required group (in the Needs-attention box) so the constraint reads as
 // one unit. The connection rail + status nodes still render inside (they convey
 // which member satisfies the group); this box adds the explicit heading.
-export const StyledRequiredClusterBox = styled.div<{ $border: string; $tint: string }>`
-  border: 1px solid ${({ $border }) => $border};
-  border-radius: 8px;
-  background: ${({ $tint }) => $tint};
-  padding: 2px 6px 6px;
-  margin: 4px 0;
+export const StyledRequiredClusterBox = styled.div<{
+  $border: string;
+  $tint: string;
+  /** Calm: no box of its own — the heading and the hairlines carry the group. */
+  $calm?: boolean;
+}>`
+  ${({ $calm, $border, $tint }) =>
+    $calm ?
+      ''
+    : css`
+        border: 1px solid ${$border};
+        border-radius: 8px;
+        background: ${$tint};
+        padding: 2px 6px 6px;
+        margin: 4px 0;
+      `}
   /* The members render directly here (not via the gapped group body), so give
      them the same modest gap the rest of the rows have. Pin the divider-centering
      var to that gap (it doesn't widen in narrow like the group body's does). */
   display: flex;
   flex-flow: column;
-  --readfirst-row-gap: 4px;
-  gap: 4px;
+  --readfirst-row-gap: ${({ $calm }) => ($calm ? 0 : 4)}px;
+  gap: ${({ $calm }) => ($calm ? 0 : 4)}px;
 `;
-export const StyledRequiredClusterHeader = styled.div<{ $color: string }>`
+export const StyledRequiredClusterHeader = styled.div<{ $color: string; $calm?: boolean }>`
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 0 4px ${GROUP_INDENT};
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
   color: ${({ $color }) => $color};
+  font-weight: 600;
+  /* Calm: an amber sentence over the rows it is about, at the rows' own text
+     size and inset — the instruction, not an upper-case eyebrow. */
+  ${({ $calm }) =>
+    $calm ?
+      css`
+        padding: 12px ${CALM_INSET} 2px;
+        font-size: 13px;
+      `
+    : css`
+        padding: 8px 0 4px ${GROUP_INDENT};
+        font-size: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      `}
 `;
 
 // Thin schema-group sub-label inside a status box (CONNECTION / AUTHENTICATION /
 // …). Quiet by design — the box header is the loud heading; this just keeps each
 // field's group context as you scan. Indented to the rows' content line.
-export const StyledStatusBoxGroupLabel = styled.div`
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  opacity: 0.5;
-  padding: 8px 0 2px ${GROUP_INDENT};
+//
+// Calm: the group's name as written (no upper-casing), at the rows' text size in
+// the primary text color — the field labels below it are gray, so the heading
+// is told apart by color and the space above it, not by shouting.
+export const StyledStatusBoxGroupLabel = styled.div<{ $calm?: boolean; $color?: string }>`
+  ${({ $calm, $color }) =>
+    $calm ?
+      css`
+        font-size: 13px;
+        font-weight: 600;
+        color: ${$color || 'inherit'};
+        padding: 14px ${CALM_INSET} 2px;
+      `
+    : css`
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        opacity: 0.5;
+        padding: 8px 0 2px ${GROUP_INDENT};
+      `}
 `;
 
 // Required-group "connection" rail: contiguous members are linked by a continuous
 // vertical rail (StyledGroupBody draws it; the line bridges the row gaps and is
 // trimmed to the first/last node). Each member carries a status node — absolutely
 // positioned in the EXISTING left gutter, so labels keep their place — tied to the
-// label by a short stub. Theme-derived: the node's hollow centre is painted the
+// label by a short stub. Theme-derived: the node's hollow center is painted the
 // form background so it MASKS the rail behind it; filled when the member is set.
 export const StyledClusterNode = styled.span<{ $color: string; $filled: boolean; $bg: string }>`
   position: absolute;
@@ -368,14 +484,27 @@ export const StyledClusterNode = styled.span<{ $color: string; $filled: boolean;
   }
 `;
 
-export const StyledEditCard = styled.div<{ $bg: string; $border: string }>`
-  padding: 12px;
+/** The room between an open card's heading and its body. */
+export const CARD_GAP = 8;
+
+export const StyledEditCard = styled.div<{ $bg: string; $border: string; $calm?: boolean }>`
   display: flex;
   flex-flow: column;
-  gap: 8px;
+  gap: ${CARD_GAP}px;
   background: ${({ $bg }) => $bg};
-  border: 1px solid ${({ $border }) => $border};
-  border-radius: 8px;
+  /* Calm: an open field is a row of its section, set apart by the section's own
+     hairlines and the active-row tint — not a second card drawn inside the
+     first. */
+  ${({ $calm, $border }) =>
+    $calm ?
+      css`
+        padding: 12px ${CALM_INSET};
+      `
+    : css`
+        padding: 12px;
+        border: 1px solid ${$border};
+        border-radius: 8px;
+      `}
 
   /* Single-value editors (operators, long-string, markdown, richtext, byte-size)
      carry the card's own "Clear value" action, so suppress the value input's
@@ -396,7 +525,7 @@ export const StyledLabelBlock = styled.div`
   min-width: 0;
 `;
 
-/* An option's help is a button in the tab order (qorus#646), beside the name on its line: a button is a block,
+/* An option's help is a button in the tab order, beside the name on its line: a button is a block,
    which put it on a line of its own under a name in a narrow label column. Its target is reqore's `small` (32px),
    the size of the row's other controls, for a mouse and a finger alike, taller than the name's line: it reaches
    into the row's padding rather than making every row with help taller. It reaches 6px to its left too, into the
@@ -422,10 +551,12 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   font-size: 13px;
   min-width: 0;
   white-space: normal;
-  overflow-wrap: anywhere;
+  /* Between words, never inside one while the word fits a line of its own (\`anywhere\` broke "Expected" in a
+     narrow column, "Expect / ed"); a word longer than the whole line still breaks rather than run out of the row. */
+  overflow-wrap: break-word;
   cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
   /* what the option takes goes under the name where both do not fit on a line (a phone): beside it, it took the
-     name's room, which broke a word in two ("Compute d", qorus#646) */
+     name's room, which broke a word in two ("Compute d") */
   flex-wrap: wrap;
   row-gap: 2px;
   ${HELP_BUTTON_BESIDE_THE_NAME}
@@ -436,7 +567,7 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
  *
  * In a row's label column (`$fill`) it is the column's width: the name on the left, wrapping, and the help at the
  * column's right edge, so every row's (?) is on one line down the form rather than a step after each name
- * (Foxhoundn, qlip #392: "please right align the question mark to get rid of the stair-case look"). The help is on
+ * (no staircase of question marks). The help is on
  * the name's first line.
  */
 export const StyledLabelName = styled.span<{ $fill?: boolean }>`
@@ -453,8 +584,7 @@ export const StyledLabelName = styled.span<{ $fill?: boolean }>`
           justify-self: end;
         }
         /* A stacked row's label is the row's whole width, with no column for the help to line up in: at its
-           right edge the help floated alone, away from the name it explains (Foxhoundn, qlip #400: "On mobile
-           the question mark should stay with the label"). It follows the name. */
+           right edge the help floated alone, away from the name it explains. It follows the name. */
         .readfirst-narrow & {
           grid-template-columns: minmax(0, max-content) auto;
           justify-content: start;
@@ -494,6 +624,16 @@ export const StyledLabelDesc = styled(ReqoreP)`
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+`;
+
+/* An open row's short_desc: a line of its own under the row, as wide as the row, never clamped (the row's grid puts it
+   on a row of its own, `.options-readfirst-open-desc`). */
+export const StyledOpenRowDesc = styled(ReqoreP)`
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
 `;
 
 export const StyledCardHeading = styled.div`
@@ -549,7 +689,8 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     border-radius: 2px;
   }
   .options-readfirst-link:focus-visible {
-    outline: 2px solid currentColor;
+    /* The one ring color, the text color at 0.7, that the rows' body says; the link's own color elsewhere. */
+    outline: 2px solid var(--readfirst-focus, currentColor);
     outline-offset: 2px;
   }
   /* The code size chip kept above an OPEN editor. The read row puts the same chip
@@ -566,7 +707,7 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
   /* The reason that follows the value shares its line and wraps within its own box. As a flex item
      sized to its text it could only share the line whole: a reason longer than the room beside the
      value went to the line below as a block, and an empty value's dash was left alone on its line,
-     the reason under it like the text of a list item under its bullet (qorus#646). It goes below
+     the reason under it like the text of a list item under its bullet. It goes below
      only when the value leaves it less than 16em. */
   .options-readfirst-valuetext + .options-readfirst-reason {
     flex: 1 1 16em;
@@ -682,10 +823,23 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   max-width: 100%;
 `;
 
+/*
+ * A row sits in a place its box keeps for it (`rowPlaces`): a plain block holding the row's own node, which draws no
+ * box (`display: contents`). The body's rules for its entries are about the row, so each names the row in its place
+ * as well (IN_PLACE), at the rule's own specificity - `:where` adds none - and leaves the place itself alone
+ * (NOT_PLACE). A row computes the styles it had as the body's own child.
+ */
+const IN_PLACE = ':where(.readfirst-row-place) > :where(.readfirst-row-host) >';
+const NOT_PLACE = ':not(:where(.readfirst-row-place))';
+const LAST_PLACE = ':where(.readfirst-row-place):last-child > :where(.readfirst-row-host) >';
+const FIRST_PLACE = ':where(.readfirst-row-place):first-child > :where(.readfirst-row-host) >';
+
 export const StyledGroupBody = styled.div<{
   $divider: string;
   $hover: string;
   $focus: string;
+  /** The wash over a required group's members while one of them is hovered. */
+  $groupHighlight: string;
   $success: string;
   $rowBg: string;
   $lineColor: string;
@@ -693,10 +847,21 @@ export const StyledGroupBody = styled.div<{
       HAS to be seen — the divider tint that separates two fields is ~8% of the
       text color, which disappears entirely as a 1px dashed border. */
   $moreBorder: string;
+  /** Calm appearance: label/value rows split by full-width hairlines. */
+  $calm?: boolean;
+  /** The calm section's hairline — the same edge its panel is drawn with. */
+  $hairline?: string;
+  /**
+   * The body of a status box: its last row's bottom corners are the box's own, whatever corner the theme gives it
+   * (the box's content passes them down, `contentStyle`). Elsewhere - a read list, a nested sub-form - they are 9px.
+   */
+  $boxCorners?: boolean;
 }>`
   display: flex;
   flex-flow: column;
   position: relative;
+  /* The keyboard's ring for the rows and the links in them (\`$focus\`, the one ring color). */
+  --readfirst-focus: ${({ $focus }) => $focus};
   /* Exposed as a var so the inter-field divider can center itself in the gap
      (the gap differs wide vs narrow). */
   --readfirst-row-gap: 4px;
@@ -706,7 +871,8 @@ export const StyledGroupBody = styled.div<{
      resolves against this container's width (not the screen), so it tracks the
      (Field blocks no longer get a left gutter — the spine/rail that needed it are
      gone, so rows sit flush against the box, like the Focus prototype.) */
-  > * {
+  > *${NOT_PLACE},
+  > ${IN_PLACE} * {
     margin-left: 0;
   }
 
@@ -760,6 +926,19 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row:last-child::after {
     display: none;
   }
+  /* A row is drawn into a node of its own, which its place in the box holds (\`rowPlaces\`, IN_PLACE above): the
+     place stands where the row stands among its siblings, and the node draws no box. So a row is the last child of
+     its node, always: the hairline under it is hidden for the last PLACE only. (No more specific than the rule
+     above it, so the calm look's own \`.readfirst-row::after\`, later, still wins.) */
+  .readfirst-row-host {
+    display: contents;
+  }
+  .readfirst-row-host > .readfirst-row::after {
+    display: block;
+  }
+  ${LAST_PLACE} .readfirst-row::after {
+    display: none;
+  }
   /* A row lights up under a pointer that hovers. A finger's tap leaves the browser's :hover on what it tapped
      until the next tap elsewhere, so on a touch screen the row stayed lit after the tap as if it were chosen
      (FormEngine · A Row Stacks On A Phone, a tap on its link). The keyboard's focus lights it on any device. */
@@ -769,7 +948,7 @@ export const StyledGroupBody = styled.div<{
     }
   }
   .readfirst-row:focus-visible {
-    outline: 2px solid ${({ $focus }) => $focus};
+    outline: 2px solid var(--readfirst-focus);
     outline-offset: -2px;
     background: ${({ $hover }) => $hover};
   }
@@ -806,7 +985,7 @@ export const StyledGroupBody = styled.div<{
     }
   }
   .readfirst-more-row:focus-visible {
-    outline: 2px solid ${({ $focus }) => $focus};
+    outline: 2px solid var(--readfirst-focus);
     outline-offset: -2px;
   }
   /* The chevron points the way the click goes: down to reveal, up to fold. */
@@ -830,12 +1009,25 @@ export const StyledGroupBody = styled.div<{
   /* Required-group linkage: hovering a member highlights every sibling row —
      just a background tint, no left stripe (that reads as an intent edge). */
   .readfirst-row-group-highlight {
-    background: ${({ $focus }) => `${$focus}1f`};
+    background: ${({ $groupHighlight }) => $groupHighlight};
   }
   .readfirst-row-flash {
     animation: readfirstRowFlash 1.4s ease;
   }
+  /* The same animation under another name: a row that flashes again alternates between the two, and a new
+     animation name is what starts an animation again (the class stays on once it has played). */
+  .readfirst-row-flash.readfirst-row-flash-again {
+    animation-name: readfirstRowFlashAgain;
+  }
   @keyframes readfirstRowFlash {
+    0% {
+      background: ${({ $focus }) => `${$focus}59`};
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  @keyframes readfirstRowFlashAgain {
     0% {
       background: ${({ $focus }) => `${$focus}59`};
     }
@@ -915,6 +1107,24 @@ export const StyledGroupBody = styled.div<{
   &.readfirst-narrow {
     --readfirst-row-gap: 18px;
   }
+  /* A narrow form (a phone): an open field inside another form's open field (a record in a list of records, its
+     checks) gives its editor, a form of its own, the card's whole width; the card's heading keeps its inset. Inset
+     at both sides at every level, a check's form three levels down was left about half a phone, and its labels broke
+     inside a word. The outermost card keeps its inset: it sits in its section's bleed, and its forms' edges are
+     drawn inside the section's. The nested form's rows bring their own inset. */
+  &.readfirst-narrow
+    .options-readfirst-card
+    .options-readfirst-card:has(.array-auto-item, .readfirst-nested-list) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  &.readfirst-narrow
+    .options-readfirst-card
+    .options-readfirst-card:has(.array-auto-item, .readfirst-nested-list)
+    > .options-readfirst-card-header {
+    padding-left: ${CALM_INSET};
+    padding-right: ${CALM_INSET};
+  }
   &.readfirst-narrow .readfirst-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 2px 14px;
@@ -931,6 +1141,20 @@ export const StyledGroupBody = styled.div<{
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+  /* A cramped form (isCompactCramped): an open row's label takes the whole first line, and its actions a line of their
+     own after the editor, at its end, so a long label is not left a word's width beside them. */
+  &.readfirst-narrow.readfirst-cramped .readfirst-row-editing > :nth-child(1) {
+    grid-column: 1 / -1;
+  }
+  &.readfirst-narrow.readfirst-cramped .readfirst-row-editing > :nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: end;
+  }
+  /* its description under the actions there, as it is under the editor elsewhere */
+  &.readfirst-narrow.readfirst-cramped .readfirst-row-editing > .options-readfirst-open-desc {
+    grid-row: 4;
   }
   /* Read (non-editing) rows: float the trailing actions (status dot + the
      hover-revealed delete/revert) out of the grid flow so a delete button can't
@@ -952,10 +1176,12 @@ export const StyledGroupBody = styled.div<{
      intent backgrounds. The (now invisible) pseudo is retained only to preserve
      the block's positioning/stacking context that the required-group rail and its
      cluster nodes resolve against — removing it would unmoor them. */
-  > *:not(.options-readfirst-card) {
+  > *:not(.options-readfirst-card)${NOT_PLACE},
+  > ${IN_PLACE} *:not(.options-readfirst-card) {
     position: relative;
   }
-  > *:not(.options-readfirst-card)::before {
+  > *:not(.options-readfirst-card)${NOT_PLACE}::before,
+  > ${IN_PLACE} *:not(.options-readfirst-card)::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -966,7 +1192,8 @@ export const StyledGroupBody = styled.div<{
   }
   /* Content rides above the surface layer — except the cluster node, which is
      absolutely positioned in the gutter and must keep its own positioning. */
-  > *:not(.options-readfirst-card) > *:not(.options-readfirst-node) {
+  > *:not(.options-readfirst-card)${NOT_PLACE} > *:not(.options-readfirst-node),
+  > ${IN_PLACE} *:not(.options-readfirst-card) > *:not(.options-readfirst-node) {
     position: relative;
     z-index: 1;
   }
@@ -983,11 +1210,12 @@ export const StyledGroupBody = styled.div<{
     align-items: start;
   }
   /* Narrow stacks label-over-value: the value sits on the line below the label,
-     slightly indented under it (David, qorus#646), so it reads as the label's. */
+     slightly indented under it, so it reads as the label's. */
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
     padding-left: ${COMPACT_STACKED_VALUE_INDENT}px;
   }
-  &.readfirst-narrow > *:not(.options-readfirst-card)::before {
+  &.readfirst-narrow > *:not(.options-readfirst-card)${NOT_PLACE}::before,
+  &.readfirst-narrow > ${IN_PLACE} *:not(.options-readfirst-card)::before {
     left: 0;
   }
   /* Touch layouts have no hover: a slot reserved for the hover-revealed edit
@@ -1009,6 +1237,140 @@ export const StyledGroupBody = styled.div<{
     padding-top: 0;
     padding-bottom: 0;
   }
+
+  /* CALM appearance — a section of label/value rows split by hairlines.
+
+     Every entry the body holds (a row, the column an open row sits in, a
+     group heading, the one-of cluster, the "N more fields" control) is drawn
+     edge to edge with ONE full-width hairline above it, the same color as the
+     section's own edge. The first entry's line is the one under the section
+     header (a minimal header draws none of its own). Two things take no line,
+     because a heading and the rows it heads read as one block: the entry right
+     under a group heading (or its subtitle), and the first row under the
+     cluster's sentence.
+
+     Rows lose their rounded hover pill and the inset hairline between them, and
+     take the section's 16px inset. Placed last so it wins over the narrow
+     rules above, which a phone-width calm form also matches. */
+  ${({ $calm, $hairline, $boxCorners }) =>
+    $calm ?
+      css`
+        && {
+          --readfirst-row-gap: 0px;
+          gap: 0;
+        }
+        && > *${NOT_PLACE},
+        && > ${IN_PLACE} *,
+        && > .options-readfirst-required-cluster > *${NOT_PLACE},
+        && > .options-readfirst-required-cluster > ${IN_PLACE} * {
+          border-top: 1px solid ${$hairline};
+        }
+        && > .options-readfirst-group-label + *,
+        && > .options-readfirst-group-label + ${IN_PLACE} *,
+        && > .options-readfirst-group-subtitle + *,
+        && > .options-readfirst-group-subtitle + ${IN_PLACE} *,
+        && .options-readfirst-required-cluster-header,
+        && .options-readfirst-required-cluster-header + *,
+        && .options-readfirst-required-cluster-header + ${IN_PLACE} * {
+          border-top: 0;
+        }
+        && .readfirst-row {
+          min-height: 44px;
+          padding: 10px ${CALM_INSET};
+          border-radius: 0;
+        }
+        && .readfirst-row::after {
+          display: none;
+        }
+        /* The open row keeps the read row's band: 3px above the editor's 32px
+           control centers it where the read row centered its text. */
+        && .readfirst-row-editing {
+          padding-top: 3px;
+          padding-bottom: 10px;
+        }
+        /* A status box's body: Reqore pads the box's content at its sides as it pads
+           its title, so the rows' own inset is taken back here - their text starts on
+           the title's edge, and their bands and hairlines reach the box's edges (the
+           content clips them there). The section's rounded bottom corners, which a
+           full-bleed hover or an open row's tint would otherwise square off, are the
+           box's: each element down to the last row inherits them. */
+        ${$boxCorners ?
+          css`
+            && {
+              --readfirst-inset: var(--reqore-panel-inset-x, ${CALM_SECTION_INSET}px);
+              margin-left: calc(-1 * var(--readfirst-inset));
+              margin-right: calc(-1 * var(--readfirst-inset));
+            }
+            &&,
+            && > :where(.readfirst-row-place):last-child,
+            && > :where(.readfirst-row-place):last-child > :where(.readfirst-row-host),
+            && > :last-child > :where(.readfirst-row-place):last-child,
+            && > :last-child > :where(.readfirst-row-place):last-child > :where(.readfirst-row-host) {
+              border-bottom-left-radius: inherit;
+              border-bottom-right-radius: inherit;
+            }
+          `
+        : ''}
+        && > :last-child${NOT_PLACE},
+        && > :last-child${NOT_PLACE} > :last-child${NOT_PLACE},
+        && > ${LAST_PLACE} *,
+        && > ${LAST_PLACE} * > :last-child,
+        && > :last-child > ${LAST_PLACE} * {
+          border-bottom-left-radius: ${$boxCorners ? 'inherit' : '9px'};
+          border-bottom-right-radius: ${$boxCorners ? 'inherit' : '9px'};
+        }
+        /* "N more fields" is a quiet last row: the hairline above it says where
+           the section's fields end; a dashed box around it said it again. */
+        && .readfirst-more-row {
+          border: 0;
+          border-top: 1px solid ${$hairline};
+          margin-top: 0;
+        }
+        &&.readfirst-narrow {
+          --readfirst-row-gap: 0px;
+        }
+        &&.readfirst-narrow .readfirst-row {
+          padding: 10px ${CALM_INSET};
+          min-height: 0;
+        }
+        &&.readfirst-narrow .readfirst-row-editing {
+          padding-top: 3px;
+          padding-bottom: 10px;
+        }
+        &&.readfirst-narrow .readfirst-row:not(.readfirst-row-editing) > :nth-child(3) {
+          top: 10px;
+          right: ${CALM_INSET};
+        }
+        /* READ mode is one list with no section around it — usually inside a
+           card the host already drew — so it adds no panel and no inset of its
+           own: the rows sit flush with the host's content edge, split by the
+           same hairlines, with no line above the first. */
+        &&.readfirst-read-list > :first-child${NOT_PLACE},
+        &&.readfirst-read-list > ${FIRST_PLACE} * {
+          border-top: 0;
+        }
+        /* A sub-form nested in a row draws no section either — the item it sits
+           in is the card — so its first row has no line above it. It keeps the
+           rows' inset: these rows are controls, and a hover band or an open row
+           flush with the text would crowd it. */
+        &&.readfirst-nested-list > :first-child${NOT_PLACE},
+        &&.readfirst-nested-list > ${FIRST_PLACE} * {
+          border-top: 0;
+        }
+        &&.readfirst-read-list .readfirst-row,
+        &&.readfirst-read-list .options-readfirst-group-label,
+        &&.readfirst-read-list .options-readfirst-group-subtitle {
+          padding-left: 0;
+          padding-right: 0;
+          margin-left: 0;
+        }
+        &&.readfirst-read-list.readfirst-narrow
+          .readfirst-row:not(.readfirst-row-editing)
+          > :nth-child(3) {
+          right: 0;
+        }
+      `
+    : ''}
 `;
 
 // One absorbed sibling, rendered inside its host row's container rather than

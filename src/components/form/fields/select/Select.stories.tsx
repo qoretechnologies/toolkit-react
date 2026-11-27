@@ -4,6 +4,8 @@ import { expect, fireEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { StoryMeta } from '../../../../types';
 import { SelectFormField } from './Select';
+import { FormAppearanceProvider } from '../../engine/formAppearance';
+import { LightTheme } from '../../../../stories/tracking';
 import {
   SELECT_DIALOG_MIN_HEIGHT,
   SELECT_DIALOG_MIN_WIDTH,
@@ -888,5 +890,108 @@ export const ItsFloorIsCappedAtTheScreen: Story = {
          one. */
       await expect(dialogSize().width).toBeLessThan(SELECT_DIALOG_MIN_WIDTH);
     });
+  },
+};
+
+/** Three kinds an assertion can check, with a description each, so the picker opens as a dialog. */
+const CHOSEN_CARD_ITEMS = [
+  { display_name: 'Equals', desc: 'The value is exactly the one given', value: 'equals', icon: 'EqualizerLine' },
+  { display_name: 'Contains', desc: 'The text has the one given in it', value: 'contains', icon: 'SearchLine' },
+  { display_name: 'Matches', desc: 'The text matches a pattern', value: 'matches', icon: 'CodeLine' },
+] as const;
+
+/** The navies the classic look draws its dialog (#010811) and its cards (#08182d) in. */
+const CLASSIC_NAVIES = ['rgb(1, 8, 17)', 'rgb(8, 22, 41)'];
+const isClassicNavy = (color: string) => CLASSIC_NAVIES.includes(color);
+
+/** Opens the picker and returns the dialog, its chosen card and a card that is not chosen. */
+const openChosenCardDialog = async (canvasElement: HTMLElement) => {
+  await fireEvent.click(within(canvasElement).getByRole('button'));
+  const dialog = await waitFor(() => {
+    const element = document.querySelector<HTMLElement>('.reqraft-select-dialog');
+    expect(element).toBeTruthy();
+    return element as HTMLElement;
+  });
+  const cards = await waitFor(() => {
+    const found = Array.from(dialog.querySelectorAll<HTMLElement>('.reqore-collection-item'));
+    expect(found.length).toBe(3);
+    return found;
+  });
+  const chosen = cards.find((card) => card.textContent?.includes('Contains'));
+  const other = cards.find((card) => card.textContent?.includes('Equals'));
+  expect(chosen?.textContent).toContain('Chosen');
+  return { dialog, chosen: chosen as HTMLElement, other: other as HTMLElement };
+};
+
+/** Every surface the dialog draws, from the dialog down to its first card: none of them navy. */
+const surfacesOf = (dialog: HTMLElement, card: HTMLElement) => {
+  const surfaces: string[] = [];
+  for (let element: HTMLElement | null = card; element; element = element.parentElement) {
+    surfaces.push(getComputedStyle(element).backgroundColor);
+    if (element === dialog) break;
+  }
+  return surfaces;
+};
+
+const expectCalmChosenCard = async (canvasElement: HTMLElement) => {
+  const { dialog, chosen, other } = await openChosenCardDialog(canvasElement);
+  // the dialog and its cards take the app's theme: no navy of their own
+  await expect(surfacesOf(dialog, chosen).filter(isClassicNavy)).toEqual([]);
+  // the chosen card is edged as the others are (no blue edge): its tick, its badge and its place say it
+  await expect(getComputedStyle(chosen).borderColor).toBe(getComputedStyle(other).borderColor);
+  await expect(chosen.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+};
+
+export const TheChosenCardIsNeutral: Story = {
+  args: { value: 'contains', forceDropdown: false, items: [...CHOSEN_CARD_ITEMS] },
+  parameters: {
+    docs: {
+      description: {
+        story: `Renders the picker opened as a dialog, Contains chosen. The dialog and its cards take the app's theme, with no navy of their own, and the chosen card is edged as the others are, never blue: its tick, its Chosen badge and its place first say which one is chosen.`,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => expectCalmChosenCard(canvasElement),
+};
+
+export const TheChosenCardIsNeutralInALightTheme: Story = {
+  args: { value: 'contains', forceDropdown: false, items: [...CHOSEN_CARD_ITEMS] },
+  parameters: {
+    docs: {
+      description: {
+        story: `The same dialog in a light theme: it is light, as the app around it is, not a navy box, and the chosen card is edged as the others are.`,
+      },
+    },
+  },
+  decorators: [
+    (Story) => (
+      <LightTheme>
+        <Story />
+      </LightTheme>
+    ),
+  ],
+  play: async ({ canvasElement }) => expectCalmChosenCard(canvasElement),
+};
+
+export const TheChosenCardInTheClassicLook: Story = {
+  args: { value: 'contains', forceDropdown: false, items: [...CHOSEN_CARD_ITEMS] },
+  parameters: {
+    docs: {
+      description: {
+        story: `The same dialog in the classic look, for a host that asks for it: its own navy surface, and the chosen card in the info color, as before.`,
+      },
+    },
+  },
+  decorators: [
+    (Story) => (
+      <FormAppearanceProvider value='classic'>
+        <Story />
+      </FormAppearanceProvider>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const { dialog, chosen, other } = await openChosenCardDialog(canvasElement);
+    await expect(surfacesOf(dialog, chosen).some(isClassicNavy)).toBe(true);
+    await expect(getComputedStyle(chosen).borderColor).not.toBe(getComputedStyle(other).borderColor);
   },
 };

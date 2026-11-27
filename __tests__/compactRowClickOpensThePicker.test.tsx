@@ -132,7 +132,7 @@ describe('opening a compact row that holds a choice', () => {
 
     // The same target the author clicked to open it — the row's label, which is
     // what an open inline row offers as its collapse control.
-    const collapse = document.querySelector('[aria-label="Collapse Kind"]') as HTMLElement;
+    const collapse = document.querySelector('[aria-label="Close Kind"]') as HTMLElement;
     expect(collapse).toBeTruthy();
     fireEvent.click(collapse);
 

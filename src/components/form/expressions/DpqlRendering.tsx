@@ -16,6 +16,7 @@ import { DpqlEditor } from '../../dpqlEditor';
 import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
 import { IExpressionValue } from './types';
 import { useRenderExpression } from './useRenderExpression';
+import { useReqraftLabels } from '../../../helpers/reqraftLabels';
 
 const noop = (): void => undefined;
 
@@ -36,12 +37,12 @@ export const DpqlRendering = ({ text, templates, 'data-testid': testId }: IDpqlR
       readOnly
       /* The text is a rendering, not something being written: nothing to diagnose. Its hover says what a
          function, an operator or a reference in it is, as the editor's does: a collapsed row's `trim(…)` told a
-         reader nothing of `trim` (David on FormEngine · Compact Expression Template Chips, qorus#646). */
+         reader nothing of `trim` (FormEngine · Compact Expression Template Chips). */
       showDiagnostics={false}
       templateTagsUseIntent
       templates={templates}
       // The text is already known; only its colors wait for the server, so
-      // nothing is hidden behind "Connecting to language server…".
+      // nothing is hidden behind "Getting ready…".
       loadingIndicator={null}
     />
   </div>
@@ -68,6 +69,7 @@ export const ExpressionRendering = ({
 }: IExpressionRenderingProps) => {
   const { renderRich } = useRenderExpression();
   const rendering = useAsync(() => renderRich(expression), [JSON.stringify(expression)]);
+  const words = useReqraftLabels().expressions;
 
   if (rendering.loading) {
     return <FormFieldsSkeleton rows={1} reason='expression-rendering' />;
@@ -76,7 +78,7 @@ export const ExpressionRendering = ({
   if (!rendering.value) {
     return (
       <ReqoreMessage size='small' intent='muted' flat opaque={false} data-testid={testId}>
-        This expression could not be rendered.
+        {words.notRendered}
       </ReqoreMessage>
     );
   }

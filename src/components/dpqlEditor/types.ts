@@ -45,7 +45,7 @@ export interface IDpqlParseResult {
   condition_reading?: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
   /**
    * With `condition`: each part of the expression's `&&`, `||` and `!`, at any depth, with the type it gives
-   * and how a condition reads it - in the server's walk order (qorus#646). `condition_reading` is the worst of
+   * and how a condition reads it - in the server's walk order. `condition_reading` is the worst of
    * the expression's own reading and its parts'.
    */
   parts?: Array<{
@@ -115,7 +115,7 @@ export interface IDpqlEditorProps {
   /**
    * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
    * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
-   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   * so a reference is the same chip in either. The editor's own when not given.
    */
   size?: TSizes;
   /** Read-only mode. */
@@ -136,9 +136,9 @@ export interface IDpqlEditorProps {
   /** Whether to show hover popovers (`textDocument/hover`). Default `true`. */
   enableHover?: boolean;
   /**
-   * Draw a template (`$…`) chip as every other template chip is drawn (`getTemplateTagStyle`: `info`, or the
-   * catalogue entry's built-in or event-trigger intent). Default `true` (qorus#646): a template was blue in a
-   * value's text and gray in an expression's. `false` keeps the per-prefix palette (`TEMPLATE_COLORS`).
+   * Draw a template (`$…`) chip as every other template chip is drawn (`getTemplateTagStyle`: the plain chip, or the
+   * catalogue entry's built-in or event-trigger intent). Default `true`: a template was one color in a
+   * value's text and another in an expression's. `false` keeps the per-prefix palette (`TEMPLATE_COLORS`).
    */
   templateTagsUseIntent?: boolean;
   /**
@@ -153,7 +153,7 @@ export interface IDpqlEditorProps {
    */
   templates?: IReqoreFormTemplates;
   /**
-   * The field's template catalogue (qorus#646): the template contexts it can use, each with its keys and whether it
+   * The field's template catalogue: the template contexts it can use, each with its keys and whether it
    * can be used whole. Asked of the language server (`dpql/templateCatalogue`) when not given; a server that does
    * not know the request leaves the field with its own templates.
    */
@@ -170,7 +170,7 @@ export interface IDpqlEditorProps {
   diagnosticAction?: (diagnostic: ILspDiagnostic) => ISmartEditorDiagnosticAction | undefined;
   /**
    * Whether the field's templates can be browsed as their catalogue nests them - their groups, a record's members -
-   * in the template picker, from a button beside the text (qorus#646, David's review: a DPQL field offered no
+   * in the template picker, from a button beside the text (a DPQL field offered no
    * hierarchy). A template chosen there is put in at the caret, where a value can go. On by default where the
    * editor has templates and can be edited. A click in the empty text, a click on a chip and a group's row in the
    * completion list open the same picker.
@@ -191,8 +191,8 @@ export interface IDpqlEditorProps {
   onReady?: () => void;
   /**
    * A click, a tap or Tab into the text asks what can be written at the caret, and the one completion list
-   * opens there: the server's completion, with the field's templates where a value can be written (qorus#646,
-   * David's decision). On by default where the editor has templates; an expression's Text view turns it on
+   * opens there: the server's completion, with the field's templates where a value can be written.
+   * On by default where the editor has templates; an expression's Text view turns it on
    * always.
    */
   completeOnClick?: boolean;

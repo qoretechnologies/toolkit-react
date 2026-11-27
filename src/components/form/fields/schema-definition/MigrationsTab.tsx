@@ -19,7 +19,9 @@ import { memo, useCallback } from 'react';
 import { Hint } from './Hint';
 import { CatalogGroupBody } from './CatalogNodeEditor';
 import { moveItem } from '../../../../helpers/common';
+import { useReqraftLabels } from '../../../../helpers/reqraftLabels';
 import { ICatalogList } from './types';
+import { useDestructiveButtonProps } from '../../../../hooks/useDestructiveButtonProps';
 
 export interface IMigrationsTabProps {
   /** The `migrations` list node from the catalogue. */
@@ -38,6 +40,9 @@ export const MigrationsTab = memo(
   ({ node, value, onChange, readOnly }: IMigrationsTabProps) => {
     const blocks = value ?? [];
     const confirmAction = useReqoreProperty('confirmAction');
+    const words = useReqraftLabels().schemaDefinition;
+    // a destructive control's look, the same wherever reqraft draws one (`useDestructiveButtonProps`)
+    const destructive = useDestructiveButtonProps();
 
     const addBlock = useCallback(() => {
       onChange([...blocks, createMigrationBlock('')]);
@@ -49,26 +54,24 @@ export const MigrationsTab = memo(
         const version =
           typeof block?.version === 'string' && block.version
             ? block.version
-            : `#${index + 1}`;
+            : undefined;
         confirmAction({
-          title: 'Remove migration block',
-          description: `Remove migration block "v${version}" and any steps it contains?`,
-          confirmLabel: 'Remove block',
+          title: words.removeMigrationBlock,
+          description: words.removeMigrationBlockDescription(version, index + 1),
+          confirmLabel: words.removeBlock,
           intent: 'danger',
           onConfirm: () =>
             onChange(blocks.filter((_, i) => i !== index)),
         });
       },
-      [blocks, onChange, confirmAction]
+      [blocks, onChange, confirmAction, words]
     );
 
     if (blocks.length === 0) {
       return (
         <ReqoreControlGroup vertical fluid gapSize='normal'>
           <ReqoreCallout intent='info' flat icon='GitBranchLine'>
-            {readOnly
-              ? 'This schema defines no migrations.'
-              : 'No migrations yet. Add a migration block when a schema change needs to be applied to existing databases.'}
+            {readOnly ? words.noMigrationsRead : words.noMigrations}
           </ReqoreCallout>
           {!readOnly ? (
             <ReqoreButton
@@ -78,7 +81,7 @@ export const MigrationsTab = memo(
               fixed
               onClick={addBlock}
             >
-              Add migration block
+              {words.addMigrationBlock}
             </ReqoreButton>
           ) : null}
         </ReqoreControlGroup>
@@ -90,23 +93,17 @@ export const MigrationsTab = memo(
         {!readOnly ? (
           <Hint
             id='hint.schema-migrations'
-            title='When to add a migration'
+            title={words.migrationsHintTitle}
             icon='GitBranchLine'
-          >
-            Aligning a schema to an empty datasource just creates
-            everything. A datasource already running an older version
-            needs <b>upgrading</b> — that is what migrations are for.
-            When you change tables, columns, or reference data, bump{' '}
-            <b>schema.version</b> and add a migration block: an ordered
-            list of steps (add column, rename, …) run before and after
-            alignment. Each block targets one version.
-          </Hint>
+            text={words.migrationsHint}
+          />
         ) : null}
         {blocks.map((block, index) => {
+          // undefined while the block targets no version yet
           const version =
             typeof block.version === 'string' && block.version
               ? block.version
-              : '(no version)';
+              : undefined;
           const description =
             typeof block.description === 'string'
               ? block.description
@@ -117,17 +114,15 @@ export const MigrationsTab = memo(
             stepCount(block.pre_align) + stepCount(block.post_align);
           return (
             <ReqorePanel
-              key={version === '(no version)' ? index : version}
+              key={version ?? index}
               raised
               collapsible
               isCollapsed
               icon='GitCommitLine'
               intent={index === blocks.length - 1 ? 'info' : 'success'}
-              label={`v${version}`}
+              label={words.migrationBlock(version)}
               description={description}
-              badge={[
-                `${totalSteps} step${totalSteps === 1 ? '' : 's'}`,
-              ]}
+              badge={[words.stepCount(totalSteps)]}
               actions={
                 readOnly
                   ? undefined
@@ -137,7 +132,7 @@ export const MigrationsTab = memo(
                         minimal: true,
                         flat: true,
                         size: 'small',
-                        tooltip: 'Move earlier',
+                        tooltip: words.moveEarlier,
                         disabled: index === 0,
                         onClick: () =>
                           onChange(moveItem(blocks, index, index - 1)),
@@ -147,7 +142,7 @@ export const MigrationsTab = memo(
                         minimal: true,
                         flat: true,
                         size: 'small',
-                        tooltip: 'Move later',
+                        tooltip: words.moveLater,
                         disabled: index === blocks.length - 1,
                         onClick: () =>
                           onChange(moveItem(blocks, index, index + 1)),
@@ -156,9 +151,9 @@ export const MigrationsTab = memo(
                         icon: 'DeleteBinLine',
                         minimal: true,
                         flat: true,
-                        intent: 'danger',
+                        ...destructive,
                         size: 'small',
-                        tooltip: 'Remove migration block',
+                        tooltip: words.removeMigrationBlock,
                         onClick: () => confirmRemoveBlock(index),
                       },
                     ]
@@ -178,7 +173,7 @@ export const MigrationsTab = memo(
         })}
         {!readOnly ? (
           <ReqoreButton icon='AddLine' intent='info' minimal fixed onClick={addBlock}>
-            Add migration block
+            {words.addMigrationBlock}
           </ReqoreButton>
         ) : null}
       </ReqoreControlGroup>

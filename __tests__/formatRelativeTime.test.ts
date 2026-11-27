@@ -16,6 +16,18 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(at(3 * 24 * 60 * 60), now)).toBe('in 3 days');
   });
 
+  it('rounds a half the same way in the past as in the future', () => {
+    expect(formatRelativeTime(at(90 * 60), now)).toBe('in 2 hours');
+    expect(formatRelativeTime(at(-90 * 60), now)).toBe('2 hours ago');
+    expect(formatRelativeTime(at(-150), now)).toBe('3 minutes ago');
+  });
+
+  it('holds still as a running clock moves past a half', () => {
+    // a story's clock runs on from its start, so a render half a second late reads the same
+    expect(formatRelativeTime(at(-90 * 60), now + 499)).toBe('2 hours ago');
+    expect(formatRelativeTime(at(-90 * 60), now + 501)).toBe('2 hours ago');
+  });
+
   it('counts days up to a month, so a week-long grant says when it ends', () => {
     expect(formatRelativeTime(at(7 * 24 * 60 * 60), now)).toBe('in 7 days');
     expect(formatRelativeTime(at(-14 * 24 * 60 * 60), now)).toBe('14 days ago');

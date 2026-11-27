@@ -18,6 +18,7 @@ import {
   TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { useScrollFade } from '@qoretechnologies/reqore/dist/hooks/useScrollFade';
 import React, {
   forwardRef,
   memo,
@@ -37,7 +38,7 @@ import { ILspSignatureHelp } from '../../utils/lspClient.types';
 import { useEmittedValues } from '../form/fields/emittedValues';
 import { caretBoxAt } from './caretBox';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
-import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
+import { useTemplateBrowseListProps } from '../form/fields/rich-text/useTemplateTags';
 import { CompletionMenu } from './CompletionMenu';
 import { MarkdownDoc } from './MarkdownDoc';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
@@ -233,12 +234,64 @@ let completionMenuCounter = 0;
 /** The width of the editor's row (Reqore's phone width) at or below which its Details button is its icon alone. */
 const DETAILS_WORD_MIN_ROW_WIDTH = 480;
 
+/* The editor's box carries these while its text runs past an edge (`useScrollFade`): sideways, a line that does not
+   wrap; up and down, text taller than its `maxHeight`. The text fades out at that edge: a touch screen draws no
+   scrollbar, so the fade is the only sign the text goes on. */
+export const SMART_EDITOR_MORE_BEFORE_CLASS = 'reqraft-smart-editor-more-before';
+export const SMART_EDITOR_MORE_AFTER_CLASS = 'reqraft-smart-editor-more-after';
+export const SMART_EDITOR_MORE_ABOVE_CLASS = 'reqraft-smart-editor-more-above';
+export const SMART_EDITOR_MORE_BELOW_CLASS = 'reqraft-smart-editor-more-below';
+/** How far into the text its edge fades where it runs on past it. */
+const EDGE_FADE_PX = 24;
+
+/** A fade along `axis` ('to right' / 'to bottom'): out at the start, the end, or both. */
+const edgeFade = (direction: 'to right' | 'to bottom', start: boolean, end: boolean) =>
+  `linear-gradient(${direction}, ${start ? `transparent, #000 ${EDGE_FADE_PX}px` : '#000'}, ${
+    end ? `#000 calc(100% - ${EDGE_FADE_PX}px), transparent` : '#000'
+  })`;
+
+const FADE_CLASSES = [
+  SMART_EDITOR_MORE_BEFORE_CLASS,
+  SMART_EDITOR_MORE_AFTER_CLASS,
+  SMART_EDITOR_MORE_ABOVE_CLASS,
+  SMART_EDITOR_MORE_BELOW_CLASS,
+];
+
 /**
  * The box the text is drawn in, as a code editor draws it where asked: lines that do not wrap (`wordWrap: off`),
- * scrolled inside the box, no wider than it; a height the text scrolls within (`maxHeight`); each line's number
- * before it (`lineNumbers`), counted by its paragraph.
+ * scrolled inside the box, no wider than it; a height the text scrolls within (`maxHeight`); each edge with more
+ * text past it faded; each line's number before it (`lineNumbers`), counted by its paragraph.
  */
 const StyledEditorBox = styled.div<{ $wordWrap: 'on' | 'off'; $maxHeight?: string; $lineNumbers: boolean }>`
+  [data-slate-editor] {
+    --reqraft-smart-editor-fade-x: linear-gradient(#000, #000);
+    --reqraft-smart-editor-fade-y: linear-gradient(#000, #000);
+  }
+  &.${SMART_EDITOR_MORE_BEFORE_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-x: ${edgeFade('to right', true, false)};
+  }
+  &.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-x: ${edgeFade('to right', false, true)};
+  }
+  &.${SMART_EDITOR_MORE_BEFORE_CLASS}.${SMART_EDITOR_MORE_AFTER_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-x: ${edgeFade('to right', true, true)};
+  }
+  &.${SMART_EDITOR_MORE_ABOVE_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-y: ${edgeFade('to bottom', true, false)};
+  }
+  &.${SMART_EDITOR_MORE_BELOW_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-y: ${edgeFade('to bottom', false, true)};
+  }
+  &.${SMART_EDITOR_MORE_ABOVE_CLASS}.${SMART_EDITOR_MORE_BELOW_CLASS} [data-slate-editor] {
+    --reqraft-smart-editor-fade-y: ${edgeFade('to bottom', true, true)};
+  }
+  /* both fades at once: the text shows only where neither has faded it */
+  ${FADE_CLASSES.map((className) => `&.${className} [data-slate-editor]`).join(', ')} {
+    -webkit-mask-image: var(--reqraft-smart-editor-fade-x), var(--reqraft-smart-editor-fade-y);
+    -webkit-mask-composite: source-in;
+    mask-image: var(--reqraft-smart-editor-fade-x), var(--reqraft-smart-editor-fade-y);
+    mask-composite: intersect;
+  }
   [data-slate-editor] {
     ${({ $wordWrap }) =>
       $wordWrap === 'off' ? 'white-space: pre !important; overflow-wrap: normal !important; overflow-x: auto;' : ''}
@@ -271,7 +324,7 @@ const EDITOR_BOX_STYLE: React.CSSProperties = {
 };
 
 /**
- * The button beside the text that opens the template picker for a pick at the caret (qorus#646): where a value
+ * The button beside the text that opens the template picker for a pick at the caret: where a value
  * cannot be written after the text before the caret (`insertableAt`), it says why and cannot be pressed. Its press
  * keeps the focus, and the caret the pick goes at, in the text.
  */
@@ -350,6 +403,33 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const editorWords = useReqraftLabels().editor;
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
+    // The text that scrolls sideways when its lines do not wrap, and up and down within a maxHeight, read through
+    // the box around it: the rich text editor draws it and gives no handle on it.
+    const editorBoxRef = useRef<HTMLDivElement>(null);
+    const textScrollRef = useMemo<React.RefObject<HTMLElement | null>>(
+      () => ({
+        get current() {
+          return editorBoxRef.current?.querySelector<HTMLElement>('[data-slate-editor]') ?? null;
+        },
+      }),
+      []
+    );
+    useScrollFade({
+      scrollRef: textScrollRef,
+      targetRef: editorBoxRef,
+      axis: 'x',
+      startClassName: SMART_EDITOR_MORE_BEFORE_CLASS,
+      endClassName: SMART_EDITOR_MORE_AFTER_CLASS,
+      enabled: wordWrap === 'off',
+    });
+    useScrollFade({
+      scrollRef: textScrollRef,
+      targetRef: editorBoxRef,
+      axis: 'y',
+      startClassName: SMART_EDITOR_MORE_ABOVE_CLASS,
+      endClassName: SMART_EDITOR_MORE_BELOW_CLASS,
+      enabled: !!maxHeight,
+    });
     const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
     const lastPlainTextRef = useRef(value);
     // what an emptied text opens (set where the picker's roots are known, below)
@@ -393,8 +473,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     /* What the language server completes where a value can be written (the start of the text), for the template
        picker to offer beside the field's own templates: the record's fields, the template contexts, the functions
-       and the values (qorus#646, David: "users should be supported with all available completions in the template
-       picker"). Asked once the server is ready, again as the field's templates change, and when the picker opens. */
+       and the values, so the picker supports the author with every completion there is. Asked once the server is
+       ready, again as the field's templates change, and when the picker opens. */
     const [serverValues, setServerValues] = useState<ILspCompletionItem[]>();
     const askedValuesRef = useRef(0);
     const askServerValues = useCallback(async () => {
@@ -462,8 +542,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        caret, in the same pop-up a mouse gets by hovering. Only where the server says anything (`hoverProvider`). */
     const coarse = useCoarsePointer();
     /* The row the text and its Details button share, measured: in a row a phone's width or narrower, Details is its
-       icon alone - its word took the text's room (Foxhoundn on qlip #383: "The details button should be just an icon
-       on such small screen / container size"). The row, not the screen: an editor in a narrow card on a wide
+       icon alone - its word took the text's room. The row, not the screen: an editor in a narrow card on a wide
        screen is as short of room. */
     const [rowRef, { width: rowWidth }] = useMeasure<HTMLDivElement>();
     const detailsSaysItsWord = !rowWidth || rowWidth > DETAILS_WORD_MIN_ROW_WIDTH;
@@ -523,7 +602,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     /* The server's diagnostics as the editor says them: in the host's words for what it wrote itself
        (`presentDiagnostics`), and without the error of a reference half-typed at the caret while its list is open
-       or on its way - a `$` typed to ask for a template is not a mistake yet (qorus#646, David's decision). It
+       or on its way - a `$` typed to ask for a template is not a mistake yet. It
        is said once the list is put away. */
     const listActive = autocomplete.isActive;
     const shownDiagnostics = useMemo(() => {
@@ -718,7 +797,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     }, [converter, readOnly, onBlur, referenceNamesNothing]);
 
     /* A chip put in at the caret takes the place of the reference being written there, wherever it is picked
-       from (qorus#646, David's review). The completion list's inserter takes it away itself; the list the
+       from. The completion list's inserter takes it away itself; the list the
        editor's templates are browsed in is reqore's, which puts a chip in at the caret as it is: a `$` typed to
        ask for a template stayed in front of the one picked, and `pos + 1 + $pos` is refused by the server. A
        Slate plugin on the editor reqore made for this one (its `insertNodes`), so both are one step of one
@@ -832,8 +911,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           autocomplete.onSlateChange(editorRef.current as any, newNodes);
           /* A text emptied where the author is writing offers what an empty text offers: its templates and
              fields, the picker at its top, as a click in it opens it - not nothing, nor a list of one row that
-             only leads there (Foxhoundn on qlip #425; David: the picker offers every completion in every
-             state). */
+             only leads there: the picker offers every completion in every state. */
           if (emptied) emptiedRef.current();
         }
         aidsChangeRef.current();
@@ -851,15 +929,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (readOnly) return;
         /* An editor with a browse list (`tags`) answers a click on a chip with that list, as a click anywhere
            in its text, and as a value's text does: one list at a time. Opening the chip's replacements beside
-           it put two lists over the text, and what was typed then reached neither (qorus#646, David: "you
-           can't type"). */
+           it put two lists over the text, and what was typed then reached neither. */
         if (hasBrowseList) return;
         try {
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
           const rect = (domNode as HTMLElement).getBoundingClientRect();
           /* A chip the field's templates or fields list opens the picker where it is - its group, its row the
-             keyboard's - and the pick takes its place (qorus#646). A second click on it puts the picker away. */
+             keyboard's - and the pick takes its place. A second click on it puts the picker away. */
           const listed =
             templateRoots?.length && typeof tag.value === 'string' ?
               templateNodeFor(templateRoots, tag.value)
@@ -879,8 +956,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             return;
           }
           /* An editor that completes on a click lists what can stand in the chip's place - the fields and
-             templates the chip is one of - and the pick replaces it (qorus#646, David: a click on pos listed
-             nothing). */
+             templates the chip is one of - and the pick replaces it (a click on `pos` once listed nothing). */
           autocomplete.openAtChip(
             editor,
             tagPath,
@@ -940,12 +1016,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           const box = page.getRangeAt(0).getBoundingClientRect();
           // a caret in an empty line has no box of its own: the text's
           const at = box.width || box.height ? box : caretBoxAt(editor, caret.anchor);
-          /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
-             empty field shows the templates, the record's fields among them). */
+          /* An empty text offers its templates and fields: the picker, at its top: a click in an
+             empty field shows the templates, the record's fields among them. */
           const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
           /* A reference being written at the caret is completed where it is - what is listed of it, what to write
              next and Browse all templates to put a working one in its place - not left for the picker at the top
-             (qorus#646, David's review: a click at the end of `$dynamic:` showed the picker's top silently). */
+             (a click at the end of `$dynamic:` once showed the picker's top silently). */
           // what is typed in the text the caret is in: a chip before it is a value, not a reference being written
           const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
           const writing = /[$@][\w.:{}*-]*$/.test((leaf.text ?? '').slice(0, caret.anchor.offset));
@@ -979,6 +1055,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       }
     }, []);
 
+    // the template list's color in the look in force: neutral in the calm one
+    const browseListProps = useTemplateBrowseListProps();
     const handleCompletionSelect = useCallback(
       (item: ICompletionDropdownItem) => {
         if (!editorRef.current) return;
@@ -1017,7 +1095,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         {topActions}
         {aids.findBar}
         {/* The text and, on a touch screen, its Details button beside it, in one row: under the text the button
-            was far from it, and what it showed was drawn over the text (Foxhoundn, qlip #361). Always the row,
+            was far from it, and what it showed was drawn over the text. Always the row,
             so the text is not remounted when the button appears. */}
         <ReqoreControlGroup
           ref={rowRef}
@@ -1034,6 +1112,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           }
         >
           <StyledEditorBox
+            ref={editorBoxRef}
             style={EDITOR_BOX_STYLE}
             $wordWrap={wordWrap}
             $maxHeight={maxHeight}
@@ -1042,7 +1121,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             onClick={(event) => completeAtPageCaret(event.target)}
             /* Tab's key comes up in the editor it moved the focus into. One that went down in the editor - a Tab
                that took a completion, or moved the focus on - asks nothing: its key coming up here reopened the
-               list just taken from (qorus#646). */
+               list just taken from. */
             onKeyUp={(event) => {
               if (event.key === 'Tab' && tabCameIn()) completeAtPageCaret(event.target);
             }}
@@ -1064,7 +1143,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
               // drawn as the completion list is
               tags={tags}
-              tagsListProps={{ useTargetWidth: true, ...TEMPLATE_BROWSE_LIST_PROPS }}
+              tagsListProps={{ useTargetWidth: true, ...browseListProps }}
               // what is typed is completed in the list at the caret: a screen reader is told it completes, and where
               aria-autocomplete='list'
               aria-expanded={autocomplete.isOpen}
@@ -1155,8 +1234,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 noArrow
                 /* A mouse's hover is over the word it is of; what Details shows is under the button, beside the
                    text. Both are a popover's card, the surface a chip's hover is drawn on: drawn as glass, a hover
-                   over an empty page was its words with nothing under them (Foxhoundn, qlip #392: "It looks like
-                   the background is transparent? Is it not using a ReqorePopover / the tags tooltip?"). */
+                   over an empty page was its words with nothing under them, as if its background were
+                   transparent. */
                 placement={detailsShown ? 'bottom-end' : 'top'}
                 handler='hover'
                 closeOnOutsideClick
@@ -1188,7 +1267,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 }
                 /* It opens where its pick goes - the caret the text keeps while the button is pressed, else the
                    text's end - as a click there opens it; at the button it opened at the far right end of the text
-                   (David on reqraft #162). It goes with the text as the window resizes. */
+                   (reqraft #162). It goes with the text as the window resizes. */
                 let at;
                 try {
                   at = editor.selection?.anchor ?? Editor.end(editor as unknown as Editor, []);
@@ -1267,7 +1346,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   const action = diagnosticAction?.(diag);
                   // as wide as its words, under what is said and apart from it: a message lays its children out at
                   // its width. The size of the message's words with a pointer, a finger's on a touch screen
-                  // (Foxhoundn on qlip #425: "enormous compared to the text in the message")
+                  // (the button's own size was enormous beside the message's words)
                   return action ?
                       <ReqoreControlGroup
                         size={coarse ? 'small' : 'tiny'}

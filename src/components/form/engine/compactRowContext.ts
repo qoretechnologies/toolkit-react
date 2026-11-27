@@ -40,7 +40,7 @@ export type TCodePreviewRenderer = (props: {
 /**
  * What a collapsed row says of its value, drawn by its host for a `ui_type` whose editor reports a status of its
  * own - a pipeline processor's field mappings, "incomplete" or "required" - in place of the generic summary
- * ("2 items"), which said nothing of it (qorus#646). It is what the row shows; it changes nothing.
+ * ("2 items"), which said nothing of it. It is what the row shows; it changes nothing.
  */
 export type TReadSummary = React.ComponentType<{
   name: string;
@@ -83,8 +83,17 @@ export interface ICompactRowContext {
   // display name in the read-first chip.
   templates?: IReqoreFormTemplates;
   expandedOptions: string[];
+  /** Rows whose editor is always open (`alwaysExpandedOptions`): no Done, no Clear value, no Cancel. */
+  alwaysExpandedOptions?: string[];
+  /** Fields the person has opened and left: an empty required one among them is a
+   *  fault (`todo`); one they have not been to yet is only `pending`. */
+  visitedOptions: string[];
+  /** The host reported a submit attempt: every empty required field is a fault. */
+  revealRequired: boolean;
   highlightedOptions: string[];
   flashedOptions: string[];
+  /** Which flash this is: a row flashing again starts its animation again. */
+  flashGeneration: number;
   infoPanelOverrides: Record<string, boolean>;
 
   // Setters
@@ -150,14 +159,24 @@ export interface ICompactRowContext {
   /**
    * The host's code editor (its `componentOverrides['code-editor']`), which draws the read-first preview of a
    * `code-editor` value read-only where the host gives no `codePreviewRenderer`: code is shown as the host shows
-   * code - highlighted, with its language server - and as a plain block only where there is no editor (qorus#646,
-   * David's decision).
+   * code - highlighted, with its language server - and as a plain block only where there is no editor.
    */
   codeEditor?: React.ComponentType<any>;
   /** A collapsed row's summary drawn by the host, by `ui_type` (see `TReadSummary`). */
   readSummaries?: Record<string, TReadSummary>;
   /** The host's editors that open in the card below their row (see FormEngine's `cardEditorTypes`). */
   cardEditorTypes?: string[];
+  /** Whether an open field's card pins its header while its long body is read (`compactStickyCardHeaders`). */
+  stickyCardHeaders?: boolean;
+  /** The host's own pinned chrome above the form (`compactStickyOffset`), where a card header pins with nothing of
+   *  the form's pinned above it. */
+  stickyHostOffset?: number;
+  /** The opaque surface a pinned card header paints under the card's own tint, so the body scrolls out of sight
+   *  under it: the surface the status box headers pin on. */
+  pinnedHeaderSurface?: string;
+  /** The row a host asked to open by name (`focusFieldRequest`), while it is open: it takes the caret even when it
+   *  opens as a card with no text box (`findAskedFieldFocusTarget`). */
+  requestedField?: string;
 
   // Theme + theme-derived colors
   theme: IReqoreTheme;

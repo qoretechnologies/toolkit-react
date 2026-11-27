@@ -9,6 +9,7 @@ import {
   ReqoreMessage,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { IReqoreEffect } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
@@ -28,8 +29,9 @@ import {
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { isQueryCancelled, query } from '../../../../utils/fetch';
 import { DpqlEditor } from '../../../dpqlEditor';
-import { FormEngine, IOptionsSchema } from '../../engine/FormEngine';
+import { FormEngine, IFormAttention, IOptionsSchema } from '../../engine/FormEngine';
 import {
+  DRAWS_OWN_CHOICES_TYPES,
   FieldAllowedValues,
   FieldAllowedValuesCheckGroup,
   rendersCreatableValueSelect,
@@ -42,6 +44,7 @@ import ColorFormField from '../color/Color';
 import CronFormField from '../cron/Cron';
 import { DateFormField } from '../date/Date';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
+import { withCodeFont } from '../codeFont';
 import LongStringFormField from '../long-string/LongString';
 import MarkdownFormField from '../markdown/Markdown';
 import { MultiSelectFormField } from '../multi-select/MultiSelectFormField';
@@ -53,10 +56,12 @@ import { SchemaDefinitionEditor } from '../schema-definition';
 import { useHostEditorValue } from './hostEditorValue';
 import { IDataSchemaDefinition } from '../schema-definition/types';
 import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
+import type { TSelectFieldCollectionGroups } from '../select/SelectCollection';
 import { StringFormField } from '../string/String';
 import { UrlFormField } from '../url/Url';
 import { FormFieldsSkeleton } from '../../engine/FormFieldsSkeleton';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
+import { reqraftLabels, useReqraftLabels } from '../../../../helpers/reqraftLabels';
 
 /** UI superset of `TQorusType` — the IDE's `Field/systemOptions` `IQorusType`. */
 export type IQorusType = TQorusType | string;
@@ -109,6 +114,10 @@ export interface IAutoFieldProps
    *  focus — see FormEngine's `expandFirstRequired`. Set by ArrayAuto on a
    *  just-added row so its required choice is visible without a second click. */
   expandFirstRequired?: boolean;
+  /** What the arg_schema sub-form still needs, as its form reports it (see
+   *  FormEngine's `onAttentionChange`). Set by ArrayAuto, whose item header says
+   *  it in the calm look, where the sub-form draws no readiness line of its own. */
+  onSubFormAttentionChange?: (attention: IFormAttention) => void;
   path?: string;
   column?: boolean;
   level?: number;
@@ -124,6 +133,12 @@ export interface IAutoFieldProps
   allowSaving?: boolean;
   /** SEAM: inert in reqraft — saved-values storage is IDE-only. */
   showSavedValues?: boolean;
+  /**
+   * How the groups this field's values are listed in (`groups` on each allowed value) are drawn in its picker: a
+   * heading's label and icon, the groups' order (`sort`), and which start folded (`collapsed`; a folded group opens
+   * while a search runs). See `ISelectFieldCollectionGroup`.
+   */
+  allowed_values_groups?: TSelectFieldCollectionGroups;
 
   app?: string;
   action?: string;
@@ -165,16 +180,23 @@ export interface IAutoFieldProps
  * editor of its own to draw — the picker used to offer them anyway, and each
  * one drew "Unknown type!".
  */
-export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => [
-  { name: 'bool', display_name: 'True or false' },
-  { name: 'date', display_name: 'Date' },
-  { name: 'string', display_name: 'Text' },
-  { name: 'binary', display_name: 'Binary data' },
-  { name: 'float', display_name: 'Number' },
-  { name: 'list', display_name: 'List' },
-  { name: 'hash', display_name: 'Key/Value {}' },
-  { name: 'int', display_name: 'Whole number' },
-  { name: 'rgbcolor', display_name: 'RGB Color' },
+export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => {
+  // what each is called, in the host's words (`setReqraftLabels`, `fields.valueTypes`), read when it is asked for
+  const names = reqraftLabels().fields.valueTypes;
+  return IMMEDIATE_VALUE_TYPES.map((name) => ({ name, display_name: names[name] ?? name }));
+};
+
+/** The types a value typed into the field can be, in the order the picker lists them. */
+const IMMEDIATE_VALUE_TYPES: IQorusType[] = [
+  'bool',
+  'date',
+  'string',
+  'binary',
+  'float',
+  'list',
+  'hash',
+  'int',
+  'rgbcolor',
 ];
 
 /** @deprecated Use `getImmediateValueTypes()`; every picker now offers this list. */
@@ -249,7 +271,7 @@ function AutoField<T = any>({
   showSavedValues,
   uniqueName,
   componentOverrides,
-  // qorus#347-followup (scope forwarding): destructure so it does NOT
+  // Scope forwarding: destructure so it does NOT
   // land in `...rest` — otherwise the primitive field renderers spread
   // rest onto DOM nodes and React warns about the unknown attribute.
   // Only the nested arg_schema mount sites re-forward this into their
@@ -259,8 +281,11 @@ function AutoField<T = any>({
   // sub-form mount site consumes it, and leaving it in `...rest` would spread an
   // unknown attribute onto the primitive field renderers' DOM nodes.
   expandFirstRequired,
+  // Same reason again: only the nested sub-form consumes it.
+  onSubFormAttentionChange,
   ...rest
 }: IAutoFieldProps & T) {
+  const fieldWords = useReqraftLabels().fields;
   // drawn as declared from the first render; see `resolveAutoFieldTypes`
   const [mountTypes] = useState(() =>
     resolveAutoFieldTypes(defaultType, defaultInternalType, value)
@@ -333,7 +358,7 @@ function AutoField<T = any>({
             setError(undefined);
             setFinalArgSchema(schema.data);
           } else {
-            setError(schema.error ?? `The schema "${arg_schema}" could not be loaded.`);
+            setError(schema.error ?? reqraftLabels().fields.schemaNotLoaded(String(arg_schema)));
           }
         } catch (fetchError) {
           // abandoned (the query cache was cleared mid-flight), not refused:
@@ -344,7 +369,7 @@ function AutoField<T = any>({
           setError(
             fetchError instanceof Error ?
               fetchError.message
-            : `The schema "${arg_schema}" could not be loaded.`
+            : reqraftLabels().fields.schemaNotLoaded(String(arg_schema))
           );
         }
       })();
@@ -429,8 +454,8 @@ function AutoField<T = any>({
       const returnType: IQorusType = type || currentType;
       /* A value edited here - typed, picked from the allowed values, set to null - is a value, not an
          expression. This argument used to carry whether the type can be null, which every reader takes for
-         the expression flag: a value picked from a '*string' field's list reached the form as an expression
-         (qorus#646), which a host reads as no value at all. */
+         the expression flag: a value picked from a '*string' field's list reached the form as an expression,
+         which a host reads as no value at all. */
       if (onChange && returnType) {
         onChange(name, val, returnType, false);
       }
@@ -510,7 +535,7 @@ function AutoField<T = any>({
   }
 
   // Render the structured DataSchema editor for the schema object's
-  // `definition` hash — server-driven via `?action=options` (qorus#225).
+  // `definition` hash — server-driven via `?action=options`.
   if (
     (type as string) === 'schema-definition' ||
     (rest as any).ui_type === 'schema-definition'
@@ -539,7 +564,7 @@ function AutoField<T = any>({
         readOnly={rest.readonly || rest.disabled}
         /* the field's templates, as every other field of the form has them (its context data, a Qog state's
            data): a click in the field lists them as their catalogue nests them, and names their chips. They
-           were left out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review) */
+           were left out, so a DPQL field offered no template until a `$` was typed */
         templates={rest.allowTemplates !== false && size(rest.templates?.items) ? rest.templates : undefined}
       />
     );
@@ -593,6 +618,7 @@ function AutoField<T = any>({
         forceDropdown={rest.forceDropdown}
         allowCreation={rest.allowed_values_creatable}
         showSavedValues={showSavedValues}
+        groups={rest.allowed_values_groups}
         readOnly={rest.readonly}
         canAutoSelect={!size(rest.required_groups)}
       />
@@ -695,11 +721,16 @@ function AutoField<T = any>({
 
     // Non-creatable allowed_values render through FieldAllowedValues
     // (`renderAllowedValues` below) — a radio CheckGroup for ≤3 simple values, a
-    // Select otherwise — matching the IDE (which returns null here). `enum` is the
-    // exception: FieldAllowedValues skips it (it has its own `case 'enum'` radio
-    // renderer), so let enum fall through. f5f2e11 had returned a second RadioGroup
-    // here, which duplicated FieldAllowedValues for string allowed-value fields.
-    if (rest.allowed_values && !rest.allowed_values_creatable && currentType !== 'enum') {
+    // Select otherwise — matching the IDE (which returns null here). The exceptions
+    // are the editors that draw their own choices (`DRAWS_OWN_CHOICES_TYPES`: the
+    // enum radio group and the multi-select), which FieldAllowedValues skips, so they
+    // fall through. f5f2e11 had returned a second RadioGroup here, which duplicated
+    // FieldAllowedValues for string allowed-value fields.
+    if (
+      rest.allowed_values &&
+      !rest.allowed_values_creatable &&
+      !DRAWS_OWN_CHOICES_TYPES.includes(currentType as string)
+    ) {
       return null;
     }
 
@@ -713,9 +744,21 @@ function AutoField<T = any>({
            Without the type the field cannot tell them apart and treats them all
            as documents, so an interface's Internal Name — which becomes a YAML
            key — accepted Enter. Only text takes references; `data` and
-           `binary` are encoded content, where a chip would stand for nothing. */
+           `binary` are encoded content, where a chip would stand for nothing.
+
+           The semantic string formats (`email` … `phone`) are one line of text
+           whose identity the validator checks. They are in the option vocabulary
+           (`optionUiTypes`) and the single-line list, but had no case here, so a
+           field of one drew "Unknown type!" in every form. */
         case 'string':
         case 'long-string':
+        case 'email':
+        case 'uri':
+        case 'uuid':
+        case 'hostname':
+        case 'ipv4':
+        case 'ipv6':
+        case 'phone':
           return renderTextEditor(currentType);
         case 'data':
         case 'binary':
@@ -734,9 +777,11 @@ function AutoField<T = any>({
               placeholder={
                 currentType === 'binary' ?
                   ((rest as { placeholder?: string }).placeholder ??
-                  'Base64, 0x hex, or data: URL')
+                  fieldWords.binaryPlaceholder)
                 : (rest as { placeholder?: string }).placeholder
               }
+              // Encoded content, not prose: monospace (Reqore draws a textarea as prose).
+              effect={withCodeFont((rest as { effect?: IReqoreEffect }).effect)}
               type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}
@@ -776,9 +821,13 @@ function AutoField<T = any>({
         case 'bool':
         case 'boolean':
           return (
+            /* An empty yes / no with a default opens on that default: the folded row reads "Yes"
+               for it, and the switch opened on No (later on no answer at all), as if looking at the
+               field had changed it. Without a default it stays unanswered. */
             <BooleanFormField
               {...rest}
-              checked={yesNoShown(value)}
+              checked={yesNoShown(getValueOrDefaultValue(value, default_value))}
+              isDefault={yesNoShown(value) === undefined && yesNoShown(default_value) !== undefined}
               onChange={(checked) => handleChange(name, checked)}
             />
           );
@@ -804,6 +853,7 @@ function AutoField<T = any>({
                 // Embedded sub-form: no scroll context of its own, so its toolbar
                 // isn't sticky and its header stays transparent (no dark backdrop).
                 compactNested
+                onAttentionChange={onSubFormAttentionChange}
                 name={name}
                 uniqueName={uniqueName}
                 options={finalArgSchema}
@@ -823,11 +873,11 @@ function AutoField<T = any>({
                 // Forward consumer-injected editors into the nested sub-form
                 // so its own fields can render host-injected types (e.g. a
                 // `code-editor` override for a `body` sub-field inside a
-                // list-of-hash row). Was missing pre-qorus#347-followup —
+                // list-of-hash row). Was missing before scope forwarding —
                 // catches an existing gap surfaced by the nested inherit_props
                 // story.
                 componentOverrides={componentOverrides}
-                // qorus#347-followup (scope forwarding): thread the accumulated
+                // Scope forwarding: thread the accumulated
                 // inheritance bag into the nested sub-form so its own fields'
                 // `inherit_props` can reach ancestor-scope values (e.g. a
                 // service-method row's `body` picking up `language` from the
@@ -847,6 +897,9 @@ function AutoField<T = any>({
               type='object'
               dataType='yaml'
               resultDataType='yaml'
+              name={name}
+              // its rows read as the form around it does
+              compact={compact}
               {...rest}
             />
           );
@@ -940,7 +993,7 @@ function AutoField<T = any>({
                 allowed_values={rest.element_allowed_values}
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
-                // each element of a type with no editor is edited as its base type (qorus#646)
+                // each element of a type with no editor is edited as its base type
                 base_type={element_base_type}
                 // Propagate compact into every row, exactly as the `hash` case
                 // above does for a single sub-form. `compact` is destructured
@@ -951,7 +1004,7 @@ function AutoField<T = any>({
                 // sibling field rendered as a compact read-first row.
                 compact={compact}
                 componentOverrides={componentOverrides}
-                // qorus#347-followup (scope forwarding): thread the accumulated
+                // Scope forwarding: thread the accumulated
                 // inheritance bag through the list wrapper so each row's
                 // arg_schema sub-form sees it. ArrayAuto forwards this via
                 // TemplateField's `rest` into each row's AutoFormField, which
@@ -977,6 +1030,9 @@ function AutoField<T = any>({
               type='array'
               dataType='yaml'
               resultDataType='yaml'
+              name={name}
+              // its rows read as the form around it does
+              compact={compact}
               {...rest}
             />
           );
@@ -1071,6 +1127,7 @@ function AutoField<T = any>({
                 ...av,
                 value: allowedValueOf(av),
               }))}
+              groups={rest.allowed_values_groups}
               value={value}
               onChange={(val) => handleChange(name, val)}
             />
@@ -1126,12 +1183,12 @@ function AutoField<T = any>({
           /* A type with no editor here - a string format type such as an email address, a user type, a
              type a newer server adds - is edited as its base type (`base_type`), as the type catalogue
              names it by its base type (`qorusTypeEntry`); it showed "Unknown type!", and a form could not
-             set it (qorus#646). Only a type with no base type that has an editor is unknown. */
+             set it. Only a type with no base type that has an editor is unknown. */
           const baseType = editorTypeOf(base_type) as IQorusType | undefined;
           if (baseType && baseType !== currentType) {
             return renderField(baseType);
           }
-          return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
+          return <ReqoreTag intent='danger' icon='SpamLine' label={fieldWords.unknownType} />;
         }
       }
     };
@@ -1224,7 +1281,7 @@ function AutoField<T = any>({
             onClick={handleNullToggle}
             fixed
           >
-            {isSetToNull ? 'Unset null' : 'Set as null'}
+            {isSetToNull ? fieldWords.unsetNull : fieldWords.setAsNull}
           </ReqoreButton>
         )}
       </ReqoreControlGroup>

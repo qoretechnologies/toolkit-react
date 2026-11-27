@@ -88,8 +88,8 @@ identical. The REAL gaps:
       typecheck + eslint clean.
 
 - Verification caveat (environment, not code): full-suite runs tonight flap
-      on LIVE-hq stories (CurrentUser, Log/WS) — same suites pass and fail
+      on stories against a live server (CurrentUser, Log/WS) — same suites pass and fail
       across runs with zero code delta (CurrentUser failed 2/2 then passed
       2/2 a minute later), and the same full suite was green 194/194 earlier
-      today. hq intermittency + dev-server wear; re-run the full suite on a
-      fresh server when hq is stable for the final pre-commit pass.
+      today. Live-server intermittency + dev-server wear; re-run the full suite on a
+      fresh server when the live server is stable for the final pre-commit pass.

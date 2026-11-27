@@ -6,7 +6,7 @@ import { describeColorValue, ReqraftColorValue } from '../src/components/colorVa
 import * as reqraft from '../src/index';
 
 /**
- * qorus#646: a color shown read-only - a swatch beside its value - is one component, `ReqraftColorValue`,
+ * A color shown read-only - a swatch beside its value - is one component, `ReqraftColorValue`,
  * drawn the way a compact form row has drawn it (the row now uses it). It takes every shape a color is
  * stored in, says what an invalid value is instead of drawing a swatch for it, and is readable without
  * seeing the swatch.

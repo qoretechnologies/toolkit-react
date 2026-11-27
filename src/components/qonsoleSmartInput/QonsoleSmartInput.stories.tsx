@@ -455,8 +455,8 @@ export const BasicMock: Story = {
 };
 
 /**
- * **Live spike — hits the real Qorus `/lsp` endpoint** at
- * `wss://hq.qoretechnologies.com:8092/lsp` with `languageId: 'qonsole'`.
+ * **Live spike — hits the real Qorus `/lsp` endpoint** of the instance
+ * Reqraft's storybook preview is configured with, with `languageId: 'qonsole'`.
  * Used to validate `QonsoleSmartInput` end-to-end against the shipped
  * server before integrating into the qorus-ide `QonsoleInput.tsx`
  * (which is a separate qorus-ide-side task — see toolkit-react#61).

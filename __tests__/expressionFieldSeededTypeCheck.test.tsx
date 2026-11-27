@@ -4,7 +4,7 @@
 // The text the view opens with is serialized from the expression, not typed, and the check was asked only for
 // typed text. It still happened when the editor reported the seeded text back as a change - which Slate does
 // only when an operation runs, so only with the editor focused. With the focus elsewhere (the field's picker
-// opened at once, qorus#646) the expression was shown and never checked: a whole-number field said nothing
+// opened at once) the expression was shown and never checked: a whole-number field said nothing
 // of an expression that does not fit it.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
@@ -89,7 +89,7 @@ describe('an expression opened in the Text view', () => {
       timeout: 5000,
     });
     expect(container.textContent).toContain(
-      'The expression gives a whole number, and this field takes key-value pairs (a hash).'
+      'The expression gives a whole number, and the value here must be key-value pairs (a hash).'
     );
     expect(parsed).toEqual([{ text: '1 + 2', targetType: 'hash' }]);
   });

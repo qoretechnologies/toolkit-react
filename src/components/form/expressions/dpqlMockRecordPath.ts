@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A record field as the stories' stand-in for the Qorus language server writes it in DPQL, and reads it back
-// (qorus#646). The server reads `$record:{<path>}` as a test path (Qorus `QorusRecordPath::reference()`): fields
+// A record field as the stories' stand-in for the Qorus language server writes it in DPQL, and reads it back.
+// The server reads `$record:{<path>}` as a test path (Qorus `QorusRecordPath::reference()`): fields
 // separated by `.`, the selectors `[n]`, `[*]` and `{*}`, and a backslash escaping the character after it. A path of
 // fields is a field reference, a path with a selector the accessors DPQL gives the same path written after `@`; and
 // `dpql/serialize` writes those as the DPQL serializer writes them (Qore `DpqlSerializer`, qore#5480):

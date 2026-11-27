@@ -2,7 +2,7 @@
 /**
  * Where a template comes from, as its host says (`templateBadge`), in every list a template is picked from: it was
  * said only beside the template held on a Template tab, which a text option has no more - its text takes the
- * templates (qorus#646, David on FormEngine · Template Badge From The Host).
+ * templates (FormEngine · Template Badge From The Host).
  */
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -78,7 +78,8 @@ describe('a catalogue marked with where its templates come from', () => {
       String(leaves.find((item) => item.label === label)?.description ?? '');
     expect(describe('pos')).toContain('Row field');
     expect(describe('pos')).toContain('The position');
-    expect(describe('bezeichnung')).toBe('Row field');
-    expect(describe('Order id')).toBe('');
+    // where it comes from first; its type in words after, never as a badge
+    expect(describe('bezeichnung')).toBe('Row field · Text');
+    expect(describe('Order id')).toBe('Whole number');
   });
 });

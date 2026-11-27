@@ -15,8 +15,8 @@ const SERVER = [
 ];
 
 /**
- * The template picker offers what typing offers (qorus#646, David: "users should be supported with all available
- * completions in the template picker"): the field's own templates, and what the language server completes where a
+ * The template picker offers what typing offers (a user is supported with every completion available, in the
+ * template picker too): the field's own templates, and what the language server completes where a
  * value can be written.
  */
 describe('the picker with the language server completions', () => {
@@ -47,7 +47,7 @@ describe('the picker with the language server completions', () => {
   });
 });
 
-/* qorus#646, David's review: a lone group of the field's is opened only where it is truly alone; beside other
+/* A lone group of the field's is opened only where it is truly alone; beside other
    groups (the record's fields, the server's) it is kept whole, under its name. */
 describe('a lone group of templates', () => {
   const lone = { items: [{ label: 'Order data', items: [{ label: 'order id', value: '$local:{order_id}' }] }] };
@@ -74,7 +74,7 @@ describe('a lone group of templates', () => {
 });
 
 /*
- * qorus#646, the IDE's Sheet Contract Review: a host's catalogue lists the row's fields as templates
+ * Seen in the IDE's Sheet Contract Review: a host's catalogue lists the row's fields as templates
  * (`$record:{pos}` under "Fields of the row") and the expression's language server and its record (`@pos`, under
  * Record fields) list them again, so the picker's first look was two groups holding the same fields rather than the
  * fields. A record field the catalogue already lists is that one field: listed once, where the host lists it.

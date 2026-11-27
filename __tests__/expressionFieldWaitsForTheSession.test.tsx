@@ -3,7 +3,7 @@
 //
 // Typed text was parsed 300ms after the last key whether or not the session was up. A parse before
 // the session is ready answers `success: false`, and nothing asked again, so what was typed never
-// reached the value (qorus#646: under load the IDE's test-case story stored nothing for `1 + 2`). The
+// reached the value (under load the IDE's test-case story stored nothing for `1 + 2`). The
 // text an expression opens with was serialized by a retry loop that gave up after 20 tries of 400ms.
 // Both now wait for the session's own signal; a server that cannot be reached is said, and the text
 // typed is kept.
@@ -185,7 +185,7 @@ describe('the Text view before its language server is ready', () => {
     await pass(100);
     expect((screen.getByTestId('fake-dpql') as HTMLTextAreaElement).value).toBe('1 + 2');
     expect(container.querySelector('.expression-text-unavailable')?.textContent).toContain(
-      'not available'
+      'cannot be read right now'
     );
   });
 

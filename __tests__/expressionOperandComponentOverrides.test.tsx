@@ -73,7 +73,7 @@ describe('componentOverrides reach an expression operand', () => {
       )
     );
 
-    // the builder is the Visual view's; an expression opens in Text (qorus#646, David)
+    // the builder is the Visual view's; an expression opens in Text
     const visual = await waitFor(() => {
       const button = [...container.querySelectorAll<HTMLElement>('.expression-field button')].find(
         // a button's label is drawn more than once (its marquee), so it is read as what it starts with

@@ -1,8 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // What the Qorus `/lsp` handler answers to `textDocument/hover` on a DPQL document, for the stories' stand-in
-// servers (qorus#646, David: "there are no mouseover / hovers on the functions or on the chips").
+// servers: without it a story drew no hover on a function or on a chip.
 //
-// A function's and an operator's hover is the server's own markdown, captured from professor's live `/lsp`
+// A function's and an operator's hover is the server's own markdown, captured from a live Qorus `/lsp`
 // (`dpqlServerHovers.json` says how). A field, a template, an accessor and a literal are answered in the shape the
 // server answers them, as captured there: `**field** \`@create.items\`` and its type when the record says it,
 // `**template** \`$local:input\``, `**operator** \`[*]\`` on the `*` of a wildcard, `**field** \`id\`` on a name
