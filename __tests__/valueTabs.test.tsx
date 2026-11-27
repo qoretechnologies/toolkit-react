@@ -190,6 +190,22 @@ describe('the tabs a form option offers', () => {
     await waitFor(() => expect(tabs(container)).toEqual(['value', 'expression', 'visual']));
   });
 
+  it('are Value, Template, Expression and Visual where it takes expressions and its value has a control of its own', async () => {
+    /* binary data, a date or a yes / no is not written as text on the Value tab, so that tab takes no
+       templates: a previous state's output was reachable only through the Expression tab (qorus-ide#375) */
+    for (const [type, initial] of [
+      ['binary', 'aGVsbG8='],
+      ['date', '2026-10-22T00:00:00Z'],
+      ['bool', true],
+    ] as const) {
+      const { container, unmount } = show({ type: type as never, initial });
+      await waitFor(() =>
+        expect(tabs(container)).toEqual(['value', 'template', 'expression', 'visual'])
+      );
+      unmount();
+    }
+  });
+
   it('are Value and Template where it takes templates only and its value has a control of its own', async () => {
     const { container } = show({
       type: 'date' as never,
@@ -308,15 +324,12 @@ describe('a saved value opens on its tab', () => {
     }
   });
 
-  it('a template on Expression for a yes / no, a date or fixed choices', async () => {
-    for (const type of ['bool', 'date']) {
+  it('a template on Template for a yes / no, a date or binary data', async () => {
+    // they take expressions too: the template is still the Template tab's, not an expression (qorus-ide#375)
+    for (const type of ['bool', 'date', 'binary']) {
       const { container, unmount } = show({ type: type as never, initial: '$record:{pos}' });
-      await waitFor(() => expect(activeTab(container)).toBe('expression'));
-      await waitFor(() =>
-        expect(
-          (container.querySelector('[data-testid="dpql-text"]') as HTMLTextAreaElement)?.value
-        ).toBe('$record:{pos}')
-      );
+      await waitFor(() => expect(activeTab(container)).toBe('template'));
+      expect(container.querySelector('[data-testid="dpql-text"]')).toBeNull();
       unmount();
     }
   });
@@ -532,12 +545,29 @@ describe('one value, three views', () => {
 
   it('a template on a yes / no cannot be shown on Value: it says where it is shown', async () => {
     const { container } = show({ type: 'bool' as never, initial: '$record:{pos}' });
-    await waitFor(() => expect(activeTab(container)).toBe('expression'));
+    await waitFor(() => expect(activeTab(container)).toBe('template'));
     clickTab(container, 'value');
     await waitFor(() =>
       expect(container.querySelector('.value-tab-cannot-show')?.textContent).toContain(
-        'Expression tab'
+        'Template tab'
       )
+    );
+  });
+
+  it('a lone template written on the Expression tab of binary data moves to Template as that template', async () => {
+    const onChange = vi.fn();
+    const { container, getByTestId } = show({
+      type: 'binary' as never,
+      initial: undefined,
+      onChange,
+    });
+    clickTab(container, 'expression');
+    const text = await waitFor(() => getByTestId('dpql-text') as HTMLTextAreaElement);
+    fireEvent.change(text, { target: { value: '$record:{pos}' } });
+    clickTab(container, 'template');
+    await waitFor(() => expect(activeTab(container)).toBe('template'));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenLastCalledWith('value', '$record:{pos}', 'binary', false)
     );
   });
 });

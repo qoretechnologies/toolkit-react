@@ -347,12 +347,25 @@ is a separate cleanup.
 ## A condition field's tabs
 
 A field its host marks as a condition (`metadata.condition`, `isConditionOption`) keeps the tab names every
-field has: Value · Expression · Visual. A condition is written as an expression, so the Expression tab's
+field has: Value · Template · Expression · Visual for a yes / no (see below). A condition is written as an
+expression, so the Expression tab's
 hover says so ("Write the condition as an expression", `conditionTooltip`) and the Visual tab's hover says
 "Build the condition visually". The tab was called "Condition" for a while, which read as a fourth way to
 enter a value (qorus#646, David: "what is "Condition"? Is it meant to be an expression?"). Without tabs, the
 classic field's More menu still offers "Write a condition", a verb that says what the item does. Stories:
 `ConditionOptionTabsSayExpression` (+ `OnAPhone`).
+
+## A field with a control of its own that takes expressions
+
+A field that takes templates and expressions has the tabs Value · Expression · Visual where its value is written
+as text (text, a whole number, a number, an untyped value): the text takes templates as chips. A field whose
+value has a control of its own (binary data, a date, a yes / no) takes no template on that control, so it has
+Value · Template · Expression · Visual: its templates are picked on the Template tab, and a saved lone template
+opens there. Without that tab a template was reachable only by writing it on the Expression tab, which authors
+did not find (qorus-ide#375: Unstructured.io's binary "File Data" mapped from a Get File state). Fixed choices
+take no expression and keep Value · Template (below). Stories: `BinaryOptionTakesATemplateOnItsTemplateTab`,
+`DateOptionTakesATemplateOnItsTemplateTab`, `SavedTemplateOnAYesNoOpensOnTemplate`, `ValueTabPerOptionType`;
+tests: `__tests__/valueTabs.test.tsx`.
 
 ## A field that takes templates and no expression
 

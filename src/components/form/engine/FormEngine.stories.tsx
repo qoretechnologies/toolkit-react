@@ -11602,7 +11602,7 @@ export const ValueTabPerOptionType: Story = {
     docs: {
       description: {
         story:
-          'Renders a form whose options take templates and expressions, and opens each on its Value tab: a whole number, a number and text are written as text (templates as chips, expressions detected); a yes / no, a date and fixed choices keep their own control. Each has the tabs Value · Expression · Visual, except the fixed choices, which take no expression - Value · Template.',
+          'Renders a form whose options take templates and expressions, and opens each on its Value tab: a whole number, a number and text are written as text (templates as chips, expressions detected); a yes / no, a date and fixed choices keep their own control. Text and numbers have the tabs Value · Expression · Visual; a yes / no and a date, whose own control takes no template, Value · Template · Expression · Visual (qorus-ide#375); the fixed choices, which take no expression, Value · Template.',
       },
     },
   },
@@ -11612,8 +11612,9 @@ export const ValueTabPerOptionType: Story = {
       ['quantity', true, ['value', 'expression', 'visual']],
       ['price', true, ['value', 'expression', 'visual']],
       ['note', true, ['value', 'expression', 'visual']],
-      ['active', false, ['value', 'expression', 'visual']],
-      ['due', false, ['value', 'expression', 'visual']],
+      // their own control takes no template: their templates are on Template (qorus-ide#375)
+      ['active', false, ['value', 'template', 'expression', 'visual']],
+      ['due', false, ['value', 'template', 'expression', 'visual']],
       // a value that must be one of the choices takes no expression: its templates are on Template
       ['status', false, ['value', 'template']],
     ] as const) {
@@ -11694,14 +11695,14 @@ export const ConditionOptionTabsSayExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a form with a condition field (Rule; its host marks it one) holding the expression @pos >= 10, and a yes / no value (Active), and opens each. The condition\'s tabs read Value · Expression · Visual, as every field\'s do: a condition is written as an expression, and the hovers say so: "Write the condition as an expression" and "Build the condition visually". Active\'s Expression tab says "Write an expression - it also takes templates".',
+          'Renders a form with a condition field (Rule; its host marks it one) holding the expression @pos >= 10, and a yes / no value (Active), and opens each. The condition\'s tabs read Value · Template · Expression · Visual, as every yes / no\'s do (its Template tab picks a yes / no field of the row as the whole condition, qorus-ide#375): a condition is written as an expression, and the hovers say so: "Write the condition as an expression" and "Build the condition visually". Active\'s Expression tab says "Write an expression - it also takes templates".',
       },
     },
   },
   render: () => <ConditionOptionForm />,
   play: async () => {
     const rule = await editOption('rule');
-    await waitFor(() => expect(optionTabs(rule)).toEqual(['value', 'expression', 'visual']));
+    await waitFor(() => expect(optionTabs(rule)).toEqual(['value', 'template', 'expression', 'visual']));
     // one name for the tab in every field (David: "what is "Condition"? Is it meant to be an expression?")
     expect(tabLabel(rule, 'expression')).toBe('Expression');
     expect(await tabHoverText(rule, 'expression')).toContain(
@@ -11724,7 +11725,7 @@ export const ConditionOptionTabsSayExpressionOnAPhone: Story = {
     docs: {
       description: {
         story:
-          "The same form on a phone (390 px): the condition's tabs read Value · Expression · Visual and stay inside its row.",
+          "The same form on a phone (390 px): the condition's tabs read Value · Template · Expression · Visual and stay inside its row.",
       },
     },
   },
@@ -12236,24 +12237,164 @@ export const TemplatePickedAfterAnAtSign: Story = {
   },
 };
 
-export const SavedTemplateOnAYesNoOpensOnExpression: Story = {
+export const SavedTemplateOnAYesNoOpensOnTemplate: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the form and opens "Flag template", a yes / no holding the field pos: a yes / no keeps its own control on Value, which cannot show a template, so it opens on Expression, as the template. Its Value tab says where the template is shown, and offers to replace it with a value.',
+          'Renders the form and opens "Flag template", a yes / no holding the field pos: a yes / no keeps its own control on Value, which cannot show a template, so it opens on Template, showing pos (qorus-ide#375; it opened on Expression). Its Value tab says where the template is shown, and offers to replace it with a value.',
       },
     },
   },
   render: () => <TemplateOrExpressionForm />,
   play: async () => {
     const row = await editOption('flag_template');
-    expect(optionActiveTab(row)).toBe('expression');
-    await waitFor(() => expect(row.querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('pos'));
+    expect(optionActiveTab(row)).toBe('template');
+    await waitFor(() => expect(row.querySelector('.template-selector')?.textContent).toContain('pos'));
+    expect(row.querySelector('.expression-field')).toBeNull();
     await chooseTab(row, 'value');
     await waitFor(() =>
-      expect(optionRow('flag_template').querySelector('.value-tab-cannot-show')?.textContent).toContain('Expression tab')
+      expect(optionRow('flag_template').querySelector('.value-tab-cannot-show')?.textContent).toContain('Template tab')
     );
+  },
+};
+
+// --- A control of its own takes its templates on Template (qorus-ide#375) ---------------------------------------
+// Binary data and a date take templates and expressions, but their Value tab is a control of their own that takes
+// no template: a previous state's output was reachable only by writing it on the Expression tab.
+
+/** Fields of the row a binary and a date option can take. */
+const OWN_CONTROL_ROW_FIELDS = {
+  items: [
+    {
+      label: 'Fields of the row',
+      items: [
+        { label: 'contents', value: '$record:{contents}', badge: 'binary' },
+        { label: 'received', value: '$record:{received}', badge: 'date' },
+      ],
+    },
+  ],
+};
+
+const OWN_CONTROL_OPTIONS = {
+  file_data: {
+    type: 'binary',
+    display_name: 'File data',
+    supports_templates: true,
+    supports_expressions: true,
+    expressions: mockExpressions,
+  },
+  due: { type: 'date', display_name: 'Due', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+} as unknown as IQorusFormSchema;
+
+/** The form, empty, and what each option holds. */
+const OwnControlTemplateForm = () => {
+  const [value, setValue] = useState<any>({});
+  return (
+    <>
+      <FormEngine
+        compact
+        name='ownControlTemplates'
+        stringTemplates={OWN_CONTROL_ROW_FIELDS as any}
+        options={OWN_CONTROL_OPTIONS}
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+      <code className='form-held' data-held={JSON.stringify(value)} style={{ display: 'none' }} />
+    </>
+  );
+};
+
+/** Open an option on its Template tab and pick a field of the row there. */
+const pickOnTheTemplateTab = async (
+  canvasElement: HTMLElement,
+  field: string,
+  type: string,
+  pick: string,
+  narrow = false
+) => {
+  const row = await editOption(field);
+  await waitFor(() => expect(optionTabs(row)).toEqual(['value', 'template', 'expression', 'visual']));
+  expect(optionActiveTab(row)).toBe('value');
+  if (!narrow) {
+    // with the room for them, every tab is named
+    expect(['value', 'template', 'expression', 'visual'].map((tab) => tabLabel(row, tab))).toEqual([
+      'Value',
+      'Template',
+      'Expression',
+      'Visual',
+    ]);
+  }
+  await chooseTab(row, 'template');
+  await userEvent.click(optionRow(field).querySelector<HTMLElement>('.template-selector') as HTMLElement);
+  await userEvent.click(await pickerRow(pick));
+  await waitFor(() => expect(heldOption(canvasElement, field)).toEqual({ type, value: `$record:{${pick}}` }));
+  await waitFor(() => expect(optionRow(field).querySelector('.template-selector')?.textContent).toContain(pick));
+  // it is the template, not an expression written around it
+  expect(optionActiveTab(optionRow(field))).toBe('template');
+  expect(optionRow(field).querySelector('.expression-field')).toBeNull();
+};
+
+export const BinaryOptionTakesATemplateOnItsTemplateTab: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form with "File data", binary data that takes templates and expressions, empty. It has the tabs Value · Template · Expression · Visual: its Value tab is a box for Base64, hex or a data: URL that takes no template. On Template, the row\'s field contents is picked from the list, and the form holds that template (qorus-ide#375: it had no Template tab, so a previous state\'s output had to be written on Expression).',
+      },
+    },
+  },
+  render: () => <OwnControlTemplateForm />,
+  play: async ({ canvasElement }) => {
+    await pickOnTheTemplateTab(canvasElement, 'file_data', 'binary', 'contents');
+  },
+};
+
+export const BinaryOptionTakesATemplateOnItsTemplateTabOnAPhone: Story = {
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'The same form on a phone (390 px), where the four tabs named are wider than the row: the open tab keeps its name and the others show their icon, named by their hover, so all four stay inside the row. On Template, contents is picked, and the form holds that template.',
+      },
+    },
+  },
+  render: () => <OwnControlTemplateForm />,
+  play: async ({ canvasElement }) => {
+    await _testsWithViewport(390, 844, async (narrowed) => {
+      await pickOnTheTemplateTab(canvasElement, 'file_data', 'binary', 'contents', narrowed);
+      if (narrowed) {
+        const row = optionRow('file_data');
+        const tabs = row.querySelector<HTMLElement>('.value-tabs') as HTMLElement;
+        expect(tabs.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+        // the open tab is named; the others are their icon, with their name for assistive technology
+        await waitFor(() => expect(tabLabel(row, 'template')).toBe('Template'));
+        for (const [tab, name] of [
+          ['value', 'Value'],
+          ['expression', 'Expression'],
+          ['visual', 'Visual'],
+        ]) {
+          expect(tabLabel(row, tab), tab).toBe('');
+          expect(row.querySelector(`.value-tab[data-tab="${tab}"]`)?.getAttribute('aria-label')).toBe(name);
+        }
+      }
+    });
+  },
+};
+
+export const DateOptionTakesATemplateOnItsTemplateTab: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form with "Due", a date that takes templates and expressions, empty. It has the tabs Value · Template · Expression · Visual: its Value tab is a date picker that takes no template. On Template, the row\'s field received is picked from the list, and the form holds that template (qorus-ide#375).',
+      },
+    },
+  },
+  render: () => <OwnControlTemplateForm />,
+  play: async ({ canvasElement }) => {
+    await pickOnTheTemplateTab(canvasElement, 'due', 'date', 'received');
   },
 };
 

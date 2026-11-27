@@ -833,13 +833,19 @@ const TemplateFieldImpl = memo(
       value === null && typeIsAnyLike && !!allowCustomValues && !hasOnlyAllowedValues;
 
     /* The tabs a value is entered on (qorus#646, David): Value · Expression · Visual where the field takes
-       templates and expressions written as text, Value · Template where it takes templates only, none where
-       it takes no templates. One value, three views: see `selectTab`. */
+       templates and expressions written as text, Value · Template · Expression · Visual where it takes them on
+       a control of its own, Value · Template where it takes templates only, none where it takes no templates.
+       One value, three views: see `selectTab`. */
     const valueTabIsText = isWrittenAsTextOnTheValueTab(type as string) && !hasOnlyAllowedValues;
     const tabsKind: 'full' | 'template' | undefined =
       !valueTabs || !allowTemplates || editorHandlesTemplates || rest.arg_schema ? undefined
       : allowFunctions && allowTextExpressions && !hasOnlyAllowedValues ? 'full'
       : 'template';
+    /* Whether the Template tab is offered: where the field takes templates only, and where it takes expressions
+       but its Value tab is a control of its own (binary data, a date, a yes / no) that takes no templates - its
+       templates were reachable only by writing one on the Expression tab (qorus-ide#375). Where the Value tab is
+       text, the text takes the templates as chips and needs no Template tab beside it. */
+    const offersTemplateTab = !!tabsKind && !valueTabIsText;
     /** The value is an expression (its AST), as the host says. */
     const valueIsExpression =
       !!(isFunction || isDefaultFunction) && value !== null && typeof value === 'object';
@@ -847,12 +853,12 @@ const TemplateFieldImpl = memo(
      *  a field): the Value tab shows it as that template, where it can show no other expression (qorus#646). */
     const expressionTemplate = valueIsExpression ? templateOfExpression(value) : undefined;
     /** Where a saved value opens: an expression on Expression; a template on Value where it is written as
-     *  text, else on Expression (or Template, for a template-only field); anything else on Value. */
+     *  text, else on Template; anything else on Value. */
     const [tab, setTab] = useState<TValueTab>(() => {
       if (!tabsKind) return 'value';
       if (valueIsExpression) return tabsKind === 'full' ? 'expression' : 'value';
-      if (typeof value === 'string' && isValueTemplate(value) && !valueTabIsText) {
-        return tabsKind === 'full' ? 'expression' : 'template';
+      if (typeof value === 'string' && isValueTemplate(value) && offersTemplateTab) {
+        return 'template';
       }
       return 'value';
     });
@@ -1324,22 +1330,18 @@ const TemplateFieldImpl = memo(
     }, [name, onChange, type]);
 
     /* A saved value is the value at once, shown where its kind is: a template on the Value tab where the
-       field is written as text, else on the Expression tab (or Template, for a template-only field); any
-       other value on the Value tab - or, without tabs, in template mode for a template. */
+       field is written as text, else on the Template tab; any other value on the Value tab - or, without
+       tabs, in template mode for a template. */
     const takeSavedValue = useCallback(
       (saved: unknown) => {
         const isSavedTemplate = typeof saved === 'string' && isValueTemplate(saved);
         setExpressionFromText(null);
         setTemplateValue(typeof saved === 'string' ? saved : null);
         if (tabsKindRef.current) {
-          const next: TValueTab =
-            isSavedTemplate && !valueTabIsText ?
-              tabsKindRef.current === 'full' ?
-                'expression'
-              : 'template'
-            : 'value';
-          setExpressionSeed(next === 'expression' ? expressionTextOfValue(saved) : null);
-          setInternalIsFunction(next === 'expression');
+          const next: TValueTab = isSavedTemplate && !valueTabIsText ? 'template' : 'value';
+          // a saved value is never an expression: it opens on Value, or a template on Template
+          setExpressionSeed(null);
+          setInternalIsFunction(false);
           setIsTemplate(next === 'template' || (next === 'value' && valueTabIsText));
           setTab(next);
         } else {
@@ -2099,7 +2101,36 @@ const TemplateFieldImpl = memo(
       type,
     ]);
 
-    // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
+    /* The tabs on a narrow row (a phone): Value · Template · Expression · Visual labelled are wider than the row,
+       which pushed Visual out of it (qorus-ide#375). Where the labelled tabs do not fit, the tabs not open show
+       their icon only - named by their hover and to assistive technology - and the open one keeps its name. The
+       row is measured as it is resized, so they are labelled again once it has the room it needed. */
+    const [tabsRow, setTabsRow] = useState<HTMLDivElement | null>(null);
+    const [tabsCompact, setTabsCompact] = useState(false);
+    /** The width the row needed with every tab labelled, when it was last too narrow for them. */
+    const labelledTabsRowWidth = useRef(0);
+    useEffect(() => {
+      if (!tabsRow || typeof ResizeObserver === 'undefined') {
+        return undefined;
+      }
+      const fit = () =>
+        setTabsCompact((compact) => {
+          if (compact) {
+            return tabsRow.clientWidth < labelledTabsRowWidth.current;
+          }
+          if (tabsRow.scrollWidth > tabsRow.clientWidth + 1) {
+            labelledTabsRowWidth.current = tabsRow.scrollWidth;
+            return true;
+          }
+          return false;
+        });
+      fit();
+      const observer = new ResizeObserver(fit);
+      observer.observe(tabsRow);
+      return () => observer.disconnect();
+    }, [tabsRow]);
+
+    // ─── Value · [Template ·] Expression · Visual (or Value · Template) ─────────────────────────────
     if (tabsKind && !rest.disabled) {
       const words: IValueTabsLabels = { ...fieldLabels.valueTabs, ...valueTabsLabels };
       /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form (none for no type). */
@@ -2114,23 +2145,34 @@ const TemplateFieldImpl = memo(
         label: string,
         icon: IReqoreIconName,
         tooltip?: string
-      ) => (
-        <ReqoreButton
-          key={key}
-          compact
-          size={rest.size}
-          icon={icon}
-          active={tab === key}
-          aria-pressed={tab === key}
-          data-tab={key}
-          className={`value-tab value-tab-${key}`}
-          tooltip={tooltip}
-          disabled={rest.readOnly || rest.readonly}
-          onClick={() => selectTab(key)}
-        >
-          {label}
-        </ReqoreButton>
-      );
+      ) => {
+        // on a row too narrow for every tab's name, a tab not open is its icon (see `tabsCompact`)
+        const iconOnly = tabsCompact && tab !== key;
+        return (
+          <ReqoreButton
+            key={key}
+            compact
+            size={rest.size}
+            icon={icon}
+            active={tab === key}
+            aria-pressed={tab === key}
+            aria-label={label}
+            data-tab={key}
+            className={`value-tab value-tab-${key}`}
+            tooltip={
+              iconOnly ?
+                tooltip ?
+                  `${label}: ${tooltip}`
+                : label
+              : tooltip
+            }
+            disabled={rest.readOnly || rest.readonly}
+            onClick={() => selectTab(key)}
+          >
+            {iconOnly ? undefined : label}
+          </ReqoreButton>
+        );
+      };
       /* A lone template of another type than the field's is converted when the value is used: said as a
          warning, not a block - whether it converts depends on the data (qorus#646, David). */
       const loneTemplate =
@@ -2227,9 +2269,7 @@ const TemplateFieldImpl = memo(
           );
         }
         if (loneTemplate !== undefined || (typeof value === 'string' && isValueTemplate(value))) {
-          return cannotShow(
-            words.templateShownOn(tabsKind === 'full' ? expressionTabLabel : words.template)
-          );
+          return cannotShow(words.templateShownOn(words.template));
         }
         const ownControl = (
           <Component
@@ -2350,9 +2390,17 @@ const TemplateFieldImpl = memo(
       }
       return (
         <ReqoreControlGroup vertical fluid gapSize='small' className='value-tabs-field'>
-          <ReqoreControlGroup fluid size={rest.size} verticalAlign='center'>
+          <ReqoreControlGroup ref={setTabsRow} fluid size={rest.size} verticalAlign='center'>
             <ReqoreControlGroup stack size={rest.size} className='value-tabs' fixed>
               {tabButton('value', words.value, 'EditLine')}
+              {offersTemplateTab ?
+                tabButton(
+                  'template',
+                  words.template,
+                  'MoneyDollarCircleLine',
+                  words.templateTooltip
+                )
+              : null}
               {tabsKind === 'full' ?
                 [
                   tabButton(
@@ -2368,13 +2416,7 @@ const TemplateFieldImpl = memo(
                     conditionField ? words.conditionVisualTooltip : words.visualTooltip
                   ),
                 ]
-              : tabButton(
-                  'template',
-                  words.template,
-                  'MoneyDollarCircleLine',
-                  words.templateTooltip
-                )
-              }
+              : null}
             </ReqoreControlGroup>
             {renderControls()}
           </ReqoreControlGroup>
