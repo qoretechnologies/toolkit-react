@@ -160,7 +160,7 @@ export const RichHelpdeskReply: Story = {
     ],
     // the reference toggle: a quiet icon button, like the attach button beside it
     footerActions: (
-      <ReqoreButton icon='LinksLine' minimal flat badge={1} tooltip='Reference interfaces' />
+      <ReqoreButton icon='LinksLine' minimal flat badge={1} tooltip='Reference workflows, services and more' />
     ),
     // references on top of the editor (inside the bar), as quiet tags with the kind's
     // icon — no "References" label, the chips read as the referenced interfaces on their own

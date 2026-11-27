@@ -3557,6 +3557,57 @@ export const ValueIsFixedWhenDefaultValueDoesNotMatchAndReadOnlyIsTrue: Story = 
   },
 };
 
+export const ReadonlyRowSaysWhyOnItsLine: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story: `Renders FormEngine with an optional field the form may not change (\`readonly\`) and nothing in it: its short description is its line, under its name, without opening its help, because it is the only thing that says why the row is locked. A readonly field with no short description shows no line.`,
+      },
+    },
+  },
+  args: {
+    minColumnWidth: '300px',
+    options: {
+      name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Name',
+        short_desc: 'What the key is called',
+        required: true,
+      },
+      endpoints: {
+        type: 'list',
+        ui_type: 'list',
+        display_name: 'Restrict to endpoints',
+        short_desc: "You can't read the endpoints, so you can't choose any here.",
+        desc: "You can't read the endpoints, so you can't choose any here. Without a restriction the key reaches every endpoint.",
+        readonly: true,
+      },
+      assignedId: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Assigned ID',
+        readonly: true,
+      },
+    },
+    value: {
+      name: { type: 'string', value: 'Billing widget' },
+    },
+  },
+  play: async () => {
+    const labelDesc = (field: string) =>
+      document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-label-desc`);
+    await waitFor(() =>
+      expect(labelDesc('endpoints')).toHaveTextContent(
+        "You can't read the endpoints, so you can't choose any here."
+      )
+    );
+    // only the locked row: an editable row's short description waits for the descriptions toggle
+    await expect(labelDesc('name')).toBeNull();
+    await expect(labelDesc('assignedId')).toBeNull();
+  },
+};
+
 export const DoesNotCauseInfiniteRerenders: Story = {
   parameters: {
     docs: {
@@ -6406,7 +6457,7 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
   structured: { label: 'Structured (list / hash)', sort: 3 },
   visual: { label: 'Color & file', sort: 4 },
   special: { label: 'Any & special', sort: 5 },
-  interface: { label: 'Interface references', sort: 6 },
+  interface: { label: 'Linked workflows and services', sort: 6 },
   chrome: { label: 'Field chrome (icon / image / intent / badge / actions / tags)', sort: 7 },
   info: { label: 'Descriptions & messages', sort: 8 },
   meta: { label: 'Meta (sensitive / rules / defaults)', sort: 9 },

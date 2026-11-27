@@ -73,7 +73,7 @@ export const Populated: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Linked interfaces')).toBeInTheDocument();
+    await expect(canvas.getByText('References')).toBeInTheDocument();
     await expect(canvas.getByText('Screenshots')).toBeInTheDocument();
     await expect(canvas.getByText('Files')).toBeInTheDocument();
     // references render as rows carrying their kind as metadata
@@ -136,7 +136,7 @@ export const Filtering: Story = {
     await userEvent.click(await within(document.body).findByText(/^Screenshots \(3\)$/));
     await waitFor(() => {
       expect(canvas.queryByText('Files')).toBeNull();
-      expect(canvas.queryByText('Linked interfaces')).toBeNull();
+      expect(canvas.queryByText('References')).toBeNull();
       expect(canvasElement.querySelector('button[title="stack-trace.png"]')).not.toBeNull();
     });
   },
@@ -364,7 +364,7 @@ export const MixedLinkability: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Linked interfaces')).toBeInTheDocument();
+    await expect(canvas.getByText('References')).toBeInTheDocument();
     // the reason is in the row's text, not only a tooltip
     await expect(canvas.getAllByText('workflow · moved to another group')).toHaveLength(2);
     // the refused rows have no Open action; the three others do

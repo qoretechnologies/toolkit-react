@@ -342,8 +342,8 @@ export const DEFAULT_SUPPORT_TICKET_LABELS: ISupportTicketLabels = {
   referenceUnlinkable: (kind, name, reason) => `${kind}: ${name} — ${reason}`,
   removeReference: (kind, name) => `Remove ${kind} ${name}`,
 
-  referenceInterfaces: 'Reference interfaces',
-  searchKindsAndInterfaces: 'Search types and interfaces…',
+  referenceInterfaces: 'Reference workflows, services and more',
+  searchKindsAndInterfaces: 'Search workflows, services, jobs and more…',
   noneOfKind: (kind) => `No ${kind.toLowerCase()} on this instance`,
   noneOfKindMatch: (kind, query) =>
     `No ${kind.toLowerCase()} match “${query}” — other types do`,
@@ -375,7 +375,7 @@ export const DEFAULT_SUPPORT_TICKET_LABELS: ISupportTicketLabels = {
 
   referenceFilters: {
     all: 'All types',
-    links: 'Linked interfaces',
+    links: 'References',
     screenshots: 'Screenshots',
     documents: 'Documents',
     data: 'Data',
@@ -389,14 +389,14 @@ export const DEFAULT_SUPPORT_TICKET_LABELS: ISupportTicketLabels = {
     name: 'Name (A–Z)',
     size: 'Largest first',
   },
-  referenceSections: { screenshots: 'Screenshots', links: 'Linked interfaces', files: 'Files' },
+  referenceSections: { screenshots: 'Screenshots', links: 'References', files: 'Files' },
   showInChat: 'Show in chat',
   filedOnTheTicket: 'Filed on the ticket, not in a reply',
   moreActions: 'More actions',
   loadingReferences: 'Loading references…',
   noReferencesYet: 'No references or files yet',
   noReferencesYetDescription:
-    'Interface references and any screenshots, documents, or files attached to this ticket will appear here.',
+    'Workflows, services and anything else referenced, and any screenshots, documents or files attached to this ticket, appear here.',
   searchReferences: 'Search files and references…',
   noMatchingReferences: 'No matching references or files',
   nothingHereMatches: (query) => `Nothing here matches “${query}”.`,

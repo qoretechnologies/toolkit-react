@@ -1601,8 +1601,16 @@ export const CompactRow = memo(
     const showStripe = infoActive && !!intentColor;
     const labelShortDesc = schema?.short_desc;
     // The per-row ⓘ is gone: short_desc shows under the name only when the global
-    // "descriptions" toggle is engaged (and inside the editor when expanded).
-    const showLabelDesc = !!labelShortDesc && showAllDescriptions === true;
+    // "descriptions" toggle is engaged (and inside the editor when expanded)...
+    // ...except on a row the form may not change (`readonly`): it cannot be opened, so
+    // its short description is the only place that says why, and it is its line. A
+    // touch screen has no hover to reach the lock's title, and the row's help is one
+    // more step for the one sentence the reader needs. A form read as a whole
+    // (`readOnly`) locks nothing, so its rows keep the toggle.
+    const lockedByField =
+      !hidden && !readOnly && !!(schema as { readonly?: boolean } | undefined)?.readonly;
+    const showLabelDesc =
+      !!labelShortDesc && (showAllDescriptions === true || lockedByField);
 
     // The `?` that opens the long-form help dialog. Shared by the read row AND
     // the inline editor: opening a field used to drop it, leaving an editing row

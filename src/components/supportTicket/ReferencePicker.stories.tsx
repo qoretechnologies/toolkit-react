@@ -23,7 +23,7 @@ import { TicketReplyBox } from './TicketReplyBox';
 /**
  * The interface browser — kinds on one side, the selected kind's interfaces on the
  * other, one search bar scoping both. Rendered **on top** of the composer and toggled
- * by its "Reference interfaces" action. Search dims non-matching kinds rather than
+ * by its "Reference workflows, services and more" action. Search dims non-matching kinds rather than
  * removing them, picked interfaces stay in the list as selected rows, and the two panes
  * collapse into one column (with a modal on phones) when there isn't width for both.
  */
@@ -169,7 +169,7 @@ const Hosted = ({
             flat
             badge={picked.length || undefined}
             active={open}
-            tooltip={open ? 'Hide references' : 'Reference interfaces'}
+            tooltip={open ? 'Hide references' : 'Reference workflows, services and more'}
             onClick={() => setOpen((shown) => !shown)}
           />
         }
@@ -445,7 +445,7 @@ export const OnAPhone: Story = {
   async play() {
     // the modal portals out of the story canvas, so query the document
     const canvas = within(document.body);
-    await expect(await canvas.findByText('Reference interfaces')).toBeInTheDocument();
+    await expect(await canvas.findByText('Reference workflows, services and more')).toBeInTheDocument();
     await expect(await canvas.findByRole('button', { name: 'order-sync:1.2' })).toBeInTheDocument();
   },
 };

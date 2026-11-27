@@ -175,7 +175,7 @@ export const DEFAULT_SCHEMA_DEFINITION_LABELS: ISchemaDefinitionLabels = {
     ' inserts but never updates existing rows.',
   ],
 
-  nameMismatch: 'Schema name does not match the interface name',
+  nameMismatch: 'Schema name does not match the object name',
   nameMismatchDescription: (schemaName, objectName) =>
     `The DataSchema name is "${schemaName}" but the schema object is named "${objectName}". The server requires them to match.`,
   syncName: 'Sync name',

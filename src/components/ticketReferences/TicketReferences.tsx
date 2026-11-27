@@ -38,7 +38,7 @@ import type { ITicketThreadAttachment, ITicketThreadMessage } from '../ticketThr
  * ticket" surface. It gathers, across the ticket description and every reply:
  *   • Screenshots — image attachments as a thumbnail grid → a zoom/paging lightbox.
  *     First: the visual evidence is what a reader scans for.
- *   • Linked interfaces — the {kind, name} snapshots as rows (kind as metadata),
+ *   • References — the {kind, name} snapshots as rows (kind as metadata),
  *     sorted by kind then name, matching the file rows below.
  *   • Files — every other attachment as a type-iconed row with provenance + download.
  * None of the mainstream desks (Zendesk/Front/Intercom/…) ship this consolidated

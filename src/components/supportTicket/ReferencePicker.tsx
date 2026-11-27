@@ -30,7 +30,7 @@ import { useLoadedImages } from './useLoadedImages';
 /*
  * The interface browser: kinds on one side, the selected kind's interfaces on the
  * other, and one search field that scopes both. Sits above a ticket composer, toggled
- * by the composer's "Reference interfaces" action.
+ * by the composer's "Reference workflows, services and more" action.
  *
  * The host owns the data. Which kinds exist and what lives under one are questions only
  * the surrounding app can answer — the IDE lists them off the customer's live instance,
